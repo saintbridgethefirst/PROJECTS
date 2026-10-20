@@ -15,6 +15,7 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { exportUserData, deleteUserData, transferOwnership as transferOwnershipImpl, teamsToHandOver } from './privacy.js';
 import { normEmail, isAcademicEmail, newCode, hashCode, emailKey, checkSend, checkConfirm, codeEmail, CODE_MINUTES, VERIFIED_DAYS,
   proActive, wants, mentionEmail, digestItems, digestEmail, inviteChanged, inviteEmail, MAX_INVITE_EMAILS_PER_DAY,
   errorSignature, signatureId, shouldAlert, errorAlertEmail, feedbackEmail, MAX_ALERT_EMAILS_PER_DAY, MAX_FEEDBACK_EMAILS_PER_DAY } from './lib.js';
@@ -200,3 +201,45 @@ export const alertErrors = onDocumentCreated({ document: 'clientErrors/{id}', re
   const to = await adminEmails(); if (!to.length) return;
   await sendMail(to, errorAlertEmail({ appName: APP_NAME.value(), appUrl: APP_URL.value(), err, seenBefore }), 'err-' + event.params.id);
 });
+
+// ── Your data (GDPR) ────────────────────────────────────────────────────────
+async function accountOf(uid) {
+  const u = await getAuth().getUser(uid);
+  return { uid, email: u.email || '', displayName: u.displayName || '', providers: (u.providerData || []).map(p => p.providerId), createdAt: u.metadata.creationTime || '', lastSignInAt: u.metadata.lastSignInTime || '' };
+}
+const asHttps = (e) => {
+  if (e instanceof HttpsError) return e;
+  const map = { 'owns-teams': 'failed-precondition', 'permission-denied': 'permission-denied', 'not-found': 'not-found', 'invalid-argument': 'invalid-argument' };
+  if (map[e && e.code]) return new HttpsError(map[e.code], e.message, e.teams ? { teams: e.teams } : undefined);
+  return e;
+};
+
+/** Everything stored about you, as one JSON file. */
+export const exportMyData = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 120, memory: '512MiB' }, (req) => explain('exportMyData', async () => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  return exportUserData(db, await accountOf(req.auth.uid));
+}));
+
+/** Delete your account and everything about you. Needs a sign-in in the last 15 minutes. */
+export const deleteMyAccount = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 300, memory: '512MiB' }, (req) => explain('deleteMyAccount', async () => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  if (!req.data || req.data.confirm !== 'DELETE') throw new HttpsError('invalid-argument', 'Type DELETE to confirm.');
+  const signedInAt = Number(req.auth.token.auth_time || 0) * 1000;
+  if (Date.now() - signedInAt > 15 * 60e3) throw new HttpsError('failed-precondition', 'For your safety, sign out and sign in again, then delete your account within 15 minutes.', { reason: 'recent-login' });
+  const account = await accountOf(req.auth.uid);
+  try { const summary = await deleteUserData(db, account); await getAuth().deleteUser(req.auth.uid); console.log('account deleted', summary); return { deleted: true, ...summary }; }
+  catch (e) { throw asHttps(e); }
+}));
+
+/** Hand a team over to another member (the old owner becomes an Admin). */
+export const transferOwnership = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('transferOwnership', async () => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  try { return await transferOwnershipImpl(db, req.auth.uid, String((req.data && req.data.teamId) || ''), String((req.data && req.data.toUid) || '')); }
+  catch (e) { throw asHttps(e); }
+}));
+
+/** Teams you'd need to hand over before you can delete your account. */
+export const myOwnedTeams = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('myOwnedTeams', async () => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  return { teams: await teamsToHandOver(db, req.auth.uid) };
+}));

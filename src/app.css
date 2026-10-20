@@ -676,3 +676,6 @@ button.tx-part:hover { border-color: var(--line-color); }
 .adm-fb { border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 6px; font-size: 13px; }
 .adm-fb p { margin: 4px 0 0; white-space: pre-wrap; }
 @media (max-width: 560px) { #home-feedback { display: none; } }
+
+.del-list { padding-left: 18px; font-size: 13px; line-height: 1.5; }
+.del-list li { margin-bottom: 4px; }

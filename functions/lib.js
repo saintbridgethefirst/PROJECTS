@@ -151,3 +151,28 @@ export function feedbackEmail({ appName = 'TeamTrack', appUrl, fb }) {
     (fb.email ? '<p style="font-size:12px;color:#718096">Reply to this email to answer them.</p>' : ''));
   return { subject, text, html };
 }
+
+// ── Your data: names in shared team records ─────────────────────────────────
+export const FORMER_MEMBER = 'Former member';
+/** Fields that hold a person's display name (tasks: updatedBy; history entries: user). */
+const NAME_KEYS = new Set(['authorName', 'createdByName', 'updatedByName', 'byName', 'invitedByName', 'updatedBy', 'user', 'userName']);
+/**
+ * Replace a person's name (in the name fields above) with "Former member", and their email (in
+ * `email` fields) with ''. Walks nested lists/objects (task history). Returns { value, changed }
+ * where value holds only the top-level fields that changed (for an update).
+ */
+export function scrubPerson(doc, names, emails) {
+  const walk = (v, key) => {
+    if (typeof v === 'string') {
+      if (NAME_KEYS.has(key) && names.has(v.trim())) return FORMER_MEMBER;
+      if (key === 'email' && emails.has(v.trim().toLowerCase())) return '';
+      return v;
+    }
+    if (Array.isArray(v)) { let ch = false; const out = v.map(x => { const y = walk(x, key); if (y !== x) ch = true; return y; }); return ch ? out : v; }
+    if (v && typeof v === 'object' && v.constructor === Object) { let ch = false; const out = {}; for (const [k, x] of Object.entries(v)) { out[k] = walk(x, k); if (out[k] !== x) ch = true; } return ch ? out : v; }
+    return v;
+  };
+  const value = {};
+  for (const [k, x] of Object.entries(doc || {})) { const y = walk(x, k); if (y !== x) value[k] = y; }
+  return { value, changed: Object.keys(value).length > 0 };
+}

@@ -384,6 +384,7 @@ function members(pane, ctx, { invites, getInvites, focusUid, rerender }) {
     const actions = el('td', { style: { textAlign: 'right' } });
     if (isMe && mm.roleId !== 'owner') actions.append(el('button.btn.small.danger', { type: 'button', onclick: () => leaveTeam(ctx) }, 'Leave team'));
     else if (manage && mm.roleId !== 'owner' && !isMe) actions.append(el('button.btn.small.danger', { type: 'button', onclick: () => removeMember(ctx, mm.uid) }, 'Remove'));
+    if (s.me.roleId === 'owner' && !isMe) actions.prepend(el('button.btn.small.ghost.make-owner', { type: 'button', onclick: () => makeOwner(ctx, mm) }, 'Make owner'), ' ');
     table.append(el('tr', {}, el('td', {}, el('div.row', {}, avatar(mm), el('div', {}, el('b', {}, mm.name || mm.email, isMe ? ' (you)' : ''), el('div.hint', {}, mm.email)))), el('td', {}, roleCell), actions));
   });
   pane.append(el('section', {}, el('h4', {}, `Members (${s.members.length})`), table));
@@ -443,6 +444,13 @@ export async function removeMember(ctx, uid) {
   if (mm.roleId === 'owner') return toast('The owner can’t be removed.');
   if (!confirm(`Remove ${mm.name || mm.email} from ${s.team.name}?\n\nTheir tasks stay on the board under “Former member” until someone moves or deletes them. You can invite them again later.`)) return;
   await save(ctx, [{ type: 'delete', path: 'members/' + uid }], (mm.name || mm.email) + ' was removed.');
+}
+
+async function makeOwner(ctx, mm) {
+  const s = ctx.session; const who = mm.name || mm.email;
+  if (!confirm(`Make ${who} the owner of ${s.team.name}?\n\nThey’ll have full control, including deleting the team. You’ll become an Admin. Only they can hand it back.`)) return;
+  try { await ctx.backend.data.callFunction('transferOwnership', { teamId: s.teamId, toUid: mm.uid }); toast(who + ' is now the owner. You’re an Admin.', 5000); document.querySelector('.modal-overlay')?.remove(); }
+  catch (e) { toast(String((e && e.message) || e), 6000); }
 }
 
 async function leaveTeam(ctx) {

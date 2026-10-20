@@ -93,3 +93,16 @@ test('alert and feedback emails escape what users typed', () => {
   const f = feedbackEmail({ appUrl: 'https://x.app', fb: { kind: 'idea', text: 'Dark <script>', name: 'Aisha', email: 'a@uni.ac.uk', errors: ['boom'] } });
   assert.ok(f.subject.startsWith('💡 Idea from Aisha') && !f.html.includes('<script') && f.html.includes('boom') && f.text.includes('Reply to this email'));
 });
+
+import { scrubPerson, FORMER_MEMBER } from './lib.js';
+test('your data: a deleted person’s name and email are removed from shared records', () => {
+  const names = new Set(['Tom Reed']), emails = new Set(['tom@uni.ac.uk']);
+  const task = { name: 'Tom Reed’s gearbox', updatedBy: 'Tom Reed', createdBy: 'uTom', history: [{ user: 'Tom Reed', field: 'Title' }, { user: 'Aisha Khan', field: 'Due' }] };
+  const r = scrubPerson(task, names, emails);
+  assert.deepEqual(Object.keys(r.value).sort(), ['history', 'updatedBy']);
+  assert.equal(r.value.updatedBy, FORMER_MEMBER);
+  assert.deepEqual(r.value.history.map(h => h.user), [FORMER_MEMBER, 'Aisha Khan']);
+  assert.equal(scrubPerson({ authorName: 'Tom Reed', text: 'Ask Tom Reed' }, names, emails).value.text, undefined, 'what they wrote stays');
+  assert.equal(scrubPerson({ email: 'TOM@uni.ac.uk', byName: 'Tom Reed' }, names, emails).value.email, '');
+  assert.equal(scrubPerson({ authorName: 'Aisha Khan', createdBy: 'Tom Reed' }, names, emails).changed, false, 'ids and other people untouched');
+});

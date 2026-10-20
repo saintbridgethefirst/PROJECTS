@@ -4,6 +4,7 @@
 #    GitHub emails you.
 #  • Actions ▸ Backups ▸ Run workflow:
 #      setup          – turns on the automatic backups (daily, kept 30 days; weekly, kept 14 weeks)
+#                       and automatic expiry of error reports (30 days) and feedback (1 year)
 #      check          – lists the backups that exist
 #      restore-team   – restores ONE team from a backup. Preview first (apply unticked), then apply.
 #                       The team's state just before the restore is kept as a downloadable file.
@@ -81,6 +82,13 @@ jobs:
           ensure weekly 98d
           echo "After:"; gcloud firestore backups schedules list --database='(default)' --project "$PROJECT"
           echo "::notice::Automatic backups are on: daily (kept 30 days) and weekly (kept 14 weeks)."
+          # Automatic expiry (privacy notice): error reports after 30 days, feedback after a year.
+          for cg in clientErrors feedback; do
+            gcloud firestore fields ttls update expireAt --collection-group="$cg" --enable-ttl --database='(default)' --project "$PROJECT" --async \
+              || echo "::warning::Could not switch on automatic expiry for $cg (Firestore ▸ Time-to-live ▸ Create policy: collection $cg, field expireAt)."
+          done
+          gcloud firestore fields ttls list --database='(default)' --project "$PROJECT" || true
+          echo "::notice::Automatic expiry is on for error reports and feedback (takes up to a day to start)."
 
       - name: Check the backups
         if: github.event_name == 'schedule' || inputs.action == 'check' || inputs.action == 'setup'

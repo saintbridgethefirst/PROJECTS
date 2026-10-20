@@ -5,7 +5,7 @@
 //  of the production security rules.
 // ─────────────────────────────────────────────────────────────────────────────
 import { checkWrite, checkRead, applyOps, checkProfileWrite } from '../rules-sim.js';
-import { newId, isAcademicEmail } from '../model.js';
+import { newId, isAcademicEmail, scrubPerson } from '../model.js';
 import { normEmail } from '../permissions.js';
 
 const STORE_KEY = 'tt_demo_store_v1';
@@ -182,6 +182,45 @@ export const data = {
       const until = Date.now() + 365 * 864e5;
       root.verifiedStudents[me.uid] = { email: st.email, verifiedAt: Date.now(), until }; delete root.studentCodes[me.uid]; persist();
       return { ok: true, email: st.email, until };
+    }
+    // ── Your data (the server's privacy.js, on the demo store) ──
+    const BY = ['createdBy', 'authorUid', 'ownerUid', 'by', 'invitedBy', 'uid', 'supportPersonId', 'supportPersonId2'];
+    const myTeams = () => Object.entries(store.teams).filter(([, T]) => T.members && T.members[me.uid]);
+    const owned = () => myTeams().filter(([, T]) => T.members[me.uid].roleId === 'owner' && Object.keys(T.members).length > 1).map(([id, T]) => ({ teamId: id, name: T.doc.name, members: Object.keys(T.members).length }));
+    if (name === 'myOwnedTeams') return { teams: owned() };
+    if (name === 'exportMyData') {
+      const email = normEmail(me.email); const list = (o) => Object.entries(o || {}).map(([id, d]) => ({ id, ...clone(d) }));
+      return { about: 'Everything TeamTrack stores about you (demo).', account: { uid: me.uid, email: me.email, displayName: me.name, providers: ['demo'] }, profile: clone(store.users[me.uid]),
+        studentVerification: clone(root.verifiedStudents[me.uid] || null), feedbackYouSent: list(root.feedback).filter(f => f.uid === me.uid), errorReportsFromYourBrowser: list(root.clientErrors).filter(f => f.uid === me.uid),
+        invitationsToYou: Object.entries(store.teams).filter(([, T]) => T.invites && T.invites[email]).map(([id, T]) => ({ teamId: id, ...clone(T.invites[email]) })),
+        teams: myTeams().map(([id, T]) => { const yours = {}; Object.entries(T).forEach(([c, docs]) => { if (['doc', 'members', 'profiles'].includes(c) || !docs || typeof docs !== 'object') return; const mine = list(docs).filter(r => BY.some(f => r[f] === me.uid) || (r.attendees || []).includes(me.uid) || (r.mentions || []).includes(me.uid)); if (mine.length) yours[c] = mine; });
+          return { teamId: id, teamName: T.doc.name, yourMembership: clone(T.members[me.uid]), yourProfileInTeam: clone((T.profiles || {})[me.uid] || null), yours }; }) };
+    }
+    if (name === 'transferOwnership') {
+      const T = store.teams[payload && payload.teamId]; const to = payload && payload.toUid;
+      if (!to || to === me.uid) fail('invalid-argument', 'Choose another member.');
+      if (!T || !T.members[me.uid] || T.members[me.uid].roleId !== 'owner') fail('permission-denied', 'Only the team owner can hand the team over.');
+      if (!T.members[to]) fail('not-found', 'That person isn’t a member of this team any more.');
+      const mine = T.doc.roles && T.doc.roles.admin ? 'admin' : T.members[to].roleId;
+      T.members[to].roleId = 'owner'; T.members[me.uid].roleId = mine; T.doc.ownerUid = to; persist();
+      return { ok: true, yourRole: mine };
+    }
+    if (name === 'deleteMyAccount') {
+      if (!payload || payload.confirm !== 'DELETE') fail('invalid-argument', 'Type DELETE to confirm.');
+      const blocking = owned(); if (blocking.length) { const e = Object.assign(new Error('Hand over these teams first: ' + blocking.map(b => b.name).join(', ')), { code: 'functions/failed-precondition', details: { teams: blocking } }); throw e; }
+      const email = normEmail(me.email); const names = new Set([me.name, ...myTeams().map(([, T]) => T.members[me.uid].name)].map(n => String(n || '').trim()).filter(n => n.length >= 2));
+      const emails = new Set([email]); const summary = { teamsDeleted: 0, teamsLeft: 0, recordsAnonymised: 0 };
+      myTeams().forEach(([id, T]) => {
+        if (T.members[me.uid].roleId === 'owner') { delete store.teams[id]; summary.teamsDeleted++; return; }
+        Object.entries(T).forEach(([c, docs]) => { if (['members', 'profiles'].includes(c) || !docs || typeof docs !== 'object') return; Object.values(docs).forEach(d => { if (!d || typeof d !== 'object') return; const r = scrubPerson(d, names, emails); if (r.changed) { Object.assign(d, r.value); summary.recordsAnonymised++; } }); });
+        delete T.members[me.uid]; if (T.profiles) delete T.profiles[me.uid]; summary.teamsLeft++;
+      });
+      Object.values(store.teams).forEach(T => { if (T.invites) delete T.invites[email]; });
+      ['verifiedStudents', 'studentCodes', 'eduClaims'].forEach(c => { if (root[c]) delete root[c][me.uid]; });
+      ['feedback', 'clientErrors'].forEach(c => Object.entries(root[c] || {}).forEach(([id, d]) => { if (d.uid === me.uid) delete root[c][id]; }));
+      delete store.users[me.uid]; persist();
+      currentUser = null; sessionStorage.removeItem(SESSION_KEY); setTimeout(emitAuth, 0);
+      return { deleted: true, ...summary };
     }
     fail('not-found', 'No such function.');
   },

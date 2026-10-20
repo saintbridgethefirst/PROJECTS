@@ -656,3 +656,23 @@ export function nextReqRef(list) {
   const n = Math.max(0, ...list.map(q => { const m = /(\d+)\s*$/.exec(q.ref || ''); return m ? Number(m[1]) : 0; }));
   return 'REQ-' + String(n + 1).padStart(3, '0');
 }
+
+// ── Your data: a deleted person's name in shared records ────────────────────
+// Same as functions/lib.js scrubPerson (the server does the real deletion; the demo uses this).
+export const FORMER_MEMBER = 'Former member';
+const PERSON_NAME_KEYS = new Set(['authorName', 'createdByName', 'updatedByName', 'byName', 'invitedByName', 'updatedBy', 'user', 'userName']);
+export function scrubPerson(doc, names, emails) {
+  const walk = (v, key) => {
+    if (typeof v === 'string') {
+      if (PERSON_NAME_KEYS.has(key) && names.has(v.trim())) return FORMER_MEMBER;
+      if (key === 'email' && emails.has(v.trim().toLowerCase())) return '';
+      return v;
+    }
+    if (Array.isArray(v)) { let ch = false; const out = v.map(x => { const y = walk(x, key); if (y !== x) ch = true; return y; }); return ch ? out : v; }
+    if (v && typeof v === 'object' && v.constructor === Object) { let ch = false; const out = {}; for (const [k, x] of Object.entries(v)) { out[k] = walk(x, k); if (out[k] !== x) ch = true; } return ch ? out : v; }
+    return v;
+  };
+  const value = {};
+  for (const [k, x] of Object.entries(doc || {})) { const y = walk(x, k); if (y !== x) value[k] = y; }
+  return { value, changed: Object.keys(value).length > 0 };
+}
