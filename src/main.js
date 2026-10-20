@@ -678,13 +678,32 @@ function updateChrome() {
   setSyncStatus();
 }
 
-function setSyncStatus(state) {
-  const n = $('#conn-status'); if (!n || !session) return;
-  if (state) session.syncState = state;
+function setSyncStatus(state, why) {
+  const s = session; const n = $('#conn-status'); if (!n || !s) return;
+  if (state) { s.syncState = state; if (state === 'error') s.syncError = why || ''; }
   const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
-  const st = offline ? 'offline' : (session.pending > 0 ? 'saving' : (session.syncState === 'error' ? 'error' : 'saved'));
+  const st = offline ? 'offline' : (s.pending > 0 ? 'saving' : (s.syncState === 'error' ? 'error' : 'saved'));
   const map = { saved: ['🟢 Saved', 'var(--ok)'], saving: ['🟡 Saving…', 'var(--warn)'], offline: ['🟠 Offline — will sync', '#ed8936'], error: ['🔴 Not saved', 'var(--bad)'] };
   n.textContent = DEMO_MODE && st === 'saved' ? '🟢 Saved in this browser' : map[st][0]; n.style.color = map[st][1];
+  // Saving for a while → probably a slow or broken connection: say so after a few seconds.
+  if (st === 'saving' && !s.slowTimer) s.slowTimer = setTimeout(() => { s.slowTimer = null; if (session === s) { s.slow = true; netPill(s, 'saving'); } }, SLOW_SAVE_MS);
+  if (st !== 'saving') { clearTimeout(s.slowTimer); s.slowTimer = null; s.slow = false; }
+  netPill(s, st);
+}
+const SLOW_SAVE_MS = 5000;
+/** A small notice on the board while something about saving needs your attention. */
+function netPill(s, st) {
+  const pill = $('#net-pill'); if (!pill) return;
+  const was = pill.dataset.state || 'saved';
+  const btn = (label, fn) => el('button', { type: 'button', onclick: fn }, label);
+  let content = null, kind = '';
+  if (st === 'offline') { kind = 'warn'; content = [el('b', {}, 'You’re offline.'), ' ' + (s.pending ? `${s.pending} change${s.pending === 1 ? '' : 's'} waiting on this device — they’ll save when you reconnect.` : 'Keep working: your changes stay on this device and save when you reconnect.')]; }
+  else if (st === 'saving' && s.slow) { kind = 'warn'; content = [el('b', {}, 'Still saving…'), ' the connection is slow. Keep this tab open until it says saved.']; }
+  else if (st === 'error') { kind = 'bad'; content = [el('b', {}, 'Your last change wasn’t saved.'), ' ' + (s.syncError || 'Please try again.'), btn('Reload', () => location.reload()), btn('✕', () => { s.syncState = 'saved'; netPill(s, 'saved'); })]; }
+  else if (st === 'saved' && (was === 'offline' || (was === 'saving' && pill.dataset.slow))) { kind = 'ok'; content = [el('b', {}, 'Back online.'), ' Everything is saved.']; clearTimeout(pill._t); pill._t = setTimeout(() => { if (pill.classList.contains('ok')) { pill.hidden = true; pill.className = 'net-pill'; } }, 3500); }
+  pill.dataset.state = st; if (st === 'saving' && s.slow) pill.dataset.slow = '1'; else if (st !== 'saving') delete pill.dataset.slow;
+  if (content) { pill.className = 'net-pill ' + kind; pill.replaceChildren(...content); pill.hidden = false; }
+  else if (!pill.classList.contains('ok')) pill.hidden = true;   // a "Back online" note hides itself
 }
 
 function renderTeamDataPanel() {
@@ -747,6 +766,16 @@ function healLostEdits(s) {
     .catch((e) => { console.warn('merge save', e); if (session === s) { s.pending--; setSyncStatus(); ops.forEach(o => s.recent.delete(o.path + '|' + Object.keys(o.data)[0])); } });
 }
 
+/** Why a save failed, in words that say what to do. */
+function saveError(e) {
+  const code = String((e && e.code) || ''); const msg = String((e && e.message) || '');
+  if (code.includes('permission-denied')) return 'You don’t have permission to change that — your role in this team may have just changed. Reload to see your current access.';
+  if (code.includes('unauthenticated')) return 'You’ve been signed out. Reload and sign in again; then redo the last change.';
+  if (code.includes('resource-exhausted')) return 'TeamTrack has hit its usage limit for today. Your change wasn’t saved; please try again later.';
+  if (code.includes('invalid-argument') && /size|bytes|too large|exceeds/i.test(msg)) return 'This task has grown too big to save (too much history, notes or attachments). Remove some and try again.';
+  if (code.includes('deadline-exceeded') || code.includes('unavailable')) return 'The connection dropped before the change was saved. Check your internet and try again.';
+  return friendlyError(e);
+}
 async function writeOps(ops, { quiet = false } = {}) {
   const s = session; if (!s || !ops.length) return true;
   s.pending++; setSyncStatus(); rememberWrites(s, ops);
@@ -759,7 +788,7 @@ async function writeOps(ops, { quiet = false } = {}) {
   }
   catch (e) {
     console.error(e); settleWrites(s, ops, false);
-    if (session === s) { s.pending--; setSyncStatus('error'); if (!quiet) toast(friendlyError(e), 6000); revert(); }
+    if (session === s) { s.pending--; setSyncStatus('error', saveError(e)); if (!quiet) toast(saveError(e), 6000); revert(); }
     if (!quiet) report('write', { message: String((e && e.code) || 'error') + ': ' + String((e && e.message) || ''), stack: ops.map(o => o.type + ' ' + String(o.path).split('/')[0]).join(', ') });
     return false;
   }

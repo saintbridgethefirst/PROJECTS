@@ -30,7 +30,7 @@ const shown = (p, name) => p.evaluate((n) => { const l = allTaskLocs().find(x =>
 const edit = (p, name, fn) => p.evaluate(({ n, f }) => { const l = allTaskLocs().find(x => x.task.name === n); (0, eval)('(' + f + ')')(l.task); saveDatabase(); render(); }, { n: name, f: fn.toString() });
 const hold = (...ps) => Promise.all(ps.map(p => p.evaluate(() => { window.__ttHold = true; })));
 const release = async (...ps) => { for (const p of ps) await p.evaluate(() => window.__ttRelease()); await sleep(900); };
-const status = (p) => p.evaluate(() => (document.getElementById('sync-status') || {}).textContent || '');
+const status = (p) => p.evaluate(() => (document.getElementById('conn-status') || {}).textContent || '');
 
 try {
   step('Set up: Aisha (owner) and Tom (admin) on one team');
@@ -126,6 +126,23 @@ try {
   ok((await storedTask(A, 'Wing build')).priority === 'Major', 'Tom’s change is saved too');
 
   ok(!/Not saved/.test(await status(A)) && !/Not saved/.test(await status(B)), 'no “Not saved” anywhere');
+  ok(await A.locator('#net-pill').isHidden(), 'no saving notice on the board while all is well');
+
+  step('Going offline and back');
+  await ctx.setOffline(true); await A.evaluate(() => window.dispatchEvent(new Event('offline'))); await sleep(200);
+  ok(await A.locator('#net-pill').isVisible() && (await A.locator('#net-pill').textContent()).includes('offline'), 'a notice on the board says you’re offline');
+  await ctx.setOffline(false); await A.evaluate(() => window.dispatchEvent(new Event('online'))); await sleep(200);
+  ok((await A.locator('#net-pill').textContent()).includes('Back online'), '“Back online. Everything is saved.”');
+  await sleep(3800);
+  ok(await A.locator('#net-pill').isHidden(), 'and it goes away by itself');
+
+  step('A save the server refuses');
+  const refused = await A.evaluate(async () => { const ok = await TT.writeOps([{ type: 'update', path: 'tasks/nope-not-mine', data: { x: 1 } }, { type: 'set', path: '/admins/me', data: { since: 1 } }]); return ok; });
+  ok(refused === false, '(a write the rules refuse)');
+  ok(await A.locator('#net-pill.bad').isVisible() && (await A.locator('#net-pill').textContent()).includes('wasn’t saved'), 'the board says the last change wasn’t saved, and why');
+  ok(/Not saved/.test(await status(A)), 'the status in the panel agrees');
+  await edit(A, 'Spar order v2', (t) => { t.priority = 'Minor'; }); await sleep(300);
+  ok(await A.locator('#net-pill').isHidden() && !/Not saved/.test(await status(A)), 'the next successful save clears it');
   ok(errors.length === 0, 'no page errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
 } catch (e) { fail++; console.log('TEST CRASH:', e.message.split('\n').slice(0, 4).join('\n')); }
 await browser.close();

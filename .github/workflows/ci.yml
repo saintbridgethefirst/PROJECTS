@@ -39,17 +39,17 @@ jobs:
         with: { distribution: temurin, java-version: 21 }
       - run: npm ci
       - name: Unit tests
-        run: npm test
+        run: tools/ci/annotate.sh npm test
       - name: Cloud Functions tests
-        run: npm run test:functions
+        run: tools/ci/annotate.sh npm run test:functions
       - name: Security rules (real Firestore emulator)
-        run: npm run test:rules
+        run: tools/ci/annotate.sh npm run test:rules
       - name: Restore-a-team tool and saving with two people / offline (Firestore emulator)
-        run: npm run test:ops
+        run: tools/ci/annotate.sh npm run test:ops
       - name: Browser
         run: npx playwright install --with-deps chromium
       - name: Browser tests (demo build)
-        run: npm run test:browser
+        run: tools/ci/annotate.sh npm run test:browser
 
   deploy:
     needs: test

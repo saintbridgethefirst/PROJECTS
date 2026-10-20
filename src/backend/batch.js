@@ -27,7 +27,10 @@ export async function runOpsWith(fb, ops) {
     const write = () => { const b = fb.writeBatch(); chunk.forEach(op => { const r = fb.ref(op.path); if (op.type === 'delete') b.delete(r); else if (op.type === 'set') b.set(r, op.data); else b.update(r, op.data); }); return b.commit(); };
     try { await write(); }
     catch (e) {
-      if (!e || e.code !== 'not-found') throw e;
+      // With security rules, an update to a deleted document usually comes back as permission-denied
+      // (the rules can't read the old document), sometimes as not-found.
+      const code = String((e && e.code) || '');
+      if (!/not-found|permission-denied/.test(code) || !chunk.some(op => op.type === 'update')) throw e;
       const gone = new Set();
       await Promise.all(chunk.filter(op => op.type === 'update').map(async op => { if (!(await fb.getDoc(fb.ref(op.path))).exists()) gone.add(op); }));
       if (!gone.size) throw e;
