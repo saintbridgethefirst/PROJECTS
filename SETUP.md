@@ -343,3 +343,21 @@ adding anything. Ordinary Excel or CSV task lists can be imported the same way.
 | Invitation doesn't appear | The teammate must sign in with the invited address and verify it. |
 | Changed `.env` but nothing happened | Run `npm run deploy` again. |
 | "Missing index" error in the browser console | Run `npm run deploy` (it uploads `firestore.indexes.json`) and wait a few minutes. |
+
+## Deploying from GitHub (automatic)
+
+Every push to `main` runs all the tests on GitHub (Actions tab). If they pass, the website and the
+security rules are deployed to uni-teamtrack. Cloud Functions are deployed only when you press
+**Actions ▸ CI ▸ Run workflow** and tick "Also deploy the Cloud Functions".
+
+One-time setup — a key GitHub can deploy with:
+
+1. Google Cloud console ▸ project **uni-teamtrack** ▸ **IAM & Admin ▸ Service Accounts ▸ Create service account**,
+   name `github-deploy`. Give it the roles **Firebase Admin** and **Service Account User**
+   (and **Cloud Functions Admin** if GitHub should deploy functions too).
+2. Open the new account ▸ **Keys ▸ Add key ▸ Create new key ▸ JSON**. A file downloads.
+3. GitHub ▸ TRAWPIE ▸ **Settings ▸ Secrets and variables ▸ Actions ▸ New repository secret**:
+   name `FIREBASE_SERVICE_ACCOUNT`, value = the whole contents of that file. Save, then delete the file.
+
+The site's public settings live in `.env.live` (used by `npm run build:live`); your own `.env` is
+only used on your computer. Never put the Resend key or the service-account key in the repository.

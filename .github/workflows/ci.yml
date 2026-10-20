@@ -2,11 +2,9 @@
 # security rules to Firebase. Cloud Functions are deployed by hand from the Actions tab
 # ("Run workflow"), because they send email and cost money if something goes wrong.
 #
-# One-time setup (Settings ▸ Secrets and variables ▸ Actions):
-#   Secret   FIREBASE_SERVICE_ACCOUNT   JSON key of a service account with Firebase Admin rights
-#   Variables VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID, VITE_FIREBASE_APP_ID,
-#             VITE_GOOGLE_CLIENT_ID, VITE_MS_CLIENT_ID (may be empty), VITE_STUDENT_EMAIL_CHECK (true),
-#             MAIL_FROM, APP_NAME, APP_URL (for the functions)
+# One-time setup: add the secret FIREBASE_SERVICE_ACCOUNT (Settings > Secrets and variables > Actions),
+# the JSON key of a Google Cloud service account allowed to deploy (see SETUP.md, "Deploying from GitHub").
+# The site's public settings are in .env.live; the functions' settings in functions/.env.uni-teamtrack.
 name: CI
 
 on:
@@ -56,48 +54,28 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with: { node-version: 22, cache: npm }
-      - name: Check the settings are in place
-        # Without them the build would be the demo site, which must never replace the real one.
+      - name: Check the deploy key is in place
         run: |
-          missing=""
-          for v in VITE_FIREBASE_API_KEY VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID VITE_FIREBASE_AUTH_DOMAIN; do [ -n "${!v}" ] || missing="$missing $v"; done
-          [ -n "$SA" ] || missing="$missing FIREBASE_SERVICE_ACCOUNT(secret)"
-          if [ -n "$missing" ]; then echo "::error::Deploy skipped, missing:$missing (Settings ▸ Secrets and variables ▸ Actions)"; exit 1; fi
+          if [ -z "$SA" ]; then echo "::error::Deploy skipped: add the FIREBASE_SERVICE_ACCOUNT secret (Settings > Secrets and variables > Actions)"; exit 1; fi
         env:
-          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
           SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       - run: npm ci
-      - name: Site settings
-        run: |
-          cat > .env <<EOF
-          VITE_FIREBASE_API_KEY=${{ vars.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN=${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID=${{ vars.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_APP_ID=${{ vars.VITE_FIREBASE_APP_ID }}
-          VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
-          VITE_MS_CLIENT_ID=${{ vars.VITE_MS_CLIENT_ID }}
-          VITE_STUDENT_EMAIL_CHECK=${{ vars.VITE_STUDENT_EMAIL_CHECK }}
-          EOF
-      - name: Build
-        run: npm run build
+      - name: Build the live site
+        run: npm run build:live
       - name: Make sure this is the real site, not the demo
         run: |
-          if grep -rq "${{ vars.VITE_FIREBASE_PROJECT_ID }}" dist/assets/*.js; then echo "Build points at ${{ vars.VITE_FIREBASE_PROJECT_ID }}"; else echo "::error::Build has no Firebase project in it — refusing to deploy"; exit 1; fi
+          if grep -rq "uni-teamtrack.firebaseapp.com" dist/assets/*.js; then echo "Build points at uni-teamtrack"; else echo "::error::Build has no Firebase project in it — refusing to deploy"; exit 1; fi
       - name: Firebase credentials
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
       - name: Deploy website and security rules
         env: { GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/sa.json' }
-        run: npx firebase deploy --only hosting,firestore --project ${{ vars.VITE_FIREBASE_PROJECT_ID }} --non-interactive
+        run: npx firebase deploy --only hosting,firestore --project uni-teamtrack --non-interactive
       - name: Deploy Cloud Functions
         if: github.event_name == 'workflow_dispatch' && inputs.deploy_functions
         env: { GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/sa.json' }
         run: |
-          printf 'MAIL_FROM=%s\nAPP_NAME=%s\nAPP_URL=%s\n' "${{ vars.MAIL_FROM }}" "${{ vars.APP_NAME }}" "${{ vars.APP_URL }}" > functions/.env.${{ vars.VITE_FIREBASE_PROJECT_ID }}
           (cd functions && npm ci)
-          npx firebase deploy --only functions --project ${{ vars.VITE_FIREBASE_PROJECT_ID }} --non-interactive --force
+          npx firebase deploy --only functions --project uni-teamtrack --non-interactive --force
       - name: Remove credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/sa.json"

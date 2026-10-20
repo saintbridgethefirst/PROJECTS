@@ -24,3 +24,4 @@ marketing/
 .tt-tools.zip
 .DS_Store
 .fuse_hidden*
+!functions/.env.uni-teamtrack

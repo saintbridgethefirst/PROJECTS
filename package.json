@@ -32,7 +32,8 @@
     "test:monitor": "node tests/monitor.mjs",
     "test:browser": "node tools/run-browser-tests.mjs",
     "test:functions": "node --test functions/lib.test.mjs",
-    "test:all": "npm test && npm run test:functions && npm run test:browser"
+    "test:all": "npm test && npm run test:functions && npm run test:browser",
+    "build:live": "npm run build:board && vite build --mode live"
   },
   "license": "UNLICENSED",
   "dependencies": {
