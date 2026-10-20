@@ -50,7 +50,8 @@ service cloud.firestore {
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
     function validTeam(d) {
-      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan'])
+      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev'])
+        && d.get('archiveRev', 0) is int
         && d.name is string && d.name.size() > 0 && d.name.size() <= 80
         && d.logo is string && d.logo.size() <= 220000
         && d.fields is list && d.fields.size() <= 30
@@ -263,7 +264,9 @@ service cloud.firestore {
       allow update: if isMember(t) && validTeam(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.createdAt == resource.data.createdAt
-        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams'])
+        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev'])
+        // archiveRev: changed by any save to an old week, so other devices re-read old weeks (backend/tasksync.js)
+        && (!changed().hasAny(['archiveRev']) || can(t, 'tasks.editOwn') || can(t, 'tasks.editAll'))
         && (!changed().hasAny(['subteams']) || can(t, 'team.settings') || can(t, 'members.manage'))
         && (!changed().hasAny(['weeks']) || can(t, 'weeks.manage'))
         && (!changed().hasAny(['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features']) || can(t, 'team.settings'))

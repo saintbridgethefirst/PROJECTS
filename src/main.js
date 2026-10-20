@@ -233,7 +233,7 @@ function renderHome() {
       teamIdsKey = key; mentionUnsub && mentionUnsub(); mentionsByTeam = {};
       const ids = teamList.map(t => t.id);
       mentionUnsub = ids.length ? backend.data.watchMyMentions(ids, user.uid, (m) => { mentionsByTeam = m; drawTiles(); }, (e) => console.warn('mentions', e)) : null;
-      if (ids.length) { mtBox.replaceChildren(el('div.muted', {}, 'Loading your tasks…')); backend.data.myWork(ids, user.uid).then(w => { if (teamIdsKey === key) { work = w; homeSearchData.work = w; drawMyTasks(); } }).catch(e => { console.warn(e); mtBox.replaceChildren(el('div.banner', {}, 'Could not load your tasks: ' + friendlyError(e))); }); }
+      if (ids.length) { mtBox.replaceChildren(el('div.muted', {}, 'Loading your tasks…')); cachedMyWork(ids, key).then(w => { if (teamIdsKey === key) { work = w; homeSearchData.work = w; drawMyTasks(); } }).catch(e => { console.warn(e); mtBox.replaceChildren(el('div.banner', {}, 'Could not load your tasks: ' + friendlyError(e))); }); }
       else { work = []; drawMyTasks(); }
     }
     drawTiles();
@@ -588,15 +588,10 @@ async function openTeam(teamId) {
   }, (e) => console.warn('comments', e));
   // Research tools (Phase 7)
   s.meetings = []; s.notebook = []; s.parts = []; s.papers = []; s.expenses = []; s.budget = null; s.profiles = []; s.risks = []; s.requirements = []; s.requests = [];
-  const research = (coll, clean, key, after) => backend.data.watchCollection(teamId, coll, (rows) => {
-    if (session !== s) return; s[key] = rows.map(r => clean(r, r.id)); researchChanged(after);
-  }, (e) => console.warn(coll, e));
-  s.unsubResearch = [
-    research('meetings', cleanMeeting, 'meetings'), research('parts', cleanPart, 'parts'), research('papers', cleanPaper, 'papers'),
-    research('notebook', cleanNotebookEntry, 'notebook', 'board'),
-    research('profiles', (p, id) => cleanProfile(p, id), 'profiles', 'board'), research('risks', cleanRisk, 'risks'), research('requirements', cleanRequirement, 'requirements'),
-    research('requests', (r, id) => ({ ...r, id }), 'requests', 'settings'),
-  ];
+  // Each tool's records are only listened to while the team has that tool switched on (syncResearch):
+  // every listener costs a database read per record each time the team is opened.
+  s.researchUnsubs = {};
+  s.unsubResearch = [() => Object.values(s.researchUnsubs).forEach(u => u && u())];
   s.onOnline = () => setSyncStatus(); window.addEventListener('online', s.onOnline); window.addEventListener('offline', s.onOnline);
 }
 
@@ -677,15 +672,32 @@ function refresh() {
   if (sig !== s.shownSig) { s.shownSig = sig; window.boardApplyModel(model); }
   updateChrome(); updateActivityBadge();
   if (pendingOpen && pendingOpen.teamId === s.teamId) { const id = pendingOpen.taskId; pendingOpen = null; setTimeout(() => window.boardOpenTask && window.boardOpenTask(id), 50); }
-  syncMoney(s);
+  syncMoney(s); syncResearch(s);
   refreshResearch(ctx());
   if (!s.booted) { s.booted = true; onFirstLoad(); }
   if (window.TTSettingsRefresh) window.TTSettingsRefresh();
 }
 
+// Team tools: [collection, clean, session key, what to refresh, feature switch (null = always)]
+const RESEARCH = [
+  ['meetings', cleanMeeting, 'meetings', null, 'meetings'], ['parts', cleanPart, 'parts', null, 'parts'], ['papers', cleanPaper, 'papers', null, 'literature'],
+  ['notebook', cleanNotebookEntry, 'notebook', 'board', 'notebook'], ['profiles', (p, id) => cleanProfile(p, id), 'profiles', 'board', null],
+  ['risks', cleanRisk, 'risks', null, 'risks'], ['requirements', cleanRequirement, 'requirements', null, 'requirements'],
+  ['requests', (r, id) => ({ ...r, id }), 'requests', 'settings', null],
+];
+function syncResearch(s) {
+  const on = cleanFeatures(s.team.features);
+  RESEARCH.forEach(([coll, clean, key, after, feature]) => {
+    const want = !feature || on[feature];
+    if (want && !s.researchUnsubs[coll]) {
+      s.researchUnsubs[coll] = backend.data.watchCollection(s.teamId, coll, (rows) => { if (session !== s) return; s[key] = rows.map(r => clean(r, r.id)); researchChanged(after); }, (e) => console.warn(coll, e));
+    } else if (!want && s.researchUnsubs[coll]) { s.researchUnsubs[coll](); delete s.researchUnsubs[coll]; s[key] = []; }
+  });
+}
+
 // Money is only read by roles allowed to see it, so its listeners follow the role.
 function syncMoney(s) {
-  const want = seesMoney(s);
+  const want = seesMoney(s) && cleanFeatures(s.team.features).finance;   // and only while Finance is switched on
   if (want && !s.unsubMoney) {
     s.unsubMoney = [
       backend.data.watchCollection(s.teamId, 'expenses', (rows) => { if (session !== s) return; s.expenses = rows.map(r => cleanExpense(r, r.id)); researchChanged(); }, (e) => console.warn('expenses', e)),
@@ -834,8 +846,20 @@ function saveError(e) {
   if (code.includes('deadline-exceeded') || code.includes('unavailable')) return 'The connection dropped before the change was saved. Check your internet and try again.';
   return friendlyError(e);
 }
+// My tasks on the home screen: kept for a few minutes, so going back and forth between teams
+// doesn't re-read every task you own in every team. Any save of yours refreshes it.
+const MY_WORK_MS = 5 * 60e3; let myWorkCache = null;
+function cachedMyWork(ids, key) {
+  const c = myWorkCache;
+  if (c && c.key === key && c.uid === user.uid && Date.now() - c.at < MY_WORK_MS) return c.promise;
+  const promise = backend.data.myWork(ids, user.uid);
+  myWorkCache = { key, uid: user.uid, at: Date.now(), promise };
+  promise.catch(() => { if (myWorkCache && myWorkCache.promise === promise) myWorkCache = null; });
+  return promise;
+}
 async function writeOps(ops, { quiet = false } = {}) {
   const s = session; if (!s || !ops.length) return true;
+  myWorkCache = null;
   s.pending++; setSyncStatus(); rememberWrites(s, ops);
   try {
     const res = await backend.data.commit(s.teamId, ops);

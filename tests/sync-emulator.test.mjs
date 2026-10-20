@@ -4,7 +4,8 @@ import test, { before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, setDoc, getDoc, writeBatch, deleteDoc, disableNetwork, enableNetwork } from 'firebase/firestore';
+import { doc, setDoc, getDoc, writeBatch, deleteDoc, disableNetwork, enableNetwork, collection, query, where, onSnapshot, getDocs, getDocsFromCache, updateDoc } from 'firebase/firestore';
+import { watchTasks } from '../src/backend/tasksync.js';
 import { fixture, users, TEAM } from './scenarios.mjs';
 import { runOpsWith } from '../src/backend/batch.js';
 import { merge3, deepEqual } from '../src/sync.js';
@@ -71,4 +72,25 @@ test('two people tick different sub-tasks at once: the merge puts both back', as
   const final = (await task(admin, 't_owner')).subtasks;
   assert.ok(deepEqual(final, st(true, true)), 'both ticks saved');
   assert.ok(deepEqual(merge3(st(false, false), st(false, true), final), final), 'the other browser sees nothing left to merge');
+});
+
+test('tasks: recent weeks live, old weeks from the device; the security rules allow both queries', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore(); const T = fixture().teams[TEAM];
+    await updateDoc(doc(db, 'teams', TEAM), { weeks: [{ key: 'wOld', title: 'OLD', metric: '', startDate: '2025-01-06' }, ...T.doc.weeks] });
+    await setDoc(doc(db, 'teams', TEAM, 'tasks', 'old1'), { ...T.tasks.t_owner, name: 'Old task', weekId: 'wOld' });
+  });
+  const mem = dbFor('mem1'); const col = collection(mem, 'teams', TEAM, 'tasks');
+  const fsApi = { tasksQuery: (ids) => (ids ? query(col, where('weekId', 'in', ids)) : col), onSnapshot, getDocs, getDocsFromCache };
+  let store = null; const st = { get: () => store, set: (v) => { store = v; } };
+  const team = (await getDoc(doc(mem, 'teams', TEAM))).data();
+  for (let pass = 0; pass < 2; pass++) {
+    let got = []; const errs = [];
+    const w = watchTasks(fsApi, st, (ts) => { got = ts; }, (e) => errs.push(e)); w.setTeam(team); await w.ready;
+    for (let i = 0; i < 50 && got.length < 3; i++) await new Promise(r => setTimeout(r, 100));
+    w.stop();
+    assert.deepEqual(errs, []);
+    assert.deepEqual(got.map(t => t.name).sort(), ['Old task', ...Object.values(fixture().teams[TEAM].tasks).map(t => t.name)].sort(), 'every task, ' + (pass ? 'old week from the device' : 'first load'));
+  }
+  assert.equal(store.weeks.wOld, 1, 'the device notes it has the old week complete');
 });

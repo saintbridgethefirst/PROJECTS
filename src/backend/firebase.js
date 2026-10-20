@@ -4,6 +4,7 @@
 //  or Cloud Functions are used (both need the paid plan).
 // ─────────────────────────────────────────────────────────────────────────────
 import { runOpsWith } from './batch.js';
+import { watchTasks, touchesArchive } from './tasksync.js';
 import { initializeApp } from 'firebase/app';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import {
@@ -14,7 +15,7 @@ import {
 } from 'firebase/auth';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator,
-  collection, collectionGroup, doc, query, where, onSnapshot, writeBatch, getDocs, getDoc, setDoc, orderBy, limit,
+  collection, collectionGroup, doc, query, where, onSnapshot, writeBatch, getDocs, getDocsFromCache, getDoc, setDoc, orderBy, limit,
 } from 'firebase/firestore';
 import { firebaseConfig, USE_EMULATORS, MS_CLIENT_ID, ENABLE_EMAIL_LINK, APPCHECK_SITE_KEY } from '../config.js';
 import { newId } from '../model.js';
@@ -149,7 +150,24 @@ const refFor = (t, path) => (path === 'team' ? teamRef(t) : path.startsWith('/')
 const rows = (snap) => snap.docs.map(d => ({ ...d.data(), id: d.id }));
 
 // Saving a list of changes (in batches) lives in batch.js, so it can be tested against the emulator.
-const runOps = (teamId, ops) => runOpsWith({ writeBatch: () => writeBatch(db), getDoc, ref: (path) => refFor(teamId, path) }, ops);
+const runOps = (teamId, ops) => runOpsWith({ writeBatch: () => writeBatch(db), getDoc, ref: (path) => refFor(teamId, path) }, withArchiveRev(teamId, ops));
+
+// Teams open on this device: their weeks and known tasks, so a save to an old week can say so.
+const openTeams = new Map();
+/** A save that touches a task in an old week also changes the team's archiveRev (see tasksync.js). */
+function withArchiveRev(teamId, ops) {
+  const t = openTeams.get(teamId); if (!t || !t.weeks) return ops;
+  const weekIds = [];
+  ops.forEach(op => { const m = /^tasks\/(.+)$/.exec(op.path); if (!m) return; weekIds.push(op.data && op.data.weekId, (t.tasks.known.get(m[1]) || {}).weekId); });
+  if (!touchesArchive(t.weeks, weekIds)) return ops;
+  const rev = Date.now(); const teamOp = ops.find(o => o.path === 'team' && o.type === 'update');
+  return teamOp ? ops.map(o => (o === teamOp ? { ...o, data: { ...o.data, archiveRev: rev } } : o)) : [{ type: 'update', path: 'team', data: { archiveRev: rev } }, ...ops];
+}
+/** This device's note of which old weeks it has a complete copy of (per team and person). */
+const archiveStore = (teamId) => {
+  const key = 'tt_archive_' + teamId + '_' + ((fbAuth.currentUser && fbAuth.currentUser.uid) || '');
+  return { get: () => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }, set: (v) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* full */ } } };
+};
 
 export const data = {
   watchMyTeams(uid, cb, onError) {
@@ -174,13 +192,20 @@ export const data = {
   },
   watchTeam(teamId, h) {
     const err = (e) => h.onError && h.onError(e);
+    // Tasks: recent weeks live, old weeks from this device's copy (backend/tasksync.js).
+    const tasksCol = collection(db, 'teams', teamId, 'tasks');
+    const tasks = watchTasks({ tasksQuery: (weekIds) => (weekIds ? query(tasksCol, where('weekId', 'in', weekIds)) : tasksCol), onSnapshot, getDocs, getDocsFromCache },
+      archiveStore(teamId), (ts) => h.onTasks(ts), err);
+    const open = { weeks: null, tasks }; openTeams.set(teamId, open);
     const unsubs = [
-      onSnapshot(teamRef(teamId), (s) => { if (s.exists()) h.onTeam({ ...s.data(), id: s.id }); else err(Object.assign(new Error('This team no longer exists.'), { code: 'not-found' })); }, err),
+      onSnapshot(teamRef(teamId), (s) => {
+        if (!s.exists()) { err(Object.assign(new Error('This team no longer exists.'), { code: 'not-found' })); return; }
+        const t = { ...s.data(), id: s.id }; open.weeks = t.weeks || []; tasks.setTeam(t); h.onTeam(t);
+      }, err),
       onSnapshot(collection(db, 'teams', teamId, 'members'), (s) => h.onMembers(s.docs.map(d => ({ ...d.data(), uid: d.id }))), err),
       onSnapshot(collection(db, 'teams', teamId, 'categories'), (s) => h.onCategories(rows(s)), err),
-      onSnapshot(collection(db, 'teams', teamId, 'tasks'), (s) => h.onTasks(rows(s)), err),
     ];
-    return () => unsubs.forEach(u => u());
+    return () => { unsubs.forEach(u => u()); tasks.stop(); if (openTeams.get(teamId) === open) openTeams.delete(teamId); };
   },
   watchInvites(teamId, cb, onError) {
     return onSnapshot(collection(db, 'teams', teamId, 'invites'), (s) => cb(s.docs.map(d => d.data())), onError);

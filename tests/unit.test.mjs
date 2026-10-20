@@ -697,3 +697,74 @@ test('deepEqual ignores object key order', () => {
   assert.ok(deepEqual({ a: 1, b: [{ x: 1, y: 2 }] }, { b: [{ y: 2, x: 1 }], a: 1 }));
   assert.ok(!deepEqual([1, 2], [2, 1]));
 });
+
+// ── Old weeks from this device's copy (backend/tasksync.js) ─────────────────
+import { splitWeeks, touchesArchive, watchTasks } from '../src/backend/tasksync.js';
+const NOW = Date.parse('2026-10-20T12:00:00Z');
+const wk = (key, start) => ({ key, title: key, startDate: start });
+const WEEKS = [wk('w1', '2026-08-03'), wk('w2', '2026-09-07'), wk('w3', '2026-09-14'), wk('w4', '2026-10-12'), wk('w5', '2026-10-19'), wk('w6', '2026-11-30'), { key: 'w7', title: 'Undated' }];
+test('tasksync: weeks that ended more than 5 weeks ago are archived; undated and future ones live', () => {
+  assert.deepEqual(splitWeeks(WEEKS, NOW), { archived: ['w1', 'w2'], live: ['w3', 'w4', 'w5', 'w6', 'w7'] });
+});
+test('tasksync: writers count a week as archived a week earlier than readers', () => {
+  assert.ok(touchesArchive(WEEKS, ['w3'], NOW), 'w3 ended 4.5 weeks ago: a save there tells others');
+  assert.ok(!touchesArchive(WEEKS, ['w4', undefined], NOW));
+  assert.ok(touchesArchive(WEEKS, ['w4', 'w1'], NOW), 'moving a task out of an old week');
+});
+
+/** A pretend Firestore: tasks on the "server", what this device has saved, and how many reads it cost. */
+function fakeFs(serverTasks, cachedIds = null) {
+  const f = { reads: 0, listeners: [], cache: new Map() };
+  const match = (q, t) => !q.weekIds || q.weekIds.includes(t.weekId);
+  const snap = (list) => ({ docs: list.map(t => ({ id: t.id, data: () => { const { id, ...d } = t; return d; } })) });
+  (cachedIds ? serverTasks.filter(t => cachedIds.includes(t.id)) : []).forEach(t => f.cache.set(t.id, t));
+  f.fs = {
+    tasksQuery: (weekIds) => ({ weekIds }),
+    onSnapshot: (q, cb) => { const res = serverTasks.filter(t => match(q, t)); f.reads += res.length; res.forEach(t => f.cache.set(t.id, t)); const l = { q, cb }; f.listeners.push(l); cb(snap(res)); return () => { f.listeners = f.listeners.filter(x => x !== l); }; },
+    getDocs: async (q) => { const res = serverTasks.filter(t => match(q, t)); f.reads += res.length; res.forEach(t => f.cache.set(t.id, t)); return snap(res); },
+    getDocsFromCache: async (q) => snap([...f.cache.values()].filter(t => match(q, t))),
+  };
+  return f;
+}
+const memStore = () => { let v = null; return { get: () => v, set: (x) => { v = JSON.parse(JSON.stringify(x)); } }; };
+const tasksIn = (weeks, n) => weeks.flatMap(w => Array.from({ length: n }, (_, i) => ({ id: w + '_' + i, weekId: w, name: 'T' + i })));
+async function open(f, store, team) { let got = []; const w = watchTasks(f.fs, store, (ts) => { got = ts; }, (e) => { throw e; }); w.setTeam(team); await w.ready; return { w, all: () => got }; }
+
+test('tasksync: first open reads everything; the next open reads only recent weeks', async () => {
+  const realNow = Date.now; Date.now = () => NOW;
+  try {
+    const server = tasksIn(['w1', 'w2', 'w3', 'w4', 'w5'], 10); const store = memStore(); const team = { weeks: WEEKS, archiveRev: 0 };
+    const f1 = fakeFs(server); const a = await open(f1, store, team);
+    assert.equal(a.all().length, 50); assert.equal(f1.reads, 50, 'first time on this device: all 50 tasks');
+    a.w.stop();
+    const f2 = fakeFs(server, server.map(t => t.id)); const b = await open(f2, store, team);
+    assert.equal(b.all().length, 50, 'still every task on the board');
+    assert.equal(f2.reads, 30, 'only the 3 recent weeks are read (20 old tasks come from the device)');
+  } finally { Date.now = realNow; }
+});
+test('tasksync: someone changed an old week → it is read again; a device copy missing tasks is noticed', async () => {
+  const realNow = Date.now; Date.now = () => NOW;
+  try {
+    const server = tasksIn(['w1', 'w2', 'w3'], 10); const store = memStore();
+    await open(fakeFs(server), store, { weeks: WEEKS, archiveRev: 0 });
+    const f2 = fakeFs(server, server.map(t => t.id)); await open(f2, store, { weeks: WEEKS, archiveRev: 1729400000000 });
+    assert.equal(f2.reads, 30, 'archiveRev changed: old weeks read again (20) plus live (10)');
+    const partial = server.filter(t => t.id !== 'w1_3').map(t => t.id);   // the browser threw one away
+    const f3 = fakeFs(server, partial); const c = await open(f3, store, { weeks: WEEKS, archiveRev: 1729400000000 });
+    assert.equal(c.all().length, 30, 'nothing missing on the board');
+    assert.equal(f3.reads, 20, 'only week 1 (incomplete copy) is re-read, plus live');
+  } finally { Date.now = realNow; }
+});
+test('tasksync: a week becoming old is read once; too many live weeks → listen to everything', async () => {
+  const realNow = Date.now; Date.now = () => NOW;
+  try {
+    const server = tasksIn(['w1', 'w2', 'w3'], 5); const store = memStore();
+    await open(fakeFs(server), store, { weeks: WEEKS, archiveRev: 0 });
+    Date.now = () => NOW + 7 * 864e5;   // a week later w3 is archived too
+    const f2 = fakeFs(server, server.map(t => t.id)); const b = await open(f2, store, { weeks: WEEKS, archiveRev: 0 });
+    assert.equal(b.all().length, 15); assert.equal(f2.reads, 5, 'w3 (newly old) read once from the server; w1, w2 from the device');
+    const many = Array.from({ length: 40 }, (_, i) => wk('x' + i, '2027-0' + (1 + (i % 9)) + '-0' + (1 + (i % 9))));
+    const f3 = fakeFs(server); await open(f3, memStore(), { weeks: many });
+    assert.equal(f3.listeners[0].q.weekIds, null, 'over 30 live weeks: one listener for all tasks');
+  } finally { Date.now = realNow; }
+});
