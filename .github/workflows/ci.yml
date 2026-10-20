@@ -17,6 +17,10 @@ on:
         description: Also deploy the Cloud Functions
         type: boolean
         default: false
+      skip_tests:
+        description: Deploy only, skip the tests (use only to retry a failed deploy of code that already passed)
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -24,6 +28,7 @@ concurrency:
 
 jobs:
   test:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -46,7 +51,7 @@ jobs:
 
   deploy:
     needs: test
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: ${{ always() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (needs.test.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.skip_tests)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -69,13 +74,20 @@ jobs:
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
       - name: Deploy website and security rules
         env: { GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/sa.json' }
-        run: npx firebase deploy --only hosting,firestore --project uni-teamtrack --non-interactive
+        run: |
+          set -o pipefail
+          npx firebase deploy --only hosting,firestore --project uni-teamtrack --non-interactive 2>&1 | tee deploy.log || {
+            grep -iE "error|denied|permission|requires|not enabled|403|401" deploy.log | tail -8 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1; }
       - name: Deploy Cloud Functions
         if: github.event_name == 'workflow_dispatch' && inputs.deploy_functions
         env: { GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/sa.json' }
         run: |
           (cd functions && npm ci)
-          npx firebase deploy --only functions --project uni-teamtrack --non-interactive --force
+          set -o pipefail
+          npx firebase deploy --only functions --project uni-teamtrack --non-interactive --force 2>&1 | tee fdeploy.log || {
+            grep -iE "error|denied|permission|requires|not enabled|403|401" fdeploy.log | tail -8 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1; }
       - name: Remove credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/sa.json"
