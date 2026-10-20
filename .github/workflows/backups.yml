@@ -50,10 +50,10 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v5
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@v3
       - name: Where the database lives
         id: db
         run: |
@@ -64,16 +64,23 @@ jobs:
       - name: Turn on automatic backups
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'setup'
         run: |
-          have=$(gcloud firestore backups schedules list --database='(default)' --project "$PROJECT" --format='value(dailyRecurrence,weeklyRecurrence.day)')
-          echo "Existing schedules: ${have:-none}"
-          if ! gcloud firestore backups schedules list --database='(default)' --project "$PROJECT" --format=json | grep -q dailyRecurrence; then
-            gcloud firestore backups schedules create --database='(default)' --project "$PROJECT" --recurrence=daily --retention=30d
-          fi
-          if ! gcloud firestore backups schedules list --database='(default)' --project "$PROJECT" --format=json | grep -q weeklyRecurrence; then
-            gcloud firestore backups schedules create --database='(default)' --project "$PROJECT" --recurrence=weekly --day-of-week=SUN --retention=98d
-          fi
-          gcloud firestore backups schedules list --database='(default)' --project "$PROJECT"
-          echo "::notice::Automatic backups are on: daily (kept 30 days) and weekly on Sundays (kept 14 weeks). The first one appears within 24 hours."
+          set -e
+          echo "Before:"; gcloud firestore backups schedules list --database='(default)' --project "$PROJECT"
+          ensure() { # $1 = daily|weekly, $2 = retention
+            local id; id=$(gcloud firestore backups schedules list --database='(default)' --project "$PROJECT" --format=json \
+              | python3 -c "import sys,json; k='dailyRecurrence' if '$1'=='daily' else 'weeklyRecurrence'; print(next((s['name'].split('/')[-1] for s in json.load(sys.stdin) if k in s), ''))")
+            if [ -n "$id" ]; then
+              gcloud firestore backups schedules update --database='(default)' --project "$PROJECT" --backup-schedule="$id" --retention="$2"
+            elif [ "$1" = daily ]; then
+              gcloud firestore backups schedules create --database='(default)' --project "$PROJECT" --recurrence=daily --retention="$2"
+            else
+              gcloud firestore backups schedules create --database='(default)' --project "$PROJECT" --recurrence=weekly --day-of-week=SUN --retention="$2"
+            fi
+          }
+          ensure daily 30d
+          ensure weekly 98d
+          echo "After:"; gcloud firestore backups schedules list --database='(default)' --project "$PROJECT"
+          echo "::notice::Automatic backups are on: daily (kept 30 days) and weekly (kept 14 weeks)."
 
       - name: Check the backups
         if: github.event_name == 'schedule' || inputs.action == 'check' || inputs.action == 'setup'
@@ -120,7 +127,7 @@ jobs:
 
       - name: Keep the before-restore snapshot
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'restore-team' && always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: team-${{ inputs.team_id }}-before-restore
           path: |
