@@ -24,7 +24,11 @@ function persist() {
 }
 function notify() { listeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); }
 // Other tabs changed the store → reload and notify.
-window.addEventListener('storage', (e) => { if (e.key === STORE_KEY) { store = load(); notify(); } });
+// Tests can hold other tabs' changes back (window.__ttHold = true), like a slow network: this tab
+// keeps showing the old data, while its own saves still go to the latest stored data (the "server").
+let heldBack = false;
+window.addEventListener('storage', (e) => { if (e.key === STORE_KEY) { if (window.__ttHold) { heldBack = true; return; } store = load(); notify(); } });
+window.__ttRelease = () => { window.__ttHold = false; if (heldBack) { heldBack = false; store = load(); notify(); } };
 
 // ── Auth ────────────────────────────────────────────────────────────────────
 let currentUser = null;
@@ -86,6 +90,10 @@ function authCtx() { return currentUser ? { uid: currentUser.uid, email: current
 
 /** Apply a batch atomically after checking every op against the rules. */
 function applyBatch(teamId, ops) {
+  if (window.__ttHold) { store = load(); }
+  // An edit to something deleted meanwhile: leave it out, like the Firebase backend.
+  const T = store.teams[teamId]; const skipped = [];
+  if (T) ops = ops.filter(op => { const [c, id] = op.path.split('/'); if (op.type === 'update' && id && !op.path.startsWith('/') && !(T[c] && T[c][id])) { skipped.push(op.path); return false; } return true; });
   const pre = store; const post = applyOps(store, teamId, ops);
   ops.forEach(op => checkWrite(pre, post, authCtx(), teamId, op));
   store = post; persist();
@@ -94,6 +102,7 @@ function applyBatch(teamId, ops) {
     const inv = store.teams[teamId]?.invites?.[op.path.slice(8)];
     if (inv && inv.createdAt === op.data.createdAt) { inv.emailedAt = Date.now(); inv.emailError = ''; persist(); }
   }, 300));
+  return { skipped };
 }
 
 function subscribe(compute, cb, onError) {
@@ -151,7 +160,7 @@ export const data = {
     checkRead(store, authCtx(), teamId); const T = store.teams[teamId];
     return clone({ teamId, team: T.doc, members: Object.entries(T.members).map(([uid, m]) => ({ ...m, uid })), tasks: Object.entries(T.tasks).map(([id, t]) => ({ ...t, id })), profiles: Object.entries(T.profiles || {}).map(([uid, p]) => ({ ...p, uid })) });
   },
-  async commit(teamId, ops) { applyBatch(teamId, ops); },
+  async commit(teamId, ops) { return applyBatch(teamId, ops); },
   /** Demo stand-in for the Cloud Functions: the code is shown on screen instead of emailed. */
   async callFunction(name, payload) {
     const me = currentUser; if (!me) throw Object.assign(new Error('Sign in first.'), { code: 'unauthenticated' });

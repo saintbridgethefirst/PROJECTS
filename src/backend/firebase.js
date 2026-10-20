@@ -3,6 +3,7 @@
 //  Free "Spark" plan is enough: login, database and hosting. No Cloud Storage
 //  or Cloud Functions are used (both need the paid plan).
 // ─────────────────────────────────────────────────────────────────────────────
+import { runOpsWith } from './batch.js';
 import { initializeApp } from 'firebase/app';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import {
@@ -147,34 +148,8 @@ const teamRef = (t) => doc(db, 'teams', t);
 const refFor = (t, path) => (path === 'team' ? teamRef(t) : path.startsWith('/') ? doc(db, ...path.slice(1).split('/')) : doc(db, 'teams', t, ...path.split('/')));
 const rows = (snap) => snap.docs.map(d => ({ ...d.data(), id: d.id }));
 
-/**
- * Split ops into batches Firestore will accept: ≤ 450 writes, and ≤ 12 distinct
- * task rows (each task write makes the rules look up its row — rules allow 20
- * look-ups per request).
- */
-function chunkOps(ops) {
-  const batches = []; let cur = []; let cats = new Set();
-  ops.forEach(op => {
-    const cat = op.data && op.data.categoryId;
-    const wouldAdd = cat && !cats.has(cat) ? 1 : 0;
-    if (cur.length >= 450 || cats.size + wouldAdd > 12) { batches.push(cur); cur = []; cats = new Set(); }
-    cur.push(op); if (cat) cats.add(cat);
-  });
-  if (cur.length) batches.push(cur);
-  return batches;
-}
-async function runOps(teamId, ops) {
-  for (const chunk of chunkOps(ops)) {
-    const b = writeBatch(db);
-    chunk.forEach(op => {
-      const r = refFor(teamId, op.path);
-      if (op.type === 'delete') b.delete(r);
-      else if (op.type === 'set') b.set(r, op.data);
-      else b.update(r, op.data);
-    });
-    await b.commit();
-  }
-}
+// Saving a list of changes (in batches) lives in batch.js, so it can be tested against the emulator.
+const runOps = (teamId, ops) => runOpsWith({ writeBatch: () => writeBatch(db), getDoc, ref: (path) => refFor(teamId, path) }, ops);
 
 export const data = {
   watchMyTeams(uid, cb, onError) {

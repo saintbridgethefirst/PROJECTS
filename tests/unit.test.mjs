@@ -655,3 +655,45 @@ test('restore plan: writes changed/new docs, deletes extras, keeps the rest', as
   const T = { fromMillis: (m) => ({ ms: m }) };
   assert.deepEqual(fromJSON({ a: { __ts: 5 }, b: [{ __ts: 6 }], c: { __ts: 1, x: 2 } }, T), { a: { ms: 5 }, b: [{ ms: 6 }], c: { __ts: 1, x: 2 } });
 });
+
+// ── Saves at the same moment: merge3 ───────────────────────────────────────
+import { merge3, deepEqual } from '../src/sync.js';
+const sts = (...xs) => xs.map(([id, done, title]) => ({ id, title: title || id, completed: !!done }));
+test('merge3: different sub-tasks ticked by two people are both kept', () => {
+  assert.deepEqual(merge3(sts(['a'], ['b']), sts(['a', 1], ['b']), sts(['a'], ['b', 1])), sts(['a', 1], ['b', 1]));
+});
+test('merge3: both add items; mine goes after the item it followed', () => {
+  const r = merge3(sts(['a'], ['b']), sts(['a'], ['x'], ['b']), sts(['a'], ['b'], ['y']));
+  assert.deepEqual(r.map(x => x.id), ['a', 'x', 'b', 'y']);
+});
+test('merge3: my delete and their edit of another item', () => {
+  assert.deepEqual(merge3(sts(['a'], ['b']), sts(['b']), sts(['a'], ['b', 1])), sts(['b', 1]));
+});
+test('merge3: they deleted an item I edited → it stays deleted', () => {
+  assert.deepEqual(merge3(sts(['a'], ['b']), sts(['a', 1], ['b']), sts(['b'])), sts(['b']));
+});
+test('merge3: same value changed by both → the saved one (theirs) wins, so browsers agree', () => {
+  assert.equal(merge3('a', 'b', 'c'), 'c');
+  assert.deepEqual(merge3(sts(['a']), sts(['a', 0, 'A1']), sts(['a', 0, 'A2'])), sts(['a', 0, 'A2']));
+});
+test('merge3: my reorder is kept, their new item stays where they put it', () => {
+  const r = merge3(sts(['a'], ['b'], ['c']), sts(['c'], ['a'], ['b']), sts(['a'], ['b'], ['n'], ['c']));
+  assert.deepEqual(r.map(x => x.id), ['c', 'a', 'b', 'n']);
+});
+test('merge3: lists of ids and plain objects (dependsOn, custom fields)', () => {
+  assert.deepEqual(merge3(['t1'], ['t1', 't2'], ['t1', 't3']), ['t1', 't2', 't3']);
+  assert.deepEqual(merge3({ f1: 'a', f2: 'b' }, { f1: 'A', f2: 'b' }, { f1: 'a', f2: 'B' }), { f1: 'A', f2: 'B' });
+});
+test('merge3: weeks added by two admins (items keyed by "key")', () => {
+  const w = (...ks) => ks.map(key => ({ key, title: key }));
+  assert.deepEqual(merge3(w('w1'), w('w1', 'wA'), w('w1', 'wB')).map(x => x.key), ['w1', 'wA', 'wB']);
+});
+test('merge3: merging again gives the same answer (no ping-pong between browsers)', () => {
+  const base = sts(['a'], ['b']), mine = sts(['a', 1], ['b']), theirs = sts(['a'], ['b', 1]);
+  const m = merge3(base, mine, theirs);
+  assert.ok(deepEqual(merge3(theirs, m, m), m) && deepEqual(merge3(base, theirs, m), m));
+});
+test('deepEqual ignores object key order', () => {
+  assert.ok(deepEqual({ a: 1, b: [{ x: 1, y: 2 }] }, { b: [{ y: 2, x: 1 }], a: 1 }));
+  assert.ok(!deepEqual([1, 2], [2, 1]));
+});

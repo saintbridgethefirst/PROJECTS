@@ -1965,9 +1965,12 @@
                 else if (activeType === 'person') next = db.find(p => p.id === activeId) || null;
             }
             activeNode = next;
-            if (editingHeader()) deferredRender = true; else { renderFilters(); render(); }
             const form = document.getElementById('edit-form');
             const typing = form && form.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+            // A teammate's change arrived while you're typing in the editor: keep what you've typed so far.
+            const typedField = { 'edit-name': 'name', 'edit-status': 'status', 'edit-jira': 'jiraId' }[typing ? document.activeElement.id : ''];
+            if (typedField && next && next[typedField] !== document.activeElement.value) next[typedField] = document.activeElement.value;
+            if (editingHeader()) deferredRender = true; else { renderFilters(); render(); }
             if (!activeNode) { if (activeId) closeEditor(); }
             else if (!typing) openEditor(activeNode);
             if (document.getElementById('analytics-overlay')) renderAnalytics();

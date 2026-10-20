@@ -112,7 +112,7 @@ export function deniedChanges(changes, team, member) {
 export function changesToOps(changes, me) {
   const now = Date.now(); const ops = [];
   changes.forEach(c => {
-    if (c.kind === 'weeks') { ops.push({ type: 'update', path: 'team', data: { weeks: c.after } }); return; }
+    if (c.kind === 'weeks') { ops.push({ type: 'update', path: 'team', data: { weeks: c.after }, base: { weeks: clone(c.before) } }); return; }
     const coll = c.kind === 'cat' ? 'categories' : 'tasks';
     const path = coll + '/' + c.id;
     if (!c.after) { ops.push({ type: 'delete', path }); return; }
@@ -122,10 +122,16 @@ export function changesToOps(changes, me) {
       ops.push({ type: 'set', path, data });
       return;
     }
-    const data = {};
-    Object.keys(c.after).forEach(k => { if (!same(c.before[k], c.after[k])) data[k] = c.after[k]; });
+    const data = {}; const base = {};
+    Object.keys(c.after).forEach(k => {
+      if (same(c.before[k], c.after[k])) return;
+      data[k] = c.after[k];
+      // Lists and objects (sub-tasks, time log, custom fields…) are written whole. Keep what they were,
+      // so a teammate's save of the same field at the same moment can be merged back in (healLostEdits).
+      if (c.after[k] && typeof c.after[k] === 'object') base[k] = clone(c.before[k]);
+    });
     if (coll === 'tasks') Object.assign(data, { updatedBy: me.name, updatedAt: now });
-    ops.push({ type: 'update', path, data });
+    ops.push(Object.keys(base).length ? { type: 'update', path, data, base } : { type: 'update', path, data });
   });
   return ops;
 }
@@ -162,3 +168,57 @@ export function invert(changes) { return changes.map(c => ({ ...c, before: c.aft
 
 /** Turn raw task docs into clean tasks (exported for tests/backends). */
 export function cleanTasks(raw, fields) { return raw.map(t => cleanTask(t, t.id, fields)); }
+
+// ── Two people saving the same thing at once ────────────────────────────────
+// Lists and objects are saved whole, so when two people save the same task within a moment of each
+// other, the later save can wipe out the earlier one's change (two sub-tasks ticked, two weeks added).
+// merge3 combines both: base = the value before my edit, mine = what I saved, theirs = what is saved
+// now. Changes to different items/keys are all kept; when both changed the very same value, the saved
+// one (theirs) stays, so two browsers never fight over it.
+
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+/** Equal content, ignoring the order of object keys (the database may return keys sorted). */
+export function deepEqual(a, b) {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => deepEqual(x, b[i]));
+  if (isObj(a) && isObj(b)) { const ka = Object.keys(a).filter(k => a[k] !== undefined), kb = Object.keys(b).filter(k => b[k] !== undefined); return ka.length === kb.length && ka.every(k => deepEqual(a[k], b[k])); }
+  return false;
+}
+const itemKey = (x) => (isObj(x) ? (x.id != null ? 'id:' + x.id : x.key != null ? 'key:' + x.key : null) : null);
+const canon = (v) => (Array.isArray(v) ? '[' + v.map(canon).join(',') + ']' : isObj(v) ? '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}' : JSON.stringify(v));
+
+export function merge3(base, mine, theirs) {
+  if (deepEqual(mine, theirs) || deepEqual(base, mine)) return theirs;
+  if (deepEqual(base, theirs)) return mine;
+  if (isObj(base) && isObj(mine) && isObj(theirs)) {
+    const out = { ...theirs };
+    new Set([...Object.keys(base), ...Object.keys(mine)]).forEach(k => { const v = merge3(base[k], mine[k], theirs[k]); if (v === undefined) delete out[k]; else out[k] = v; });
+    return out;
+  }
+  if (Array.isArray(base) && Array.isArray(mine) && Array.isArray(theirs)) return mergeList(base, mine, theirs);
+  return theirs;
+}
+
+function mergeList(base, mine, theirs) {
+  const keyed = [base, mine, theirs].every(l => l.every(x => itemKey(x) !== null));
+  const k = keyed ? itemKey : canon;
+  const inBase = new Map(base.map(x => [k(x), x])), inMine = new Map(mine.map(x => [k(x), x]));
+  // Their list, minus what I removed, with my edits to items we both still have.
+  let out = theirs.filter(x => !(inBase.has(k(x)) && !inMine.has(k(x))))
+    .map(x => (keyed && inBase.has(k(x)) && inMine.has(k(x)) ? merge3(inBase.get(k(x)), inMine.get(k(x)), x) : x));
+  // If I reordered the list and they didn't, use my order.
+  const order = (l, keys) => l.map(k).filter(x => keys.has(x));
+  const common = new Set(base.map(k).filter(x => inMine.has(x) && theirs.some(t => k(t) === x)));
+  if (keyed && order(base, common).join('|') !== order(mine, common).join('|') && order(base, common).join('|') === order(theirs, common).join('|')) {
+    const pos = new Map(mine.map((x, i) => [k(x), i])); const theirsOnly = out.filter(x => !pos.has(k(x)));
+    out = out.filter(x => pos.has(k(x))).sort((a, b) => pos.get(k(a)) - pos.get(k(b)));
+    theirsOnly.forEach(x => { const prev = theirs[theirs.findIndex(t => k(t) === k(x)) - 1]; const at = prev ? out.findIndex(o => k(o) === k(prev)) + 1 : 0; out.splice(at, 0, x); });
+  }
+  // What I added goes after the item it followed in my list.
+  mine.forEach((x, i) => {
+    if (inBase.has(k(x)) || out.some(o => k(o) === k(x))) return;
+    let at = 0; for (let j = i - 1; j >= 0; j--) { const p = out.findIndex(o => k(o) === k(mine[j])); if (p > -1) { at = p + 1; break; } }
+    out.splice(at, 0, x);
+  });
+  return out;
+}

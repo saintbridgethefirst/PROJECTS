@@ -10,7 +10,7 @@ import { THEMES, SWATCH, applyTheme, currentTheme, savedTheme, themeName, isThem
 import { APP_NAME, APP_TAGLINE, DEMO_MODE, GOOGLE_CLIENT_ID, MS_CLIENT_ID, LIMITS } from './config.js';
 import { can, canEditOwnedBy, DEFAULT_ROLES, normEmail, isValidEmail } from './permissions.js';
 import { cleanTeam, cleanMember, cleanCategory, cleanTask, DEFAULT_LABELS, newId, nextWeekTitle, cascadeWeekDates, carryIndexOf } from './model.js';
-import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mergeChanges, invert } from './sync.js';
+import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mergeChanges, invert, merge3, deepEqual } from './sync.js';
 import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
@@ -501,7 +501,7 @@ async function openTeam(teamId) {
   closeTeam(); stopHome();
   show('board-screen');
   try { await loadBoard(); } catch (e) { toast(e.message); goHome(); return; }
-  session = { teamId, team: null, members: null, categories: null, tasks: null, me: null, base: null, undo: [], redo: [], pending: 0, booted: false };
+  session = { teamId, team: null, members: null, categories: null, tasks: null, me: null, base: null, undo: [], redo: [], pending: 0, booted: false, recent: new Map() };
   const s = session;
   const handlers = {
     onTeam: (t) => { s.rawTeam = t; s.team = { id: t.id, ...cleanTeam(t) }; schedule(); },
@@ -610,6 +610,7 @@ function refresh() {
   s.tasks = s.rawTasks.map(t => cleanTask(t, t.id, s.team.fields));
   s.me = s.members.find(m => m.uid === user.uid) || null;
   if (!s.me) { toast('You’re no longer a member of this team.', 6000); goHome(); return; }
+  healLostEdits(s);
   const model = buildModel(stateForModel());
   s.base = flatten(model);
   // When the saved data that comes back is exactly what the board already shows (the echo of your
@@ -705,12 +706,59 @@ function renderTeamDataPanel() {
 }
 
 // Write ops on behalf of the board/settings with consistent status + errors.
+// ── Two people saving the same task at once ─────────────────────────────────
+// Every save of a list or object field (sub-tasks, time log, custom fields, weeks…) is remembered for
+// a short while. If a teammate's save lands on top of it and wipes my change out, the next snapshot
+// shows it: merge the two (sync.merge3) and save the result. Both browsers end up with both changes.
+const HEAL_WINDOW = 30000;
+function rememberWrites(s, ops) {
+  ops.forEach(op => {
+    const fields = op.type === 'update' ? Object.keys(op.data) : null;
+    // A save without a "before" (undo, a whole-document set, a delete) replaces what I remembered.
+    [...s.recent.keys()].forEach(k => { const r = s.recent.get(k); if (r.path === op.path && (!fields || (fields.includes(r.field) && !(op.base && r.field in op.base)))) s.recent.delete(k); });
+    if (op.type !== 'update' || !op.base) return;
+    Object.keys(op.base).forEach(f => { const k = op.path + '|' + f; const r = s.recent.get(k); const open = r && r.until === Infinity; s.recent.set(k, { path: op.path, field: f, base: open ? r.base : op.base[f], mine: op.data[f], until: Infinity, heals: open ? r.heals : 0 }); /* an earlier save not yet confirmed: merge from before it */ });
+  });
+}
+function settleWrites(s, ops, ok) {
+  ops.forEach(op => { if (!op.base) return; Object.keys(op.base).forEach(f => { const k = op.path + '|' + f; const r = s.recent.get(k); if (r && r.mine === op.data[f]) { if (ok) r.until = Date.now() + HEAL_WINDOW; else s.recent.delete(k); } }); });
+}
+function healLostEdits(s) {
+  if (!s.recent.size) return;
+  const now = Date.now(); const ops = []; let byId = null;
+  s.recent.forEach((r, k) => {
+    if (r.until < now) { s.recent.delete(k); return; }
+    if (!byId && r.path !== 'team') byId = new Map(s.rawTasks.map(t => ['tasks/' + t.id, t]));
+    const cur = r.path === 'team' ? s.rawTeam : byId.get(r.path);
+    if (!cur) { s.recent.delete(k); return; }            // deleted meanwhile
+    const theirs = cur[r.field];
+    if (deepEqual(theirs, r.mine)) return;                // still what I saved
+    const merged = merge3(r.base, r.mine, theirs);
+    if (deepEqual(merged, theirs) || r.heals >= 3) { s.recent.delete(k); return; } // nothing of mine was lost
+    r.base = theirs; r.mine = merged; r.until = Infinity; r.heals++;
+    ops.push({ type: 'update', path: r.path, data: { [r.field]: merged } });
+  });
+  if (!ops.length) return;
+  console.info('TeamTrack: merged changes saved at the same moment by you and a teammate', ops.map(o => o.path + ' ' + Object.keys(o.data)[0]));
+  s.healed = (s.healed || 0) + ops.length;
+  s.pending++; setSyncStatus();
+  backend.data.commit(s.teamId, ops)
+    .then(() => { if (session === s) { s.pending--; setSyncStatus('saved'); ops.forEach(o => { const r = s.recent.get(o.path + '|' + Object.keys(o.data)[0]); if (r) r.until = Date.now() + HEAL_WINDOW; }); } })
+    .catch((e) => { console.warn('merge save', e); if (session === s) { s.pending--; setSyncStatus(); ops.forEach(o => s.recent.delete(o.path + '|' + Object.keys(o.data)[0])); } });
+}
+
 async function writeOps(ops, { quiet = false } = {}) {
   const s = session; if (!s || !ops.length) return true;
-  s.pending++; setSyncStatus();
-  try { await backend.data.commit(s.teamId, ops); if (session === s) { s.pending--; setSyncStatus('saved'); } return true; }
+  s.pending++; setSyncStatus(); rememberWrites(s, ops);
+  try {
+    const res = await backend.data.commit(s.teamId, ops);
+    settleWrites(s, ops, true);
+    if (session === s) { s.pending--; setSyncStatus('saved'); }
+    if (res && res.skipped && res.skipped.length && !quiet) toast(res.skipped.length === 1 ? 'Someone else just deleted something you changed, so that change wasn’t saved.' : `Someone else just deleted ${res.skipped.length} things you changed, so those changes weren’t saved.`, 6000);
+    return true;
+  }
   catch (e) {
-    console.error(e);
+    console.error(e); settleWrites(s, ops, false);
     if (session === s) { s.pending--; setSyncStatus('error'); if (!quiet) toast(friendlyError(e), 6000); revert(); }
     if (!quiet) report('write', { message: String((e && e.code) || 'error') + ': ' + String((e && e.message) || ''), stack: ops.map(o => o.type + ' ' + String(o.path).split('/')[0]).join(', ') });
     return false;
