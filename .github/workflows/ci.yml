@@ -38,6 +38,8 @@ jobs:
       - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: 21 }
       - run: npm ci
+      - name: Lint (undefined names, unused code, duplicate keys…)
+        run: tools/ci/annotate.sh npm run lint
       - name: Unit tests
         run: tools/ci/annotate.sh npm test
       - name: Cloud Functions tests

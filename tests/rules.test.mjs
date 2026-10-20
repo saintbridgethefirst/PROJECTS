@@ -3,7 +3,7 @@
 import test, { before, after, beforeEach } from 'node:test';
 import fs from 'node:fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, collection, writeBatch, query, where, collectionGroup } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection, writeBatch, query, where, collectionGroup } from 'firebase/firestore';
 import { fixture, users, writeScenarios, readScenarios, TEAM } from './scenarios.mjs';
 
 let env;

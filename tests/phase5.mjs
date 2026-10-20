@@ -114,7 +114,6 @@ try {
   const copies = () => Object.entries(T.tasks).map(([id, t]) => ({ ...t, id })).filter(t => t.repeat && t.repeat.seriesId === 'tB');
   ok(copies().length === 2 && copies().map(t => t.weekId).sort().join() === 'wk_three,wk_two', 'weekly: copies appear in the 2 later weeks');
   ok(await q.locator('.task-card', { hasText: 'Group meeting' }).first().locator('.repeat-chip').isVisible(), 'the card shows 🔁');
-  const undoLen = await q.evaluate(() => TT.canUndo());
   // delete one copy; it must not come back
   const c3 = copies().find(t => t.weekId === 'wk_three');
   await q.evaluate((id) => { const loc = locateTask(id); loc.cat[loc.weekKey].splice(loc.index, 1); saveDatabase(); render(); }, c3.id); await sleep(500);

@@ -224,16 +224,15 @@ function subteams(pane, ctx, { rerender } = {}) {
   const s = ctx.session, T = s.team; const editable = can(T, s.me, 'team.settings') || can(T, s.me, 'members.manage');
   const people = s.members.slice().sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
   let draft = JSON.parse(JSON.stringify(T.subteams || []));
-  let dirty = false;
   const listBox = el('div.st-edit-list');
   const saveBtn = el('button.btn.primary', { type: 'button', id: 'st-save', disabled: true, onclick: async () => {
     const live = new Set(ctx.session.members.map(m => m.uid));
     const cleaned = cleanSubteams(draft.map((x, i) => ({ ...x, name: (x.name || '').trim() || 'Sub-team ' + (i + 1), members: x.members.filter(u => live.has(u)) })));
     const names = cleaned.map(x => x.name.toLowerCase()); const dup = names.find((n, i) => names.indexOf(n) !== i);
     if (dup) return toast('Two sub-teams are called “' + cleaned[names.indexOf(dup)].name + '”. Give each a different name.', 5000);
-    if (await save(ctx, [{ type: 'update', path: 'team', data: { subteams: cleaned } }], 'Sub-teams saved.')) { dirty = false; if (rerender) rerender(); }
+    if (await save(ctx, [{ type: 'update', path: 'team', data: { subteams: cleaned } }], 'Sub-teams saved.')) { if (rerender) rerender(); }
   } }, 'Save sub-teams');
-  const touch = () => { dirty = true; saveBtn.disabled = false; };
+  const touch = () => { saveBtn.disabled = false; };
   const add = (name) => {
     if (draft.length >= SUBTEAM_LIMIT) return toast('Up to ' + SUBTEAM_LIMIT + ' sub-teams.');
     if (name && draft.some(x => x.name.toLowerCase() === name.toLowerCase())) return;

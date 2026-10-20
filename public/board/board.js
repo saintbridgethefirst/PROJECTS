@@ -122,39 +122,15 @@
         
         updateThemeButtons();
 
-        function toggleSidebar() {
-            const panel = document.getElementById('editor-panel'); 
-            const toggleDiv = document.getElementById('floating-toggles');
-            if(panel && toggleDiv) {
-                panel.classList.toggle('hidden');
-                const isHidden = panel.classList.contains('hidden');
-                toggleDiv.style.display = isHidden ? 'flex' : 'none'; panel.style.marginRight = isHidden ? (-panel.offsetWidth) + 'px' : '';
-                setTimeout(drawLines, 350);
-            }
-        }
+        
 
         // --- Context menus: see "v12" block near the end of this script ---
 
-        function openEditorFromMenu(id) { 
-            let node = db.find(p => p.id === id) || db.flatMap(p=>p.categories).find(c => c.id === id);
-            if(node) { 
-                const panel = document.getElementById('editor-panel');
-                if(panel && panel.classList.contains('hidden')) toggleSidebar();
-                openEditor(node); 
-            }
-        }
+        
 
-        function addCategoryToPerson(personId) {
-            let p = db.find(p => p.id === personId); let newCat = { id: generateId(), type: 'category', name: 'NEW TYPE' };
-            weeksData.forEach(w => newCat[w.key] = []); p.categories.push(newCat); saveDatabase(); render();
-        }
+        
 
-        function addTaskToCategory(personId, catId, weekKey) {
-            let cat = db.find(p => p.id === personId).categories.find(c => c.id === catId);
-            let newTask = { id: generateId(), type: 'task', name: 'New Task', priority: 'Minor', status: 'TODO', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'none', subtasks: [], history: [] };
-            logHistory(newTask, "Task Status", "", "Created via quick menu");
-            cat[weekKey].push(newTask); saveDatabase(); render();
-        }
+        
 
         // --- Database & History Logging ---
         let weeksData = []; let db = []; let hiddenPersons = new Set(); let hiddenWeeks = new Set(); 
@@ -832,17 +808,13 @@
             inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; inp.remove(); if (f) handler(f); });
             document.body.appendChild(inp); inp.click();
         }
-        function readAsArrayBuffer(file) {
-            return new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => reject(r.error || new Error('Could not read file')); r.readAsArrayBuffer(file); });
-        }
-        function readAsText(file) {
-            return new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => reject(r.error || new Error('Could not read file')); r.readAsText(file); });
-        }
+        
+        
 
         // ---------- Undo / Redo ----------
         
         
-        function currentSnapshot() { return JSON.stringify({ weeksData, db }); }
+        
         
         function closeEditor() {
             activeNode = null;
@@ -975,7 +947,7 @@
             loc.cat[next.key].push(clone); saveDatabase(); renderFilters(); render(); flashNode(clone.id);
             toast('Carried forward to ' + next.title + '.');
         }
-        function openOriginalTask(taskId) {
+        function _openOriginalTaskBase(taskId) {
             const loc = locateTask(taskId); if (!loc) return;
             hiddenWeeks.delete(loc.weekKey); hiddenPersons.delete(loc.person.id); renderFilters(); render();
             openEditorForNode(loc.task); flashNode(loc.task.id);
@@ -1529,7 +1501,6 @@
         function setAllWeeksCollapsed(v) { weeksData.forEach(w => { w.collapsed = v; TT.setCollapsed(w.key, v); }); render(); }
 
         // People are team members (accounts); names come from their accounts.
-        function addPerson() { TT.openInvite(); }
         async function addPersonFlow() { TT.openInvite(); }
         async function renameFlow(node, label) {
             if (node.type === 'person') { toast('Names come from each person’s account. They can change theirs under 👤 Account.', 5000); return; }
@@ -1543,7 +1514,6 @@
         function movePerson(p, d) {
             if (moveInArray(db, db.indexOf(p), db.indexOf(p) + d)) { TT.savePersonOrder(db.filter(x => !x.former).map(x => x.id)); renderFilters(); render(); flashNode(p.id); }
         }
-        function changeUser() { TT.openAccount(); }
 
         function logHistory(task, field, originalValue, newValue) {
             if (!task.history) task.history = [];
@@ -1553,7 +1523,7 @@
 
         function addWeek(customTitle) {
             if (!TT.can('weeks.manage')) { toast('Your role can’t add weeks.'); return; }
-            const nextNum = weeksData.length + 1; const newKey = 'wk_' + generateId().slice(3);
+            const newKey = 'wk_' + generateId().slice(3);
             const start = nextWeekStart();
             weeksData.push({ key: newKey, title: customTitle || TT.weekTitle(start, weeksData), metric: '', collapsed: false, startDate: start });
             db.forEach(p => p.categories.forEach(c => c[newKey] = []));
@@ -3000,8 +2970,7 @@
             if (focusId) { const n = document.getElementById('kb-' + focusId); if (n) n.focus({ preventScroll: true }); }
         }
         // boardOpenTask/openOriginalTask while the Kanban is showing: highlight the Kanban card
-        const _openOriginalTaskBase = openOriginalTask;
-        openOriginalTask = function (taskId) { _openOriginalTaskBase(taskId); if (boardView === 'kanban') { const n = document.getElementById('kb-' + taskId); if (n) { try { n.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* */ } } flashKb(taskId); } };
+        function openOriginalTask(taskId) { _openOriginalTaskBase(taskId); if (boardView === 'kanban') { const n = document.getElementById('kb-' + taskId); if (n) { try { n.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* */ } } flashKb(taskId); } }
         (function () { const q = document.getElementById('search-tasks'); if (q) q.addEventListener('input', () => { if (boardView === 'kanban') renderKanban(); }); })();
         document.body.classList.toggle('view-kanban', boardView === 'kanban');
         document.querySelectorAll('[data-view]').forEach(b => { const on = b.dataset.view === boardView; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });

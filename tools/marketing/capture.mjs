@@ -35,7 +35,6 @@ const save = async (p, name, clip) => {
 };
 const centreOn = (p, sel) => p.locator(sel).first().evaluate(e => e.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }));
 const card = (p, name, i = 0) => p.locator('.task-card', { hasText: name }).nth(i);
-const esc = async (p) => { await p.keyboard.press('Escape'); await sleep(250); };
 const tool = async (p, tab) => { if (!(await p.locator('.research-modal').count())) { await p.click('#research-btn'); await p.waitForSelector('.research-modal'); } await p.click(`.rs-tab[data-tab="${tab}"]`); await sleep(500); };
 
 const SHOTS = {

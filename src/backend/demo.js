@@ -232,7 +232,7 @@ export const data = {
     store = post; persist();
   },
   async sendFeedback(d) {
-    const me = authCtx(); if (!me) fail('unauthenticated', 'Sign in first.');
+    const me = authCtx(); if (!me) throw Object.assign(new Error('Sign in first.'), { code: 'unauthenticated' });
     const op = { type: 'set', path: '/feedback/' + newId('fb'), data: { ...d, expireAt: Date.now() + 365 * 864e5 } };
     const post = applyOps(store, null, [op]); checkWrite(store, post, me, null, op);
     store = post; persist();

@@ -3,6 +3,8 @@
 //   node tools/build-board.mjs
 // Uses a real JavaScript parser so removals/renames are exact.
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import * as acorn from 'acorn';
 
 let src = fs.readFileSync(new URL('../ref/v13.js', import.meta.url), 'utf8');
@@ -127,13 +129,15 @@ const DROP_FUNCS = new Set(['initDB', 'saveFileHandle', 'getFileHandle', 'delete
   'loadFromFile', 'pullLatestExcel', 'saveToFile', 'importExcelFallback', 'recordSnapshot', 'applySnapshot', 'undo', 'redo', 'restoreBackupFile',
   'setManualFile', 'refreshSyncUI', 'markConnectedUI', 'disconnectManual', 'downloadFullWorkbook', 'handleManualFile', 'addPersonLegacy',
   'addPerson', 'addPersonFlow', 'renameFlow', 'movePerson', 'toggleWeekCollapse', 'setAllWeeksCollapsed', 'deleteActiveNode', 'deleteWeek',
-  'deleteNodeViaMenu', 'logHistory', 'setWeekStartFlow', 'autoDateWeeksFlow', 'toggleTheme', 'updateThemeButtons', 'addWeek', 'exportOffline', 'personMenuItems', 'exportTaskList', 'updateSyncTime']);
+  'deleteNodeViaMenu', 'logHistory', 'setWeekStartFlow', 'autoDateWeeksFlow', 'toggleTheme', 'updateThemeButtons', 'addWeek', 'exportOffline', 'personMenuItems', 'exportTaskList', 'updateSyncTime',
+  // never called in the team version (found by npm run lint / the dead-code check)
+  'addCategoryToPerson', 'addTaskToCategory', 'currentSnapshot', 'openEditorFromMenu', 'readAsArrayBuffer', 'readAsText', 'toggleSidebar']);
 const DROP_VARS = new Set(['DB_NAME', 'STORE_NAME', 'currentUser', 'autoSaveTimer', 'undoStack', 'FS_API', 'manualFileName', 'manualDirty',
   'currentFileHandle', 'saveInFlight']);
 const RENAME = { openEditor: '_openEditorBase', createTaskCard: '_createTaskCardBase', canvasMenuItems: '_canvasMenuItemsBase',
   taskMenuItems: '_taskMenuItemsBase', renderCategoryRow: '_renderCategoryRowBase', downloadBackup: '_downloadBackupBase', openAnalytics: '_openAnalyticsBase', renderFilters: '_renderFiltersBase',
   showMenu: '_showMenuBase', closeContextMenu: '_closeContextMenuBase', onBoardContextMenu: '_onBoardContextMenuBase',
-  columnMenuItems: '_columnMenuItemsBase', render: '_renderBase', collectTasks: '_collectTasksBase', renderAnalytics: '_renderAnalyticsBase', locateTask: '_locateTaskBase' };
+  columnMenuItems: '_columnMenuItemsBase', render: '_renderBase', collectTasks: '_collectTasksBase', renderAnalytics: '_renderAnalyticsBase', locateTask: '_locateTaskBase', openOriginalTask: '_openOriginalTaskBase' };
 const DROP_EXPR = [/updateUIUser\(\)/, /e\.key === 's'/, /'beforeunload'/, /'storage'/, /^loadDatabase\(\)/, /^checkStoredHandle\(\)/,
   /^lastSnapshot = /, /^refreshSyncUI\(\)/, /^renderFilters\(\);?$/, /^render\(\);?$/];
 
@@ -175,12 +179,22 @@ const header = `/* ────────────────────�
 src = header + src.replace(/\n{3,}/g, '\n\n') + overrides;
 
 // 4) Sanity: names that must no longer appear.
-if (process.env.DEBUG_BOARD) fs.writeFileSync('/tmp/claude-0/-home-claude/d92b6c91-7cf6-59a8-88c0-ce071e186630/scratchpad/board-debug.js', src);
 for (const bad of ['localStorage.getItem(\'drilling_tracker_db', 'currentFileHandle', 'showOpenFilePicker', 'manualFileName', 'Epiroc', 'prompt("']) {
   if (src.includes(bad)) throw new Error('Leftover reference: ' + bad);
 }
-if (process.env.DEBUG_BOARD) fs.writeFileSync("/tmp/claude-0/-home-claude/d92b6c91-7cf6-59a8-88c0-ce071e186630/scratchpad/board-debug.js", src);
+if (process.env.DEBUG_BOARD) fs.writeFileSync(path.join(os.tmpdir(), 'board-debug.js'), src);
 new acorn.Parser({ ecmaVersion: 'latest', sourceType: 'script' }, src).parse();
 fs.mkdirSync(new URL('../public/board/', import.meta.url), { recursive: true });
 fs.writeFileSync(new URL('../public/board/board.js', import.meta.url), src);
 console.log('board.js written:', src.length, 'chars');
+
+// 5) Dead code: board functions nothing calls (not the board, the page, the app nor the tests).
+{
+  const read = (dir, re) => fs.readdirSync(new URL(dir, import.meta.url), { recursive: true }).filter(f => re.test(f)).map(f => fs.readFileSync(new URL(dir + f, import.meta.url), 'utf8')).join('\n');
+  const elsewhere = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8') + read('../src/', /\.js$/) + read('../tests/', /\.mjs$/);
+  const names = [...src.matchAll(/^\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm)].map(m => m[1]);
+  const uses = (n, text) => (text.match(new RegExp('(?<![\\w$])' + n.replace(/\$/g, '\\$') + '(?![\\w$])', 'g')) || []).length;
+  const dead = [...new Set(names)].filter(n => uses(n, src) + uses(n, elsewhere) <= 1);
+  if (dead.length) console.warn('⚠ Board functions nothing calls (drop them in DROP_FUNCS or delete them):', dead.join(', '));
+  else console.log('No unused board functions.');
+}

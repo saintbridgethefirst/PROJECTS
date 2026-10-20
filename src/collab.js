@@ -126,7 +126,7 @@ function composer({ members, placeholder, initial = '', submitLabel = 'Comment',
 let mounted = null;   // { taskId, list, ctx }
 const drafts = new Map();   // unsent text per task, so a refresh of the panel never loses it
 export function commentSection(ctx, taskId) {
-  const { session, user } = ctx;
+  const { session } = ctx;
   const sec = el('div.panel-section.comments-section', {}, el('h4', {}, 'Comments'));
   const list = el('div.cm-list');
   sec.append(list);

@@ -67,7 +67,6 @@ async function newPage(ctx, label) {
   await p.route(/https:\/\/(www|sheets)\.googleapis\.com\/.*/, google);
   return p;
 }
-async function dialog(p, value) { await p.waitForSelector('#dialog-overlay input'); await p.fill('#dialog-overlay input', value); await p.click('#dialog-overlay .dlg-ok'); await sleep(200); }
 const calEvents = () => Object.values(Object.values(G.calendars)[0]?.events || {});
 const iso = (d) => { const x = new Date(); x.setDate(x.getDate() + d); return x.toLocaleDateString('en-CA'); };
 

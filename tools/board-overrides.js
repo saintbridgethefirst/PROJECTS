@@ -35,7 +35,6 @@
         function setAllWeeksCollapsed(v) { weeksData.forEach(w => { w.collapsed = v; TT.setCollapsed(w.key, v); }); render(); }
 
         // People are team members (accounts); names come from their accounts.
-        function addPerson() { TT.openInvite(); }
         async function addPersonFlow() { TT.openInvite(); }
         async function renameFlow(node, label) {
             if (node.type === 'person') { toast('Names come from each person’s account. They can change theirs under 👤 Account.', 5000); return; }
@@ -49,7 +48,6 @@
         function movePerson(p, d) {
             if (moveInArray(db, db.indexOf(p), db.indexOf(p) + d)) { TT.savePersonOrder(db.filter(x => !x.former).map(x => x.id)); renderFilters(); render(); flashNode(p.id); }
         }
-        function changeUser() { TT.openAccount(); }
 
         function logHistory(task, field, originalValue, newValue) {
             if (!task.history) task.history = [];
@@ -59,7 +57,7 @@
 
         function addWeek(customTitle) {
             if (!TT.can('weeks.manage')) { toast('Your role can’t add weeks.'); return; }
-            const nextNum = weeksData.length + 1; const newKey = 'wk_' + generateId().slice(3);
+            const newKey = 'wk_' + generateId().slice(3);
             const start = nextWeekStart();
             weeksData.push({ key: newKey, title: customTitle || TT.weekTitle(start, weeksData), metric: '', collapsed: false, startDate: start });
             db.forEach(p => p.categories.forEach(c => c[newKey] = []));
@@ -1506,8 +1504,7 @@
             if (focusId) { const n = document.getElementById('kb-' + focusId); if (n) n.focus({ preventScroll: true }); }
         }
         // boardOpenTask/openOriginalTask while the Kanban is showing: highlight the Kanban card
-        const _openOriginalTaskBase = openOriginalTask;
-        openOriginalTask = function (taskId) { _openOriginalTaskBase(taskId); if (boardView === 'kanban') { const n = document.getElementById('kb-' + taskId); if (n) { try { n.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* */ } } flashKb(taskId); } };
+        function openOriginalTask(taskId) { _openOriginalTaskBase(taskId); if (boardView === 'kanban') { const n = document.getElementById('kb-' + taskId); if (n) { try { n.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* */ } } flashKb(taskId); } }
         (function () { const q = document.getElementById('search-tasks'); if (q) q.addEventListener('input', () => { if (boardView === 'kanban') renderKanban(); }); })();
         document.body.classList.toggle('view-kanban', boardView === 'kanban');
         document.querySelectorAll('[data-view]').forEach(b => { const on = b.dataset.view === boardView; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });

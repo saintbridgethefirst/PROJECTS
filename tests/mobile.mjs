@@ -1,7 +1,6 @@
 // Touch-screen test: iPhone and iPad (portrait + landscape) in demo mode, using real taps
 // and press-and-hold. Needs the preview server:  npx vite preview --port 4173
 import { chromium, devices } from 'playwright';
-import fs from 'node:fs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 const SHOTS = process.env.SHOTS_DIR || null;
