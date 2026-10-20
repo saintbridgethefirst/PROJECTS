@@ -20,6 +20,8 @@ export const GOOGLE_CLIENT_ID = env.VITE_GOOGLE_CLIENT_ID || '';   // Google Dri
 export const MS_CLIENT_ID = env.VITE_MS_CLIENT_ID || '';           // OneDrive (and Microsoft sign-in via Firebase)
 
 export const USE_EMULATORS = env.VITE_USE_EMULATORS === 'true';
+// App Check: proves requests come from this website (reCAPTCHA Enterprise site key; public). Empty = off.
+export const APPCHECK_SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY || '';
 
 // "Email me a sign-in link". Off by default: Firebase's free Spark plan sends at most
 // 5 of these emails per day for the whole site. Turn on after upgrading to Blaze.

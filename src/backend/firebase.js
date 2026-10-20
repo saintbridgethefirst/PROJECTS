@@ -4,6 +4,7 @@
 //  or Cloud Functions are used (both need the paid plan).
 // ─────────────────────────────────────────────────────────────────────────────
 import { initializeApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import {
   getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, OAuthProvider, signOut,
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, sendEmailVerification,
@@ -14,11 +15,18 @@ import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator,
   collection, collectionGroup, doc, query, where, onSnapshot, writeBatch, getDocs, getDoc, setDoc, orderBy, limit,
 } from 'firebase/firestore';
-import { firebaseConfig, USE_EMULATORS, MS_CLIENT_ID, ENABLE_EMAIL_LINK } from '../config.js';
+import { firebaseConfig, USE_EMULATORS, MS_CLIENT_ID, ENABLE_EMAIL_LINK, APPCHECK_SITE_KEY } from '../config.js';
 import { newId } from '../model.js';
 import { normEmail } from '../permissions.js';
 
 const app = initializeApp(firebaseConfig);
+// App Check runs before anything talks to the database or functions. On localhost it uses a debug
+// token (printed in the console the first time; add it in Firebase ▸ App Check ▸ Manage debug tokens).
+if (APPCHECK_SITE_KEY && !USE_EMULATORS) {
+  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  try { initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(APPCHECK_SITE_KEY), isTokenAutoRefreshEnabled: true }); }
+  catch (e) { console.warn('App Check not started', e); }
+}
 const fbAuth = getAuth(app);
 const db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
 if (USE_EMULATORS) {

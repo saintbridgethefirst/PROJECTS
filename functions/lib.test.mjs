@@ -65,3 +65,12 @@ test('invitation emails: new or re-sent only, escaped', () => {
   assert.equal(m.subject, 'Aisha <i> invited you to UAS on TeamTrack');
   assert.ok(m.html.includes('Aisha &lt;i&gt;') && m.text.includes('tom@bristol.ac.uk') && m.html.includes('https://x.app'));
 });
+
+test('every Cloud Function has a small instance cap (cost safety)', async () => {
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(new URL('./index.js', import.meta.url), 'utf8');
+  const defs = src.split('\n').filter(l => /^export const \w+ = on\w+\(\{/.test(l));
+  assert.ok(defs.length >= 5, 'found the functions');
+  defs.forEach(d => { const m = /maxInstances: (\d+)/.exec(d); assert.ok(m && +m[1] <= 5, 'cap missing or too high in: ' + d.slice(0, 60)); });
+  assert.match(src, /setGlobalOptions\(\{[^}]*maxInstances: 3/);
+});

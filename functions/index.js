@@ -10,6 +10,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { setGlobalOptions } from 'firebase-functions/v2';
 import { defineSecret, defineString } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -45,7 +46,10 @@ async function sendMail(to, { subject, text, html }, idem) {
 
 // ── Student email check ─────────────────────────────────────────────────────
 /** Email a 6-digit code to a university address the signed-in person says is theirs. */
-export const sendStudentCode = onCall({ region: REGION, invoker: 'public', secrets: [RESEND_API_KEY] }, (req) => explain('sendStudentCode', () => sendStudentCodeImpl(req)));
+// Cost safety: no function may scale beyond a few copies, whatever happens (a bug, a loop, an attack).
+setGlobalOptions({ region: REGION, maxInstances: 3, memory: '256MiB' });
+
+export const sendStudentCode = onCall({ region: REGION, invoker: 'public', secrets: [RESEND_API_KEY], maxInstances: 3, timeoutSeconds: 30 }, (req) => explain('sendStudentCode', () => sendStudentCodeImpl(req)));
 /** Log the real cause and give the person a readable reason instead of "internal". */
 async function explain(name, fn) {
   try { return await fn(); }
@@ -75,7 +79,7 @@ async function sendStudentCodeImpl(req) {
 }
 
 /** Check the code; on success the account is a verified student for a year. */
-export const confirmStudentCode = onCall({ region: REGION, invoker: 'public' }, (req) => explain('confirmStudentCode', () => confirmStudentCodeImpl(req)));
+export const confirmStudentCode = onCall({ region: REGION, invoker: 'public', maxInstances: 3, timeoutSeconds: 30 }, (req) => explain('confirmStudentCode', () => confirmStudentCodeImpl(req)));
 async function confirmStudentCodeImpl(req) {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   const uid = req.auth.uid; const ref = db.doc('studentCodes/' + uid); const now = Date.now();
@@ -97,7 +101,7 @@ async function confirmStudentCodeImpl(req) {
 
 // ── Email notifications (teams on Pro / Pro Education / Organisation) ───────
 /** A comment that @mentions people → one email each (not to the author; only if they want them). */
-export const emailMentions = onDocumentCreated({ document: 'teams/{teamId}/comments/{commentId}', region: REGION, secrets: [RESEND_API_KEY] }, async (event) => {
+export const emailMentions = onDocumentCreated({ document: 'teams/{teamId}/comments/{commentId}', region: REGION, secrets: [RESEND_API_KEY], maxInstances: 3, timeoutSeconds: 60 }, async (event) => {
   const c = event.data && event.data.data(); if (!c) return;
   const teamId = event.params.teamId;
   const uids = [...new Set((c.mentions || []).filter(u => typeof u === 'string' && u && u !== c.authorUid))].slice(0, 20);
@@ -114,7 +118,7 @@ export const emailMentions = onDocumentCreated({ document: 'teams/{teamId}/comme
 });
 
 /** Every Monday 08:00 UK time: each person's overdue and upcoming tasks across their Pro teams. */
-export const mondayDigest = onSchedule({ schedule: '0 8 * * 1', timeZone: 'Europe/London', region: REGION, secrets: [RESEND_API_KEY], timeoutSeconds: 540 }, async () => {
+export const mondayDigest = onSchedule({ schedule: '0 8 * * 1', timeZone: 'Europe/London', region: REGION, secrets: [RESEND_API_KEY], timeoutSeconds: 540, maxInstances: 1 }, async () => {
   const now = Date.now(); const today = new Date(now).toLocaleDateString('en-CA', { timeZone: 'Europe/London' });
   const teams = (await db.collection('teams').where('plan.tier', 'in', ['pro', 'org']).get()).docs.filter(d => proActive(d.data().plan, now));
   const people = new Map();   // uid → { email, name, teams: [] }
@@ -139,7 +143,7 @@ export const mondayDigest = onSchedule({ schedule: '0 8 * * 1', timeZone: 'Europ
 
 // ── Invitations: the server emails the invited person ───────────────────────
 /** A new (or re-sent) invitation → an email to that address. Delivery is recorded on the invitation. */
-export const emailInvites = onDocumentWritten({ document: 'teams/{teamId}/invites/{email}', region: REGION, secrets: [RESEND_API_KEY] }, async (event) => {
+export const emailInvites = onDocumentWritten({ document: 'teams/{teamId}/invites/{email}', region: REGION, secrets: [RESEND_API_KEY], maxInstances: 3, timeoutSeconds: 60 }, async (event) => {
   const before = event.data.before.exists ? event.data.before.data() : undefined;
   const after = event.data.after.exists ? event.data.after.data() : undefined;
   if (!inviteChanged(before, after)) return;
