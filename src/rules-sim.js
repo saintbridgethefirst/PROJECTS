@@ -138,6 +138,14 @@ function checkRootWrite(pre, post, auth, op) {
       isStr(after.msg, 300) && isStr(after.stack, 2000) && isStr(after.ua, 200) && after.expireAt !== undefined)) deny('error report');
     return;
   }
+  if (coll === 'feedback') {
+    if (!after || before) deny('feedback is create-only');
+    if (!(hasOnly(after, ['kind', 'text', 'where', 'teamId', 'ua', 'build', 'at', 'uid', 'email', 'name', 'errors', 'expireAt']) && after.uid === auth.uid &&
+      ['bug', 'idea', 'question', 'other'].includes(after.kind) && typeof after.text === 'string' && after.text.length >= 1 && after.text.length <= 2000 &&
+      isStr(after.where, 100) && isStr(after.teamId, 64) && isStr(after.ua, 200) && isStr(after.build, 40) && isStr(after.name, 80) &&
+      (after.email === '' || after.email === auth.email) && Array.isArray(after.errors) && after.errors.length <= 5 && after.expireAt !== undefined)) deny('feedback');
+    return;
+  }
   if (coll === 'eduClaims') {
     const year = new Date().getUTCFullYear();
     if (!after || id !== auth.uid || !academicOf(pre, auth)) deny('edu claim');

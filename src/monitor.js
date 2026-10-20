@@ -31,8 +31,13 @@ export function report(kind, err, extra) {
   const d = errorDoc(kind, err, extra);
   if (ignorable(d.msg, d.stack)) return;
   const key = kind + '|' + d.msg; if (seen.has(key)) return; seen.add(key);
-  sent++; try { Promise.resolve(send(d)).catch(() => {}); } catch { /* never let reporting break the app */ }
+  sent++; recent.push(kind + ': ' + d.msg); if (recent.length > 5) recent.shift();
+  try { Promise.resolve(send(d)).catch(() => {}); } catch { /* never let reporting break the app */ }
 }
+const recent = [];
+/** The last few errors on this page (already scrubbed), sent along with feedback. */
+export const recentErrors = () => recent.slice();
+export const buildId = () => BUILD;
 /** Start listening. sender(doc) stores a report; uid() returns the signed-in user's id (or ''). */
 export function startMonitor(sender, uid) {
   send = sender; who = uid || who;

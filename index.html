@@ -77,6 +77,7 @@
       <div class="brand"><img class="brand-mark" src="/icons/logo-96.png" alt="" width="38" height="38"><span class="brand-name" data-app-name>TeamTrack</span></div>
       <span class="spacer"></span>
       <a class="btn small ghost" id="home-guide" href="guide.html" title="How to use TeamTrack">📘<span class="theme-word"> How to use</span></a>
+      <button class="btn small ghost" id="home-feedback" type="button" onclick="TT.openFeedback()" title="Tell us what’s broken or what you’d like">💬<span class="theme-word"> Feedback</span></button>
       <button class="btn small ghost" id="crossteam-btn" type="button" hidden onclick="TT.openCrossTeam()" title="Estimated hours for everyone, across all your teams">👥<span class="theme-word"> Workload</span></button>
       <button class="btn small ghost" id="home-search" type="button" aria-label="Search (Ctrl+K)" title="Search (Ctrl+K)">🔍<span class="theme-word"> Search</span></button>
       <button class="btn small ghost" id="home-theme" type="button" aria-label="Change theme">🎨<span class="theme-word"> Theme</span></button>
@@ -198,7 +199,7 @@
         💡 <b>Right-click</b> anything on the board for quick actions.<br>
         💡 Hold <b>Alt</b> while dragging a task to copy it into another week.<br>
         💡 <b>Ctrl + Z</b> / <b>Ctrl + Y</b> undo and redo your own changes.<br><br>
-        📘 <a href="guide.html" target="_blank" rel="noopener">How to use TeamTrack</a>
+        📘 <a href="guide.html" target="_blank" rel="noopener">How to use TeamTrack</a> · 💬 <a href="#" onclick="TT.openFeedback(); return false;">Send feedback</a>
       </div>
       <div id="edit-form" class="form-section" style="display: none;"></div>
       <div class="sync-center" style="margin-top: 30px;" id="team-data-panel">

@@ -192,6 +192,18 @@ export const data = {
     const list = post.root.clientErrors; const ids = Object.keys(list); if (ids.length > 200) delete list[ids[0]];
     store = post; persist();
   },
+  async sendFeedback(d) {
+    const me = authCtx(); if (!me) fail('unauthenticated', 'Sign in first.');
+    const op = { type: 'set', path: '/feedback/' + newId('fb'), data: { ...d, expireAt: Date.now() + 365 * 864e5 } };
+    const post = applyOps(store, null, [op]); checkWrite(store, post, me, null, op);
+    store = post; persist();
+  },
+  watchFeedback(cb, onError) {
+    return subscribe(() => {
+      const me = authCtx(); if (!me || !(store.admins && store.admins[me.uid])) throw Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });
+      return Object.entries((store.root && store.root.feedback) || {}).map(([id, e]) => ({ ...e, id })).sort((a, b) => b.at - a.at);
+    }, cb, onError);
+  },
   watchClientErrors(cb, onError) {
     return subscribe(() => {
       const me = authCtx(); if (!me || !(store.admins && store.admins[me.uid])) throw Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });

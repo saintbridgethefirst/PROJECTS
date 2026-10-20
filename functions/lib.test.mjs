@@ -74,3 +74,22 @@ test('every Cloud Function has a small instance cap (cost safety)', async () => 
   defs.forEach(d => { const m = /maxInstances: (\d+)/.exec(d); assert.ok(m && +m[1] <= 5, 'cap missing or too high in: ' + d.slice(0, 60)); });
   assert.match(src, /setGlobalOptions\(\{[^}]*maxInstances: 3/);
 });
+
+import { errorSignature, signatureId, shouldAlert, errorAlertEmail, feedbackEmail, ALERT_REPEAT_HOURS } from './lib.js';
+test('error alerts: the same error with different ids/numbers is one error', () => {
+  assert.equal(errorSignature('write', 'permission-denied: tasks/t_8f3a9c21b7 at 1729412345'), errorSignature('write', 'permission-denied: tasks/t_0011aabbcc at 99'));
+  assert.notEqual(errorSignature('error', 'x is undefined'), errorSignature('promise', 'x is undefined'));
+  assert.match(signatureId('a'), /^[0-9a-f]{32}$/);
+});
+test('error alerts: once a day per kind of error', () => {
+  const now = 1e12;
+  assert.ok(shouldAlert(undefined, now));
+  assert.ok(!shouldAlert({ lastEmailedAt: now - 3600e3 }, now));
+  assert.ok(shouldAlert({ lastEmailedAt: now - ALERT_REPEAT_HOURS * 3600e3 }, now));
+});
+test('alert and feedback emails escape what users typed', () => {
+  const a = errorAlertEmail({ appUrl: 'https://x.app', err: { kind: 'error', msg: '<img src=x onerror=alert(1)>', stack: 'at <b>', where: '#/t', build: 'b1', ua: 'UA' } });
+  assert.ok(!a.html.includes('<img') && a.html.includes('&lt;img'));
+  const f = feedbackEmail({ appUrl: 'https://x.app', fb: { kind: 'idea', text: 'Dark <script>', name: 'Aisha', email: 'a@uni.ac.uk', errors: ['boom'] } });
+  assert.ok(f.subject.startsWith('💡 Idea from Aisha') && !f.html.includes('<script') && f.html.includes('boom') && f.text.includes('Reply to this email'));
+});

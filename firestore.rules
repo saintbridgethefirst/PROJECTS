@@ -203,6 +203,22 @@ service cloud.firestore {
       allow delete: if false;
     }
     // Error reports from browsers (no personal data). Deleted automatically after 30 days (TTL on expireAt).
+    // Feedback from the in-app button. Emailed to the platform admins by a Cloud Function.
+    match /feedback/{id} {
+      allow read, delete: if isPlatformAdmin();
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['kind', 'text', 'where', 'teamId', 'ua', 'build', 'at', 'uid', 'email', 'name', 'errors', 'expireAt'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.kind in ['bug', 'idea', 'question', 'other']
+        && request.resource.data.text is string && request.resource.data.text.size() >= 1 && request.resource.data.text.size() <= 2000
+        && request.resource.data.where is string && request.resource.data.where.size() <= 100
+        && request.resource.data.teamId is string && request.resource.data.teamId.size() <= 64
+        && request.resource.data.ua is string && request.resource.data.ua.size() <= 200
+        && request.resource.data.build is string && request.resource.data.build.size() <= 40
+        && request.resource.data.name is string && request.resource.data.name.size() <= 80
+        && (request.resource.data.email == '' || request.resource.data.email == request.auth.token.email)
+        && request.resource.data.errors is list && request.resource.data.errors.size() <= 5
+        && request.resource.data.expireAt is timestamp;
+      allow update: if false;
+    }
     match /clientErrors/{id} {
       allow read, delete: if isPlatformAdmin();
       allow create: if signedIn() && request.resource.data.keys().hasOnly(['kind', 'msg', 'stack', 'where', 'ua', 'build', 'at', 'uid', 'expireAt'])

@@ -660,9 +660,19 @@ button.tx-part:hover { border-color: var(--line-color); }
 .cmt-from { font-size: 11px; font-weight: 700; color: var(--line-color, #3182ce); margin-left: 6px; }
 
 /* Saving notice on the board: offline, slow connection, a save that failed */
-.net-pill { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 900; max-width: min(620px, calc(100vw - 32px));
+.net-pill { position: fixed; left: 16px; bottom: 16px; z-index: 900; max-width: min(560px, calc(100vw - 32px));
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 9px 14px; border-radius: 999px; font-size: 13px; line-height: 1.4;
   background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-color); border-left-width: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.18); }
 .net-pill.warn { border-left-color: #ed8936; } .net-pill.bad { border-left-color: var(--bad); border-radius: 14px; } .net-pill.ok { border-left-color: var(--ok); }
 .net-pill button { border: 1px solid var(--border-color); background: transparent; color: inherit; border-radius: 8px; padding: 3px 9px; font-size: 12px; cursor: pointer; }
 @media print { .net-pill { display: none !important; } }
+
+/* Feedback form */
+.fb-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.fb-kind { border: 1px solid var(--border-color); background: transparent; color: inherit; border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+.fb-kind.on { border-color: var(--line-color); background: color-mix(in srgb, var(--line-color) 14%, transparent); font-weight: 600; }
+.fb-text { width: 100%; box-sizing: border-box; font: inherit; }
+.fb-tech { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--text-muted, #718096); margin-top: 10px; }
+.adm-fb { border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 6px; font-size: 13px; }
+.adm-fb p { margin: 4px 0 0; white-space: pre-wrap; }
+@media (max-width: 560px) { #home-feedback { display: none; } }

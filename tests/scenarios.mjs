@@ -74,6 +74,7 @@ const set = (path, data) => ({ type: 'set', path, data });
 const del = (path) => ({ type: 'delete', path });
 
 // [name, user, teamId, ops, expected]
+const fb = (uid, over = {}) => ({ kind: 'bug', text: 'The export button does nothing', where: '#/t', teamId: TEAM, ua: 'test', build: 'dev', at: 1, uid, email: uid + '@x.com', name: uid, errors: [], expireAt: new Date(Date.now() + 365 * 864e5), ...over });
 export const writeScenarios = [
   ['founder creates a new team with themselves as owner', 'evil', 't2', [set('team', teamDoc({ ownerUid: 'evil' })), set('members/evil', member('evil', 'owner'))], 'allow'],
   ['nobody can make themselves owner of an existing team', 'evil', TEAM, [set('members/evil', member('evil', 'owner'))], 'deny'],
@@ -203,6 +204,11 @@ export const writeScenarios = [
   ['…only with this team in their claims for the year', 'ownerUni', TEAM, [upd('team', eduPlan('owner'))], 'deny'],
   ['…at most 3 teams a year', 'ownerUni', TEAM, [claim('owner', ['x', 'y', 'z', TEAM]), upd('team', eduPlan('owner'))], 'deny'],
   ['…claims are for this year only', 'ownerUni', TEAM, [claim('owner', [TEAM], YEAR - 1), upd('team', eduPlan('owner'))], 'deny'],
+  ['anyone signed in can send feedback', 'mem1', TEAM, [set('/feedback/f1', fb('mem1'))], 'allow'],
+  ['feedback can’t be sent in someone else’s name', 'mem1', TEAM, [set('/feedback/f1', fb('mem1', { uid: 'owner' }))], 'deny'],
+  ['feedback can’t use someone else’s email', 'mem1', TEAM, [set('/feedback/f1', fb('mem1', { email: 'owner@x.com' }))], 'deny'],
+  ['feedback is limited to 2,000 characters', 'mem1', TEAM, [set('/feedback/f1', fb('mem1', { text: 'x'.repeat(2001) }))], 'deny'],
+  ['feedback has no extra fields', 'mem1', TEAM, [set('/feedback/f1', fb('mem1', { admin: true }))], 'deny'],
   ['nobody writes claims for someone else', 'ownerUni', TEAM, [set('/eduClaims/mem1', { year: YEAR, teams: [TEAM] })], 'deny'],
   ['a student with a code-verified university email (personal sign-in) turns it on', 'admin1', TEAM, [claim('admin1', [TEAM]), upd('team', eduPlan('admin1'))], 'allow'],
   ['…but not with an unverified email', 'ownerUniUnverified', TEAM, [claim('owner', [TEAM]), upd('team', eduPlan('owner'))], 'deny'],

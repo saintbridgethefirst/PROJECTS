@@ -226,6 +226,14 @@ export const data = {
     const { addDoc, Timestamp } = await import('firebase/firestore');
     await addDoc(collection(db, 'clientErrors'), { ...d, expireAt: Timestamp.fromMillis(Date.now() + 30 * 864e5) });
   },
+  /** Feedback from the in-app button (emailed to the platform admins by the emailFeedback function; kept a year). */
+  async sendFeedback(d) {
+    const { addDoc, Timestamp } = await import('firebase/firestore');
+    await addDoc(collection(db, 'feedback'), { ...d, expireAt: Timestamp.fromMillis(Date.now() + 365 * 864e5) });
+  },
+  watchFeedback(cb, onError) {
+    return onSnapshot(query(collection(db, 'feedback'), orderBy('at', 'desc'), limit(100)), (s) => cb(s.docs.map(d => ({ ...d.data(), id: d.id }))), onError);
+  },
   watchClientErrors(cb, onError) {
     return onSnapshot(query(collection(db, 'clientErrors'), orderBy('at', 'desc'), limit(200)), (s) => cb(s.docs.map(d => ({ ...d.data(), id: d.id }))), onError);
   },

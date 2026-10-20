@@ -14,8 +14,10 @@ import { setGlobalOptions } from 'firebase-functions/v2';
 import { defineSecret, defineString } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { normEmail, isAcademicEmail, newCode, hashCode, emailKey, checkSend, checkConfirm, codeEmail, CODE_MINUTES, VERIFIED_DAYS,
-  proActive, wants, mentionEmail, digestItems, digestEmail, inviteChanged, inviteEmail, MAX_INVITE_EMAILS_PER_DAY } from './lib.js';
+  proActive, wants, mentionEmail, digestItems, digestEmail, inviteChanged, inviteEmail, MAX_INVITE_EMAILS_PER_DAY,
+  errorSignature, signatureId, shouldAlert, errorAlertEmail, feedbackEmail, MAX_ALERT_EMAILS_PER_DAY, MAX_FEEDBACK_EMAILS_PER_DAY } from './lib.js';
 
 initializeApp();
 const db = getFirestore();
@@ -27,13 +29,13 @@ const REGION = 'europe-west2';
 
 /** Send one email through Resend. idem = idempotency key, so a retried function never sends twice.
  *  Returns { ok } or { ok:false, reason } with Resend's own explanation (e.g. domain not verified). */
-async function sendMail(to, { subject, text, html }, idem) {
+async function sendMail(to, { subject, text, html, replyTo }, idem) {
   let reason = 'no response';
   for (let attempt = 0; attempt < 3; attempt++) {
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + RESEND_API_KEY.value(), 'Content-Type': 'application/json', ...(idem ? { 'Idempotency-Key': String(idem).slice(0, 256) } : {}) },
-      body: JSON.stringify({ from: MAIL_FROM.value(), to: [to], subject, text, html }),
+      body: JSON.stringify({ from: MAIL_FROM.value(), to: Array.isArray(to) ? to : [to], subject, text, html, ...(replyTo ? { reply_to: replyTo } : {}) }),
     });
     if (r.ok) return { ok: true };
     const body = await r.text(); let msg = body; try { msg = JSON.parse(body).message || body; } catch { /* plain text */ }
@@ -157,4 +159,44 @@ export const emailInvites = onDocumentWritten({ document: 'teams/{teamId}/invite
   const mail = inviteEmail({ appName: APP_NAME.value(), appUrl: APP_URL.value(), inviter: after.invitedByName || 'A teammate', teamName: team.name || after.teamName || 'a team', roleName: role, email: after.email });
   const res = await sendMail(after.email, mail, 'invite-' + event.params.teamId + '-' + after.email + '-' + after.createdAt);
   await ref.update(res.ok ? { emailedAt: Date.now(), emailError: '' } : { emailError: res.reason });
+});
+
+// ── Feedback and error alerts → email to the platform admins ────────────────
+// Platform admins are the people with a document at admins/{uid} (made by hand in the console).
+async function adminEmails() {
+  const ids = (await db.collection('admins').get()).docs.map(d => d.id);
+  const users = await Promise.all(ids.map(uid => getAuth().getUser(uid).then(u => u.email).catch(() => null)));
+  return [...new Set(users.filter(Boolean))];
+}
+/** Count one more email today under `name`; false once `max` is reached. */
+async function underDailyLimit(name, max) {
+  const ref = db.doc('alertQuota/' + name + '_' + new Date().toISOString().slice(0, 10));
+  return db.runTransaction(async (tx) => { const n = ((await tx.get(ref)).data() || {}).n || 0; if (n >= max) return false; tx.set(ref, { n: n + 1, at: Date.now() }); return true; });
+}
+
+/** Someone pressed Feedback → email it to the platform admins (reply goes to the sender). */
+export const emailFeedback = onDocumentCreated({ document: 'feedback/{id}', region: REGION, secrets: [RESEND_API_KEY], maxInstances: 2, timeoutSeconds: 60 }, async (event) => {
+  const fb = event.data.data();
+  if (!(await underDailyLimit('feedback', MAX_FEEDBACK_EMAILS_PER_DAY))) { console.warn('feedback email limit reached'); return; }
+  const to = await adminEmails(); if (!to.length) { console.warn('no platform admins to email'); return; }
+  const mail = feedbackEmail({ appName: APP_NAME.value(), appUrl: APP_URL.value(), fb });
+  const res = await sendMail(to, { ...mail, replyTo: fb.email || undefined }, 'feedback-' + event.params.id);
+  await event.data.ref.update({ emailedAt: res.ok ? Date.now() : 0 }).catch(() => {});
+});
+
+/** A new kind of error in someone's browser → one email to the platform admins (then at most daily). */
+export const alertErrors = onDocumentCreated({ document: 'clientErrors/{id}', region: REGION, secrets: [RESEND_API_KEY], maxInstances: 2, timeoutSeconds: 60 }, async (event) => {
+  const err = event.data.data();
+  const ref = db.doc('errorAlerts/' + signatureId(errorSignature(err.kind, err.msg)));
+  const now = Date.now();
+  const seenBefore = await db.runTransaction(async (tx) => {
+    const st = (await tx.get(ref)).data();
+    if (!shouldAlert(st, now)) { tx.set(ref, { count: ((st && st.count) || 0) + 1, lastSeenAt: now }, { merge: true }); return -1; }
+    tx.set(ref, { count: 0, lastSeenAt: now, lastEmailedAt: now, msg: String(err.msg || '').slice(0, 300), kind: err.kind || '' }, { merge: true });
+    return (st && st.count) || 0;
+  });
+  if (seenBefore < 0) return;
+  if (!(await underDailyLimit('errors', MAX_ALERT_EMAILS_PER_DAY))) { console.warn('error alert limit reached'); return; }
+  const to = await adminEmails(); if (!to.length) return;
+  await sendMail(to, errorAlertEmail({ appName: APP_NAME.value(), appUrl: APP_URL.value(), err, seenBefore }), 'err-' + event.params.id);
 });

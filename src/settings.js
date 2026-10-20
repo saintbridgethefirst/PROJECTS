@@ -171,6 +171,7 @@ function adminPlans(ctx, rerender) {
   const list = el('div.adm-requests', {}, el('p.hint', {}, 'Loading requests…'));
   const eduList = el('div.adm-edu-teams', {}, el('p.hint', {}, 'Loading…'));
   const errList = el('div.adm-errors', {}, el('p.hint', {}, 'Loading…'));
+  const fbList = el('div.adm-feedback', {}, el('p.hint', {}, 'Loading…'));
   const sec = el('section.plan-admin', {}, el('h4', {}, '🛠 Platform admin'),
     el('p.hint', {}, 'Only you see this. Changes apply immediately; payments will do this automatically later.'),
     el('div.adm-row', {}, el('label.field', {}, el('span', {}, 'This team’s plan'), tier), el('label.row.adm-edu', {}, edu, ' Education'), el('label.field', {}, el('span', {}, 'Until (optional)'), until), el('label.field.adm-note', {}, el('span', {}, 'Note'), note),
@@ -180,6 +181,7 @@ function adminPlans(ctx, rerender) {
       } }, 'Set plan')),
     el('h4', {}, 'Pro requests from all teams'), list,
     el('h4', {}, 'Teams on Pro Education'), eduList,
+    el('h4', {}, '💬 Feedback'), fbList,
     el('h4', {}, '🩺 Recent errors (last 30 days)'), errList);
   const unsub = TT.watchPlanRequests((rows) => {
     if (!sec.isConnected) { unsub && unsub(); return; }
@@ -190,6 +192,13 @@ function adminPlans(ctx, rerender) {
         el('button.btn.small.primary', { type: 'button', onclick: async () => { if (await TT.setTeamPlan(r.teamId, { tier: r.wants === 'org' ? 'org' : 'pro', edu: r.wants === 'edu', note: 'Pilot' }) && await TT.decideRequest(r.teamId, 'approved')) toast('Approved ' + r.teamName + '.'); } }, 'Approve' + (r.wants === 'edu' ? ' (Pro Education)' : r.wants === 'org' ? ' (Organisation)' : ' (Pro)')),
         el('button.btn.small.ghost', { type: 'button', onclick: async () => { if (await TT.decideRequest(r.teamId, 'declined')) toast('Declined.'); } }, 'Decline')))) : [el('p.hint', {}, 'No open requests.')]));
   }, (e) => { list.replaceChildren(el('p.hint', {}, 'Could not load requests: ' + (e.message || e))); });
+  const KINDS = { bug: '🐞', idea: '💡', question: '❓', other: '💬' };
+  const unsubFb = TT.watchFeedback((rows) => {
+    if (!sec.isConnected) { unsubFb && unsubFb(); return; }
+    fbList.replaceChildren(...(rows.length ? rows.slice(0, 30).map(f => el('div.adm-fb', {},
+      el('div', {}, KINDS[f.kind] || '💬', ' ', el('b', {}, f.name || f.email || 'Someone'), el('span.hint', {}, ' · ' + fmtDay(f.at) + (f.email ? ' · ' : '')), f.email ? el('a', { href: 'mailto:' + f.email + '?subject=' + encodeURIComponent('Re: your TeamTrack feedback') }, 'Reply') : ''),
+      el('p', {}, f.text), (f.errors || []).length ? el('div.hint', {}, 'Errors: ' + f.errors.join(' · ')) : '')) : [el('p.hint', {}, 'No feedback yet.')]));
+  }, (e) => { fbList.replaceChildren(el('p.hint', {}, 'Could not load: ' + (e.message || e))); });
   const unsubErr = TT.watchClientErrors((rows) => {
     if (!sec.isConnected) { unsubErr && unsubErr(); return; }
     // Group by message: how often, how many people, last seen, newest stack.

@@ -112,3 +112,42 @@ export function inviteEmail({ appName = 'TeamTrack', appUrl, inviter, teamName, 
     '<p style="margin-top:24px;font-size:12px;color:#718096">If you weren’t expecting this, you can ignore this email.</p></div>';
   return { subject, text, html };
 }
+
+// ── Feedback and error alerts to the platform admins ────────────────────────
+export const MAX_ALERT_EMAILS_PER_DAY = 10;      // new kinds of error
+export const MAX_FEEDBACK_EMAILS_PER_DAY = 40;
+export const ALERT_REPEAT_HOURS = 24;            // the same error is emailed again at most once a day
+
+/** Errors that differ only in ids or numbers count as the same error. */
+export function errorSignature(kind, msg) {
+  return String(kind || '') + ':' + String(msg || '').replace(/[A-Za-z0-9_-]*\d[A-Za-z0-9_-]*/g, '#').replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+export const signatureId = (sig) => crypto.createHash('sha256').update(sig).digest('hex').slice(0, 32);
+/** state = the stored alert for this signature (or undefined). Email now? */
+export function shouldAlert(state, now) { return !state || !state.lastEmailedAt || now - state.lastEmailedAt >= ALERT_REPEAT_HOURS * 3600e3; }
+
+const box = (rows) => '<table style="font-size:13px;border-collapse:collapse">' + rows.filter(r => r[1]).map(([k, v]) => '<tr><td style="padding:2px 12px 2px 0;color:#718096;vertical-align:top">' + esc(k) + '</td><td style="padding:2px 0">' + esc(v) + '</td></tr>').join('') + '</table>';
+const wrap = (inner) => '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:640px;color:#1a202c">' + inner + '</div>';
+
+export function errorAlertEmail({ appName = 'TeamTrack', appUrl, err, seenBefore = 0 }) {
+  const subject = '⚠️ ' + appName + ' error: ' + String(err.msg || 'Unknown error').slice(0, 90);
+  const rows = [['Kind', err.kind], ['Where', err.where], ['Build', err.build], ['Browser', err.ua], ['Times since last email', seenBefore ? String(seenBefore) : '']];
+  const text = subject + '\n\n' + rows.filter(r => r[1]).map(r => r[0] + ': ' + r[1]).join('\n') + '\n\n' + (err.stack || '') + '\n\nAll errors: ' + appUrl + ' → Settings ▸ Plan ▸ Platform admin.\nYou get one email per kind of error per day, at most ' + MAX_ALERT_EMAILS_PER_DAY + ' a day.';
+  const html = wrap('<p><b>A new error in someone’s browser.</b></p><p style="font-size:15px"><b>' + esc(err.msg) + '</b></p>' + box(rows) +
+    (err.stack ? '<pre style="font-size:12px;background:#f7fafc;padding:10px;border-radius:6px;white-space:pre-wrap">' + esc(err.stack) + '</pre>' : '') +
+    '<p><a href="' + esc(appUrl) + '">Open ' + esc(appName) + '</a> → Settings ▸ Plan ▸ Platform admin to see all errors.</p>' +
+    '<p style="font-size:12px;color:#718096">One email per kind of error per day, at most ' + MAX_ALERT_EMAILS_PER_DAY + ' a day.</p>');
+  return { subject, text, html };
+}
+
+const KIND = { bug: '🐞 Something’s broken', idea: '💡 Idea', question: '❓ Question', other: '💬 Feedback' };
+export function feedbackEmail({ appName = 'TeamTrack', appUrl, fb }) {
+  const subject = (KIND[fb.kind] || KIND.other) + ' from ' + (fb.name || fb.email || 'a user') + ': ' + String(fb.text || '').replace(/\s+/g, ' ').slice(0, 60);
+  const rows = [['From', [fb.name, fb.email].filter(Boolean).join(' · ')], ['Team', fb.teamId], ['Where', fb.where], ['Build', fb.build], ['Browser', fb.ua]];
+  const errs = (fb.errors || []).filter(Boolean);
+  const text = subject + '\n\n' + fb.text + '\n\n' + rows.filter(r => r[1]).map(r => r[0] + ': ' + r[1]).join('\n') + (errs.length ? '\n\nRecent errors on their screen:\n- ' + errs.join('\n- ') : '') + (fb.email ? '\n\nReply to this email to answer them.' : '');
+  const html = wrap('<p style="font-size:15px;white-space:pre-wrap">' + esc(fb.text) + '</p>' + box(rows) +
+    (errs.length ? '<p style="margin-bottom:4px"><b>Recent errors on their screen</b></p><ul style="font-size:12px;margin-top:0">' + errs.map(e => '<li>' + esc(e) + '</li>').join('') + '</ul>' : '') +
+    (fb.email ? '<p style="font-size:12px;color:#718096">Reply to this email to answer them.</p>' : ''));
+  return { subject, text, html };
+}

@@ -37,6 +37,22 @@ try {
   ok((await reports(A)).some(x => x.kind === 'write' && /permission/i.test(x.msg)), 'a refused save is reported (it means the app and rules disagree)');
   ok(await A.evaluate(() => new Promise(res => { const u = TT.watchClientErrors(() => res(false), () => res(true)); setTimeout(() => { if (typeof u === 'function') u(); res(false); }, 1500); })), 'ordinary users cannot read reports');
 
+  step('Feedback from the app');
+  await A.locator('a', { hasText: 'Send feedback' }).click(); await A.waitForSelector('.fb-text');
+  ok((await A.locator('.fb-tech').textContent()).includes('recent error'), 'offers to include the recent errors');
+  await A.locator('.modal-foot button:has-text("Send")').click(); await sleep(200);
+  ok(await A.locator('.fb-text').isVisible() && !((await store(A)).root || {}).feedback, 'an empty message isn’t sent');
+  await A.locator('.fb-kind', { hasText: 'idea' }).click();
+  await A.fill('.fb-text', 'A dark mode for the Gantt chart, please'); await A.locator('.modal-foot button:has-text("Send")').click(); await sleep(400);
+  let fbs = Object.values(((await store(A)).root || {}).feedback || {});
+  ok(fbs.length === 1 && fbs[0].kind === 'idea' && fbs[0].text.includes('dark mode') && fbs[0].email === 'aisha@gmail.com' && fbs[0].errors.length >= 3 && fbs[0].teamId, 'stored with kind, sender, team and recent errors');
+  ok((await A.locator('.toast', { hasText: 'Thanks' }).count()) === 1 && !(await A.locator('.fb-text').count()), 'thank-you message; the form closes');
+  ok(await A.evaluate(() => new Promise(res => { const u = TT.watchFeedback(() => res(false), () => res(true)); setTimeout(() => { if (typeof u === 'function') u(); res(false); }, 1500); })), 'ordinary users cannot read feedback');
+  await A.evaluate(() => TT.openFeedback()); await A.waitForSelector('.fb-text');
+  await A.locator('#fb-tech').uncheck(); await A.fill('.fb-text', 'Private one'); await A.locator('.modal-foot button:has-text("Send")').click(); await sleep(400);
+  fbs = Object.values(((await store(A)).root || {}).feedback || {}); const priv = fbs.find(f => f.text === 'Private one');
+  ok(priv && priv.ua === '' && priv.errors.length === 0 && priv.teamId === '', 'unticking technical details leaves them out');
+
   step('The platform admin sees them, grouped');
   await A.click('#top-actions button:has-text("Settings")'); await A.click('.settings-nav button:has-text("Plan")'); await sleep(250);
   await A.click('#plan-demo-admin'); await sleep(600);
@@ -44,6 +60,7 @@ try {
   const errText = await A.locator('.adm-errors').textContent();
   ok(errText.includes('Test crash for <email> in task <n>') && errText.includes('1×'), 'listed with how often');
   ok(await A.locator('.adm-errors .adm-err').count() >= 3, 'crash, promise and refused save all listed');
+  ok((await A.locator('.adm-feedback').textContent()).includes('A dark mode for the Gantt chart') && await A.locator('.adm-feedback a', { hasText: 'Reply' }).count() >= 1, 'feedback is listed for the admin, with a Reply link');
   if (SHOTS) await A.screenshot({ path: `${SHOTS}/monitor-admin.png` });
   await A.keyboard.press('Escape'); await sleep(200);
 
