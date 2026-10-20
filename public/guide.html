@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to use TeamTrack</title>
+<meta name="description" content="A friendly, complete tour of TeamTrack: the board, tasks, views, tools, roles, reports and plans.">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #fbf8f1; --paper-2: #f3eee2; --card: #ffffff; --ink: #14213d; --ink-2: #44506b; --muted: #6b7489; --line: #e4ddcc; --dot: #e3dccb;
+  --teal: #0e9f8e; --coral: #ff6b4a; --sun: #ffc53d; --violet: #7c5cff; --sky: #3ba3ff; --pink: #ff5fa2;
+  --accent: var(--teal); --accent-ink: #ffffff; --shadow: 0 1px 0 rgba(20,33,61,.06), 0 10px 30px -12px rgba(20,33,61,.18);
+  --hard: 4px 4px 0 var(--ink); --r: 18px;
+  --display: "Bricolage Grotesque", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --body: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #0f1424; --paper-2: #151b2f; --card: #1a2138; --ink: #eef1f8; --ink-2: #c3c9da; --muted: #8e97ad; --line: #2a3350; --dot: #222a44;
+  --shadow: 0 1px 0 rgba(0,0,0,.3), 0 14px 30px -14px rgba(0,0,0,.6); --hard: 4px 4px 0 #000;
+} }
+:root[data-theme="dark"] {
+  --paper: #0f1424; --paper-2: #151b2f; --card: #1a2138; --ink: #eef1f8; --ink-2: #c3c9da; --muted: #8e97ad; --line: #2a3350; --dot: #222a44;
+  --shadow: 0 1px 0 rgba(0,0,0,.3), 0 14px 30px -14px rgba(0,0,0,.6); --hard: 4px 4px 0 #000;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.6 var(--body);
+  background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px); background-size: 22px 22px; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+a { color: inherit; }
+h1, h2, h3 { font-family: var(--display); letter-spacing: -0.02em; line-height: 1.08; margin: 0; }
+h2 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 800; }
+h3 { font-size: 20px; font-weight: 700; }
+p { margin: 0 0 12px; color: var(--ink-2); }
+kbd { font: 600 12.5px var(--mono); background: var(--card); border: 1.5px solid var(--ink); border-bottom-width: 3px; border-radius: 7px; padding: 1px 7px; color: var(--ink); white-space: nowrap; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+
+/* ── Top bar ── */
+.top { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); background: color-mix(in srgb, var(--paper) 82%, transparent); border-bottom: 1.5px solid var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 14px; height: 62px; }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 800 19px var(--display); }
+.logo img { width: 30px; height: 30px; border-radius: 9px; }
+.logo small { font: 600 11px var(--mono); color: var(--accent-ink); background: var(--accent); padding: 2px 7px; border-radius: 99px; letter-spacing: .04em; }
+.toc { display: flex; gap: 2px; margin-left: auto; overflow-x: auto; scrollbar-width: none; }
+.toc::-webkit-scrollbar { display: none; }
+.toc a { font: 600 13.5px var(--body); text-decoration: none; padding: 7px 11px; border-radius: 99px; color: var(--ink-2); white-space: nowrap; }
+.toc a:hover, .toc a.on { background: var(--ink); color: var(--paper); }
+.btn { display: inline-flex; align-items: center; gap: 8px; font: 700 15px var(--body); text-decoration: none; border: 2px solid var(--ink); border-radius: 12px; padding: 10px 18px; background: var(--card); color: var(--ink); box-shadow: var(--hard); transition: transform .12s, box-shadow .12s; cursor: pointer; }
+.btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--ink); }
+.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.top .btn { padding: 7px 14px; font-size: 14px; box-shadow: 3px 3px 0 var(--ink); flex: none; }
+.progress { position: absolute; left: 0; bottom: -1.5px; height: 3px; background: var(--accent); width: 0; }
+@media (max-width: 900px) { .toc { display: none; } .top .btn { margin-left: auto; } }
+@media (max-width: 420px) { .top .btn { font-size: 13px; padding: 6px 10px; } .logo small { display: none; } }
+
+/* ── Hero ── */
+.hero { padding: 64px 0 40px; }
+.hero .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; }
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; font: 700 13px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink); background: var(--sun); border: 2px solid var(--ink); border-radius: 99px; padding: 4px 12px; transform: rotate(-2deg); }
+.hero h1 { font-size: clamp(42px, 6.4vw, 78px); font-weight: 800; margin: 18px 0 18px; }
+.scribble { position: relative; white-space: nowrap; z-index: 0; }
+.scribble::after { content: ""; position: absolute; left: -4px; right: -4px; bottom: .06em; height: .34em; background: var(--accent); opacity: .35; border-radius: 6px; z-index: -1; transform: rotate(-1.2deg); }
+.hero p.lead { font-size: 19px; max-width: 34em; }
+.hero .cta { display: flex; gap: 14px; flex-wrap: wrap; margin: 26px 0 18px; }
+.meta { display: flex; gap: 18px; flex-wrap: wrap; font: 600 13px var(--body); color: var(--muted); }
+.meta span::before { content: "✓ "; color: var(--accent); font-weight: 800; }
+@media (max-width: 900px) { .hero .wrap { grid-template-columns: 1fr; } .hero { padding-top: 36px; } }
+
+/* Mini app window (shared look for all illustrations) */
+.win { background: var(--card); border: 2px solid var(--ink); border-radius: var(--r); box-shadow: 8px 8px 0 var(--ink); overflow: hidden; position: relative; }
+.win-bar { display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-bottom: 2px solid var(--ink); background: var(--paper-2); font: 600 12px var(--mono); color: var(--muted); }
+.win-bar i { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--ink); }
+.win-bar i:nth-child(1) { background: var(--coral); } .win-bar i:nth-child(2) { background: var(--sun); } .win-bar i:nth-child(3) { background: var(--teal); }
+.win-bar b { margin-left: 8px; color: var(--ink); font-weight: 700; }
+.chipbar { display: flex; gap: 5px; padding: 8px 10px; border-bottom: 1.5px dashed var(--line); flex-wrap: wrap; }
+.chipbar span { font: 600 10.5px var(--body); padding: 3px 8px; border-radius: 7px; background: var(--paper-2); color: var(--ink-2); border: 1px solid var(--line); }
+.chipbar span.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+/* Mini board */
+.mb { display: grid; grid-template-columns: 74px repeat(3, 1fr); gap: 6px; padding: 10px; font-size: 11px; }
+.mb .h { font: 700 10px var(--mono); text-transform: uppercase; color: var(--muted); padding: 2px 4px; letter-spacing: .04em; }
+.mb .h.now { color: var(--accent); }
+.mb .h.now::after { content: " ●"; animation: blink 1.4s infinite; }
+.mb .p { display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); }
+.av { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font: 800 10px var(--body); color: #fff; flex: none; border: 1.5px solid var(--ink); }
+.mb .c { min-height: 46px; border-radius: 9px; background: color-mix(in srgb, var(--paper-2) 60%, transparent); border: 1px dashed var(--line); padding: 4px; display: flex; flex-direction: column; gap: 4px; }
+.mb .c.now { background: color-mix(in srgb, var(--accent) 9%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.tk { background: var(--card); border: 1.5px solid var(--ink); border-left: 5px solid var(--cat, var(--sky)); border-radius: 7px; padding: 4px 6px; font-weight: 600; color: var(--ink); line-height: 1.2; position: relative; }
+.tk .bar { height: 4px; border-radius: 4px; background: var(--paper-2); margin-top: 4px; overflow: hidden; }
+.tk .bar i { display: block; height: 100%; width: var(--p, 40%); background: var(--cat, var(--sky)); border-radius: 4px; }
+.tk.done { opacity: .7; } .tk.done::after { content: "✓"; position: absolute; right: 5px; top: 3px; color: var(--teal); font-weight: 900; }
+.tk.late { box-shadow: 0 0 0 2px var(--coral); } .tk.late::after { content: "!"; position: absolute; right: 6px; top: 2px; color: var(--coral); font-weight: 900; }
+.tk.grow .bar i { animation: grow 4s ease-in-out infinite alternate; }
+@keyframes grow { from { width: 18%; } to { width: 86%; } }
+@keyframes blink { 50% { opacity: .2; } }
+.cursor { position: absolute; width: 22px; height: 22px; pointer-events: none; animation: roam 9s ease-in-out infinite; filter: drop-shadow(2px 2px 0 rgba(0,0,0,.25)); z-index: 3; }
+@keyframes roam { 0%,100% { left: 70%; top: 78%; } 30% { left: 52%; top: 46%; } 55% { left: 80%; top: 40%; } 80% { left: 38%; top: 70%; } }
+.sticker { position: absolute; font: 800 13px var(--display); background: var(--sun); color: #14213d; border: 2px solid var(--ink); border-radius: 12px; padding: 6px 10px; box-shadow: 3px 3px 0 var(--ink); z-index: 4; }
+.hero-art { position: relative; }
+.hero-art .s1 { top: -18px; right: 18px; transform: rotate(6deg); background: var(--pink); color: #fff; }
+.hero-art .s2 { bottom: -16px; left: -10px; transform: rotate(-5deg); }
+
+/* ── Sections ── */
+section.block { padding: 72px 0; }
+.sec-head { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: start; margin-bottom: 34px; }
+.num { font: 800 15px var(--mono); width: 52px; height: 52px; display: grid; place-items: center; border: 2px solid var(--ink); border-radius: 14px; background: var(--card); box-shadow: 3px 3px 0 var(--ink); transform: rotate(-4deg); color: var(--ink); }
+@media (max-width: 600px) { .sec-head { grid-template-columns: 1fr; gap: 14px; } .num { width: 44px; height: 44px; } }
+.sec-head p { max-width: 46em; font-size: 17.5px; margin-top: 10px; }
+.tag { display: inline-block; font: 700 11px var(--mono); text-transform: uppercase; letter-spacing: .07em; padding: 3px 9px; border-radius: 99px; border: 1.5px solid var(--ink); background: var(--card); color: var(--ink); vertical-align: middle; }
+.tag.pro { background: var(--violet); color: #fff; } .tag.adv { background: var(--sun); color: #14213d; } .tag.std { background: var(--teal); color: #fff; }
+.panel { background: var(--card); border: 2px solid var(--ink); border-radius: var(--r); box-shadow: var(--shadow); padding: 22px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; }
+@media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+.ribbon { background: var(--ink); color: var(--paper); }
+.ribbon p { color: color-mix(in srgb, var(--paper) 78%, transparent); }
+.ribbon .num { background: var(--sun); color: #14213d; border-color: var(--paper); box-shadow: 3px 3px 0 var(--paper); }
+.tip { display: flex; gap: 12px; align-items: flex-start; background: color-mix(in srgb, var(--sun) 22%, var(--card)); border: 2px dashed color-mix(in srgb, var(--ink) 55%, transparent); border-radius: 14px; padding: 12px 14px; margin-top: 16px; font-size: 14.5px; color: var(--ink); }
+.tip b:first-child { flex: none; }
+
+/* Quick start */
+.steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; counter-reset: s; }
+@media (max-width: 980px) { .steps { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .steps { grid-template-columns: 1fr; } }
+.step { position: relative; background: var(--card); border: 2px solid var(--ink); border-radius: 16px; padding: 18px 16px 16px; cursor: pointer; transition: transform .15s, box-shadow .15s; box-shadow: 4px 4px 0 var(--ink); text-align: left; font: inherit; color: inherit; }
+.step:hover { transform: translateY(-3px) rotate(-.6deg); }
+.step::before { counter-increment: s; content: counter(s); position: absolute; top: -14px; left: 14px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 800 14px var(--mono); background: var(--sun); border: 2px solid var(--ink); color: #14213d; }
+.step .ico { font-size: 28px; display: block; margin: 4px 0 8px; }
+.step h3 { font-size: 17px; margin-bottom: 6px; }
+.step p { font-size: 13.5px; margin: 0; }
+.step .where { display: block; margin-top: 10px; font: 600 11.5px var(--mono); color: var(--muted); }
+.step .check { position: absolute; top: 12px; right: 12px; width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--ink); display: grid; place-items: center; font-weight: 900; color: transparent; background: var(--paper-2); }
+.step.done { background: color-mix(in srgb, var(--teal) 13%, var(--card)); }
+.step.done .check { background: var(--teal); color: #fff; }
+.qs-bar { display: flex; align-items: center; gap: 14px; margin-top: 22px; font: 700 14px var(--body); }
+.qs-track { flex: 1; height: 14px; border: 2px solid var(--ink); border-radius: 99px; background: var(--card); overflow: hidden; }
+.qs-track i { display: block; height: 100%; width: 0; background: repeating-linear-gradient(45deg, var(--teal) 0 10px, color-mix(in srgb, var(--teal) 75%, #fff) 10px 20px); transition: width .4s; }
+
+
+/* Weeks playground */
+.wk-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; padding: 14px 16px 6px; }
+.wk-field { display: grid; gap: 4px; font: 700 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.wk-field input { font: 600 15px var(--body); padding: 8px 10px; border: 2px solid var(--ink); border-radius: 10px; background: var(--paper); color: var(--ink); color-scheme: light dark; }
+.wk-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 12px 16px 6px; }
+@media (max-width: 520px) { .wk-strip { grid-template-columns: repeat(2, 1fr); } }
+.wk { border: 2px solid var(--ink); border-radius: 12px; padding: 10px 8px; text-align: center; background: var(--paper); transition: transform .25s, background .25s; }
+.wk.flip { animation: wkflip .45s ease-out both; }
+.wk:nth-child(2).flip { animation-delay: .06s; } .wk:nth-child(3).flip { animation-delay: .12s; } .wk:nth-child(4).flip { animation-delay: .18s; }
+@keyframes wkflip { 0% { transform: translateY(0); } 40% { transform: translateY(-7px) rotate(-1.5deg); background: color-mix(in srgb, var(--sun) 35%, var(--paper)); } 100% { transform: none; } }
+.wk b { display: block; font: 800 15px var(--display); color: var(--accent); letter-spacing: .01em; }
+.wk .d { display: block; font: 600 11.5px var(--body); color: var(--ink-2); margin: 3px 0 8px; }
+.wk.now { background: color-mix(in srgb, var(--accent) 12%, var(--paper)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }
+.wk .nowtag { display: block; font: 800 9.5px var(--mono); color: var(--accent); margin: -4px 0 6px; letter-spacing: .05em; }
+.wk .metric { display: inline-block; min-width: 60px; font: 700 11px var(--body); padding: 3px 9px; border-radius: 99px; border: 1.5px dashed var(--ink); background: var(--card); color: var(--ink); outline: none; cursor: text; }
+.wk .metric:focus { border-style: solid; background: color-mix(in srgb, var(--sun) 30%, var(--card)); }
+.wk-note { font-size: 13px; padding: 4px 16px 16px; margin: 0; color: var(--muted); }
+
+/* Board anatomy */
+.anat { position: sticky; top: 90px; }
+@media (max-width: 860px) { .anat { position: relative; top: 0; } }
+.anat .mb { grid-template-columns: 92px repeat(3, 1fr); font-size: 12px; padding: 14px; gap: 8px; }
+.anat .mb .c { min-height: 78px; padding: 8px 6px; }
+.anat .mb { row-gap: 14px; padding: 22px 18px 20px; }
+.anat .p .hs { top: 50%; margin-top: -13px; right: auto; left: -16px; }
+.anat .cat-row .hs { top: -8px; right: auto; left: 140px; }
+.anat .h .hs { top: -12px; right: 6px; }
+.anat .c[data-hs] .hs { top: 50%; right: 50%; margin: -13px -13px 0 0; }
+.cat-row { grid-column: 1 / -1; font: 700 11px var(--mono); color: var(--violet); display: flex; align-items: center; gap: 6px; padding: 2px 0; text-transform: uppercase; letter-spacing: .05em; }
+.cat-row::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: var(--violet); }
+.anat [data-hs] { position: relative; }
+.anat .tk.late::after { right: 22px; }
+.hs { position: absolute; top: -13px; right: -10px; width: 26px; height: 26px; font-size: 12px !important; border-radius: 50%; background: var(--coral); color: #fff; border: 2px solid var(--ink); font: 800 13px var(--mono); display: grid; place-items: center; cursor: pointer; box-shadow: 2px 2px 0 var(--ink); z-index: 5; transition: transform .15s; }
+.hs::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--coral); animation: ping 2s infinite; }
+.hs:hover, .hs.on { transform: scale(1.15); background: var(--ink); }
+.hs.on::after { display: none; }
+@keyframes ping { 0% { opacity: .9; transform: scale(.8); } 100% { opacity: 0; transform: scale(1.5); } }
+.anat-list { display: flex; flex-direction: column; gap: 10px; }
+.anat-item { display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 2px solid transparent; cursor: pointer; transition: background .15s, border-color .15s; background: none; text-align: left; font: inherit; color: inherit; }
+.anat-item .n { width: 30px; height: 30px; border-radius: 50%; background: var(--coral); color: #fff; border: 2px solid var(--ink); font: 800 13px var(--mono); display: grid; place-items: center; }
+.anat-item h3 { font-size: 16.5px; margin: 3px 0 4px; }
+.anat-item p { font-size: 14px; margin: 0; }
+.anat-item:hover, .anat-item.on { background: var(--card); border-color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+
+/* Task editor illustration */
+.editor { padding: 16px; display: grid; gap: 12px; font-size: 13px; }
+.f { display: grid; gap: 4px; }
+.f label { font: 700 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.f .v { border: 1.5px solid var(--line); border-radius: 9px; padding: 7px 10px; background: var(--paper); color: var(--ink); font-weight: 600; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.row .f { flex: 1; min-width: 110px; }
+.slider { height: 10px; border-radius: 10px; background: var(--paper-2); border: 1.5px solid var(--ink); position: relative; }
+.slider i { position: absolute; inset: 0 auto 0 0; width: 65%; background: var(--teal); border-radius: 10px; }
+.slider b { position: absolute; left: 65%; top: 50%; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: var(--card); border: 2px solid var(--ink); }
+.subs div { display: flex; gap: 8px; align-items: center; padding: 3px 0; color: var(--ink); font-weight: 500; }
+.subs div::before { content: ""; width: 14px; height: 14px; border: 1.5px solid var(--ink); border-radius: 4px; flex: none; }
+.subs div.x::before { background: var(--teal); box-shadow: inset 0 0 0 2px var(--card); }
+.subs div.x { text-decoration: line-through; color: var(--muted); }
+.comment { display: flex; gap: 8px; align-items: flex-start; background: var(--paper); border: 1.5px solid var(--line); border-radius: 10px; padding: 8px; color: var(--ink); }
+.mention { color: var(--violet); font-weight: 700; background: color-mix(in srgb, var(--violet) 14%, transparent); border-radius: 5px; padding: 0 3px; }
+.pill { font: 700 11px var(--body); padding: 3px 9px; border-radius: 99px; border: 1.5px solid var(--ink); background: var(--paper-2); color: var(--ink); }
+.pill.hi { background: var(--coral); color: #fff; } .pill.ph { background: var(--violet); color: #fff; } .pill.dl { background: var(--sun); color: #14213d; }
+.featlist { display: grid; gap: 12px; }
+.feat { display: grid; grid-template-columns: 42px 1fr; gap: 12px; align-items: start; }
+.feat .i { width: 42px; height: 42px; display: grid; place-items: center; font-size: 20px; border: 2px solid var(--ink); border-radius: 12px; background: var(--card); box-shadow: 2px 2px 0 var(--ink); }
+.feat h3 { font-size: 16.5px; margin: 2px 0 3px; }
+.feat p { font-size: 14.5px; margin: 0; }
+
+/* Right-click playground */
+.play { position: relative; min-height: 300px; border: 2px dashed color-mix(in srgb, var(--ink) 50%, transparent); border-radius: var(--r); background: var(--card); display: grid; place-items: center; user-select: none; overflow: hidden; touch-action: manipulation; }
+.play.has-menu .hint-big { opacity: .12; }
+.play .hint-big { transition: opacity .2s; text-align: center; padding: 20px; pointer-events: none; }
+.play .hint-big b { display: block; font: 800 22px var(--display); color: var(--ink); margin-bottom: 4px; }
+.play .tk { position: absolute; width: 170px; font-size: 13px; }
+.seg { display: inline-flex; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; background: var(--card); }
+.seg button { font: 700 13.5px var(--body); padding: 8px 14px; border: 0; background: none; color: var(--ink); cursor: pointer; }
+.seg button.on { background: var(--ink); color: var(--paper); }
+.menu { position: absolute; z-index: 10; background: var(--card); border: 2px solid var(--ink); border-radius: 12px; box-shadow: 5px 5px 0 var(--ink); padding: 6px; min-width: 190px; animation: pop .14s ease-out; }
+.menu button { display: flex; gap: 10px; width: 100%; padding: 7px 10px; border: 0; background: none; font: 600 13.5px var(--body); color: var(--ink); border-radius: 8px; cursor: pointer; text-align: left; }
+.menu button:hover { background: var(--paper-2); }
+.menu hr { border: 0; border-top: 1.5px dashed var(--line); margin: 4px 2px; }
+.radial { position: absolute; width: 240px; height: 240px; margin: -120px 0 0 -120px; z-index: 10; animation: pop .16s ease-out; pointer-events: none; }
+.radial .ring { position: absolute; inset: 40px; border-radius: 50%; border: 2px dashed color-mix(in srgb, var(--ink) 40%, transparent); }
+.radial button { pointer-events: auto; position: absolute; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; border: 2px solid var(--ink); background: var(--card); box-shadow: 3px 3px 0 var(--ink); font: 700 9.5px var(--body); color: var(--ink); cursor: pointer; display: grid; place-items: center; line-height: 1.05; padding: 2px; }
+.radial button span { font-size: 18px; display: block; }
+.radial button:hover { background: var(--sun); color: #14213d; }
+.radial .mid { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--coral); border: 2px solid var(--ink); }
+@keyframes pop { from { transform: scale(.85); opacity: 0; } }
+.toast { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: var(--ink); color: var(--paper); font: 600 13px var(--body); padding: 8px 14px; border-radius: 10px; z-index: 12; white-space: nowrap; animation: pop .15s; }
+
+/* Views */
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.tabs button { font: 700 14.5px var(--body); padding: 10px 16px; border-radius: 12px; border: 2px solid var(--ink); background: var(--card); color: var(--ink); cursor: pointer; box-shadow: 3px 3px 0 var(--ink); transition: transform .12s; }
+.tabs button:hover { transform: translateY(-2px); }
+.tabs button.on { background: var(--accent); color: var(--accent-ink); }
+.view { display: none; } .view.on { display: grid; animation: fadeup .3s ease-out; }
+@keyframes fadeup { from { opacity: 0; transform: translateY(8px); } }
+.kb { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px; }
+.kb .col { background: var(--paper-2); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; gap: 7px; min-height: 190px; }
+.kb .col h4 { margin: 2px 4px 4px; font: 700 11px var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); display: flex; justify-content: space-between; }
+.kb .tk { font-size: 12px; }
+.chart { padding: 16px; display: grid; gap: 14px; }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.kpi { border: 1.5px solid var(--line); border-radius: 12px; padding: 10px; background: var(--paper); }
+.kpi b { display: block; font: 800 24px var(--display); color: var(--ink); }
+.kpi span { font: 600 11px var(--body); color: var(--muted); }
+.bars { display: flex; align-items: flex-end; gap: 10px; height: 120px; padding: 0 4px; border-bottom: 2px solid var(--ink); }
+.bars i { flex: 1; border-radius: 8px 8px 0 0; background: var(--sky); border: 2px solid var(--ink); border-bottom: 0; height: var(--h); transform-origin: bottom; animation: rise .8s ease-out both; }
+.bars i:nth-child(2n) { background: var(--teal); } .bars i:nth-child(3n) { background: var(--violet); }
+@keyframes rise { from { transform: scaleY(0); } }
+.bar-labels { display: flex; gap: 10px; padding: 0 4px; font: 600 11px var(--mono); color: var(--muted); }
+.bar-labels span { flex: 1; text-align: center; }
+.tl { padding: 16px; display: grid; gap: 9px; font-size: 12px; position: relative; }
+.tl .lane { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 10px; font-weight: 700; color: var(--ink); }
+.tl .track { position: relative; height: 26px; background: var(--paper-2); border-radius: 8px; }
+.tl .seg-b { position: absolute; top: 3px; bottom: 3px; border-radius: 6px; border: 1.5px solid var(--ink); font: 700 10.5px var(--body); color: #fff; padding: 2px 7px; white-space: nowrap; overflow: hidden; }
+.tl .today { position: absolute; top: 8px; bottom: 8px; left: calc(90px + 10px + 16px + 48%); width: 2px; background: var(--coral); }
+.tl .today::before { content: "TODAY"; position: absolute; top: -2px; left: 6px; font: 800 9.5px var(--mono); color: var(--coral); }
+.view-copy h3 { font-size: 26px; margin-bottom: 10px; }
+.view-copy ul { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.view-copy li { padding-left: 28px; position: relative; color: var(--ink-2); }
+.view-copy li::before { content: "→"; position: absolute; left: 4px; font-weight: 800; color: var(--accent); }
+.view.on.grid2 { display: grid; }
+
+/* Feature cards */
+.filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 22px; }
+.filters input { font: 600 15px var(--body); padding: 10px 14px; border: 2px solid var(--ink); border-radius: 12px; background: var(--card); color: var(--ink); min-width: 240px; flex: 1; max-width: 340px; }
+.filters input:focus { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 18px; }
+.fc { background: var(--card); border: 2px solid var(--ink); border-radius: 18px; padding: 18px; position: relative; transition: transform .15s, box-shadow .15s; box-shadow: 4px 4px 0 var(--ink); display: flex; flex-direction: column; }
+.fc:hover { transform: translate(-2px,-2px) rotate(-.4deg); box-shadow: 7px 7px 0 var(--ink); }
+.fc .big { font-size: 30px; width: 54px; height: 54px; display: grid; place-items: center; border-radius: 14px; border: 2px solid var(--ink); background: var(--tint, var(--paper-2)); margin-bottom: 12px; }
+.fc h3 { font-size: 18px; margin-bottom: 6px; }
+.fc p { font-size: 14px; margin-bottom: 10px; }
+.fc .good { margin-top: auto; font: 600 12.5px var(--body); color: var(--ink); background: var(--paper-2); border-radius: 10px; padding: 8px 10px; }
+.fc .good b { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); display: block; }
+.fc .tag { position: absolute; top: 16px; right: 16px; }
+.fc[hidden] { display: none; }
+.empty { display: none; padding: 30px; text-align: center; color: var(--muted); font-weight: 600; }
+
+/* Roles matrix */
+.matrix { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card); border: 2px solid var(--ink); border-radius: 18px; overflow: hidden; box-shadow: 6px 6px 0 var(--ink); font-size: 14.5px; }
+.matrix th, .matrix td { padding: 11px 12px; text-align: center; border-bottom: 1.5px solid var(--line); }
+.matrix th { font: 700 13px var(--display); background: var(--paper-2); color: var(--ink); }
+.matrix th:first-child, .matrix td:first-child { text-align: left; }
+.matrix td:first-child { font-weight: 600; color: var(--ink); }
+.matrix td:first-child small { display: block; font-weight: 500; color: var(--muted); font-size: 12.5px; }
+.matrix tr:last-child td { border-bottom: 0; }
+.matrix tbody tr:hover td { background: color-mix(in srgb, var(--sun) 16%, transparent); }
+.yes, .no { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; font-weight: 900; }
+.yes { background: var(--teal); color: #fff; border: 2px solid var(--ink); }
+.no { color: var(--muted); }
+.role-h { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
+.role-h i { font-style: normal; font-size: 18px; }
+.matrix-wrap { overflow-x: auto; padding: 0 8px 12px 0; margin-right: -8px; }
+.matrix { min-width: 560px; }
+
+/* Sync cards */
+.mini-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+@media (max-width: 900px) { .mini-cards { grid-template-columns: 1fr; } }
+.mc { border: 2px solid var(--paper); border-radius: 18px; padding: 20px; background: color-mix(in srgb, var(--paper) 7%, transparent); }
+.mc .i { font-size: 30px; margin-bottom: 8px; display: block; }
+.mc h3 { color: var(--paper); font-size: 19px; margin-bottom: 6px; }
+.mc p { font-size: 14.5px; margin: 0; }
+.mc kbd { background: transparent; color: var(--paper); border-color: var(--paper); }
+.notif { margin-top: 14px; background: var(--paper); color: var(--ink); border-radius: 12px; padding: 10px 12px; font-size: 13px; display: flex; gap: 10px; align-items: center; border: 2px solid var(--sun); }
+.notif .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--coral); flex: none; animation: blink 1.4s infinite; }
+
+/* Themes */
+.swatches { display: flex; gap: 12px; flex-wrap: wrap; }
+.sw { width: 116px; border: 2px solid var(--ink); border-radius: 14px; padding: 8px; background: var(--card); cursor: pointer; box-shadow: 3px 3px 0 var(--ink); transition: transform .12s; font: 700 12.5px var(--body); color: var(--ink); text-align: left; }
+.sw:hover { transform: translateY(-3px); }
+.sw.on { outline: 3px solid var(--accent); outline-offset: 2px; }
+.sw .pv { height: 52px; border-radius: 9px; background: var(--b); display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 6px; margin-bottom: 7px; border: 1.5px solid rgba(0,0,0,.15); }
+.sw .pv i { background: var(--c); border-radius: 4px; } .sw .pv i:nth-child(2) { background: var(--d); }
+.custom-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 26px; }
+@media (max-width: 700px) { .custom-list { grid-template-columns: 1fr; } }
+
+/* Plans */
+.plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: stretch; }
+@media (max-width: 900px) { .plans { grid-template-columns: 1fr; } }
+.plan { background: var(--card); border: 2px solid var(--ink); border-radius: 20px; padding: 24px; box-shadow: 5px 5px 0 var(--ink); position: relative; display: flex; flex-direction: column; }
+.plan h3 { font-size: 24px; } .plan .price { font: 800 34px var(--display); margin: 8px 0 2px; color: var(--ink); } .plan .price small { font: 600 14px var(--body); color: var(--muted); }
+.plan ul { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 8px; font-size: 14.5px; }
+.plan li { padding-left: 26px; position: relative; color: var(--ink-2); }
+.plan li::before { content: "✓"; position: absolute; left: 2px; font-weight: 900; color: var(--teal); }
+.plan.edu { background: color-mix(in srgb, var(--sun) 25%, var(--card)); transform: rotate(-1deg); }
+.plan.pro { background: color-mix(in srgb, var(--violet) 12%, var(--card)); }
+.plan .stk { position: absolute; top: -16px; right: 16px; transform: rotate(5deg); }
+
+/* Shortcuts & FAQ */
+.keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.key { background: var(--card); border: 2px solid var(--ink); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 3px 3px 0 var(--ink); }
+.key div:first-child { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; color: var(--muted); font-weight: 700; }
+.key span { font-size: 14.5px; color: var(--ink-2); }
+.faq { display: grid; gap: 12px; max-width: 860px; }
+.faq details { background: var(--card); border: 2px solid var(--ink); border-radius: 14px; padding: 0; box-shadow: 3px 3px 0 var(--ink); }
+.faq summary { cursor: pointer; padding: 15px 18px; font: 700 17px var(--display); list-style: none; display: flex; justify-content: space-between; gap: 12px; color: var(--ink); }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font: 800 22px var(--mono); line-height: 1; transition: transform .2s; color: var(--accent); }
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq details p { padding: 0 18px 14px; margin: 0; font-size: 15px; }
+
+.final { text-align: center; padding: 90px 0 110px; }
+.final h2 { font-size: clamp(36px, 6vw, 64px); margin-bottom: 14px; }
+.final p { font-size: 18px; margin-bottom: 26px; }
+footer { border-top: 1.5px solid var(--line); padding: 26px 0 40px; font-size: 14px; color: var(--muted); }
+footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+footer a { color: var(--ink-2); }
+.hide-sm { } @media (max-width: 600px) { .hide-sm { display: none; } }
+@media (max-width: 600px) { .mb { grid-template-columns: 56px repeat(3, 1fr); } .anat .mb { grid-template-columns: 60px repeat(3, 1fr); } .tk { font-size: 10px; } .kpis { grid-template-columns: 1fr 1fr 1fr; } .kpi b { font-size: 18px; } section.block { padding: 52px 0; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="./"><img src="icons/logo-96.png" alt=""><span>TeamTrack</span><small>GUIDE</small></a>
+    <nav class="toc" aria-label="Sections">
+      <a href="#start">Quick start</a><a href="#board">The board</a><a href="#weeks">Weeks</a><a href="#tasks">Tasks</a><a href="#views">Views</a><a href="#tools">Tools</a><a href="#roles">Roles</a><a href="#sync">Stay in sync</a><a href="#plans">Plans</a><a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn primary" href="./">Open TeamTrack →</a>
+  </div>
+  <div class="progress" id="progress"></div>
+</header>
+
+<main>
+<!-- ═══ Hero ═══ -->
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">📘 The field manual</span>
+      <h1>Your team’s whole week, in <span class="scribble">one picture.</span></h1>
+      <p class="lead">TeamTrack is a shared board of <b>people × weeks</b>. Everyone can see who is doing what, what’s late and what’s next, and it updates live for the whole team. This page shows you everything it can do, one bite at a time.</p>
+      <div class="cta">
+        <a class="btn primary" href="#start">Start the 5-step tour ↓</a>
+        <a class="btn" href="#tools">Browse every feature</a>
+      </div>
+      <div class="meta"><span>Free for teams up to 30</span><span>Free Pro for students</span><span>Works on phone &amp; laptop</span></div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <span class="sticker s1">Live for everyone ⚡</span>
+      <div class="win">
+        <div class="win-bar"><i></i><i></i><i></i><b>Drone Challenge</b><span style="margin-left:auto">▦ Board</span></div>
+        <div class="chipbar"><span class="on">All</span><span>✈️ Fuselage</span><span>📦 Payload</span><span>⚡ Electronics</span></div>
+        <div class="mb">
+          <div></div><div class="h">Week 41</div><div class="h now">Week 42</div><div class="h">Week 43</div>
+          <div class="p"><span class="av" style="background:var(--coral)">A</span>Aisha</div>
+          <div class="c"><div class="tk done" style="--cat:var(--teal)">Wing CAD<div class="bar"><i style="--p:100%"></i></div></div></div>
+          <div class="c now"><div class="tk grow" style="--cat:var(--teal)">Spar test rig<div class="bar"><i></i></div></div></div>
+          <div class="c"><div class="tk" style="--cat:var(--teal);--p:5%">Wind tunnel<div class="bar"><i></i></div></div></div>
+          <div class="p"><span class="av" style="background:var(--violet)">T</span>Tom</div>
+          <div class="c"><div class="tk done" style="--cat:var(--sky)">ESC wiring<div class="bar"><i style="--p:100%"></i></div></div></div>
+          <div class="c now"><div class="tk late" style="--cat:var(--sky);--p:55%">Telemetry link<div class="bar"><i></i></div></div></div>
+          <div class="c"></div>
+          <div class="p"><span class="av" style="background:var(--teal)">P</span>Priya</div>
+          <div class="c"></div>
+          <div class="c now"><div class="tk" style="--cat:var(--sun);--p:70%">Drop mechanism<div class="bar"><i></i></div></div><div class="tk" style="--cat:var(--pink);--p:30%">Order servos<div class="bar"><i></i></div></div></div>
+          <div class="c"><div class="tk" style="--cat:var(--sun);--p:10%">Flight test<div class="bar"><i></i></div></div></div>
+        </div>
+        <svg class="cursor" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" fill="#fff" stroke="#14213d" stroke-width="2" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="sticker s2">Week 42 · this week ●</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 1 Quick start ═══ -->
+<section class="block" id="start">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">01</span><div><h2>Up and running in 5 steps</h2><p>Takes about ten minutes. Click each card as you go to tick it off. We remember your progress on this device.</p></div></div>
+    <div class="steps" id="steps">
+      <button class="step" data-step="1" type="button"><span class="check">✓</span><span class="ico">🔑</span><h3>Sign in</h3><p>Use Google, Microsoft or email. Use the same address your team will invite.</p><span class="where">Sign-in screen</span></button>
+      <button class="step" data-step="2" type="button"><span class="check">✓</span><span class="ico">🏗️</span><h3>Create a team</h3><p>Give it a name, like “Drone Challenge”. You become the Owner.</p><span class="where">Home ▸ Create a team</span></button>
+      <button class="step" data-step="3" type="button"><span class="check">✓</span><span class="ico">✉️</span><h3>Invite people</h3><p>Paste their emails. We email the invitation for you, and they press “Join team”.</p><span class="where">➕ Invite</span></button>
+      <button class="step" data-step="4" type="button"><span class="check">✓</span><span class="ico">🗂️</span><h3>Add weeks &amp; tasks</h3><p>Add categories (work packages), then drop tasks into each person’s weeks.</p><span class="where">Right-click the board</span></button>
+      <button class="step" data-step="5" type="button"><span class="check">✓</span><span class="ico">📈</span><h3>Track it</h3><p>Move progress sliders, tick sub-tasks, and check 📊 Analytics every Friday.</p><span class="where">Click any card</span></button>
+    </div>
+    <div class="qs-bar"><span id="qs-text">0 of 5 done</span><div class="qs-track"><i id="qs-fill"></i></div><span id="qs-emoji">🌱</span></div>
+    <div class="tip"><b>💡</b><span>Already have a spreadsheet, a Jira export or a Trello board? Skip step 4: <b>Team data ▸ Import tasks</b> brings it all in, and shows you a preview first.</span></div>
+  </div>
+</section>
+
+<!-- ═══ 2 The board ═══ -->
+<section class="block" id="board" style="background:color-mix(in srgb, var(--paper-2) 70%, transparent)">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">02</span><div><h2>Reading the board</h2><p>One row per person, one column per week. Click a red dot (or a line on the right) to see what each part does.</p></div></div>
+    <div class="grid2">
+      <div class="anat">
+        <div class="win">
+          <div class="win-bar"><i></i><i></i><i></i><b>Robotics MSc group</b></div>
+          <div class="mb">
+            <div></div><div class="h">Week 6</div><div class="h now" data-hs="1">Week 7</div><div class="h">Week 8</div>
+            <div class="cat-row" data-hs="2">Gripper design</div>
+            <div class="p" data-hs="3"><span class="av" style="background:var(--coral)">R</span>Rushi</div>
+            <div class="c"><div class="tk done" style="--cat:var(--violet)">Concept sketches<div class="bar"><i style="--p:100%"></i></div></div></div>
+            <div class="c now"><div class="tk" data-hs="4" style="--cat:var(--violet);--p:60%">CAD v2<div class="bar"><i></i></div></div></div>
+            <div class="c"><div class="tk" style="--cat:var(--violet);--p:0%">3D print<div class="bar"><i></i></div></div></div>
+            <div class="p"><span class="av" style="background:var(--teal)">M</span>Mei</div>
+            <div class="c"></div>
+            <div class="c now"><div class="tk late" data-hs="5" style="--cat:var(--violet);--p:35%">Servo sizing<div class="bar"><i></i></div></div></div>
+            <div class="c" data-hs="6"></div>
+          </div>
+        </div>
+      </div>
+      <div class="anat-list" id="anat-list">
+        <button class="anat-item" data-a="1" type="button"><span class="n">1</span><div><h3>Weeks run left to right</h3><p>The current week glows, and <b>🎯 Today</b> jumps to it. Right-click a week to rename it, give it a start date (later weeks follow on) or add another. The badge under each title is the <a href="#weeks">weekly metric</a>.</p></div></button>
+        <button class="anat-item" data-a="2" type="button"><span class="n">2</span><div><h3>Categories group the work</h3><p>Work packages like “Gripper design” or “Report”. Each has its own colour, which shows as a stripe on its cards. Collapse them to keep big boards tidy.</p></div></button>
+        <button class="anat-item" data-a="3" type="button"><span class="n">3</span><div><h3>One row per person</h3><p>Everyone in the team gets a row. Click a name to see their workload. Use the side panel filters to show only some people, phases or sub-teams.</p></div></button>
+        <button class="anat-item" data-a="4" type="button"><span class="n">4</span><div><h3>Cards are tasks</h3><p>The bar shows progress. A tick means it’s complete. Click a card to edit it in the side panel. Drag it to another week or person, or hold <kbd>Alt</kbd> while dragging to copy it.</p></div></button>
+        <button class="anat-item" data-a="5" type="button"><span class="n">5</span><div><h3>Red means late</h3><p>A task past its deadline and not done gets a red ring, so problems jump out before the meeting.</p></div></button>
+        <button class="anat-item" data-a="6" type="button"><span class="n">6</span><div><h3>Empty cell = free time</h3><p>Right-click an empty cell to add a task right there, or pick one from a saved template.</p></div></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ Weeks ═══ -->
+<section class="block" id="weeks">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">03</span><div><h2>Weeks that match your real calendar</h2><p>Pick the day your project starts and every week follows on, 7 days apart. Change one week’s date and all the weeks after it move with it. Number them your way, and give each week a headline number with the <b>weekly metric</b>.</p></div></div>
+    <div class="grid2">
+      <div>
+        <div class="win">
+          <div class="win-bar"><i></i><i></i><i></i><b>Try it: your weeks</b></div>
+          <div class="wk-controls">
+            <label class="wk-field"><span>Week 1 starts on</span><input type="date" id="wk-start"></label>
+            <span class="seg" id="wk-mode"><button type="button" class="on" data-m="sequence">1, 2, 3…</button><button type="button" data-m="calendar">Calendar weeks</button></span>
+          </div>
+          <div class="wk-strip" id="wk-strip"></div>
+          <p class="wk-note">✏️ Click a metric badge to type your own, e.g. “Flights: 3”.</p>
+        </div>
+      </div>
+      <div class="featlist">
+        <div class="feat"><span class="i">📆</span><div><h3>Set the dates once</h3><p>Right-click the board ▸ <b>Set week dates…</b> and choose when Week 1 starts. Every later week lines up behind it, and new weeks you add continue the run.</p></div></div>
+        <div class="feat"><span class="i">↪️</span><div><h3>Change one, the rest follow</h3><p>Right-click a week ▸ <b>Set start date…</b>. That week and all the weeks after it shift together, 7 days apart. Earlier weeks stay put. <kbd>Ctrl</kbd> + <kbd>Z</kbd> undoes it.</p></div></div>
+        <div class="feat"><span class="i">🗓️</span><div><h3>Own numbering or calendar weeks</h3><p><b>Settings ▸ General ▸ Week numbering</b>: count from Week 1, or use the calendar week of the year (Week 43 for the week of 19 October). You can still give any week its own name, like “Reading week”.</p></div></div>
+        <div class="feat"><span class="i">🎯</span><div><h3>Weekly metric</h3><p>A small badge on every week header for the one number that matters that week: hours logged, budget left, flights flown, words written. Click it to type. Rename it in <b>Settings ▸ Fields</b>, or hide it.</p></div></div>
+        <div class="feat"><span class="i">📍</span><div><h3>Always know where “now” is</h3><p>The week containing today is marked <b>THIS WEEK</b>, and <b>🎯 Today</b> scrolls straight to it. Dated weeks also power the timeline, the burndown and calendar exports.</p></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 3 Tasks ═══ -->
+<section class="block" id="tasks">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">04</span><div><h2>Everything a task can hold</h2><p>Click any card and the editor opens on the right. It saves as you type, for everyone, instantly.</p></div></div>
+    <div class="grid2">
+      <div class="win">
+        <div class="win-bar"><i></i><i></i><i></i><b>Editor ▸ CAD v2</b></div>
+        <div class="editor">
+          <div class="f"><label>Task</label><div class="v">CAD v2 — gripper fingers</div></div>
+          <div class="row"><span class="pill hi">● High</span><span class="pill dl">📅 Due Fri 24 Oct</span><span class="pill ph">Phase: Detailed design</span><span class="pill">🧩 Payload</span></div>
+          <div class="f"><label>Progress · 65%</label><div class="slider"><i></i><b></b></div></div>
+          <div class="f"><label>Sub-tasks</label><div class="subs"><div class="x">Finger geometry</div><div class="x">Tolerance stack (GD&amp;T)</div><div>Export STEP for printing</div></div></div>
+          <div class="row"><div class="f"><label>Helpers</label><div class="v">👥 Mei, Tom</div></div><div class="f"><label>Waits on</label><div class="v">⛓ Servo sizing</div></div></div>
+          <div class="f"><label>Files &amp; links</label><div class="v">📎 gripper_v2.step (Drive) · 🐙 org/arm#14</div></div>
+          <div class="comment"><span class="av" style="background:var(--teal)">M</span><span><b>Mei:</b> <span class="mention">@Rushi</span> torque is fine at 0.8 Nm, go ahead 👍</span></div>
+        </div>
+      </div>
+      <div class="featlist">
+        <div class="feat"><span class="i">🎚️</span><div><h3>Progress, priority &amp; deadline</h3><p>Drag the slider as work moves. Deadlines drive the late flags, the timeline and the Monday email digest.</p></div></div>
+        <div class="feat"><span class="i">☑️</span><div><h3>Sub-tasks</h3><p>Break big jobs into a checklist. Ticking them off moves the progress bar.</p></div></div>
+        <div class="feat"><span class="i">👥</span><div><h3>Helpers &amp; “waits on”</h3><p>Add teammates who help, and link tasks that must finish first. The Kanban view and the planning charts use these links.</p></div></div>
+        <div class="feat"><span class="i">💬</span><div><h3>Comments &amp; @mentions</h3><p>Talk about the task where the task lives. Type <span class="mention">@name</span> and they get a 🔔 notification (and an email on Pro).</p></div></div>
+        <div class="feat"><span class="i">📎</span><div><h3>Files, links &amp; GitHub</h3><p>Attach from Google Drive or OneDrive, or paste any link. The file stays in your own drive; the task just keeps the link. Paste a GitHub issue or pull request and it shows as a neat chip.</p></div></div>
+        <div class="feat"><span class="i">🕘</span><div><h3>History &amp; undo</h3><p>Every task keeps a log of changes. Made a mistake? <kbd>Ctrl</kbd> + <kbd>Z</kbd> undoes it, and <kbd>Ctrl</kbd> + <kbd>Y</kbd> redoes it.</p></div></div>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:56px;align-items:center">
+      <div>
+        <span class="tag">Try it</span>
+        <h3 style="font-size:28px;margin:10px 0 10px">The right-click menu does almost everything</h3>
+        <p>Right-click a card, a cell, a week or a person to get the actions that fit it. On a phone, <b>press and hold</b> or tap <b>⋯</b> on a card. Prefer a circle? Switch the style in <b>Your account ▸ Right-click menu</b>.</p>
+        <p style="margin-top:14px"><span class="seg" id="menu-style"><button type="button" class="on" data-s="list">☰ List</button><button type="button" data-s="circle">◯ Circle</button></span></p>
+      </div>
+      <div class="play" id="play" tabindex="0" aria-label="Right-click practice area">
+        <div class="tk" style="--cat:var(--teal);--p:60%;left:12%;top:22%">CAD v2<div class="bar"><i></i></div></div>
+        <div class="tk late" style="--cat:var(--sky);--p:35%;right:10%;bottom:20%">Telemetry link<div class="bar"><i></i></div></div>
+        <div class="hint-big"><b>Right-click anywhere here</b>or press and hold on a phone</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 4 Views ═══ -->
+<section class="block" id="views" style="background:color-mix(in srgb, var(--paper-2) 70%, transparent)">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">05</span><div><h2>Four ways to look at the same work</h2><p>Same data, different questions answered. Switch at the top of the board.</p></div></div>
+    <div class="tabs" role="tablist" id="view-tabs">
+      <button class="on" data-v="board" type="button" role="tab">▦ Board</button>
+      <button data-v="kanban" type="button" role="tab">🗂️ Kanban</button>
+      <button data-v="analytics" type="button" role="tab">📊 Analytics</button>
+      <button data-v="timeline" type="button" role="tab">📅 Timeline</button>
+    </div>
+
+    <div class="view on grid2" data-v="board">
+      <div class="win"><div class="win-bar"><i></i><i></i><i></i><b>Board</b></div>
+        <div class="mb"><div></div><div class="h">Wk 7</div><div class="h now">Wk 8</div><div class="h">Wk 9</div>
+          <div class="p"><span class="av" style="background:var(--coral)">A</span>Aisha</div><div class="c"><div class="tk done" style="--cat:var(--teal)">Survey<div class="bar"><i style="--p:100%"></i></div></div></div><div class="c now"><div class="tk grow" style="--cat:var(--teal)">Analysis<div class="bar"><i></i></div></div></div><div class="c"></div>
+          <div class="p"><span class="av" style="background:var(--violet)">B</span>Ben</div><div class="c"></div><div class="c now"><div class="tk" style="--cat:var(--sun);--p:40%">Poster<div class="bar"><i></i></div></div></div><div class="c"><div class="tk" style="--cat:var(--sun);--p:0%">Viva prep<div class="bar"><i></i></div></div></div>
+        </div></div>
+      <div class="view-copy"><h3>“Who’s doing what, when?”</h3><p>The home view: people down the side, weeks along the top.</p><ul><li>Spot overloaded weeks and idle ones at a glance.</li><li>Drag cards to re-plan, and everyone sees it move live.</li><li>Filter by person, category, phase or sub-team from the side panel.</li></ul></div>
+    </div>
+
+    <div class="view grid2" data-v="kanban">
+      <div class="win"><div class="win-bar"><i></i><i></i><i></i><b>Kanban</b></div>
+        <div class="kb">
+          <div class="col"><h4>To do <span>3</span></h4><div class="tk" style="--cat:var(--sun);--p:0%">Viva prep<div class="bar"><i></i></div></div><div class="tk" style="--cat:var(--pink);--p:0%">Order servos<div class="bar"><i></i></div></div><div class="tk" style="--cat:var(--sky);--p:0%">Ethics form<div class="bar"><i></i></div></div></div>
+          <div class="col"><h4>Doing <span>2</span></h4><div class="tk grow" style="--cat:var(--teal)">Analysis<div class="bar"><i></i></div></div><div class="tk" style="--cat:var(--sun);--p:40%">Poster<div class="bar"><i></i></div></div></div>
+          <div class="col"><h4>Done <span>2</span></h4><div class="tk done" style="--cat:var(--teal)">Survey<div class="bar"><i style="--p:100%"></i></div></div><div class="tk done" style="--cat:var(--violet)">Lit review<div class="bar"><i style="--p:100%"></i></div></div></div>
+        </div></div>
+      <div class="view-copy"><h3>“What’s the state of play?”</h3><p>To do · Doing · Done, for the week or the whole project.</p><ul><li>Drag a card between columns to change its stage.</li><li>Great for stand-ups: talk through the Doing column.</li><li>Finished tasks land in Done automatically.</li></ul></div>
+    </div>
+
+    <div class="view grid2" data-v="analytics">
+      <div class="win"><div class="win-bar"><i></i><i></i><i></i><b>📊 Analytics ▸ Overview</b></div>
+        <div class="chipbar"><span class="on">Overview</span><span>Team</span><span>Deadlines</span><span>Timeline</span><span>Planning</span><span>Sub-teams</span></div>
+        <div class="chart">
+          <div class="kpis"><div class="kpi"><b>72%</b><span>Complete</span></div><div class="kpi"><b style="color:var(--coral)">3</b><span>Overdue</span></div><div class="kpi"><b>9</b><span>Due this week</span></div></div>
+          <div class="bars"><i style="--h:40%"></i><i style="--h:65%"></i><i style="--h:52%"></i><i style="--h:88%"></i><i style="--h:30%"></i></div>
+          <div class="bar-labels"><span>Aisha</span><span>Ben</span><span>Mei</span><span>Rushi</span><span>Tom</span></div>
+        </div></div>
+      <div class="view-copy"><h3>“Are we on track?”</h3><p>KPIs, charts and insights, worked out for you from the board.</p><ul><li><b>Overview &amp; Team:</b> completion, overdue work and each person’s load.</li><li><b>Deadlines:</b> everything due soon, in one list.</li><li><b>Planning:</b> workload versus capacity, plus a burndown chart.</li><li><b>Sub-teams:</b> progress per group (Fuselage vs Payload…).</li></ul></div>
+    </div>
+
+    <div class="view grid2" data-v="timeline">
+      <div class="win"><div class="win-bar"><i></i><i></i><i></i><b>📅 Timeline</b></div>
+        <div class="tl">
+          <div class="lane">Research<div class="track"><span class="seg-b" style="left:2%;width:30%;background:var(--teal)">Lit review ✓</span></div></div>
+          <div class="lane">Design<div class="track"><span class="seg-b" style="left:24%;width:40%;background:var(--violet)">Detailed design</span></div></div>
+          <div class="lane">Build<div class="track"><span class="seg-b" style="left:55%;width:30%;background:var(--sky)">Prototype</span></div></div>
+          <div class="lane">Report<div class="track"><span class="seg-b" style="left:78%;width:20%;background:var(--coral)">Write-up</span></div></div>
+          <span class="today hide-sm"></span>
+        </div></div>
+      <div class="view-copy"><h3>“What’s coming, and when?”</h3><p>Deadlines and project phases on one timeline.</p><ul><li>Give phases start and end dates in <b>Settings ▸ Phases</b>.</li><li>See at once if a phase is running late.</li><li>Export deadlines to your calendar as an <b>.ics</b> file, with a reminder the day before.</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 5 Tools ═══ -->
+<section class="block" id="tools">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">06</span><div><h2>The toolbox: switch on what you need</h2><p>New teams start simple. Owners and admins turn extra tools on or off in <b>Settings ▸ Features</b>. They then appear under <b>🧰 Tools</b>. Nothing is lost when you turn one off.</p></div></div>
+    <div class="filters">
+      <input id="feat-q" type="search" placeholder="Search features… (try “budget”)" aria-label="Search features">
+      <span class="seg" id="feat-group"><button class="on" data-g="all" type="button">All</button><button data-g="std" type="button">Standard</button><button data-g="adv" type="button">Advanced</button><button data-g="pro" type="button">Pro</button></span>
+    </div>
+    <div class="cards" id="feat-cards">
+      <article class="fc" data-g="std"><span class="tag std">Standard</span><span class="big" style="--tint:color-mix(in srgb,var(--sky) 25%,transparent)">⏱</span><h3>Planning</h3><p>Effort estimates, “waits on” links between tasks, workload charts and a burndown.</p><div class="good"><b>Good for</b>Knowing whether the plan actually fits.</div></article>
+      <article class="fc" data-g="std"><span class="tag std">Standard</span><span class="big" style="--tint:color-mix(in srgb,var(--teal) 25%,transparent)">📝</span><h3>Meetings</h3><p>Meeting notes with attendees and decisions. Action items become real tasks on the board in one click.</p><div class="good"><b>Good for</b>Weekly supervisor meetings that actually lead somewhere.</div></article>
+      <article class="fc" data-g="std"><span class="tag std">Standard</span><span class="big" style="--tint:color-mix(in srgb,var(--sun) 30%,transparent)">📓</span><h3>Lab notebook</h3><p>Dated entries with photos on every task: what you tried, what happened, what’s next.</p><div class="good"><b>Good for</b>Experiments, test rigs, and writing the report later.</div></article>
+      <article class="fc" data-g="std"><span class="tag std">Standard</span><span class="big" style="--tint:color-mix(in srgb,var(--violet) 22%,transparent)">📚</span><h3>Literature</h3><p>Add papers by DOI. Track reading status, keep notes and export BibTeX for your references.</p><div class="good"><b>Good for</b>Dissertations and literature reviews.</div></article>
+      <article class="fc" data-g="adv"><span class="tag adv">Advanced</span><span class="big" style="--tint:color-mix(in srgb,var(--pink) 22%,transparent)">🧩</span><h3>Sub-teams</h3><p>Split a project into groups (Fuselage, Payload, Electronics), each with leads, its own board view and its own progress.</p><div class="good"><b>Good for</b>Competition teams of 15–30 people.</div></article>
+      <article class="fc" data-g="adv"><span class="tag adv">Advanced</span><span class="big" style="--tint:color-mix(in srgb,var(--sky) 25%,transparent)">🔩</span><h3>Parts &amp; orders</h3><p>Components with suppliers, quantities and order status. Add tax, shipping or discounts as fixed amounts or percentages.</p><div class="good"><b>Good for</b>Knowing what’s ordered, arrived, or stuck.</div></article>
+      <article class="fc" data-g="adv"><span class="tag adv">Advanced</span><span class="big" style="--tint:color-mix(in srgb,var(--teal) 25%,transparent)">💷</span><h3>Finance</h3><p>Budget lines, spending with receipts, income, and a burn-rate forecast. Link payments to parts. Every change is logged and can be undone.</p><div class="good"><b>Good for</b>Treasurers, sponsors and end-of-year reports.</div></article>
+      <article class="fc" data-g="adv"><span class="tag adv">Advanced</span><span class="big" style="--tint:color-mix(in srgb,var(--coral) 22%,transparent)">👥</span><h3>People &amp; capacity</h3><p>Hours per week, time off and skills for each person. A workload heatmap, plus “who could take this task?”.</p><div class="good"><b>Good for</b>Exam season, holidays and fair workloads.</div></article>
+      <article class="fc" data-g="adv"><span class="tag adv">Advanced</span><span class="big" style="--tint:color-mix(in srgb,var(--sun) 30%,transparent)">🕒</span><h3>Time logging</h3><p>Log the hours actually spent, compare them with estimates, and export timesheets.</p><div class="good"><b>Good for</b>Contract work and honest estimates next time.</div></article>
+      <article class="fc" data-g="adv"><span class="tag adv">Advanced</span><span class="big" style="--tint:color-mix(in srgb,var(--coral) 22%,transparent)">⚠️</span><h3>Risk register</h3><p>Risks scored by likelihood × impact, with owners, mitigations and review dates.</p><div class="good"><b>Good for</b>Design reviews and engineering projects.</div></article>
+      <article class="fc" data-g="adv"><span class="tag adv">Advanced</span><span class="big" style="--tint:color-mix(in srgb,var(--violet) 22%,transparent)">📐</span><h3>Requirements</h3><p>Requirements linked to the tasks that deliver them and how they’re verified, with coverage and a traceability export.</p><div class="good"><b>Good for</b>Systems engineering and formal competitions.</div></article>
+      <article class="fc" data-g="pro"><span class="tag pro">Pro</span><span class="big" style="--tint:color-mix(in srgb,var(--violet) 22%,transparent)">📧</span><h3>Email notifications</h3><p>An email when someone @mentions you, and a Monday digest of your overdue and upcoming tasks. Each person can switch them off.</p><div class="good"><b>Good for</b>Teammates who never open the app 😉</div></article>
+      <article class="fc" data-g="pro"><span class="tag pro">Pro</span><span class="big" style="--tint:color-mix(in srgb,var(--violet) 22%,transparent)">🕘</span><h3>Full change history</h3><p>Finance history kept for good (Free shows the last 90 days), so audits and handovers are painless.</p><div class="good"><b>Good for</b>Handing over to next year’s team.</div></article>
+    </div>
+    <div class="empty" id="feat-empty">Nothing matches. Try “money”, “people” or “papers”.</div>
+  </div>
+</section>
+
+<!-- ═══ 6 Roles ═══ -->
+<section class="block" id="roles" style="background:color-mix(in srgb, var(--paper-2) 70%, transparent)">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">07</span><div><h2>Who can do what</h2><p>Every member has a role. These four come built in. Owners can create custom ones, like “Treasurer” or “Supervisor”, in <b>Settings ▸ Roles &amp; permissions</b>.</p></div></div>
+    <div class="matrix-wrap">
+    <table class="matrix">
+      <thead><tr><th>Permission</th><th><span class="role-h"><i>👑</i>Owner</span></th><th><span class="role-h"><i>🛠️</i>Admin</span></th><th><span class="role-h"><i>🙋</i>Member</span></th><th><span class="role-h"><i>👀</i>Viewer</span></th></tr></thead>
+      <tbody>
+        <tr><td>Edit own tasks<small>Create and edit tasks in their own row</small></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="no">—</span></td></tr>
+        <tr><td>Edit everyone’s tasks<small>Move and edit any task</small></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+        <tr><td>Manage weeks<small>Add, rename and date weeks</small></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="no">—</span></td></tr>
+        <tr><td>View analytics &amp; timeline</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Export &amp; AI summary<small>Excel, Google Sheets, backups</small></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="no">—</span></td></tr>
+        <tr><td>Invite &amp; manage members</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+        <tr><td>Team settings &amp; plan</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+        <tr><td>See &amp; manage finances</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+        <tr><td>Create &amp; edit roles</td><td><span class="yes">✓</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="tip"><b>🔒</b><span>These rules are enforced by the server, not just hidden in the app, so a Viewer really can’t change anything, even with clever tricks.</span></div>
+  </div>
+</section>
+
+<!-- ═══ 7 Sync ═══ -->
+<section class="block ribbon" id="sync">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">08</span><div><h2 style="color:var(--paper)">Stay in the loop without the chasing</h2><p>TeamTrack is live: when someone changes something, you see it straight away, with no refresh and no “which version is latest?”.</p></div></div>
+    <div class="mini-cards">
+      <div class="mc"><span class="i">🔔</span><h3>Activity &amp; mentions</h3><p>The bell shows who mentioned you and what changed. Unread mentions get a badge.</p><div class="notif"><span class="dot"></span><span><b>Mei</b> mentioned you on <b>CAD v2</b></span></div></div>
+      <div class="mc"><span class="i">🏠</span><h3>My tasks, across teams</h3><p>The home screen lists your tasks from every team, soonest first. <b>👥 Workload</b> shows everyone’s hours across all your teams.</p></div>
+      <div class="mc"><span class="i">🔍</span><h3>Search everything</h3><p>Press <kbd>Ctrl</kbd> + <kbd>K</kbd> (or <kbd>/</kbd>) to find any task, person, meeting or paper in a heartbeat.</p></div>
+      <div class="mc"><span class="i">✨</span><h3>AI summary</h3><p>One click writes a status update from the board. Paste it into any free chatbot, or add your own free Gemini key to get answers inside the app.</p></div>
+      <div class="mc"><span class="i">📊</span><h3>Reports &amp; exports</h3><p>Download an Excel report, export to Google Sheets, add deadlines to your calendar, or download a full backup.</p></div>
+      <div class="mc"><span class="i">📱</span><h3>On your phone</h3><p>Install it like an app from your browser’s menu (“Add to Home Screen”). Press and hold works like right-click.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 8 Make it yours ═══ -->
+<section class="block" id="themes">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">09</span><div><h2>Make it yours</h2><p>Twelve themes, including high-contrast ones, chosen per person under <b>🎨 Theme</b>. Go on, click one: this page plays along.</p></div></div>
+    <div class="swatches" id="swatches">
+      <button class="sw on" type="button" data-acc="#0e9f8e" data-mode="" style="--b:#f2fbf8;--c:#0e9f8e;--d:#b8ece2">Mint</button>
+      <button class="sw" type="button" data-acc="#3ba3ff" data-mode="dark" style="--b:#0f1424;--c:#3ba3ff;--d:#26304e">Midnight</button>
+      <button class="sw" type="button" data-acc="#1c7ed6" data-mode="" style="--b:#ffffff;--c:#1c7ed6;--d:#dbe8f7">Daylight</button>
+      <button class="sw" type="button" data-acc="#0aa5c0" data-mode="dark" style="--b:#06202b;--c:#0aa5c0;--d:#123b4a">Ocean</button>
+      <button class="sw" type="button" data-acc="#2f9e44" data-mode="dark" style="--b:#0f1f14;--c:#2f9e44;--d:#22392a">Forest</button>
+      <button class="sw" type="button" data-acc="#7c5cff" data-mode="dark" style="--b:#1a1230;--c:#7c5cff;--d:#2f2450">Grape</button>
+      <button class="sw" type="button" data-acc="#ff5fa2" data-mode="light" style="--b:#fff3f7;--c:#ff5fa2;--d:#ffd3e3">Sakura</button>
+      <button class="sw" type="button" data-acc="#8a6d3b" data-mode="light" style="--b:#f8f3e6;--c:#8a6d3b;--d:#e7dcc2">Paper</button>
+    </div>
+    <div class="custom-list">
+      <div class="feat"><span class="i">🧭</span><div><h3>Phases</h3><p>Stages of the project (Research → Design → Build → Test) with dates. Pick a task’s phase in the editor or from its right-click menu.</p></div></div>
+      <div class="feat"><span class="i">📋</span><div><h3>Templates</h3><p>Save a task with its sub-tasks (“Experiment: plan, run, analyse, write up”), then add it anywhere from a column’s right-click menu.</p></div></div>
+      <div class="feat"><span class="i">🏷️</span><div><h3>Custom fields &amp; labels</h3><p>Add fields like “Supervisor”, “Module code” or “Lab booked?”. Rename built-in labels to match how your team talks.</p></div></div>
+      <div class="feat"><span class="i">🖼️</span><div><h3>Logo &amp; week numbering</h3><p>Upload a team logo, and number weeks your way: your own count, or calendar weeks.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 9 Plans ═══ -->
+<section class="block" id="plans" style="background:color-mix(in srgb, var(--paper-2) 70%, transparent)">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">10</span><div><h2>Plans, simply</h2><p>A plan belongs to a <b>team</b>, not a person: upgrade one team and everyone in it gets the extras. Owners and admins manage it in <b>Settings ▸ Plan</b>. Everyone else can ask them with one click.</p></div></div>
+    <div class="plans">
+      <div class="plan"><h3>Free</h3><div class="price">£0 <small>forever</small></div><p>Everything you need for a real project.</p>
+        <ul><li>Up to 30 people per team</li><li>Up to 5 teams of your own</li><li>Board, Kanban, analytics, timeline</li><li>All standard &amp; advanced tools</li><li>Finance history for the last 90 days</li></ul></div>
+      <div class="plan edu"><span class="sticker stk">🎓 Students</span><h3>Pro Education</h3><div class="price">£0 <small>with a university email</small></div><p>Everything in Pro, free for a year at a time.</p>
+        <ul><li>Sign in with your university email, or add one and confirm a 6-digit code</li><li>Switch it on for up to 3 teams a year</li><li>Up to 100 people per team</li><li>Renew yearly with the same quick check</li></ul></div>
+      <div class="plan pro"><h3>Pro</h3><div class="price">Per team <small>· ask in Settings ▸ Plan</small></div><p>For bigger teams, clubs and companies.</p>
+        <ul><li>Up to 100 people per team</li><li>📧 Email mentions &amp; Monday digest</li><li>🕘 Full change history</li><li>More coming soon: backups, approvals, supervisor view, design reviews</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 10 Shortcuts ═══ -->
+<section class="block" id="keys">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">11</span><div><h2>Shortcuts for speed</h2><p>On a Mac, use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.</p></div></div>
+    <div class="keys">
+      <div class="key"><div><kbd>Ctrl</kbd>+<kbd>K</kbd> or <kbd>/</kbd></div><span>Search everything</span></div>
+      <div class="key"><div><kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Ctrl</kbd>+<kbd>Y</kbd></div><span>Undo / redo your own changes</span></div>
+      <div class="key"><div><kbd>Alt</kbd> + drag</div><span>Copy a task into another week</span></div>
+      <div class="key"><div>Right-click · press &amp; hold</div><span>Quick actions for whatever you point at</span></div>
+      <div class="key"><div><kbd>Enter</kbd></div><span>Save a name or comment</span></div>
+      <div class="key"><div><kbd>Esc</kbd></div><span>Close a menu, dialog or panel</span></div>
+      <div class="key"><div><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></div><span>Move around menus and search results</span></div>
+      <div class="key"><div>🎯 Today</div><span>Jump back to the current week</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 11 FAQ ═══ -->
+<section class="block" id="faq" style="background:color-mix(in srgb, var(--paper-2) 70%, transparent)">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">12</span><div><h2>Questions people ask</h2></div></div>
+    <div class="faq">
+      <details><summary>Someone didn’t get the invitation email</summary><p>Ask them to check spam. In <b>Settings ▸ Members ▸ Pending invitations</b> you can see whether it was emailed, press <b>Resend</b>, or <b>Copy link</b> to send it yourself. They must sign in with exactly the email address you invited.</p></details>
+      <details><summary>Does everyone see my changes straight away?</summary><p>Yes. Edits save automatically and appear for everyone in the team within a second, with no save button and no refresh.</p></details>
+      <details><summary>I deleted something by mistake</summary><p>Press <kbd>Ctrl</kbd> + <kbd>Z</kbd> straight away to undo. For finance, deleted budget lines can be restored from the finance history. Owners can also download a full backup any time from <b>Team data</b>.</p></details>
+      <details><summary>Where are my files stored?</summary><p>In your own Google Drive or OneDrive. TeamTrack only keeps a link on the task, so nothing is copied to our servers.</p></details>
+      <details><summary>How do I get Pro Education?</summary><p>Open <b>Settings ▸ Plan</b>. If you signed in with a university email (.ac.uk, .edu…), just switch it on. If you use a personal email, add your university email there, enter the 6-digit code we send, and you’re done. Owners or admins switch it on for the team.</p></details>
+      <details><summary>Can supervisors or sponsors look without editing?</summary><p>Yes. Invite them with the <b>Viewer</b> role. They can see the board, analytics and timeline but can’t change anything.</p></details>
+      <details><summary>Can I bring in work from Excel, Jira or Trello?</summary><p>Yes. Go to <b>Team data ▸ Import tasks</b> and choose an Excel file, a CSV, a Jira export or a Trello board export. You get a preview before anything is added.</p></details>
+      <details><summary>Is my data private?</summary><p>Only members of your team can see your team’s work, and the server enforces this. See the <a href="privacy.html">privacy policy</a> for the details.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap">
+    <span class="eyebrow">🚀 You’re ready</span>
+    <h2 style="margin-top:18px">Go make this week visible.</h2>
+    <p>Create a team, invite your people, and drop in the first task. It takes two minutes.</p>
+    <a class="btn primary" href="./" style="font-size:17px;padding:14px 24px">Open TeamTrack →</a>
+  </div>
+</section>
+</main>
+
+<footer><div class="wrap"><span>TeamTrack · part of the TRAWPIE suite</span><span><a href="./">App</a> · <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></span></div></footer>
+
+<script>
+(function () {
+  var store = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+
+  // Reading progress + active section in the top bar
+  var bar = document.getElementById('progress'), links = [].slice.call(document.querySelectorAll('.toc a'));
+  var secs = links.map(function (a) { return document.querySelector(a.getAttribute('href')); });
+  function onScroll() {
+    var h = document.documentElement, max = h.scrollHeight - h.clientHeight;
+    bar.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + '%';
+    var cur = -1; secs.forEach(function (s, i) { if (s && s.getBoundingClientRect().top < 140) cur = i; });
+    links.forEach(function (a, i) { a.classList.toggle('on', i === cur); });
+  }
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+  // Quick start checklist
+  var steps = [].slice.call(document.querySelectorAll('.step')), KEY = 'tt_guide_steps';
+  var done = (store.get(KEY) || '').split(',').filter(Boolean);
+  var emoji = ['🌱', '🌿', '🪴', '🌳', '🌳', '🎉'];
+  function paint() {
+    steps.forEach(function (s) { var on = done.indexOf(s.dataset.step) > -1; s.classList.toggle('done', on); s.setAttribute('aria-pressed', on); });
+    document.getElementById('qs-text').textContent = done.length === 5 ? 'All done, nice work!' : done.length + ' of 5 done';
+    document.getElementById('qs-fill').style.width = (done.length / 5 * 100) + '%';
+    document.getElementById('qs-emoji').textContent = emoji[done.length];
+  }
+  steps.forEach(function (s) { s.addEventListener('click', function () { var i = done.indexOf(s.dataset.step); if (i > -1) done.splice(i, 1); else done.push(s.dataset.step); store.set(KEY, done.join(',')); paint(); }); });
+  paint();
+
+  // Board anatomy: hotspots <-> list
+  document.querySelectorAll('.anat [data-hs]').forEach(function (t) { var b = document.createElement('button'); b.type = 'button'; b.className = 'hs'; b.dataset.a = t.dataset.hs; b.textContent = t.dataset.hs; b.setAttribute('aria-label', 'Explain part ' + t.dataset.hs); t.appendChild(b); });
+  function pick(n) {
+    document.querySelectorAll('.hs, .anat-item').forEach(function (x) { x.classList.toggle('on', x.dataset.a === n); });
+  }
+  document.querySelectorAll('.hs, .anat-item').forEach(function (x) { x.addEventListener('click', function () { pick(x.dataset.a); }); x.addEventListener('mouseenter', function () { pick(x.dataset.a); }); });
+  pick('4');
+
+  // Right-click playground
+  var play = document.getElementById('play'), style = store.get('tt_guide_menu') || 'list', open = null, toastT = null;
+  var segBtns = [].slice.call(document.querySelectorAll('#menu-style button'));
+  function setStyle(s) { style = s; store.set('tt_guide_menu', s); segBtns.forEach(function (b) { b.classList.toggle('on', b.dataset.s === s); }); close(); }
+  segBtns.forEach(function (b) { b.addEventListener('click', function () { setStyle(b.dataset.s); }); });
+  setStyle(style);
+  var items = [['✏️', 'Edit task'], ['✅', 'Mark complete'], ['🧭', 'Set phase'], ['📋', 'Save as template'], ['📅', 'Add to calendar'], ['🗑️', 'Delete']];
+  function close() { if (open) { open.remove(); open = null; } play.classList.remove('has-menu'); }
+  function say(t) { var old = play.querySelector('.toast'); if (old) old.remove(); var d = document.createElement('div'); d.className = 'toast'; d.textContent = t; play.appendChild(d); clearTimeout(toastT); toastT = setTimeout(function () { d.remove(); }, 1800); }
+  function show(x, y) {
+    close(); var r = play.getBoundingClientRect(); x -= r.left; y -= r.top;
+    var m = document.createElement('div');
+    if (style === 'list') {
+      m.className = 'menu';
+      items.forEach(function (it, i) { if (i === 5) m.appendChild(document.createElement('hr')); var b = document.createElement('button'); b.type = 'button'; b.innerHTML = '<span>' + it[0] + '</span>' + it[1]; b.onclick = function (e) { e.stopPropagation(); close(); say(it[0] + ' ' + it[1] + ': in the real app, that’s done!'); }; m.appendChild(b); });
+      play.appendChild(m);
+      m.style.left = Math.max(6, Math.min(x, r.width - m.offsetWidth - 6)) + 'px';
+      m.style.top = Math.max(6, Math.min(y, r.height - m.offsetHeight - 6)) + 'px';
+    } else {
+      m.className = 'radial'; m.innerHTML = '<div class="ring"></div><div class="mid"></div>';
+      var cx = Math.max(120, Math.min(x, r.width - 120)), cy = Math.max(120, Math.min(y, r.height - 120));
+      m.style.left = cx + 'px'; m.style.top = cy + 'px';
+      items.forEach(function (it, i) { var a = -Math.PI / 2 + i * (2 * Math.PI / items.length), b = document.createElement('button'); b.type = 'button'; b.style.left = (120 + Math.cos(a) * 84) + 'px'; b.style.top = (120 + Math.sin(a) * 84) + 'px'; b.innerHTML = '<span>' + it[0] + '</span>' + it[1].split(' ')[0]; b.onclick = function (e) { e.stopPropagation(); close(); say(it[0] + ' ' + it[1] + ': in the real app, that’s done!'); }; m.appendChild(b); });
+      play.appendChild(m);
+    }
+    open = m; play.classList.add('has-menu');
+  }
+  play.addEventListener('contextmenu', function (e) { e.preventDefault(); show(e.clientX, e.clientY); });
+  var hold = null;
+  play.addEventListener('touchstart', function (e) { var t = e.touches[0]; hold = setTimeout(function () { show(t.clientX, t.clientY); }, 450); }, { passive: true });
+  ['touchend', 'touchmove'].forEach(function (ev) { play.addEventListener(ev, function () { clearTimeout(hold); }, { passive: true }); });
+  play.addEventListener('click', function (e) { if (open && !open.contains(e.target)) close(); });
+  play.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); if (e.key === 'Enter' || e.key === ' ' || e.key === 'ContextMenu') { e.preventDefault(); var r = play.getBoundingClientRect(); show(r.left + r.width / 2, r.top + r.height / 2); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+
+
+  // Weeks playground: one start date drives every week; numbering mode; editable metric badges
+  var wkStart = document.getElementById('wk-start'), wkStrip = document.getElementById('wk-strip'), wkMode = 'sequence';
+  var metrics = ['Hours: 32', 'Budget: £420', 'Flights: 3', 'Words: 2k'];
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function addD(d, n) { var x = new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); return x; }
+  function isoWeek(d) { var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); var day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day); var y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return Math.ceil(((t - y0) / 864e5 + 1) / 7); }
+  function fmt(d) { return d.getDate() + ' ' + MON[d.getMonth()]; }
+  var today = new Date(); today = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  var monday = addD(today, -((today.getDay() + 6) % 7) - 7);
+  wkStart.value = iso(monday);
+  function drawWeeks(animate) {
+    var p = wkStart.value.split('-').map(Number); if (p.length !== 3 || !p[0]) return;
+    var s0 = new Date(p[0], p[1] - 1, p[2]);
+    wkStrip.innerHTML = '';
+    for (var i = 0; i < 4; i++) {
+      var st = addD(s0, i * 7), en = addD(st, 6), now = today >= st && today <= en;
+      var d = document.createElement('div'); d.className = 'wk' + (now ? ' now' : '') + (animate ? ' flip' : '');
+      d.innerHTML = '<b>WEEK ' + (wkMode === 'calendar' ? isoWeek(st) : i + 1) + '</b><span class="d">' + fmt(st) + ' – ' + fmt(en) + '</span>' + (now ? '<span class="nowtag">● THIS WEEK</span>' : '');
+      var m = document.createElement('span'); m.className = 'metric'; m.contentEditable = 'true'; m.spellcheck = false; m.textContent = metrics[i]; m.setAttribute('aria-label', 'Week ' + (i + 1) + ' metric');
+      (function (k) { m.addEventListener('input', function () { metrics[k] = m.textContent.slice(0, 24); }); m.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); m.blur(); } }); })(i);
+      d.appendChild(m); wkStrip.appendChild(d);
+    }
+  }
+  wkStart.addEventListener('change', function () { drawWeeks(true); });
+  wkStart.addEventListener('input', function () { drawWeeks(true); });
+  var wkBtns = [].slice.call(document.querySelectorAll('#wk-mode button'));
+  wkBtns.forEach(function (b) { b.addEventListener('click', function () { wkMode = b.dataset.m; wkBtns.forEach(function (x) { x.classList.toggle('on', x === b); }); drawWeeks(true); }); });
+  drawWeeks(false);
+
+  // Views tabs
+  var tabs = [].slice.call(document.querySelectorAll('#view-tabs button'));
+  tabs.forEach(function (t) { t.addEventListener('click', function () {
+    tabs.forEach(function (x) { x.classList.toggle('on', x === t); x.setAttribute('aria-selected', x === t); });
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('on', v.dataset.v === t.dataset.v); });
+  }); });
+
+  // Feature search + groups
+  var q = document.getElementById('feat-q'), group = 'all', cards = [].slice.call(document.querySelectorAll('.fc'));
+  var gBtns = [].slice.call(document.querySelectorAll('#feat-group button'));
+  var syn = { money: 'finance budget spending', budget: 'finance', papers: 'literature', people: 'capacity workload', email: 'notifications', meeting: 'meetings', order: 'parts', cost: 'finance parts', hours: 'time capacity' };
+  function filter() {
+    var words = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean), shown = 0;
+    cards.forEach(function (c) {
+      var text = c.textContent.toLowerCase();
+      var hit = words.every(function (w) { return text.indexOf(w) > -1 || (syn[w] && syn[w].split(' ').some(function (s) { return text.indexOf(s) > -1; })); });
+      var ok = hit && (group === 'all' || c.dataset.g === group); c.hidden = !ok; if (ok) shown++;
+    });
+    document.getElementById('feat-empty').style.display = shown ? 'none' : 'block';
+  }
+  q.addEventListener('input', filter);
+  gBtns.forEach(function (b) { b.addEventListener('click', function () { group = b.dataset.g; gBtns.forEach(function (x) { x.classList.toggle('on', x === b); }); filter(); }); });
+
+  // Theme swatches recolour this page
+  var sws = [].slice.call(document.querySelectorAll('.sw')), root = document.documentElement;
+  sws.forEach(function (s) { s.addEventListener('click', function () {
+    sws.forEach(function (x) { x.classList.toggle('on', x === s); });
+    root.style.setProperty('--accent', s.dataset.acc); root.style.setProperty('--teal', s.dataset.acc);
+    if (s.dataset.mode) root.setAttribute('data-theme', s.dataset.mode); else root.removeAttribute('data-theme');
+  }); });
+})();
+</script>
+</body>
+</html>

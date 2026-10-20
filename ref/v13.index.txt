@@ -1,0 +1,198 @@
+3:        /* =====================================================================
+22:        function normalizeData(parsed) {
+51:        // --- Custom Filter Toggle ---
+52:        function toggleCustomFilter(contentId, headerElement) {
+63:        // --- IndexedDB for File Handle Persistence ---
+67:        function initDB() {
+75:        async function saveFileHandle(handle) {
+83:        async function getFileHandle() {
+92:        async function deleteFileHandle() {
+103:        function getTimestamp() { 
+114:        function updateSyncTime(type) {
+119:        // --- Current User Handling ---
+126:        function updateUIUser() {
+131:        function changeUser() {
+140:        // --- Quick Save Shortcut ---
+149:        // --- Search Functionality ---
+150:        function performSearch() {
+160:        // --- Core UI Toggles ---
+161:        function toggleTheme() {
+169:        function updateThemeButtons() {
+181:        function toggleSidebar() {
+192:        // --- Context menus: see "v12" block near the end of this script ---
+194:        function openEditorFromMenu(id) { 
+203:        function addCategoryToPerson(personId) {
+208:        function addTaskToCategory(personId, catId, weekKey) {
+215:        // --- Database & History Logging ---
+218:        function logHistory(task, field, originalValue, newValue) {
+223:        function loadDatabase() {
+245:        function saveDatabase(coalesceKey) {
+263:        // --- Advanced Filters ---
+264:        function renderFilters() {
+271:        function toggleFilter(type, id, isChecked) { 
+277:        function massSelect(type, checkAll) {
+288:        function selectLastNWeeks(n) {
+304:        function toggleWeekCollapse(index) { weeksData[index].collapsed = !weeksData[index].collapsed; sav
+305:        function getVisibleWeeks() { return weeksData.filter(w => !hiddenWeeks.has(w.key)); }
+306:        function updateWeekField(index, field, value) { weeksData[index][field] = value; saveDatabase('wee
+308:        function addWeek(customTitle) {
+317:        // --- Core Rendering ---
+320:        function renderHeaders() {
+346:        function render() {
+386:        function renderCategoryRow(person, cat, container, visibleWeeks) {
+419:        function createTaskCard(task, person, cat, weekKey) {
+468:        // --- Drag, Split & Carry Forward Task ---
+469:        function dropTask(e, tgtPersonId, tgtCatId, tgtWeek, colElement) {
+535:        // --- Subtask Actions ---
+536:        function findTask(taskId) { for(let p of db) for(let c of p.categories) for(let w of weeksData) { 
+538:        function toggleSubtask(e, taskId, subtaskId) { 
+552:        async function quickAddSubtask(e, taskId) { 
+567:        function updateSubtaskTitle(e, taskId, subtaskId, newTitle) {
+579:        function deleteSubtask(e, taskId, subtaskId) {
+592:        // --- UNIVERSAL DELETE & EDITOR SYSTEM ---
+593:        // --- UNIVERSAL DELETE & EDITOR SYSTEM ---
+594:        function openEditor(nodeData) {
+727:        function addPersonLegacy() { let p = { id: generateId(), type: 'person', name: 'NEW PERSON', categ
+729:        function _deleteActiveNodeCore() { 
+757:        function _deleteWeekCore(index) {
+770:        function extendTaskUI() {
+793:        // --- Connection Lines ---
+794:        function drawLines() {
+822:        // --- EXCEL FILE API ---
+825:        async function checkStoredHandle() {
+841:        async function disconnectDatabase() {
+862:        async function connectSharedFile() {
+875:        async function reconnectExcelDatabase() {
+891:        function extractDataFromWorkbook(wb) {
+906:        async function loadFromFile(silent = false) {
+953:        async function pullLatestExcel() {
+960:        async function saveToFile(silent = false) {
+987:        function generateWorkbook(includeDatabase = true) {
+1032:        function exportOffline() {
+1037:        function importExcelFallback(event) {
+1042:        /* ===================================================================
+1046:        // ---------- Toasts (non-blocking feedback) ----------
+1047:        function toast(message, duration = 2800, actionLabel = null, actionFn = null) {
+1061:        // ---------- Text-input dialog (replaces prompt()) ----------
+1062:        function askText(title, defaultValue = '', placeholder = '', type = 'text') {
+1082:        function pickFile(accept, handler) {
+1087:        function readAsArrayBuffer(file) {
+1090:        function readAsText(file) {
+1094:        // ---------- Undo / Redo ----------
+1097:        function currentSnapshot() { return JSON.stringify({ weeksData, db }); }
+1098:        function recordSnapshot(coalesceKey) {
+1107:        function closeEditor() {
+1112:        function applySnapshot(str) {
+1120:        function undo() {
+1124:        function redo() {
+1129:        // ---------- Backup / restore (JSON) ----------
+1130:        function dateStamp() { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth() +
+1131:        function downloadBackup() {
+1138:        async function restoreBackupFile(file) {
+1147:        // ---------- Sync for browsers WITHOUT the File System Access API (Safari, Firefox) ----------
+1152:        function setManualFile(name) {
+1157:        function refreshSyncUI() {
+1184:        function markConnectedUI() {
+1192:        function disconnectManual() { setManualFile(null); }
+1193:        function downloadFullWorkbook() {
+1200:        async function handleManualFile(file) {
+1216:        // ---------- Lookup helpers ----------
+1217:        function findCatById(id) { for (const p of db) { const c = p.categories.find(c => c.id === id); i
+1218:        function locateTask(taskId) {
+1226:        function weekIndexByKey(k) { return weeksData.findIndex(w => w.key === k); }
+1227:        function openEditorForNode(node) {
+1232:        function flashNode(id) {
+1239:        function newCategory(name) { const c = { id: generateId(), type: 'category', name }; weeksData.fo
+1241:        // ---------- Actions ----------
+1242:        async function addPersonFlow() {
+1249:        function addPerson() { addPersonFlow(); }
+1250:        async function addCategoryFlow(person) {
+1255:        async function addTaskFlow(cat, weekKey) {
+1264:        async function renameFlow(node, label) {
+1270:        async function renameWeekFlow(index) {
+1276:        async function addWeekFlow(afterIndex) {
+1285:        function moveInArray(arr, from, to) { if (from < 0 || to < 0 || to >= arr.length) return false; c
+1286:        function movePerson(p, d) { if (moveInArray(db, db.indexOf(p), db.indexOf(p) + d)) { saveDatabase
+1287:        function moveCategory(person, cat, d) { const i = person.categories.indexOf(cat); if (moveInArray
+1289:        function setTaskPriority(task, p) {
+1294:        function setTaskFlag(task, f) {
+1299:        function toggleSupporter(task, person) {
+1308:        function duplicateTask(loc) {
+1315:        function carryForwardTask(loc) {
+1326:        function openOriginalTask(taskId) {
+1331:        function setAllWeeksCollapsed(v) { weeksData.forEach(w => w.collapsed = v); saveDatabase(); rende
+1332:        function showEverything() { hiddenPersons.clear(); hiddenWeeks.clear(); renderFilters(); render()
+1333:        function showOnlyPerson(p) { hiddenPersons = new Set(db.filter(x => x !== p).map(x => x.id)); ren
+1336:        function deleteActiveNode() { const b = lastSnapshot; _deleteActiveNodeCore(); if (lastSnapshot !
+1337:        function deleteWeek(i) { const b = lastSnapshot; _deleteWeekCore(i); if (lastSnapshot !== b) toas
+1338:        function deleteNodeViaMenu(node) { const prev = activeNode; activeNode = node; deleteActiveNode()
+1340:        // ---------- Menu rendering ----------
+1343:        function getSub() {
+1354:        function closeSubmenu() {
+1358:        function closeContextMenu() { closeSubmenu(); if (quickMenu) { quickMenu.classList.remove('active
+1359:        function cleanMenuItems(raw) {
+1363:        function placeMenu(el, x, y) {
+1368:        function menuKeyNav(container, e) {
+1376:        function openSubmenu(anchor, items, focusFirst) {
+1383:        function fillMenu(container, rawItems, isSub) {
+1409:        function showMenu(x, y, rawItems) {
+1422:        // ---------- Menu contents ----------
+1423:        function canvasMenuItems() {
+1449:        function personMenuItems(p) {
+1465:        function categoryMenuItems(person, cat) {
+1480:        function taskMenuItems(loc) {
+1508:        function ghostMenuItems(taskId) {
+1511:        function weekMenuItems(i) {
+1523:        function columnMenuItems(person, cat, weekKey) {
+1531:        function openContextMenu(e, type, nodeData, parentPerson = null) {
+1536:        function onBoardContextMenu(e) {
+1561:        // ---------- Keyboard + safety nets ----------
+1578:        /* ===================================================================
+1582:        // ---------- Date helpers (all dates are local 'YYYY-MM-DD' strings) ----------
+1583:        function pad2(n) { return String(n).padStart(2, '0'); }
+1584:        function parseISO(s) {
+1589:        function toISO(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate(
+1590:        function todayISO() { return toISO(new Date()); }
+1591:        function cleanISO(s) { return parseISO(s) ? s : ''; }
+1592:        function addDaysISO(iso, n) { const d = parseISO(iso) || new Date(); d.setDate(d.getDate() + n); 
+1593:        function daysBetweenISO(a, b) {
+1597:        function fmtShort(iso) { const d = parseISO(iso); return d ? d.getDate() + ' ' + d.toLocaleString
+1598:        function fmtRange(startISO) { return parseISO(startISO) ? fmtShort(startISO) + ' – ' + fmtShort
+1599:        function isCurrentWeek(w) { const d = daysBetweenISO(w.startDate, todayISO()); return d !== null 
+1600:        function weekDatesHtml(w) {
+1605:        function nextWeekStart() { const dated = [...weeksData].reverse().find(w => w.startDate); return 
+1607:        // ---------- Deadlines ----------
+1608:        function stampCompletion(t) { if (t.flag === 'completed') { if (!t.completedDate) t.completedDate
+1609:        function dueInfo(t) {
+1618:        function isOverdue(t) { const i = dueInfo(t); return !!i && i.cls === 'due-over'; }
+1619:        function dueChipHtml(t) { const i = dueInfo(t); return i ? '<div class="due-badge ' + i.cls + '">
+1620:        function setTaskDue(task, iso) {
+1626:        function setDueQuick(days) { if (activeNode && activeNode.type === 'task') setTaskDue(activeNode,
+1627:        async function pickDeadline(task) {
+1631:        async function setWeekStartFlow(i) {
+1636:        async function autoDateWeeksFlow() {
+1642:        function scrollToToday() {
+1648:        // ---------- Analytics: data ----------
+1654:        function collectTasks(ignorePerson) {
+1674:        function kpis(rows) {
+1690:        function countBy(rows, keyFn) { const m = new Map(); rows.forEach(r => { const key = keyFn(r); if
+1692:        // ---------- Analytics: drawing helpers ----------
+1693:        function segBar(c, maxTotal) {
+1697:        function legendHtml() { return '<div class="an-legend">' + AN_STATUS.map(s => '<span><i class="do
+1698:        function donutSvg(c, big, small) {
+1704:        function kpiCard(label, value, sub, cls) { return '<div class="an-kpi ' + (cls || '') + '"><div c
+1705:        function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+1706:        function taskTable(rows, cols, emptyMsg) {
+1718:        function buildInsights(rows) {
+1734:        // ---------- Analytics: tabs ----------
+1735:        function renderOverview(rows) {
+1759:        function renderTeam(rows) {
+1773:        function renderDeadlines(rows) {
+1785:        function renderTimeline(rows) {
+1818:        function centerTimelineOnToday() {
+1823:        // ---------- Analytics: shell, events, export ----------
+1824:        function renderAnalytics() {
+1832:        function anKeyHandler(e) { if (e.key === 'Escape' && !document.getElementById('dialog-overlay')) 
+1833:        function closeAnalytics() { const o = document.getElementById('analytics-overlay'); if (o) o.remo
+1834:        function openAnalytics(tab) {
+1858:        function exportTaskList() {

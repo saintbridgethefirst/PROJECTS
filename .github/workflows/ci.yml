@@ -1,0 +1,87 @@
+# Every push and pull request: all tests. Pushes to main that pass: deploy the website and
+# security rules to Firebase. Cloud Functions are deployed by hand from the Actions tab
+# ("Run workflow"), because they send email and cost money if something goes wrong.
+#
+# One-time setup (Settings ▸ Secrets and variables ▸ Actions):
+#   Secret   FIREBASE_SERVICE_ACCOUNT   JSON key of a service account with Firebase Admin rights
+#   Variables VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID, VITE_FIREBASE_APP_ID,
+#             VITE_GOOGLE_CLIENT_ID, VITE_MS_CLIENT_ID (may be empty), VITE_STUDENT_EMAIL_CHECK (true),
+#             MAIL_FROM, APP_NAME, APP_URL (for the functions)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      deploy_functions:
+        description: Also deploy the Cloud Functions
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Cloud Functions tests
+        run: npm run test:functions
+      - name: Security rules (real Firestore emulator)
+        run: npm run test:rules
+      - name: Browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser tests (demo build)
+        run: npm run test:browser
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Site settings
+        run: |
+          cat > .env <<EOF
+          VITE_FIREBASE_API_KEY=${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN=${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID=${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID=${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          VITE_MS_CLIENT_ID=${{ vars.VITE_MS_CLIENT_ID }}
+          VITE_STUDENT_EMAIL_CHECK=${{ vars.VITE_STUDENT_EMAIL_CHECK }}
+          EOF
+      - name: Build
+        run: npm run build
+      - name: Firebase credentials
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
+      - name: Deploy website and security rules
+        env: { GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/sa.json' }
+        run: npx firebase deploy --only hosting,firestore --project ${{ vars.VITE_FIREBASE_PROJECT_ID }} --non-interactive
+      - name: Deploy Cloud Functions
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy_functions
+        env: { GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/sa.json' }
+        run: |
+          printf 'MAIL_FROM=%s\nAPP_NAME=%s\nAPP_URL=%s\n' "${{ vars.MAIL_FROM }}" "${{ vars.APP_NAME }}" "${{ vars.APP_URL }}" > functions/.env.${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          (cd functions && npm ci)
+          npx firebase deploy --only functions --project ${{ vars.VITE_FIREBASE_PROJECT_ID }} --non-interactive --force
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"

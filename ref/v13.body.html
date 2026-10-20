@@ -1,0 +1,102 @@
+
+
+
+    <div id="main-view">
+        <div id="top-bar">
+            <div id="top-actions">
+                <button class="top-btn" onclick="addPerson()" title="Add a team member">➕ Team member</button>
+                <button class="top-btn accent" onclick="openAnalytics('overview')" title="Charts, KPIs and insights">📊 Analytics</button>
+                <button class="top-btn" onclick="openAnalytics('timeline')" title="Deadlines on a timeline">📅 Timeline</button>
+                <button class="top-btn" onclick="scrollToToday()" title="Jump to the current week">🎯 Today</button>
+            </div>
+            <div id="floating-toggles" style="display: none;">
+                <button class="top-btn" onclick="changeUser()">👤 <span class="user-display">Loading...</span></button>
+                <button class="top-btn" id="theme-toggle-outer" onclick="toggleTheme()">☀️ Light Mode</button>
+                <button class="top-btn" onclick="toggleSidebar()">👁️ Show Panel</button>
+            </div>
+        </div>
+        <div id="canvas-container">
+            <div id="timeline-headers">
+                <div class="header-spacer">
+                    <img src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 50'%3E%3Ctext x='0' y='35' font-family='Arial' font-size='35' font-weight='bold' fill='%23ecc94b'%3EEpiroc%3C/text%3E%3C/svg%3E" alt="Epiroc Logo" class="brand-logo">
+                    <div class="brand-title">Team progress tracking and control dashboard</div>
+                </div>
+                <div id="dynamic-headers"></div>
+                <button class="btn-add-week" onclick="addWeek()">+ Add Week</button>
+            </div>
+            <svg id="lines-svg"></svg>
+            <div id="nodes-container"></div>
+        </div>
+    </div>
+
+    <div id="quick-menu" class="quick-menu"></div>
+
+    <div id="editor-panel">
+        <div class="editor-top-bar">
+            <h3>Editor</h3>
+            <div class="editor-toggles">
+                <button class="top-btn" onclick="changeUser()">👤 <span class="user-display">Loading...</span></button>
+                <button class="top-btn" id="theme-toggle-inner" onclick="toggleTheme()">🌙 Dark Mode</button>
+                <button class="top-btn" onclick="toggleSidebar()">👁️ Hide Panel</button>
+            </div>
+        </div>
+
+        <div class="search-box">
+            <input type="text" id="search-tasks" placeholder="🔍 Search tasks by title, ID, or badge..." oninput="performSearch()">
+        </div>
+
+        <span id="sync-status" class="sync-badge" style="opacity: 0;">✓ Saved Locally</span>
+        
+        <div class="filter-container">
+            <div class="filter-header" onclick="toggleCustomFilter('filter-content-person', this)">Filter by Person</div>
+            <div id="filter-content-person" class="filter-content">
+                <div class="filter-actions">
+                    <span onclick="massSelect('person', true)">All</span> | 
+                    <span onclick="massSelect('person', false)">None</span>
+                </div>
+                <div class="multi-select-box" id="filter-persons"></div>
+            </div>
+        </div>
+
+        <div class="filter-container">
+            <div class="filter-header closed" onclick="toggleCustomFilter('filter-content-week', this)">Filter by Week</div>
+            <div id="filter-content-week" class="filter-content closed">
+                <div class="filter-actions">
+                    <span onclick="massSelect('week', true)">All</span> | 
+                    <span onclick="massSelect('week', false)">None</span> | 
+                    <span onclick="selectLastNWeeks(4)">Last 4</span>
+                </div>
+                <div class="multi-select-box" id="filter-weeks"></div>
+            </div>
+        </div>
+
+        <hr style="border:0; border-bottom:1px solid var(--border-color); margin: 0 0 25px 0;">
+
+        <div id="no-selection" style="color: var(--text-muted); font-size: 13px; font-style: italic; line-height: 1.5;">Select a card, category, or person on the board to edit details.<br><br>💡 Tip: Hold <b>Alt</b> while dragging a task to Carry it Forward to a new week.<br>💡 Tip: Press <b>Ctrl + S</b> to quick-push to shared DB.<br>💡 Tip: <b>Right-click</b> the board, a person, a category, a week header or a task for quick actions.<br>💡 Tip: <b>Ctrl + Z</b> / <b>Ctrl + Y</b> undo and redo.<br>💡 Tip: open <b>📊 Analytics</b> (top bar) for KPIs, workload, deadlines and a timeline.</div>
+        
+        <div id="edit-form" class="form-section" style="display: none;"></div>
+        
+        <div class="sync-center" style="margin-top: 30px;">
+            <div class="sync-title"><span>Cloud Sync Center</span> <span id="conn-status">🔴 Disconnected</span></div>
+            <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 5px; line-height: 1.3;">Connect to a shared network Excel file to collaborate with your team. Press <b>Ctrl + S</b> to quick-push.</div>
+            <div style="font-size: 9px; color: var(--minor); margin-bottom: 10px; line-height: 1.2;">💡 Tip: Right-click your Excel file in OneDrive and select <b>"Always keep on this device"</b> to prevent disconnects.</div>
+            
+            <input type="file" id="import-excel" style="display: none;" accept=".xlsx" onchange="importExcelFallback(event)">
+            
+            <button class="btn-primary" id="btn-connect-db" onclick="connectSharedFile()" style="background: var(--line-color); margin-bottom: 5px;">📂 Connect Shared Database File</button>
+            <button class="btn-primary" id="btn-reconnect-db" onclick="reconnectExcelDatabase()" style="display: none; background: #ed8936; margin-bottom: 5px; color: white;">🔄 Reconnect File</button>
+            <button class="btn-secondary" id="btn-change-db" onclick="disconnectDatabase()" style="display: none; color: #f56565; border-color: #f56565; margin-bottom: 5px;">🔌 Change File / Disconnect</button>
+
+            <div class="sync-btn-group" id="active-sync-controls" style="display: none;">
+                <button class="btn-secondary" style="color: #48bb78; border-color: #48bb78;" onclick="saveToFile()">⬆️ Push (Ctrl+S)</button>
+                <button class="btn-secondary" style="color: #d2a8ff; border-color: #d2a8ff;" onclick="pullLatestExcel()">⬇️ Pull Updates</button>
+            </div>
+            <div class="last-sync-text" id="last-sync-time">Last Synced: Never</div>
+            <div id="manual-mode-note" style="display:none;"></div>
+            
+            <hr style="border:0; border-bottom:1px solid var(--border-color); margin: 5px 0;">
+            <button class="btn-secondary" onclick="exportOffline()" style="font-size: 11px; padding: 8px;">💾 Export as New Offline Copy</button>
+        </div>
+    </div>
+
+    

@@ -1,0 +1,421 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Security rules — who may read and write what. Mirrors src/permissions.js and
+//  src/rules-sim.js. Deploy with:  npx firebase deploy --only firestore
+//  Test with:                      npm run test:rules   (needs Java)
+// ─────────────────────────────────────────────────────────────────────────────
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    // Platform admins (you): a document at admins/{uid}, created by hand in the Firebase console.
+    function isPlatformAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    // Verified university email (.ac.uk, .edu, .ac.xx, .edu.xx, ETH, EPFL) — same list as ACADEMIC_EMAIL in model.js.
+    // …or a university email proved by code (verifiedStudents/{uid} is written only by the server).
+    function academic() {
+      return (request.auth.token.email_verified == true
+        && request.auth.token.email.lower().matches('.*@([a-z0-9-]+[.])+(ac[.][a-z]{2}|edu([.][a-z]{2})?)$|.*@([a-z0-9-]+[.])*(ethz|epfl)[.]ch$'))
+        || (exists(/databases/$(database)/documents/verifiedStudents/$(request.auth.uid))
+          && get(/databases/$(database)/documents/verifiedStudents/$(request.auth.uid)).data.until > request.time.toMillis());
+    }
+    // This year's Pro Education claims include team t (at most 3 teams a year per person).
+    function eduClaimed(t) {
+      let c = getAfter(/databases/$(database)/documents/eduClaims/$(request.auth.uid)).data;
+      return c.year == request.time.year() && c.teams.hasAny([t]);
+    }
+    function validPlan(p) {
+      return p is map && p.keys().hasOnly(['tier', 'edu', 'until', 'by', 'at', 'note'])
+        && p.tier in ['free', 'pro', 'org'] && p.get('edu', false) is bool && p.get('until', 0) is number
+        && p.get('note', '') is string && p.get('note', '').size() <= 200;
+    }
+    function validPlanRequest(d) {
+      return d.keys().hasOnly(['teamId', 'teamName', 'members', 'wants', 'note', 'by', 'byName', 'email', 'at', 'status', 'decidedAt'])
+        && d.wants in ['pro', 'edu', 'org'] && d.status == 'open' && d.by == request.auth.uid
+        && d.note is string && d.note.size() <= 1000 && d.teamName is string && d.teamName.size() <= 80;
+    }
+    function myEmail() { return request.auth.token.get('email', '').lower(); }
+    function verified() { return request.auth.token.get('email_verified', false) == true; }
+    function teamPath(t) { return /databases/$(database)/documents/teams/$(t); }
+    function memberPath(t) { return /databases/$(database)/documents/teams/$(t)/members/$(request.auth.uid); }
+    function isMember(t) { return signedIn() && exists(memberPath(t)); }
+    function myRole(t) { return get(memberPath(t)).data.roleId; }
+    function can(t, p) {
+      return isMember(t) && (myRole(t) == 'owner'
+        || get(teamPath(t)).data.roles.get(myRole(t), {}).get('perms', {}).get(p, false) == true);
+    }
+    function canEditOwned(t, owner) {
+      return can(t, 'tasks.editAll') || (can(t, 'tasks.editOwn') && owner == request.auth.uid);
+    }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    function validTeam(d) {
+      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 80
+        && d.logo is string && d.logo.size() <= 220000
+        && d.fields is list && d.fields.size() <= 30
+        && d.weeks is list && d.weeks.size() <= 200
+        && d.roles is map && d.labels is map
+        && d.get('weekNaming', 'sequence') in ['sequence', 'calendar']
+        && d.get('phases', []) is list && d.get('phases', []).size() <= 20
+        && (d.get('capacity', 0) is number && d.get('capacity', 0) >= 0 && d.get('capacity', 0) <= 80)
+        && d.get('features', {}) is map && d.get('features', {}).size() <= 30
+        && d.get('subteams', []) is list && d.get('subteams', []).size() <= 20
+        && (!('plan' in d) || validPlan(d.plan));
+    }
+    // Account photo: an https link or a small uploaded image (data URL)
+    function validPhoto(d) { return d.get('photo', '') is string && d.get('photo', '').size() <= 60000; }
+    function validComment(d) {
+      return d.keys().hasOnly(['taskId', 'authorUid', 'authorName', 'text', 'mentions', 'createdAt', 'editedAt'])
+        && d.taskId is string && d.taskId.size() <= 64 && d.authorUid is string
+        && d.authorName is string && d.authorName.size() <= 80
+        && d.text is string && d.text.size() > 0 && d.text.size() <= 2000
+        && d.mentions is list && d.mentions.size() <= 20
+        && d.createdAt is number && d.get('editedAt', 0) is number;
+    }
+    function validMeeting(d) {
+      return d.keys().hasOnly(['title', 'date', 'attendees', 'notes', 'actions', 'createdBy', 'createdByName', 'createdAt', 'updatedAt', 'updatedByName'])
+        && d.title is string && d.title.size() <= 120 && d.date is string && d.date.size() <= 10
+        && d.attendees is list && d.attendees.size() <= 50 && d.notes is string && d.notes.size() <= 20000
+        && d.actions is list && d.actions.size() <= 50 && d.createdBy is string && d.createdAt is number;
+    }
+    function validNote(d) {
+      return d.keys().hasOnly(['taskId', 'authorUid', 'authorName', 'date', 'text', 'images', 'createdAt', 'editedAt'])
+        && d.taskId is string && d.taskId.size() <= 64 && d.authorUid is string && d.authorName is string && d.authorName.size() <= 80
+        && d.date is string && d.date.size() <= 10 && d.text is string && d.text.size() <= 10000
+        && d.images is list && d.images.size() <= 4 && d.createdAt is number;
+    }
+    function validPart(d) {
+      return d.keys().hasOnly(['name', 'partNo', 'supplier', 'url', 'qty', 'unitCost', 'status', 'neededBy', 'orderedDate', 'receivedDate', 'taskId', 'budgetId', 'notes', 'extras', 'subteamId', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 200
+        && d.get('extras', []) is list && d.get('extras', []).size() <= 10
+        && d.qty is number && d.qty >= 0 && d.qty <= 100000 && d.unitCost is number && d.unitCost >= 0 && d.unitCost <= 100000000
+        && d.status in ['needed', 'ordered', 'received', 'cancelled'] && d.notes is string && d.notes.size() <= 2000
+        && d.createdBy is string && d.createdAt is number;
+    }
+    function validExpense(d) {
+      return d.keys().hasOnly(['kind', 'amount', 'date', 'description', 'budgetId', 'payer', 'receiptUrl', 'receiptImage', 'taskId', 'partId', 'partIds', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'])
+        && d.kind in ['expense', 'income'] && d.amount is number && d.amount >= 0 && d.amount <= 100000000
+        && d.date is string && d.date.size() <= 10 && d.description is string && d.description.size() <= 300
+        && d.get('receiptImage', '') is string && d.get('receiptImage', '').size() <= 200000
+        && d.get('partIds', []) is list && d.get('partIds', []).size() <= 30
+        && d.createdBy is string && d.createdAt is number;
+    }
+    function validBudget(d) {
+      return d.keys().hasOnly(['currency', 'lines', 'updatedAt']) && d.currency is string && d.currency.size() <= 3
+        && d.lines is list && d.lines.size() <= 50;
+    }
+    function validPaper(d) {
+      return d.keys().hasOnly(['title', 'authors', 'year', 'venue', 'doi', 'url', 'notes', 'tags', 'status', 'taskIds', 'addedBy', 'addedByName', 'createdAt', 'updatedAt'])
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 500 && d.authors is string && d.authors.size() <= 500
+        && d.notes is string && d.notes.size() <= 5000 && d.tags is list && d.tags.size() <= 20
+        && d.status in ['to-read', 'reading', 'read'] && d.taskIds is list && d.taskIds.size() <= 20
+        && d.addedBy is string && d.createdAt is number;
+    }
+    function validProfile(d) {
+      return d.keys().hasOnly(['capacity', 'skills', 'away', 'updatedAt'])
+        && d.get('capacity', 0) is number && d.get('capacity', 0) >= 0 && d.get('capacity', 0) <= 80
+        && d.get('skills', []) is list && d.get('skills', []).size() <= 20 && d.get('away', []) is list && d.get('away', []).size() <= 30;
+    }
+    function validRisk(d) {
+      return d.keys().hasOnly(['title', 'detail', 'likelihood', 'impact', 'ownerUid', 'status', 'mitigation', 'taskIds', 'reviewDate', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'])
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 200 && d.detail is string && d.detail.size() <= 2000
+        && d.likelihood is number && d.likelihood >= 1 && d.likelihood <= 5 && d.impact is number && d.impact >= 1 && d.impact <= 5
+        && d.status in ['open', 'mitigating', 'closed'] && d.mitigation is string && d.mitigation.size() <= 2000
+        && d.taskIds is list && d.taskIds.size() <= 20 && d.createdBy is string && d.createdAt is number;
+    }
+    function validRequirement(d) {
+      return d.keys().hasOnly(['ref', 'title', 'detail', 'priority', 'status', 'taskIds', 'verification', 'verified', 'verifiedBy', 'verifiedDate', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'])
+        && d.ref is string && d.ref.size() <= 20 && d.title is string && d.title.size() > 0 && d.title.size() <= 300 && d.detail is string && d.detail.size() <= 3000
+        && d.priority in ['must', 'should', 'could'] && d.status in ['draft', 'agreed', 'met', 'dropped']
+        && d.taskIds is list && d.taskIds.size() <= 30 && d.verification is string && d.verification.size() <= 1000 && d.verified is bool
+        && d.createdBy is string && d.createdAt is number;
+    }
+    function validLog(d) {
+      return d.keys().hasOnly(['at', 'by', 'byName', 'kind', 'text'])
+        && d.at is number && d.by == request.auth.uid && d.byName is string && d.byName.size() <= 80
+        && d.kind in ['budget', 'spending', 'income', 'parts'] && d.text is string && d.text.size() > 0 && d.text.size() <= 600;
+    }
+    // Plans are changed by the team's Owner and Admins only (not custom roles).
+    function ownerOrAdmin(t) { return isMember(t) && myRole(t) in ['owner', 'admin']; }
+    function canEditAny(t) { return can(t, 'tasks.editOwn') || can(t, 'tasks.editAll'); }
+    function seesMoney(t) { return can(t, 'finance.view') || can(t, 'finance.edit'); }
+    function validTemplate(d) {
+      return d.keys().hasOnly(['name', 'task', 'createdBy', 'createdByName', 'createdAt'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 80
+        && d.task is map && d.createdBy is string && d.createdAt is number;
+    }
+    function validCat(d) {
+      return d.keys().hasOnly(['name', 'ownerUid', 'order'])
+        && d.name is string && d.name.size() <= 80 && d.ownerUid is string && d.order is number;
+    }
+    function validTask(d) {
+      return d.keys().hasOnly(['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag',
+          'dueDate', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments',
+          'categoryId', 'ownerUid', 'weekId', 'order', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt'])
+        && d.name is string && d.name.size() <= 500
+        && d.priority in ['Minor', 'Major', 'Critical', 'Blocker']
+        && d.flag in ['none', 'pending', 'backlog', 'completed']
+        && d.categoryId is string && d.ownerUid is string && d.weekId is string && d.order is number
+        && d.subtasks is list && d.subtasks.size() <= 100
+        && d.history is list && d.history.size() <= 100
+        && d.custom is map && d.attachments is list && d.attachments.size() <= 30
+        && d.icon is string && d.icon.size() <= 40000
+        && d.get('phaseId', '') is string && d.get('phaseId', '').size() <= 64
+        && (d.get('repeat', null) == null || d.get('repeat', null) is map)
+        && d.get('stage', '') in ['', 'todo', 'doing']
+        && (d.get('effort', null) == null || (d.get('effort', null) is number && d.get('effort', 0) >= 0 && d.get('effort', 0) <= 999))
+        && d.get('dependsOn', []) is list && d.get('dependsOn', []).size() <= 10
+        && d.get('carryOf', '') is string && d.get('carryOf', '').size() <= 64
+        && d.get('skill', '') is string && d.get('skill', '').size() <= 40
+        && d.get('timeLog', []) is list && d.get('timeLog', []).size() <= 200;
+    }
+
+    // "Which teams am I in?" (collection-group query on members, filtered by my uid)
+    match /{path=**}/members/{uid} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+    // "Which invitations are waiting for me?" (only for a VERIFIED email address)
+    match /{path=**}/invites/{email} {
+      allow read: if signedIn() && verified() && resource.data.email == myEmail();
+    }
+
+    // Your own profile (account photo). Only you can read or change it; teammates see the
+    // copy on your membership in each team.
+    match /users/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['photo', 'theme', 'menuStyle', 'notify', 'updatedAt'])
+        && request.resource.data.get('notify', {}) is map && request.resource.data.get('notify', {}).size() <= 5
+        && request.resource.data.get('menuStyle', 'list') in ['list', 'circle']
+        && validPhoto(request.resource.data)
+        && request.resource.data.get('theme', '') is string && request.resource.data.get('theme', '').size() <= 40;
+    }
+
+    // Pro Education claims: the teams each person switched it on for this year. Only ever added to within a year.
+    match /eduClaims/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid && academic()
+        && request.resource.data.keys().hasOnly(['year', 'teams'])
+        && request.resource.data.year == request.time.year()
+        && request.resource.data.teams is list && request.resource.data.teams.size() <= 3
+        && (resource == null || resource.data.year != request.time.year() || request.resource.data.teams.hasAll(resource.data.teams));
+      allow delete: if false;
+    }
+    // Error reports from browsers (no personal data). Deleted automatically after 30 days (TTL on expireAt).
+    match /clientErrors/{id} {
+      allow read, delete: if isPlatformAdmin();
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['kind', 'msg', 'stack', 'where', 'ua', 'build', 'at', 'uid', 'expireAt'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.kind in ['error', 'promise', 'write']
+        && request.resource.data.msg is string && request.resource.data.msg.size() <= 300
+        && request.resource.data.stack is string && request.resource.data.stack.size() <= 2000
+        && request.resource.data.ua is string && request.resource.data.ua.size() <= 200
+        && request.resource.data.expireAt is timestamp;
+      allow update: if false;
+    }
+    // A university email proved by a code (written by the server's Cloud Functions only).
+    match /verifiedStudents/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+    // Pro requests from every team, for the platform admin's list.
+    match /{path=**}/requests/{r} {
+      allow read: if isPlatformAdmin();
+    }
+
+    match /teams/{t} {
+      allow read: if isMember(t) || isPlatformAdmin();
+      allow create: if signedIn() && validTeam(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && (!('plan' in request.resource.data) || request.resource.data.plan.tier == 'free');
+      // Students and staff with a verified university email turn on free Pro Education (up to 400 days at a time).
+      allow update: if academic() && ownerOrAdmin(t)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['plan'])
+        && validPlan(request.resource.data.plan) && request.resource.data.plan.tier == 'pro' && request.resource.data.plan.edu == true
+        && request.resource.data.plan.by == request.auth.uid && request.resource.data.plan.until > request.time.toMillis()
+        && request.resource.data.plan.until <= request.time.toMillis() + 400 * 86400000
+        && resource.data.get('plan', {'tier': 'free'}).tier != 'org'
+        && eduClaimed(t);
+      // Otherwise only a platform admin (or later, the payment system) changes a team's plan.
+      allow update: if isPlatformAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['plan'])
+        && validPlan(request.resource.data.plan) && request.resource.data.plan.by == request.auth.uid;
+      allow update: if isMember(t) && validTeam(request.resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams'])
+        && (!changed().hasAny(['subteams']) || can(t, 'team.settings') || can(t, 'members.manage'))
+        && (!changed().hasAny(['weeks']) || can(t, 'weeks.manage'))
+        && (!changed().hasAny(['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features']) || can(t, 'team.settings'))
+        && (!changed().hasAny(['roles']) || can(t, 'roles.manage'));
+      allow delete: if isMember(t) && myRole(t) == 'owner';
+
+      // A request for Pro, made by someone who manages the team's settings.
+      match /requests/{r} {
+        allow read: if isMember(t) || isPlatformAdmin();
+        allow create, update: if r == 'pro' && ownerOrAdmin(t) && validPlanRequest(request.resource.data) && request.resource.data.teamId == t;
+        // A member asking the team's owner and admins to switch on Pro (Education).
+        allow create: if isMember(t) && r == 'ask-' + request.auth.uid
+          && request.resource.data.keys().hasOnly(['by', 'byName', 'at', 'note']) && request.resource.data.by == request.auth.uid
+          && request.resource.data.note is string && request.resource.data.note.size() <= 300;
+        allow update: if isPlatformAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt'])
+          && request.resource.data.status in ['approved', 'declined'];
+        allow delete: if ownerOrAdmin(t) || isPlatformAdmin() || r == 'ask-' + request.auth.uid;
+      }
+
+      match /members/{uid} {
+        allow read: if isMember(t);
+        allow create: if signedIn() && uid == request.auth.uid
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['uid', 'email', 'name', 'photo', 'roleId', 'joinedAt'])
+          && validPhoto(request.resource.data)
+          && (
+            // founder: created in the same batch as a brand-new team they own
+            (request.resource.data.roleId == 'owner' && !exists(teamPath(t))
+              && getAfter(teamPath(t)).data.ownerUid == request.auth.uid)
+            // invitee: an invitation exists for my verified email, with this role
+            || (verified() && request.resource.data.email == myEmail()
+              && exists(/databases/$(database)/documents/teams/$(t)/invites/$(myEmail()))
+              && request.resource.data.roleId == get(/databases/$(database)/documents/teams/$(t)/invites/$(myEmail())).data.roleId
+              && request.resource.data.roleId != 'owner')
+          );
+        allow update: if isMember(t) && (
+            // managers change someone else's role (never the owner, never to owner)
+            (can(t, 'members.manage') && uid != request.auth.uid && changed().hasOnly(['roleId'])
+              && resource.data.roleId != 'owner' && request.resource.data.roleId != 'owner'
+              && request.resource.data.roleId in get(teamPath(t)).data.roles)
+            // anyone updates their own display name / photo
+            || (uid == request.auth.uid && changed().hasOnly(['name', 'photo']) && validPhoto(request.resource.data))
+          );
+        allow delete: if isMember(t) && (
+            (resource.data.roleId != 'owner' && (can(t, 'members.manage') || uid == request.auth.uid))
+            // the owner's membership goes only together with the team itself
+            || (resource.data.roleId == 'owner' && uid == request.auth.uid && !existsAfter(teamPath(t)))
+          );
+      }
+
+      match /invites/{email} {
+        allow read: if can(t, 'members.manage') || (signedIn() && verified() && email == myEmail());
+        allow create, update: if can(t, 'members.manage')
+          && request.resource.data.keys().hasOnly(['email', 'roleId', 'teamName', 'invitedBy', 'invitedByName', 'createdAt'])
+          && request.resource.data.email == email
+          && email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$')
+          && request.resource.data.roleId != 'owner'
+          && request.resource.data.roleId in get(teamPath(t)).data.roles;
+        allow delete: if can(t, 'members.manage') || (signedIn() && verified() && email == myEmail());
+      }
+
+      match /categories/{c} {
+        allow read: if isMember(t);
+        allow create: if canEditOwned(t, request.resource.data.ownerUid) && validCat(request.resource.data);
+        allow update: if canEditOwned(t, resource.data.ownerUid)
+          && canEditOwned(t, request.resource.data.ownerUid) && validCat(request.resource.data);
+        allow delete: if canEditOwned(t, resource.data.ownerUid);
+      }
+
+      // Comments on tasks. Anyone who can edit tasks can comment; viewers read only.
+      // Authors edit their own text; authors or member managers delete.
+      match /comments/{c} {
+        allow read: if isMember(t);
+        allow create: if (can(t, 'tasks.editOwn') || can(t, 'tasks.editAll'))
+          && request.resource.data.authorUid == request.auth.uid && validComment(request.resource.data);
+        allow update: if isMember(t) && resource.data.authorUid == request.auth.uid
+          && changed().hasOnly(['text', 'mentions', 'editedAt']) && validComment(request.resource.data);
+        allow delete: if isMember(t) && (resource.data.authorUid == request.auth.uid || can(t, 'members.manage'));
+      }
+
+      // Task templates: anyone who can add tasks saves one; its author or a settings manager edits or deletes it.
+      match /templates/{tpl} {
+        allow read: if isMember(t);
+        allow create: if (can(t, 'tasks.editOwn') || can(t, 'tasks.editAll'))
+          && request.resource.data.createdBy == request.auth.uid && validTemplate(request.resource.data);
+        allow update: if (resource.data.createdBy == request.auth.uid || can(t, 'team.settings'))
+          && request.resource.data.createdBy == resource.data.createdBy && validTemplate(request.resource.data);
+        allow delete: if resource.data.createdBy == request.auth.uid || can(t, 'team.settings');
+      }
+
+      // Meeting notes: anyone who can edit tasks writes them together; the author or a settings manager deletes.
+      match /meetings/{m} {
+        allow read: if isMember(t);
+        allow create: if canEditAny(t) && request.resource.data.createdBy == request.auth.uid && validMeeting(request.resource.data);
+        allow update: if canEditAny(t) && request.resource.data.createdBy == resource.data.createdBy && validMeeting(request.resource.data);
+        allow delete: if isMember(t) && (resource.data.createdBy == request.auth.uid || can(t, 'team.settings'));
+      }
+      // Lab notebook entries on tasks: written like comments; only the author edits.
+      match /notebook/{n} {
+        allow read: if isMember(t);
+        allow create: if canEditAny(t) && request.resource.data.authorUid == request.auth.uid && validNote(request.resource.data);
+        allow update: if isMember(t) && resource.data.authorUid == request.auth.uid
+          && request.resource.data.authorUid == resource.data.authorUid && validNote(request.resource.data);
+        allow delete: if isMember(t) && (resource.data.authorUid == request.auth.uid || can(t, 'members.manage'));
+      }
+      // Parts and orders: a shared list everyone who can edit tasks keeps up to date.
+      match /parts/{p} {
+        allow read: if isMember(t);
+        allow create: if canEditAny(t) && request.resource.data.createdBy == request.auth.uid && validPart(request.resource.data);
+        allow update: if canEditAny(t) && request.resource.data.createdBy == resource.data.createdBy && validPart(request.resource.data)
+          && (request.resource.data.get('budgetId', '') == resource.data.get('budgetId', '') || seesMoney(t));
+        allow delete: if isMember(t) && (resource.data.createdBy == request.auth.uid || can(t, 'team.settings'));
+      }
+      // Each member's working profile (hours a week, skills, time off): they edit their own; member managers edit anyone's.
+      match /profiles/{uid} {
+        allow read: if isMember(t);
+        allow create, update: if isMember(t) && (uid == request.auth.uid || can(t, 'members.manage')) && validProfile(request.resource.data);
+        allow delete: if isMember(t) && (uid == request.auth.uid || can(t, 'members.manage'));
+      }
+      // Risk register and requirements: shared engineering records.
+      match /risks/{r} {
+        allow read: if isMember(t);
+        allow create: if canEditAny(t) && request.resource.data.createdBy == request.auth.uid && validRisk(request.resource.data);
+        allow update: if canEditAny(t) && request.resource.data.createdBy == resource.data.createdBy && validRisk(request.resource.data);
+        allow delete: if isMember(t) && (resource.data.createdBy == request.auth.uid || can(t, 'team.settings'));
+      }
+      match /requirements/{q} {
+        allow read: if isMember(t);
+        allow create: if canEditAny(t) && request.resource.data.createdBy == request.auth.uid && validRequirement(request.resource.data);
+        allow update: if canEditAny(t) && request.resource.data.createdBy == resource.data.createdBy && validRequirement(request.resource.data);
+        allow delete: if isMember(t) && (resource.data.createdBy == request.auth.uid || can(t, 'team.settings'));
+      }
+      // Literature list: shared; the person who added an item or a settings manager deletes it.
+      match /papers/{p} {
+        allow read: if isMember(t);
+        allow create: if canEditAny(t) && request.resource.data.addedBy == request.auth.uid && validPaper(request.resource.data);
+        allow update: if canEditAny(t) && request.resource.data.addedBy == resource.data.addedBy && validPaper(request.resource.data);
+        allow delete: if isMember(t) && (resource.data.addedBy == request.auth.uid || can(t, 'team.settings'));
+      }
+      // Money: only roles with the finance permissions see or change it.
+      match /expenses/{x} {
+        allow read: if seesMoney(t);
+        allow create: if can(t, 'finance.edit') && request.resource.data.createdBy == request.auth.uid && validExpense(request.resource.data);
+        allow update: if can(t, 'finance.edit') && request.resource.data.createdBy == resource.data.createdBy && validExpense(request.resource.data);
+        allow delete: if can(t, 'finance.edit');
+      }
+      // Finance history: anyone who changes money or parts adds a line; nobody can edit or remove one.
+      match /financeLog/{e} {
+        allow read: if seesMoney(t);
+        allow create: if (canEditAny(t) || can(t, 'finance.edit')) && validLog(request.resource.data);
+        allow update: if false;
+        allow delete: if isMember(t) && myRole(t) == 'owner';
+      }
+      match /finance/{doc} {
+        allow read: if seesMoney(t);
+        allow create, update: if can(t, 'finance.edit') && doc == 'budget' && validBudget(request.resource.data);
+        allow delete: if can(t, 'finance.edit');
+      }
+
+      match /tasks/{task} {
+        allow read: if isMember(t);
+        allow create: if canEditOwned(t, request.resource.data.ownerUid) && validTask(request.resource.data)
+          && getAfter(/databases/$(database)/documents/teams/$(t)/categories/$(request.resource.data.categoryId)).data.ownerUid == request.resource.data.ownerUid;
+        allow update: if canEditOwned(t, resource.data.ownerUid)
+          && canEditOwned(t, request.resource.data.ownerUid) && validTask(request.resource.data)
+          && getAfter(/databases/$(database)/documents/teams/$(t)/categories/$(request.resource.data.categoryId)).data.ownerUid == request.resource.data.ownerUid;
+        allow delete: if canEditOwned(t, resource.data.ownerUid);
+      }
+    }
+  }
+}

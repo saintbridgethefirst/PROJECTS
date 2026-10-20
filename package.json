@@ -1,0 +1,55 @@
+{
+  "name": "teamtrack",
+  "version": "1.0.0",
+  "description": "Team progress tracker: accounts, teams, roles, deadlines, analytics, AI summaries, Drive/OneDrive/Sheets.",
+  "scripts": {
+    "dev": "npm run build:board && vite",
+    "build:board": "node tools/build-board.mjs && node tools/check-board.mjs",
+    "build": "npm run build:board && vite build",
+    "preview": "vite preview",
+    "test": "node --test tests/unit.test.mjs",
+    "test:e2e": "node tests/e2e.mjs",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-teamtrack \"node --test tests/rules.test.mjs\"",
+    "emulators": "firebase emulators:start --only auth,firestore --project demo-teamtrack",
+    "deploy": "npm run build && firebase deploy --only hosting,firestore",
+    "test:auth": "node tests/auth-ui.mjs",
+    "test:mobile": "node tests/mobile.mjs",
+    "test:phases": "node tests/phases.mjs",
+    "test:collab": "node tests/collab.mjs",
+    "test:themes": "node tests/themes.mjs",
+    "test:google": "node tests/google.mjs",
+    "test:phase4": "node tests/phase4.mjs",
+    "test:radial": "node tests/radial.mjs",
+    "test:phase5": "node tests/phase5.mjs",
+    "test:delete": "node tests/delete.mjs",
+    "test:phase6": "node tests/phase6.mjs",
+    "test:phase7": "node tests/phase7.mjs",
+    "test:phase8": "node tests/phase8.mjs",
+    "test:features": "node tests/features.mjs",
+    "test:finance": "node tests/finance.mjs",
+    "test:subteams": "node tests/subteams.mjs",
+    "test:plans": "node tests/plans.mjs",
+    "test:monitor": "node tests/monitor.mjs",
+    "test:browser": "node tools/run-browser-tests.mjs",
+    "test:functions": "node --test functions/lib.test.mjs",
+    "test:all": "npm test && npm run test:functions && npm run test:browser"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@azure/msal-browser": "^4.30.0",
+    "firebase": "^12.19.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "acorn": "^8.19.0",
+    "firebase-tools": "^14.27.0",
+    "playwright": "^1.56.0",
+    "vite": "^6.4.4"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  }
+}

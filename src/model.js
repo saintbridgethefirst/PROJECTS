@@ -1,0 +1,658 @@
+// ─────────────────────────────────────────────────────────────────────────────
+//  Data shapes + sanitising. Every document written to the database passes
+//  through these functions, and so does everything read back, so a malformed
+//  or hostile document can never break the board.
+// ─────────────────────────────────────────────────────────────────────────────
+import { DEFAULT_ROLES, PERM_KEYS } from './permissions.js';
+import { LIMITS } from './config.js';
+
+export const PRIORITIES = ['Minor', 'Major', 'Critical', 'Blocker'];
+export const FLAGS = ['none', 'pending', 'backlog', 'completed'];
+export const FIELD_TYPES = ['text', 'number', 'date', 'select', 'checkbox', 'url', 'person'];
+// How new weeks are named: the team's own numbering (Week 1, 2, 3…) or the calendar
+// week number of the year (ISO 8601). Names can always be edited afterwards.
+export const WEEK_NAMING = ['sequence', 'calendar'];
+// Colours offered for project phases (any #rrggbb is accepted).
+export const PHASE_COLORS = ['#4299e1', '#9f7aea', '#ed8936', '#48bb78', '#f56565', '#38b2ac', '#ecc94b', '#ed64a6'];
+export const PHASE_TEMPLATE = ['Research', 'Design', 'Build', 'Test'];
+
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const str = (v, max = 2000) => String(v ?? '').slice(0, max);
+const isoOrEmpty = (v) => (typeof v === 'string' && ISO.test(v) ? v : '');
+export const safeKey = (v) => {
+  const s = String(v ?? '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 64);
+  return !s || ['__proto__', 'constructor', 'prototype'].includes(s) ? 'k_' + s : s;
+};
+/** An id for a record that may not be saved yet: '' when there is none (so forms know it's new). */
+const recordId = (v) => (v ? safeKey(v) : '');
+export const newId = (prefix = 'id') =>
+  prefix + '_' + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(16).padStart(2, '0')).join('');
+
+export function isImageDataUrl(v, maxBytes) {
+  return typeof v === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= maxBytes * 1.4;
+}
+// A task icon is either a short emoji/text (≤ 4 chars) or a small image data URL.
+export function cleanIcon(v) {
+  if (typeof v !== 'string' || !v) return '';
+  if (v.startsWith('data:')) return isImageDataUrl(v, LIMITS.taskIconBytes) ? v : '';
+  return [...v].slice(0, 4).join('');
+}
+export function cleanUrl(v) {
+  try { const u = new URL(String(v)); return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : ''; } catch { return ''; }
+}
+
+/** Account photo: an https link (e.g. from Google sign-in) or a small uploaded image. */
+export function cleanPhoto(v) {
+  if (typeof v !== 'string' || !v) return '';
+  if (v.startsWith('data:')) return isImageDataUrl(v, LIMITS.avatarBytes) ? v : '';
+  const u = cleanUrl(v); return u.startsWith('https:') ? u : '';
+}
+
+export function cleanWeek(w) {
+  return { key: safeKey(w.key), title: str(w.title, 120), metric: str(w.metric, 60), startDate: isoOrEmpty(w.startDate) };
+}
+
+/** A project phase: Research, Design, Build… with optional dates and a milestone. */
+export function cleanPhase(p, i = 0) {
+  p = p || {};
+  return {
+    id: safeKey(p.id), name: str(p.name, 60) || 'Phase',
+    color: /^#[0-9a-fA-F]{6}$/.test(p.color) ? p.color.toLowerCase() : PHASE_COLORS[i % PHASE_COLORS.length],
+    start: isoOrEmpty(p.start), end: isoOrEmpty(p.end), milestone: str(p.milestone, 120),
+  };
+}
+
+export function cleanField(f) {
+  const type = FIELD_TYPES.includes(f.type) ? f.type : 'text';
+  return {
+    id: safeKey(f.id), name: str(f.name, 60) || 'Field', type,
+    options: type === 'select' ? (Array.isArray(f.options) ? f.options : []).map(o => str(o, 60)).filter(Boolean).slice(0, 30) : [],
+    showOnCard: !!f.showOnCard,
+  };
+}
+
+export function cleanCustomValue(field, v) {
+  if (!field) return undefined;
+  switch (field.type) {
+    case 'number': { const n = Number(v); return v === '' || v === null || !Number.isFinite(n) ? null : n; }
+    case 'date': return isoOrEmpty(v);
+    case 'checkbox': return !!v;
+    case 'select': return field.options.includes(v) ? v : '';
+    case 'url': return v ? cleanUrl(v) : '';
+    case 'person': return typeof v === 'string' ? safeKey(v) : '';
+    default: return str(v, 1000);
+  }
+}
+
+export const DEFAULT_LABELS = {
+  jiraId: { label: 'Reference ID', show: true },
+  status: { label: 'Status badge', show: true },
+  metric: { label: 'Week metric', show: true },
+};
+
+export function cleanTeam(t) {
+  t = t || {};
+  const roles = {};
+  Object.entries(t.roles || DEFAULT_ROLES).slice(0, LIMITS.rolesPerTeam + 4).forEach(([id, r]) => {
+    const key = safeKey(id);
+    roles[key] = {
+      name: str(r && r.name, 40) || key, builtin: !!(r && r.builtin), order: Number.isFinite(r && r.order) ? r.order : 50,
+      perms: Object.fromEntries(PERM_KEYS.map(k => [k, !!(r && r.perms && r.perms[k])])),
+    };
+  });
+  roles.owner = { ...DEFAULT_ROLES.owner };
+  const labels = {};
+  Object.keys(DEFAULT_LABELS).forEach(k => {
+    const src = (t.labels && t.labels[k]) || {};
+    labels[k] = { label: str(src.label, 40) || DEFAULT_LABELS[k].label, show: src.show !== false };
+  });
+  return {
+    name: str(t.name, 80) || 'Untitled team',
+    logo: isImageDataUrl(t.logo, LIMITS.logoBytes) ? t.logo : '',
+    ownerUid: str(t.ownerUid, 128),
+    createdAt: Number(t.createdAt) || 0,
+    roles, labels,
+    weekNaming: WEEK_NAMING.includes(t.weekNaming) ? t.weekNaming : 'sequence',
+    fields: (Array.isArray(t.fields) ? t.fields : []).slice(0, LIMITS.fieldsPerTeam).map(cleanField),
+    phases: (Array.isArray(t.phases) ? t.phases : []).slice(0, LIMITS.phasesPerTeam).map(cleanPhase),
+    capacity: cleanCapacity(t.capacity),
+    features: cleanFeatures(t.features),
+    subteams: cleanSubteams(t.subteams),
+    plan: cleanPlan(t.plan),
+    weeks: (Array.isArray(t.weeks) ? t.weeks : []).map(cleanWeek),
+  };
+}
+
+// ── Plans: Free, Pro, Organisation ──────────────────────────────────────────
+/** What each plan allows. 0 = no limit. */
+export const PLANS = {
+  free: { key: 'free', name: 'Free', members: 30, ownTeams: 5, financeHistoryDays: 90, storageMB: 100, price: '£0' },
+  pro: { key: 'pro', name: 'Pro', members: 100, ownTeams: 0, financeHistoryDays: 0, storageMB: 5000, price: '£3 per member a month (yearly) or £4 monthly' },
+  org: { key: 'org', name: 'Organisation', members: 500, ownTeams: 0, financeHistoryDays: 0, storageMB: 50000, price: 'From £3,000 a year, invoiced' },
+};
+export const PLAN_TIERS = ['free', 'pro', 'org'];
+/** Paid features, in the order they're being built. status: 'soon' until built, then 'live'. */
+export const PRO_FEATURES = [
+  { key: 'backups', tier: 'pro', icon: '🛟', name: 'Daily backups and restore', help: 'Restore the whole team to any day in the last 30.', status: 'soon' },
+  { key: 'approvals', tier: 'pro', icon: '✅', name: 'Purchase approvals', help: 'Requests go to a lead or supervisor for sign-off before anything is ordered.', status: 'soon' },
+  { key: 'notifications', tier: 'pro', icon: '📧', name: 'Email notifications', help: 'An email when someone @mentions you, and a Monday digest of your overdue and upcoming tasks. Each person can switch them off.', status: 'live' },
+  { key: 'supervisor', tier: 'pro', icon: '👀', name: 'Supervisor and sponsor view', help: 'A read-only link for supervisors, sponsors and judges.', status: 'soon' },
+  { key: 'history', tier: 'pro', icon: '🕘', name: 'Full change history', help: 'Every change to the team kept for good, not just finance; finance history beyond 90 days.', status: 'live' },
+  { key: 'reviews', tier: 'pro', icon: '🧭', name: 'Design reviews and stage gates', help: 'Review dates per phase with checklists and sign-off.', status: 'soon' },
+  { key: 'bom', tier: 'pro', icon: '🧱', name: 'Bill of materials and mass budget', help: 'Assemblies and parts with mass and cost rolled up.', status: 'soon' },
+  { key: 'documents', tier: 'pro', icon: '📑', name: 'Document control', help: 'Drawings and documents with revisions, linked to parts and requirements.', status: 'soon' },
+  { key: 'sso', tier: 'org', icon: '🔐', name: 'Single sign-on', help: 'Sign in with the university or company Microsoft or Google account.', status: 'soon' },
+  { key: 'admin', tier: 'org', icon: '🏛', name: 'Admin console across teams', help: 'One place to manage every team in a department or company.', status: 'soon' },
+  { key: 'dpa', tier: 'org', icon: '📜', name: 'Data agreement and UK data residency', help: 'A signed data processing agreement; data kept in the UK.', status: 'soon' },
+];
+/** Students and staff with a university email get Pro Education free: .ac.uk, .edu, .ac.xx, .edu.xx and a few
+ *  universities without those endings. Must match the academic() check in firestore.rules. */
+export const ACADEMIC_EMAIL = /@([a-z0-9-]+\.)+(ac\.[a-z]{2}|edu(\.[a-z]{2})?)$|@([a-z0-9-]+\.)*(ethz|epfl)\.ch$/;
+export const isAcademicEmail = (email) => ACADEMIC_EMAIL.test(String(email || '').trim().toLowerCase());
+/** How long a free Pro Education period lasts before it is renewed (one click, same email check). */
+export const EDU_DAYS = 365;
+/** Each verified student or staff member can switch on Pro Education for this many teams per calendar year. */
+export const EDU_TEAMS_PER_YEAR = 3;
+/** This year's Pro Education claims for one person: { year, teams: [teamId] }. */
+export function cleanEduClaim(c, year = new Date().getUTCFullYear()) {
+  c = c && typeof c === 'object' ? c : {};
+  return Number(c.year) === year ? { year, teams: (Array.isArray(c.teams) ? c.teams : []).filter(x => typeof x === 'string' && x).slice(0, EDU_TEAMS_PER_YEAR) } : { year, teams: [] };
+}
+/** A team's plan as stored (only platform admins, or later the payment system, can change it). */
+export function cleanPlan(p) {
+  p = p && typeof p === 'object' ? p : {};
+  return { tier: PLAN_TIERS.includes(p.tier) ? p.tier : 'free', edu: !!p.edu, until: Number(p.until) > 0 ? Number(p.until) : 0, by: str(p.by, 128), at: Number(p.at) || 0, note: str(p.note, 200) };
+}
+/** The plan in force now: a plan past its end date falls back to Free. */
+export function planOf(team, now = Date.now()) {
+  const p = cleanPlan(team && team.plan);
+  const tier = p.tier !== 'free' && p.until && p.until < now ? 'free' : p.tier;
+  return { ...PLANS[tier], tier, edu: tier !== 'free' && p.edu, until: tier === 'free' ? 0 : p.until, expired: tier !== p.tier, label: tier === 'free' ? 'Free' : PLANS[tier].name + (p.edu ? ' Education' : '') };
+}
+/** Whether a team's plan includes a paid feature. */
+export function hasPro(team, key, now) {
+  const f = PRO_FEATURES.find(x => x.key === key); if (!f) return false;
+  const tier = planOf(team, now).tier;
+  return f.tier === 'pro' ? tier !== 'free' : tier === 'org';
+}
+/** Room for one more member? (members + pending invites, against the plan's limit) */
+export function memberRoom(team, members, invites) {
+  const lim = planOf(team).members; const used = (members || 0) + (invites || 0);
+  return { limit: lim, used, left: lim ? Math.max(0, lim - used) : Infinity, full: !!lim && used >= lim };
+}
+
+// ── Sub-teams ───────────────────────────────────────────────────────────────
+/** Groups of people inside a project (Fuselage, Payload, Electronics…), each with leads. */
+export const SUBTEAM_COLORS = ['#3182ce', '#38a169', '#d69e2e', '#e53e3e', '#805ad5', '#dd6b20', '#319795', '#d53f8c'];
+export const SUBTEAM_LIMIT = 20;
+export function cleanSubteams(list) {
+  const uids = (a) => (Array.isArray(a) ? a : []).filter(x => typeof x === 'string' && x).map(safeKey).filter((x, i, arr) => arr.indexOf(x) === i).slice(0, 200);
+  return (Array.isArray(list) ? list : []).filter(s => s && typeof s === 'object').slice(0, SUBTEAM_LIMIT).map((s, i) => {
+    const members = uids(s.members);
+    return { id: safeKey(s.id || 'st' + i), name: str(s.name, 40).trim() || 'Sub-team', color: /^#[0-9a-f]{6}$/i.test(s.color || '') ? s.color : SUBTEAM_COLORS[i % SUBTEAM_COLORS.length], members, leads: uids(s.leads).filter(u => members.includes(u)) };
+  }).filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
+}
+/** The sub-teams a person belongs to. */
+export const subteamsOf = (team, uid) => ((team && team.subteams) || []).filter(s => s.members.includes(uid));
+export const subteamById = (team, id) => ((team && team.subteams) || []).find(s => s.id === id) || null;
+
+export function cleanMember(m, uid) {
+  return { uid: safeKey(uid || m.uid), email: str(m.email, 200).toLowerCase(), name: str(m.name, 80), photo: cleanPhoto(m.photo), roleId: safeKey(m.roleId || 'viewer'), joinedAt: Number(m.joinedAt) || 0 };
+}
+
+export function cleanCategory(c, id) {
+  return { id: safeKey(id || c.id), name: str(c.name, 80), ownerUid: safeKey(c.ownerUid), order: Number(c.order) || 0 };
+}
+
+export function cleanTask(t, id, fields = []) {
+  const fieldMap = Object.fromEntries(fields.map(f => [f.id, f]));
+  const custom = {};
+  Object.entries(t.custom || {}).forEach(([k, v]) => { if (fieldMap[k]) { const cv = cleanCustomValue(fieldMap[k], v); if (cv !== undefined) custom[k] = cv; } });
+  const sup = (v) => (v ? safeKey(v) : null);
+  return {
+    id: safeKey(id || t.id), type: 'task',
+    name: str(t.name, LIMITS.taskTitle),
+    priority: PRIORITIES.includes(t.priority) ? t.priority : 'Minor',
+    status: str(t.status, 60), jiraId: str(t.jiraId, 80),
+    supportPersonId: sup(t.supportPersonId), supportPersonId2: sup(t.supportPersonId2),
+    flag: FLAGS.includes(t.flag) ? t.flag : 'none',
+    dueDate: isoOrEmpty(t.dueDate),
+    phaseId: t.phaseId ? safeKey(t.phaseId) : '',
+    repeat: cleanRepeat(t.repeat),
+    stage: STAGES.includes(t.stage) ? t.stage : '',
+    effort: cleanEffort(t.effort),
+    dependsOn: cleanDeps(t.dependsOn, id || t.id),
+    carryOf: t.carryOf && safeKey(t.carryOf) !== safeKey(id || t.id) ? safeKey(t.carryOf) : '',
+    skill: str(t.skill, 40).trim(),
+    timeLog: cleanTimeLog(t.timeLog),
+    completedDate: t.flag === 'completed' ? isoOrEmpty(t.completedDate) : '',
+    subtasks: (Array.isArray(t.subtasks) ? t.subtasks : []).slice(0, 100).map(s => ({ id: safeKey(s.id), title: str(s.title, 300), completed: !!s.completed })),
+    history: (Array.isArray(t.history) ? t.history : []).slice(0, LIMITS.historyEntries).map(h => ({ time: str(h.time, 40), user: str(h.user, 80), field: str(h.field, 60), original: str(h.original, 300), updated: str(h.updated, 300) })),
+    custom,
+    icon: cleanIcon(t.icon),
+    attachments: (Array.isArray(t.attachments) ? t.attachments : []).slice(0, 30).map(a => ({
+      id: safeKey(a.id), provider: ['gdrive', 'onedrive', 'link', 'github'].includes(a.provider) ? a.provider : 'link',
+      name: str(a.name, 200), url: cleanUrl(a.url), size: Number(a.size) || 0, addedBy: str(a.addedBy, 80), addedAt: Number(a.addedAt) || 0,
+    })).filter(a => a.url),
+    // location
+    categoryId: safeKey(t.categoryId), ownerUid: safeKey(t.ownerUid), weekId: safeKey(t.weekId), order: Number(t.order) || 0,
+    // audit (not compared when diffing)
+    createdBy: str(t.createdBy, 128), createdAt: Number(t.createdAt) || 0, updatedBy: str(t.updatedBy, 80), updatedAt: Number(t.updatedAt) || 0,
+  };
+}
+
+/**
+ * Repeating tasks. The first task of a series has `every` (1, 2 or 4 weeks) and an optional
+ * `until` date; `through` is the last week already handled, so a copy someone deleted is never
+ * made again. Copies carry only `seriesId` (the first task's id).
+ */
+/**
+ * Planning. `stage` is the Kanban column for a task that isn't completed ('' = decide from
+ * its status text, 'todo' or 'doing'; completed tasks are always Done). `effort` is an
+ * estimate in hours. `dependsOn` lists the tasks this one waits on.
+ */
+export const STAGES = ['', 'todo', 'doing'];
+export const MAX_EFFORT = 999, MAX_DEPS = 10;
+export function cleanEffort(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Math.round(Number(v) * 4) / 4;
+  return Number.isFinite(n) && n >= 0 && n <= MAX_EFFORT ? n : null;
+}
+export function cleanDeps(list, selfId) {
+  const self = selfId ? safeKey(selfId) : '';
+  const out = [];
+  (Array.isArray(list) ? list : []).forEach(x => { if (typeof x !== 'string' || !x) return; const k = safeKey(x); if (k && k !== self && !out.includes(k) && out.length < MAX_DEPS) out.push(k); });
+  return out;
+}
+/** Hours a person can give the project in a week (0 = not set). */
+export function cleanCapacity(v) { const n = Math.round(Number(v)); return Number.isFinite(n) && n > 0 && n <= 80 ? n : 0; }
+/** Kanban column of a task: 'done', 'doing' or 'todo'. */
+export function stageOf(t) {
+  if (!t) return 'todo';
+  if (t.flag === 'completed') return 'done';
+  if (t.stage === 'doing' || t.stage === 'todo') return t.stage;
+  return /\b(in[ -]?progress|doing|started|ongoing|wip|in review|review(ing)?|testing)\b/i.test(t.status || '') ? 'doing' : 'todo';
+}
+export const REPEAT_EVERY = [1, 2, 4];
+export function cleanRepeat(r) {
+  if (!r || typeof r !== 'object') return null;
+  const every = REPEAT_EVERY.includes(Number(r.every)) ? Number(r.every) : 0;
+  const seriesId = r.seriesId ? safeKey(r.seriesId) : '';
+  if (!every && !seriesId) return null;
+  return { every, until: isoOrEmpty(r.until), through: r.through ? safeKey(r.through) : '', seriesId };
+}
+
+/** A reusable task: name, priority, status, icon, phase, custom fields and sub-task titles. */
+export function cleanTemplate(t, id, fields = []) {
+  t = t || {};
+  const fieldIds = new Set(fields.map(f => f.id));
+  const task = t.task || {};
+  return {
+    id: safeKey(id || t.id), name: str(t.name, 80) || 'Template',
+    task: {
+      name: str(task.name, LIMITS.taskTitle), priority: PRIORITIES.includes(task.priority) ? task.priority : 'Minor', status: str(task.status, 60),
+      icon: cleanIcon(task.icon), phaseId: task.phaseId ? safeKey(task.phaseId) : '',
+      subtasks: (Array.isArray(task.subtasks) ? task.subtasks : []).slice(0, 100).map(s => str(typeof s === 'string' ? s : s && s.title, 300)).filter(Boolean),
+      custom: Object.fromEntries(Object.entries(task.custom && typeof task.custom === 'object' ? task.custom : {}).filter(([k]) => fieldIds.has(k))),
+      dueOffset: Number.isInteger(task.dueOffset) && task.dueOffset >= 0 && task.dueOffset <= 365 ? task.dueOffset : null,
+      effort: cleanEffort(task.effort),
+    },
+    createdBy: safeKey(t.createdBy), createdByName: str(t.createdByName, 80), createdAt: Number(t.createdAt) || 0,
+  };
+}
+
+/** A comment on a task. `mentions` holds the uids of the people @mentioned. */
+export function cleanComment(c, id) {
+  c = c || {};
+  return {
+    id: safeKey(id || c.id), taskId: safeKey(c.taskId), authorUid: safeKey(c.authorUid), authorName: str(c.authorName, 80),
+    text: str(c.text, LIMITS.commentChars), mentions: [...new Set((Array.isArray(c.mentions) ? c.mentions : []).map(safeKey))].slice(0, LIMITS.mentionsPerComment),
+    createdAt: Number(c.createdAt) || 0, editedAt: Number(c.editedAt) || 0,
+  };
+}
+
+/**
+ * Who is @mentioned in a comment: every member whose full name (or email name) appears
+ * after an @, matched case-insensitively, longest names first so "@Ana Lopez" beats "@Ana".
+ */
+export function findMentions(text, members) {
+  const t = String(text || '').toLowerCase(); const out = [];
+  const names = [];
+  (members || []).forEach(m => {
+    if (m.name) names.push([m.name.toLowerCase(), m.uid]);
+    if (m.email) names.push([m.email.split('@')[0].toLowerCase(), m.uid]);
+  });
+  names.sort((a, b) => b[0].length - a[0].length);
+  let used = t;
+  names.forEach(([n, uid]) => {
+    if (!n) return;
+    const re = new RegExp('(?<![\\p{L}\\p{N}_.])@' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\p{L}\\p{N}_])', 'giu');
+    if (re.test(used)) { if (!out.includes(uid)) out.push(uid); used = used.replace(re, ' '); }
+  });
+  return out.slice(0, LIMITS.mentionsPerComment);
+}
+
+export const TASK_CONTENT_FIELDS = ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag', 'dueDate', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments'];
+export const TASK_LOCATION_FIELDS = ['categoryId', 'ownerUid', 'weekId', 'order'];
+
+/** ISO 8601 week number of a 'YYYY-MM-DD' date (or today). */
+export function isoWeekNumber(iso) {
+  const m = typeof iso === 'string' && /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  const d = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : (() => { const n = new Date(); return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate())); })();
+  const day = d.getUTCDay() || 7; d.setUTCDate(d.getUTCDate() + 4 - day);
+  const y0 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - y0) / 86400000 + 1) / 7);
+}
+
+/**
+ * Title for a new week. 'sequence': one more than the highest "WEEK n" so far (WEEK 1 for
+ * the first). 'calendar': the ISO week number of its start date.
+ */
+export function nextWeekTitle(mode, weeks, startISO) {
+  if (mode === 'calendar' && startISO) return 'WEEK ' + isoWeekNumber(startISO);
+  const nums = (weeks || []).map(w => /^\s*week\s+(\d{1,4})\s*$/i.exec(w.title || '')).filter(Boolean).map(m => +m[1]);
+  return 'WEEK ' + (nums.length ? Math.max(...nums) + 1 : (weeks || []).length + 1);
+}
+
+/** Rename every week to match a naming mode. Calendar mode leaves undated weeks as they are. */
+export function renumberWeeks(mode, weeks) {
+  return (weeks || []).map((w, i) => ({ ...w, title: mode === 'calendar' ? (w.startDate ? 'WEEK ' + isoWeekNumber(w.startDate) : w.title) : 'WEEK ' + (i + 1) }));
+}
+
+/**
+ * Give week i a new start date; every week after it follows on, 7 days apart.
+ * Earlier weeks are left alone. In calendar naming, weeks still called "WEEK n" are renamed
+ * to their new calendar week number. Returns a new array.
+ */
+export function cascadeWeekDates(weeks, i, startISO, mode = 'sequence') {
+  const list = (weeks || []).map(w => ({ ...w }));
+  if (!list[i] || !/^\d{4}-\d{2}-\d{2}$/.test(startISO || '')) return list;
+  const add = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1, d + n)); return t.toISOString().slice(0, 10); };
+  for (let j = i; j < list.length; j++) {
+    list[j].startDate = add(startISO, (j - i) * 7);
+    if (mode === 'calendar' && /^\s*week\s+\d{1,4}\s*$/i.test(list[j].title || '')) list[j].title = 'WEEK ' + isoWeekNumber(list[j].startDate);
+  }
+  return list;
+}
+
+// ── Phase 7: research tools ──────────────────────────────────────────────────
+const num = (v, min, max, dflt = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt; };
+const money = (v) => Math.round(num(v, 0, 1e8) * 100) / 100;
+const keyList = (list, max) => (Array.isArray(list) ? list : []).filter(x => typeof x === 'string' && x).map(safeKey).filter((x, i, a) => a.indexOf(x) === i).slice(0, max);
+const dataImage = (v, max) => (typeof v === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= max ? v : '');
+export const RESEARCH_LIMITS = { meetingNotes: 20000, meetingActions: 50, notebookText: 10000, notebookImages: 4, imageChars: 200000, budgetLines: 50 };
+
+/** Meeting notes with action items that can become tasks. */
+export function cleanMeeting(m, id) {
+  m = m || {};
+  return {
+    id: recordId(id || m.id), title: str(m.title, 120) || 'Meeting', date: isoOrEmpty(m.date),
+    attendees: keyList(m.attendees, 50), notes: str(m.notes, RESEARCH_LIMITS.meetingNotes),
+    actions: (Array.isArray(m.actions) ? m.actions : []).slice(0, RESEARCH_LIMITS.meetingActions).map(a => ({
+      id: safeKey(a && a.id), text: str(a && a.text, 300), ownerUid: a && a.ownerUid ? safeKey(a.ownerUid) : '', dueDate: isoOrEmpty(a && a.dueDate), taskId: a && a.taskId ? safeKey(a.taskId) : '',
+    })).filter(a => a.text),
+    createdBy: str(m.createdBy, 128), createdByName: str(m.createdByName, 80), createdAt: Number(m.createdAt) || 0, updatedAt: Number(m.updatedAt) || 0, updatedByName: str(m.updatedByName, 80),
+  };
+}
+/** A dated lab-notebook entry on a task, with up to four small photos. */
+export function cleanNotebookEntry(e, id) {
+  e = e || {};
+  return {
+    id: recordId(id || e.id), taskId: safeKey(e.taskId), authorUid: str(e.authorUid, 128), authorName: str(e.authorName, 80), date: isoOrEmpty(e.date),
+    text: str(e.text, RESEARCH_LIMITS.notebookText),
+    images: (Array.isArray(e.images) ? e.images : []).map(x => dataImage(x, RESEARCH_LIMITS.imageChars)).filter(Boolean).slice(0, RESEARCH_LIMITS.notebookImages),
+    createdAt: Number(e.createdAt) || 0, editedAt: Number(e.editedAt) || 0,
+  };
+}
+export const PART_STATUS = ['needed', 'ordered', 'received', 'cancelled'];
+/** A part or component the project needs to buy. */
+export function cleanPart(p, id) {
+  p = p || {};
+  return {
+    id: recordId(id || p.id), name: str(p.name, 200), partNo: str(p.partNo, 80), supplier: str(p.supplier, 120), url: cleanUrl(p.url),
+    qty: Math.round(num(p.qty, 0, 100000, 1)), unitCost: money(p.unitCost), status: PART_STATUS.includes(p.status) ? p.status : 'needed',
+    neededBy: isoOrEmpty(p.neededBy), orderedDate: isoOrEmpty(p.orderedDate), receivedDate: isoOrEmpty(p.receivedDate),
+    taskId: p.taskId ? safeKey(p.taskId) : '', budgetId: p.budgetId ? safeKey(p.budgetId) : '', notes: str(p.notes, 2000),
+    extras: cleanExtras(p.extras), subteamId: p.subteamId ? safeKey(p.subteamId) : '',
+    createdBy: str(p.createdBy, 128), createdByName: str(p.createdByName, 80), createdAt: Number(p.createdAt) || 0, updatedAt: Number(p.updatedAt) || 0,
+  };
+}
+/** Extra costs on a part: shipping, VAT, duty, fees, a discount… each a fixed amount or a % of the items. */
+export const EXTRA_LABELS = ['Shipping', 'VAT / tax', 'Import duty', 'Fees', 'Discount', 'Other'];
+export const EXTRA_LIMIT = 10;
+export function cleanExtras(list) {
+  return (Array.isArray(list) ? list : []).filter(x => x && typeof x === 'object').slice(0, EXTRA_LIMIT).map(x => {
+    const percent = !!x.percent; const n = Number(x.amount);
+    const amount = Number.isFinite(n) ? Math.round(Math.min(percent ? 100 : 1e7, Math.max(percent ? -100 : -1e7, n)) * 100) / 100 : 0;
+    return { label: str(x.label, 40).trim() || 'Extra', amount, percent };
+  });
+}
+const r2 = (n) => Math.round(n * 100) / 100;
+/** Items only: quantity × cost each. */
+export const partItems = (p) => r2((p.qty || 0) * (p.unitCost || 0));
+/** One extra cost in money. */
+export const extraValue = (p, x) => r2(x.percent ? partItems(p) * x.amount / 100 : x.amount);
+/** All extra costs together (can be negative with a discount). */
+export const partExtras = (p) => r2((p.extras || []).reduce((a, x) => a + extraValue(p, x), 0));
+/** What the part costs in total: items plus extras, never below zero. */
+export const partTotal = (p) => Math.max(0, r2(partItems(p) + partExtras(p)));
+/** Money in (income, grants) or out (spending). */
+export function cleanExpense(x, id) {
+  x = x || {};
+  return {
+    id: recordId(id || x.id), kind: x.kind === 'income' ? 'income' : 'expense', amount: money(x.amount), date: isoOrEmpty(x.date),
+    description: str(x.description, 300), budgetId: x.budgetId ? safeKey(x.budgetId) : '', payer: str(x.payer, 80),
+    receiptUrl: cleanUrl(x.receiptUrl), receiptImage: dataImage(x.receiptImage, RESEARCH_LIMITS.imageChars),
+    taskId: x.taskId ? safeKey(x.taskId) : '', ...expenseParts(x),
+    createdBy: str(x.createdBy, 128), createdByName: str(x.createdByName, 80), createdAt: Number(x.createdAt) || 0, updatedAt: Number(x.updatedAt) || 0,
+  };
+}
+/** The parts a payment covers: `partIds` (several) plus the older single `partId`. */
+function expenseParts(x) {
+  const ids = [...new Set([...keyList(x.partIds, 30), ...(typeof x.partId === 'string' && x.partId ? [safeKey(x.partId)] : [])])].slice(0, 30);
+  return { partIds: ids, partId: ids[0] || '' };
+}
+/** partId → the payment that covers it. */
+export function paidParts(expenses) {
+  const m = new Map();
+  (expenses || []).filter(x => x.kind !== 'income').forEach(x => (x.partIds || (x.partId ? [x.partId] : [])).forEach(id => { const b = m.get(id); if (!b || (x.date || '') > (b.date || '')) m.set(id, x); }));
+  return m;
+}
+/** Finance history: one line per change, written alongside the change and never edited. */
+export const LOG_KINDS = ['budget', 'spending', 'income', 'parts'];
+export function cleanLogEntry(x, id) {
+  x = x || {};
+  return { id: id ? safeKey(id) : '', at: Number(x.at) || 0, by: str(x.by, 128), byName: str(x.byName, 80), kind: LOG_KINDS.includes(x.kind) ? x.kind : 'budget', text: str(x.text, 600) };
+}
+export const CURRENCIES = ['GBP', 'EUR', 'USD', 'INR', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD'];
+/** The project budget: a currency and budget lines (optionally tied to a phase). */
+export function cleanBudget(b) {
+  b = b || {};
+  return {
+    currency: CURRENCIES.includes(b.currency) ? b.currency : 'GBP',
+    lines: (Array.isArray(b.lines) ? b.lines : []).slice(0, RESEARCH_LIMITS.budgetLines).map((l, i) => ({
+      id: safeKey((l && l.id) || 'b' + i), name: str(l && l.name, 80) || 'Budget line', amount: money(l && l.amount), phaseId: l && l.phaseId ? safeKey(l.phaseId) : '', subteamId: l && l.subteamId ? safeKey(l.subteamId) : '',
+    })),
+    updatedAt: Number(b.updatedAt) || 0,
+  };
+}
+export const PAPER_STATUS = ['to-read', 'reading', 'read'];
+/** A paper, book or web source in the team's literature list. */
+export function cleanPaper(p, id) {
+  p = p || {};
+  const y = Math.round(Number(p.year));
+  return {
+    id: recordId(id || p.id), title: str(p.title, 500), authors: str(p.authors, 500), year: y >= 1000 && y <= 2200 ? y : null,
+    venue: str(p.venue, 200), doi: str(p.doi, 200).replace(/^https?:\/\/(dx\.)?doi\.org\//i, '').trim(), url: cleanUrl(p.url),
+    notes: str(p.notes, 5000), tags: (Array.isArray(p.tags) ? p.tags : []).map(t => str(t, 30).trim()).filter(Boolean).filter((t, i, a) => a.indexOf(t) === i).slice(0, 20),
+    status: PAPER_STATUS.includes(p.status) ? p.status : 'to-read', taskIds: keyList(p.taskIds, 20),
+    addedBy: str(p.addedBy, 128), addedByName: str(p.addedByName, 80), createdAt: Number(p.createdAt) || 0, updatedAt: Number(p.updatedAt) || 0,
+  };
+}
+
+/**
+ * Carried-forward chains. A task carried into the next week is the same piece of work, so the
+ * copies form one chain: { id → id of the first task in its chain }. A copy names its original in
+ * `carryOf`; copies made before that existed are matched by their "Carried forward" history line
+ * plus the same name in the same row in an earlier week.
+ * items: [{ id, carryOf, name, cat, weekIdx, history }]
+ */
+export function carryRoots(items) {
+  const byId = new Map(items.map(t => [t.id, t])); const root = new Map();
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  const carried = (t) => (t.history || []).some(h => h && /^carried forward to/i.test(String(h.updated || '')));
+  const sorted = items.slice().sort((a, b) => a.weekIdx - b.weekIdx);
+  const find = (t, depth = 0) => {
+    if (root.has(t.id)) return root.get(t.id);
+    let r = t.id;
+    if (depth < 200) {
+      if (t.carryOf && byId.has(t.carryOf) && byId.get(t.carryOf).weekIdx < t.weekIdx) r = find(byId.get(t.carryOf), depth + 1);
+      else if (carried(t)) {
+        let best = null;
+        for (const o of sorted) { if (o.weekIdx >= t.weekIdx) break; if (o.id !== t.id && o.cat === t.cat && norm(o.name) === norm(t.name)) best = o; }
+        if (best) r = find(best, depth + 1);
+      }
+    }
+    root.set(t.id, r); return r;
+  };
+  sorted.forEach(t => find(t));
+  return root;
+}
+
+/**
+ * Lookup over carried-forward chains for app-level features (literature, notebook, comments,
+ * parts, risks, requirements, meetings…). Records link to ONE copy's id; these helpers let any
+ * copy find everything linked to any other copy of the same work.
+ * tasks: [{ id, carryOf, name, categoryId, weekId, history, flag }], weeks: [{ key }]
+ */
+export function carryIndex(tasks, weeks) {
+  tasks = tasks || [];
+  const order = new Map((weeks || []).map((w, i) => [w.key, i]));
+  const wi = (t) => (order.has(t.weekId) ? order.get(t.weekId) : -1);
+  const roots = carryRoots(tasks.map(t => ({ id: t.id, carryOf: t.carryOf || '', name: t.name, cat: t.categoryId, weekIdx: wi(t), history: t.history })));
+  const groups = new Map();
+  tasks.forEach(t => { const r = roots.get(t.id) || t.id; if (!groups.has(r)) groups.set(r, []); groups.get(r).push(t); });
+  groups.forEach(l => l.sort((a, b) => wi(a) - wi(b)));
+  // A deleted first copy is still named in its later copies' carryOf.
+  const viaCarryOf = new Map(); tasks.forEach(t => { if (t.carryOf && !roots.has(t.carryOf)) viaCarryOf.set(t.carryOf, roots.get(t.id) || t.id); });
+  const rootOf = (id) => roots.get(id) || viaCarryOf.get(id) || id;
+  const chain = (id) => groups.get(rootOf(id)) || [];
+  return {
+    rootOf,
+    /** Every copy, oldest week first ([] for an unknown id). */
+    chain,
+    /** Ids of every copy (always includes id itself). */
+    ids: (id) => { const c = chain(id).map(t => t.id); return c.includes(id) ? c : c.concat(id); },
+    /** The copy in the latest week (null if the task is gone). */
+    latest: (id) => { const c = chain(id); return c.length ? c[c.length - 1] : null; },
+    same: (a, b) => rootOf(a) === rootOf(b),
+  };
+}
+const carryCache = new WeakMap();
+/** carryIndex for a session's tasks and weeks, rebuilt only when either changes. */
+export function carryIndexOf(session) {
+  const tasks = (session && session.tasks) || []; const weeks = (session && session.team && session.team.weeks) || [];
+  const hit = carryCache.get(tasks);
+  if (hit && hit.weeks === weeks) return hit.ix;
+  const ix = carryIndex(tasks, weeks); carryCache.set(tasks, { weeks, ix }); return ix;
+}
+/** Keep one id per carried chain in a list of linked task ids (first wins). */
+export function uniqueChains(ids, ix) {
+  const seen = new Set(); return (ids || []).filter(id => { const r = ix.rootOf(id); if (seen.has(r)) return false; seen.add(r); return true; });
+}
+
+// ── Feature switches: each team turns on what it needs ───────────────────────
+export const FEATURES = [
+  { key: 'planning', group: 'standard', icon: '⏱', name: 'Planning', help: 'Effort estimates, “waits on” links between tasks, and the Planning tab in analytics (workload and burndown).' },
+  { key: 'meetings', group: 'standard', icon: '📝', name: 'Meetings', help: 'Meeting notes whose action items become tasks.' },
+  { key: 'notebook', group: 'standard', icon: '📓', name: 'Lab notebook', help: 'Dated entries with photos on every task.' },
+  { key: 'literature', group: 'standard', icon: '📚', name: 'Literature', help: 'Papers by DOI, reading status, notes and BibTeX.' },
+  { key: 'subteams', group: 'advanced', icon: '🧩', name: 'Sub-teams', help: 'Split a project into groups of people — Fuselage, Payload, Electronics… Each sub-team has leads, its own view of the board, its own progress, and can own parts and budget lines.' },
+  { key: 'parts', group: 'advanced', icon: '🔩', name: 'Parts and orders', help: 'Components to buy, with suppliers, costs and order status.' },
+  { key: 'finance', group: 'advanced', icon: '💷', name: 'Finance', help: 'Budget lines, spending with receipts, income and a burn-rate forecast. Only roles with the finance permissions see the money.' },
+  { key: 'people', group: 'advanced', icon: '👥', name: 'People and capacity', help: 'Each person’s hours a week, time off and skills; a workload heatmap; who could take a task; workload across all your teams.' },
+  { key: 'time', group: 'advanced', icon: '🕒', name: 'Time logging', help: 'Log hours actually spent on tasks, compare with estimates, export timesheets (handy for contractors).' },
+  { key: 'risks', group: 'advanced', icon: '⚠️', name: 'Risk register', help: 'Risks scored by likelihood × impact, with owners, mitigation and review dates.' },
+  { key: 'requirements', group: 'advanced', icon: '📐', name: 'Requirements', help: 'Requirements linked to the tasks that deliver them and how they’re verified; coverage and a traceability export.' },
+];
+export const FEATURE_KEYS = FEATURES.map(f => f.key);
+/** What a brand-new team starts with: the standard set on, advanced off. */
+export const NEW_TEAM_FEATURES = Object.fromEntries(FEATURES.map(f => [f.key, f.group === 'standard']));
+/** Teams made before feature switches keep everything they could already use. */
+const LEGACY_FEATURES = { ...NEW_TEAM_FEATURES, parts: true, finance: true };
+export function cleanFeatures(f) {
+  if (!f || typeof f !== 'object' || Array.isArray(f)) return { ...LEGACY_FEATURES };
+  return Object.fromEntries(FEATURE_KEYS.map(k => [k, typeof f[k] === 'boolean' ? f[k] : NEW_TEAM_FEATURES[k]]));
+}
+
+// ── People and capacity ──────────────────────────────────────────────────────
+/** A member's working profile in one team: hours a week (0 = team default), skills, time off. */
+export function cleanProfile(p, uid) {
+  p = p || {};
+  const cap = Math.round(Number(p.capacity));
+  return {
+    uid: safeKey(uid || p.uid), capacity: Number.isFinite(cap) && cap > 0 && cap <= 80 ? cap : 0,
+    skills: (Array.isArray(p.skills) ? p.skills : []).map(s => str(s, 40).trim()).filter(Boolean).filter((s, i, a) => a.findIndex(x => x.toLowerCase() === s.toLowerCase()) === i).slice(0, 20),
+    away: (Array.isArray(p.away) ? p.away : []).map(a => ({ from: isoOrEmpty(a && a.from), to: isoOrEmpty(a && a.to), note: str(a && a.note, 80) }))
+      .filter(a => a.from && a.to).map(a => a.from <= a.to ? a : { ...a, from: a.to, to: a.from }).sort((x, y) => x.from.localeCompare(y.from)).slice(0, 30),
+    updatedAt: Number(p.updatedAt) || 0,
+  };
+}
+/** Working days (Mon–Fri) in the week starting `monday` that aren't covered by time off. */
+export function workdaysFree(monday, away) {
+  if (!ISO.test(monday || '')) return 5;
+  let free = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday + 'T12:00:00'); d.setDate(d.getDate() + i);
+    const day = d.getDay(); if (day === 0 || day === 6) continue;
+    const iso = d.toLocaleDateString('en-CA');
+    if (!(away || []).some(a => iso >= a.from && iso <= a.to)) free++;
+  }
+  return free;
+}
+/** Hours someone can give in a week: their own (or the team's) weekly hours, less time off. 0 = unknown. */
+export function capacityFor(profile, teamCapacity, monday) {
+  const base = (profile && profile.capacity) || teamCapacity || 0;
+  if (!base) return 0;
+  return Math.round(base * workdaysFree(monday, profile && profile.away) / 5 * 10) / 10;
+}
+export const hasSkill = (profile, skill) => !!skill && !!profile && profile.skills.some(s => s.toLowerCase() === String(skill).trim().toLowerCase());
+
+// ── Time logging ─────────────────────────────────────────────────────────────
+export function cleanTimeLog(list) {
+  return (Array.isArray(list) ? list : []).slice(0, 200).map(e => ({
+    id: safeKey(e && e.id), uid: str(e && e.uid, 128), name: str(e && e.name, 80), date: isoOrEmpty(e && e.date),
+    hours: Math.round(Math.min(24, Math.max(0, Number(e && e.hours) || 0)) * 4) / 4, note: str(e && e.note, 200),
+  })).filter(e => e.hours > 0 && e.date);
+}
+export const loggedHours = (t) => Math.round((t && Array.isArray(t.timeLog) ? t.timeLog : []).reduce((a, e) => a + (Number(e.hours) || 0), 0) * 100) / 100;
+
+// ── Engineering: risk register and requirements ──────────────────────────────
+export const RISK_STATUS = ['open', 'mitigating', 'closed'];
+export function cleanRisk(r, id) {
+  r = r || {};
+  const lvl = (v) => { const n = Math.round(Number(v)); return n >= 1 && n <= 5 ? n : 3; };
+  return {
+    id: recordId(id || r.id), title: str(r.title, 200), detail: str(r.detail, 2000), likelihood: lvl(r.likelihood), impact: lvl(r.impact),
+    ownerUid: r.ownerUid ? safeKey(r.ownerUid) : '', status: RISK_STATUS.includes(r.status) ? r.status : 'open', mitigation: str(r.mitigation, 2000),
+    taskIds: keyList(r.taskIds, 20), reviewDate: isoOrEmpty(r.reviewDate),
+    createdBy: str(r.createdBy, 128), createdByName: str(r.createdByName, 80), createdAt: Number(r.createdAt) || 0, updatedAt: Number(r.updatedAt) || 0,
+  };
+}
+export const riskScore = (r) => (r.likelihood || 0) * (r.impact || 0);
+export const REQ_PRIORITY = ['must', 'should', 'could'];
+export const REQ_STATUS = ['draft', 'agreed', 'met', 'dropped'];
+export function cleanRequirement(q, id) {
+  q = q || {};
+  return {
+    id: recordId(id || q.id), ref: str(q.ref, 20), title: str(q.title, 300), detail: str(q.detail, 3000),
+    priority: REQ_PRIORITY.includes(q.priority) ? q.priority : 'should', status: REQ_STATUS.includes(q.status) ? q.status : 'draft',
+    taskIds: keyList(q.taskIds, 30), verification: str(q.verification, 1000), verified: !!q.verified, verifiedBy: str(q.verifiedBy, 80), verifiedDate: isoOrEmpty(q.verifiedDate),
+    createdBy: str(q.createdBy, 128), createdByName: str(q.createdByName, 80), createdAt: Number(q.createdAt) || 0, updatedAt: Number(q.updatedAt) || 0,
+  };
+}
+/** Next free reference like REQ-007. */
+export function nextReqRef(list) {
+  const n = Math.max(0, ...list.map(q => { const m = /(\d+)\s*$/.exec(q.ref || ''); return m ? Number(m[1]) : 0; }));
+  return 'REQ-' + String(n + 1).padStart(3, '0');
+}

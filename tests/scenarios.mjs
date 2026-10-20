@@ -1,0 +1,262 @@
+// Shared security scenarios. tests/unit.test.mjs runs them against the demo's
+// rules copy (src/rules-sim.js); tests/rules.test.mjs runs the SAME list against
+// the real firestore.rules in the Firebase emulator. If both pass, they agree.
+import { DEFAULT_ROLES } from '../src/permissions.js';
+import { DEFAULT_LABELS } from '../src/model.js';
+
+export const TEAM = 't1';
+export const users = {
+  owner: { uid: 'owner', email: 'owner@x.com', emailVerified: true },
+  admin1: { uid: 'admin1', email: 'admin1@x.com', emailVerified: true },
+  mem1: { uid: 'mem1', email: 'mem1@x.com', emailVerified: true },
+  view1: { uid: 'view1', email: 'view1@x.com', emailVerified: true },
+  evil: { uid: 'evil', email: 'evil@x.com', emailVerified: true },
+  newbie: { uid: 'newbie', email: 'new@x.com', emailVerified: true },
+  newbieUnverified: { uid: 'newbie', email: 'new@x.com', emailVerified: false },
+  plat: { uid: 'plat', email: 'plat@x.com', emailVerified: true },
+  ownerUni: { uid: 'owner', email: 'owner@bristol.ac.uk', emailVerified: true },
+  ownerUniUnverified: { uid: 'owner', email: 'owner@bristol.ac.uk', emailVerified: false },
+  mem1Uni: { uid: 'mem1', email: 'mem1@mit.edu', emailVerified: true },
+};
+const inDays = (d) => Date.now() + d * 864e5;
+const eduPlan = (by, days = 365, over = {}) => ({ plan: { tier: 'pro', edu: true, until: inDays(days), by, at: 1, note: 'University email', ...over } });
+const YEAR = new Date().getUTCFullYear();
+const claim = (uid, teams, year = YEAR) => set('/eduClaims/' + uid, { year, teams });
+
+export const teamDoc = (over = {}) => ({
+  name: 'Robotics', logo: '', ownerUid: 'owner', createdAt: 1, roles: DEFAULT_ROLES, fields: [], labels: DEFAULT_LABELS,
+  weeks: [{ key: 'w1', title: 'WEEK 1', metric: '', startDate: '' }], ...over,
+});
+const member = (uid, roleId) => ({ uid, email: uid + '@x.com', name: uid, photo: '', roleId, joinedAt: 1 });
+export const task = (ownerUid, categoryId, over = {}) => ({
+  name: 'Task', priority: 'Minor', status: '', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'none',
+  dueDate: '', completedDate: '', subtasks: [], history: [], custom: {}, icon: '', attachments: [],
+  categoryId, ownerUid, weekId: 'w1', order: 0, createdBy: ownerUid, createdAt: 1, updatedBy: ownerUid, updatedAt: 1, ...over,
+});
+
+/** The starting database for every scenario. */
+export const comment = (authorUid, taskId, mentions = [], over = {}) => ({ taskId, authorUid, authorName: authorUid, text: 'Looks good @' + (mentions[0] || 'all'), mentions, createdAt: 1, ...over });
+
+export const template = (createdBy, over = {}) => ({ name: 'Experiment', task: { name: 'Experiment', priority: 'Major', subtasks: ['Plan', 'Run'] }, createdBy, createdByName: createdBy, createdAt: 1, ...over });
+
+export const meeting = (createdBy, over = {}) => ({ title: 'Supervisor meeting', date: '2026-10-19', attendees: [createdBy], notes: 'Notes', actions: [], createdBy, createdByName: createdBy, createdAt: 1, updatedAt: 1, updatedByName: createdBy, ...over });
+export const note = (authorUid, taskId, over = {}) => ({ taskId, authorUid, authorName: authorUid, date: '2026-10-19', text: 'Measured 12 mA', images: [], createdAt: 1, ...over });
+export const part = (createdBy, over = {}) => ({ name: 'Servo MG996R', partNo: '', supplier: 'RS', url: '', qty: 4, unitCost: 6.5, status: 'needed', neededBy: '', orderedDate: '', receivedDate: '', taskId: '', budgetId: '', notes: '', createdBy, createdByName: createdBy, createdAt: 1, updatedAt: 1, ...over });
+export const expense = (createdBy, over = {}) => ({ kind: 'expense', amount: 26, date: '2026-10-19', description: 'Servos', budgetId: '', payer: 'Tom', receiptUrl: '', receiptImage: '', taskId: '', partId: '', createdBy, createdByName: createdBy, createdAt: 1, updatedAt: 1, ...over });
+export const logEntry = (by, over = {}) => ({ at: 1, by, byName: by, kind: 'budget', text: 'Added budget line “Parts”', ...over });
+export const paper = (addedBy, over = {}) => ({ title: 'Robot grasping', authors: 'A. Smith', year: 2024, venue: 'ICRA', doi: '', url: '', notes: '', tags: [], status: 'to-read', taskIds: [], addedBy, addedByName: addedBy, createdAt: 1, updatedAt: 1, ...over });
+
+export const risk = (createdBy, over = {}) => ({ title: 'Servos late', detail: '', likelihood: 3, impact: 4, ownerUid: createdBy, status: 'open', mitigation: '', taskIds: [], reviewDate: '', createdBy, createdByName: createdBy, createdAt: 1, updatedAt: 1, ...over });
+export const requirement = (createdBy, over = {}) => ({ ref: 'REQ-001', title: 'Lift 500 g', detail: '', priority: 'must', status: 'draft', taskIds: [], verification: '', verified: false, verifiedBy: '', verifiedDate: '', createdBy, createdByName: createdBy, createdAt: 1, updatedAt: 1, ...over });
+
+export function fixture() {
+  return {
+    users: {}, admins: { plat: true },
+    root: { verifiedStudents: { admin1: { email: 'admin1@bristol.ac.uk', verifiedAt: 1, until: Date.now() + 200 * 864e5 } }, eduClaims: { view1: { year: new Date().getUTCFullYear(), teams: ['a', 'b'] } } },
+    teams: {
+      [TEAM]: {
+        doc: teamDoc(),
+        members: { owner: member('owner', 'owner'), admin1: member('admin1', 'admin'), mem1: member('mem1', 'member'), view1: member('view1', 'viewer') },
+        invites: { 'new@x.com': { email: 'new@x.com', roleId: 'member', teamName: 'Robotics', invitedBy: 'owner', invitedByName: 'O', createdAt: 1 } },
+        categories: { c_owner: { name: 'GEN', ownerUid: 'owner', order: 0 }, c_mem1: { name: 'GEN', ownerUid: 'mem1', order: 0 }, c_admin1: { name: 'GEN', ownerUid: 'admin1', order: 0 } },
+        tasks: { t_mem1: task('mem1', 'c_mem1'), t_owner: task('owner', 'c_owner') },
+        comments: { cm_owner: comment('owner', 't_mem1', ['mem1']), cm_mem1: comment('mem1', 't_owner') },
+        templates: { tpl_mem1: template('mem1'), tpl_owner: template('owner') },
+        meetings: { mt_owner: meeting('owner') }, notebook: { nb_mem1: note('mem1', 't_mem1') }, parts: { pt_mem1: part('mem1') },
+        papers: { pp_owner: paper('owner') }, profiles: { mem1: { capacity: 10, skills: ['CAD'], away: [], updatedAt: 1 } }, risks: { rk_owner: risk('owner') }, requirements: { rq_owner: requirement('owner') }, expenses: { x_admin1: expense('admin1') }, finance: { budget: { currency: 'GBP', lines: [], updatedAt: 1 } }, financeLog: { fl_1: logEntry('admin1') },
+      },
+    },
+  };
+}
+
+const upd = (path, data) => ({ type: 'update', path, data });
+const set = (path, data) => ({ type: 'set', path, data });
+const del = (path) => ({ type: 'delete', path });
+
+// [name, user, teamId, ops, expected]
+export const writeScenarios = [
+  ['founder creates a new team with themselves as owner', 'evil', 't2', [set('team', teamDoc({ ownerUid: 'evil' })), set('members/evil', member('evil', 'owner'))], 'allow'],
+  ['nobody can make themselves owner of an existing team', 'evil', TEAM, [set('members/evil', member('evil', 'owner'))], 'deny'],
+  ['a stranger cannot join without an invitation', 'evil', TEAM, [set('members/evil', member('evil', 'member'))], 'deny'],
+  ['an unverified email cannot accept an invitation', 'newbieUnverified', TEAM, [set('members/newbie', { ...member('newbie', 'member'), email: 'new@x.com' }), del('invites/new@x.com')], 'deny'],
+  ['a verified invitee joins with the invited role', 'newbie', TEAM, [set('members/newbie', { ...member('newbie', 'member'), email: 'new@x.com' }), del('invites/new@x.com')], 'allow'],
+  ['an invitee cannot pick a higher role than invited', 'newbie', TEAM, [set('members/newbie', { ...member('newbie', 'admin'), email: 'new@x.com' })], 'deny'],
+  ['a viewer cannot create tasks', 'view1', TEAM, [set('tasks/x', task('mem1', 'c_mem1'))], 'deny'],
+  ['a member creates a task in their own row', 'mem1', TEAM, [set('tasks/x', task('mem1', 'c_mem1'))], 'allow'],
+  ['a member cannot edit someone else’s task', 'mem1', TEAM, [upd('tasks/t_owner', { name: 'hacked' })], 'deny'],
+  ['a member cannot move their task into someone else’s row', 'mem1', TEAM, [upd('tasks/t_mem1', { categoryId: 'c_owner', ownerUid: 'owner' })], 'deny'],
+  ['an admin edits anyone’s task', 'admin1', TEAM, [upd('tasks/t_mem1', { name: 'Renamed by admin' })], 'allow'],
+  ['a task must sit in a row owned by its owner', 'mem1', TEAM, [set('tasks/x', task('mem1', 'c_owner'))], 'deny'],
+  ['tasks cannot carry unexpected fields', 'mem1', TEAM, [set('tasks/x', { ...task('mem1', 'c_mem1'), hack: true })], 'deny'],
+  ['tasks need a valid priority', 'mem1', TEAM, [set('tasks/x', task('mem1', 'c_mem1', { priority: 'Mega' }))], 'deny'],
+  ['a member cannot change roles', 'mem1', TEAM, [upd('team', { roles: { ...DEFAULT_ROLES, member: { ...DEFAULT_ROLES.member, perms: { ...DEFAULT_ROLES.member.perms, 'tasks.editAll': true } } } })], 'deny'],
+  ['a member manages weeks (default member permission)', 'mem1', TEAM, [upd('team', { weeks: [{ key: 'w1', title: 'WEEK 1', metric: '', startDate: '' }, { key: 'w2', title: 'WEEK 2', metric: '', startDate: '' }] })], 'allow'],
+  ['a viewer cannot change weeks', 'view1', TEAM, [upd('team', { weeks: [] })], 'deny'],
+  ['a member cannot rename the team', 'mem1', TEAM, [upd('team', { name: 'Mine now' })], 'deny'],
+  ['an admin renames the team', 'admin1', TEAM, [upd('team', { name: 'Robotics 2' })], 'allow'],
+  ['an admin changes a member’s role', 'admin1', TEAM, [upd('members/mem1', { roleId: 'viewer' })], 'allow'],
+  ['nobody changes their own role', 'admin1', TEAM, [upd('members/admin1', { roleId: 'member' })], 'deny'],
+  ['nobody can be promoted to owner', 'admin1', TEAM, [upd('members/mem1', { roleId: 'owner' })], 'deny'],
+  ['the owner’s role cannot be changed', 'admin1', TEAM, [upd('members/owner', { roleId: 'member' })], 'deny'],
+  ['roles must exist', 'admin1', TEAM, [upd('members/mem1', { roleId: 'ghost' })], 'deny'],
+  ['an admin invites by email', 'admin1', TEAM, [set('invites/x@y.com', { email: 'x@y.com', roleId: 'member', teamName: 'Robotics', invitedBy: 'admin1', invitedByName: 'A', createdAt: 2 })], 'allow'],
+  ['nobody can invite someone as owner', 'admin1', TEAM, [set('invites/x@y.com', { email: 'x@y.com', roleId: 'owner', teamName: 'Robotics', invitedBy: 'admin1', invitedByName: 'A', createdAt: 2 })], 'deny'],
+  ['an invite id must match its email', 'admin1', TEAM, [set('invites/x@y.com', { email: 'other@y.com', roleId: 'member', teamName: 'Robotics', invitedBy: 'admin1', invitedByName: 'A', createdAt: 2 })], 'deny'],
+  ['a member cannot invite', 'mem1', TEAM, [set('invites/x@y.com', { email: 'x@y.com', roleId: 'member', teamName: 'Robotics', invitedBy: 'mem1', invitedByName: 'M', createdAt: 2 })], 'deny'],
+  ['a member leaves the team', 'mem1', TEAM, [del('members/mem1')], 'allow'],
+  ['nobody removes the owner', 'admin1', TEAM, [del('members/owner')], 'deny'],
+  ['the owner deletes the team together with their membership', 'owner', TEAM, [del('members/owner'), del('team')], 'allow'],
+  ['an admin cannot delete the team', 'admin1', TEAM, [del('team')], 'deny'],
+  ['the owner cannot drop their membership and keep the team', 'owner', TEAM, [del('members/owner')], 'deny'],
+  ['an admin cannot edit roles by default', 'admin1', TEAM, [upd('team', { roles: { ...DEFAULT_ROLES, viewer: { ...DEFAULT_ROLES.viewer, name: 'Guest' } } })], 'deny'],
+  ['the owner edits roles', 'owner', TEAM, [upd('team', { roles: { ...DEFAULT_ROLES, viewer: { ...DEFAULT_ROLES.viewer, name: 'Guest' } } })], 'allow'],
+  ['a member updates their own display name', 'mem1', TEAM, [upd('members/mem1', { name: 'Mem One' })], 'allow'],
+  ['a member cannot edit their role through their profile', 'mem1', TEAM, [upd('members/mem1', { name: 'x', roleId: 'admin' })], 'deny'],
+  ['team ownership cannot be reassigned by editing the team', 'owner', TEAM, [upd('team', { ownerUid: 'mem1' })], 'deny'],
+  ['a member deletes their own category', 'mem1', TEAM, [del('categories/c_mem1')], 'allow'],
+  ['a member cannot delete someone else’s category', 'mem1', TEAM, [del('categories/c_owner')], 'deny'],
+  ['a non-member cannot write tasks, even into a valid row', 'evil', TEAM, [set('tasks/x', task('mem1', 'c_mem1'))], 'deny'],
+  // Week numbering (team settings permission)
+  ['an admin switches the team to calendar week numbers', 'admin1', TEAM, [upd('team', { weekNaming: 'calendar' })], 'allow'],
+  ['a member cannot change week numbering', 'mem1', TEAM, [upd('team', { weekNaming: 'calendar' })], 'deny'],
+  ['week numbering only accepts the two known values', 'owner', TEAM, [upd('team', { weekNaming: 'fortnightly' })], 'deny'],
+  ['a new team can be created with own week numbering', 'evil', 't3', [set('team', teamDoc({ ownerUid: 'evil', weekNaming: 'sequence' })), set('members/evil', member('evil', 'owner'))], 'allow'],
+  // Project phases (team settings permission) and a task's phase
+  ['an admin sets the project phases', 'admin1', TEAM, [upd('team', { phases: [{ id: 'ph1', name: 'Research', color: '#4299e1', start: '2026-10-01', end: '2026-10-31', milestone: '' }] })], 'allow'],
+  ['a member cannot change the project phases', 'mem1', TEAM, [upd('team', { phases: [] })], 'deny'],
+  ['phases must be a list', 'owner', TEAM, [upd('team', { phases: 'Research' })], 'deny'],
+  ['a member puts their own task in a phase', 'mem1', TEAM, [upd('tasks/t_mem1', { phaseId: 'ph1' })], 'allow'],
+  ['a member cannot change the phase of someone else’s task', 'mem1', TEAM, [upd('tasks/t_owner', { phaseId: 'ph1' })], 'deny'],
+  ['a task phase must be text', 'mem1', TEAM, [upd('tasks/t_mem1', { phaseId: 7 })], 'deny'],
+  // Comments and @mentions
+  ['a member comments on someone else’s task', 'mem1', TEAM, [set('comments/new', comment('mem1', 't_owner', ['owner']))], 'allow'],
+  ['a viewer cannot comment', 'view1', TEAM, [set('comments/new', comment('view1', 't_owner'))], 'deny'],
+  ['a non-member cannot comment', 'evil', TEAM, [set('comments/new', comment('evil', 't_owner'))], 'deny'],
+  ['nobody can comment as someone else', 'mem1', TEAM, [set('comments/new', comment('owner', 't_owner'))], 'deny'],
+  ['an empty comment is refused', 'mem1', TEAM, [set('comments/new', comment('mem1', 't_owner', [], { text: '' }))], 'deny'],
+  ['a very long comment is refused', 'mem1', TEAM, [set('comments/new', comment('mem1', 't_owner', [], { text: 'x'.repeat(2001) }))], 'deny'],
+  ['comments cannot carry extra fields', 'mem1', TEAM, [set('comments/new', comment('mem1', 't_owner', [], { pinned: true }))], 'deny'],
+  ['an author edits their comment', 'mem1', TEAM, [upd('comments/cm_mem1', { text: 'Fixed typo', mentions: [], editedAt: 2 })], 'allow'],
+  ['nobody edits someone else’s comment', 'admin1', TEAM, [upd('comments/cm_mem1', { text: 'Changed', editedAt: 2 })], 'deny'],
+  ['an author cannot move their comment to another task', 'mem1', TEAM, [upd('comments/cm_mem1', { taskId: 't_mem1' })], 'deny'],
+  ['an author deletes their comment', 'mem1', TEAM, [del('comments/cm_mem1')], 'allow'],
+  ['an admin removes someone’s comment', 'admin1', TEAM, [del('comments/cm_mem1')], 'allow'],
+  ['a member cannot delete someone else’s comment', 'mem1', TEAM, [del('comments/cm_owner')], 'deny'],
+  // Task templates
+  ['a member saves a template', 'mem1', TEAM, [set('templates/new', template('mem1'))], 'allow'],
+  ['a viewer cannot save templates', 'view1', TEAM, [set('templates/new', template('view1'))], 'deny'],
+  ['nobody saves a template as someone else', 'mem1', TEAM, [set('templates/new', template('owner'))], 'deny'],
+  ['a template needs a name', 'mem1', TEAM, [set('templates/new', template('mem1', { name: '' }))], 'deny'],
+  ['the author renames their template', 'mem1', TEAM, [upd('templates/tpl_mem1', { name: 'Lab run' })], 'allow'],
+  ['an admin (team settings) tidies anyone’s templates', 'admin1', TEAM, [del('templates/tpl_mem1')], 'allow'],
+  ['a member cannot delete someone else’s template', 'mem1', TEAM, [del('templates/tpl_owner')], 'deny'],
+  ['a template’s author cannot be changed', 'admin1', TEAM, [upd('templates/tpl_mem1', { createdBy: 'admin1' })], 'deny'],
+  // Repeating tasks
+  ['a member makes their task repeat weekly', 'mem1', TEAM, [upd('tasks/t_mem1', { repeat: { every: 1, until: '', through: '', seriesId: '' } })], 'allow'],
+  ['repeat must be a map', 'mem1', TEAM, [upd('tasks/t_mem1', { repeat: 'weekly' })], 'deny'],
+  // Planning: stage, effort, dependencies, team capacity
+  ['a member moves their task to Doing with an estimate', 'mem1', TEAM, [upd('tasks/t_mem1', { stage: 'doing', effort: 3.5 })], 'allow'],
+  ['a member makes their task wait on someone else’s', 'mem1', TEAM, [upd('tasks/t_mem1', { dependsOn: ['t_owner'] })], 'allow'],
+  ['stage must be one of the known columns', 'mem1', TEAM, [upd('tasks/t_mem1', { stage: 'blocked' })], 'deny'],
+  ['effort can’t be negative', 'mem1', TEAM, [upd('tasks/t_mem1', { effort: -2 })], 'deny'],
+  ['effort can’t be huge', 'mem1', TEAM, [upd('tasks/t_mem1', { effort: 5000 })], 'deny'],
+  ['a task waits on at most 10 others', 'mem1', TEAM, [upd('tasks/t_mem1', { dependsOn: Array.from({ length: 11 }, (_, i) => 't' + i) })], 'deny'],
+  ['a member cannot change someone else’s stage', 'mem1', TEAM, [upd('tasks/t_owner', { stage: 'doing' })], 'deny'],
+  ['an admin sets the team’s weekly capacity', 'admin1', TEAM, [upd('team', { capacity: 12 })], 'allow'],
+  ['a member cannot set the team’s capacity', 'mem1', TEAM, [upd('team', { capacity: 12 })], 'deny'],
+  ['capacity is at most 80 hours', 'admin1', TEAM, [upd('team', { capacity: 200 })], 'deny'],
+  // Research tools
+  ['a member writes meeting notes', 'mem1', TEAM, [set('meetings/new', meeting('mem1'))], 'allow'],
+  ['a member adds an action to someone else’s meeting', 'mem1', TEAM, [upd('meetings/mt_owner', { actions: [{ id: 'a1', text: 'Order parts', ownerUid: 'mem1', dueDate: '', taskId: '' }] })], 'allow'],
+  ['a viewer cannot write meeting notes', 'view1', TEAM, [set('meetings/new', meeting('view1'))], 'deny'],
+  ['a member cannot delete someone else’s meeting', 'mem1', TEAM, [del('meetings/mt_owner')], 'deny'],
+  ['a member adds a notebook entry to any task', 'mem1', TEAM, [set('notebook/new', note('mem1', 't_owner'))], 'allow'],
+  ['nobody writes a notebook entry as someone else', 'mem1', TEAM, [set('notebook/new', note('owner', 't_owner'))], 'deny'],
+  ['only the author edits a notebook entry', 'owner', TEAM, [upd('notebook/nb_mem1', { text: 'changed' })], 'deny'],
+  ['a notebook entry holds at most 4 photos', 'mem1', TEAM, [set('notebook/new', note('mem1', 't_mem1', { images: ['a', 'b', 'c', 'd', 'e'] }))], 'deny'],
+  ['a member adds a part', 'mem1', TEAM, [set('parts/new', part('mem1'))], 'allow'],
+  ['a member marks a part ordered', 'mem1', TEAM, [upd('parts/pt_mem1', { status: 'ordered' })], 'allow'],
+  ['a member without finance access cannot put a part on a budget line', 'mem1', TEAM, [upd('parts/pt_mem1', { budgetId: 'b1' })], 'deny'],
+  ['an admin (finance) puts a part on a budget line', 'admin1', TEAM, [upd('parts/pt_mem1', { budgetId: 'b1' })], 'allow'],
+  ['a part status must be known', 'mem1', TEAM, [upd('parts/pt_mem1', { status: 'lost' })], 'deny'],
+  ['a member adds a paper', 'mem1', TEAM, [set('papers/new', paper('mem1'))], 'allow'],
+  ['a viewer cannot add papers', 'view1', TEAM, [set('papers/new', paper('view1'))], 'deny'],
+  ['an admin records spending', 'admin1', TEAM, [set('expenses/new', expense('admin1'))], 'allow'],
+  ['a member (no finance access) cannot record spending', 'mem1', TEAM, [set('expenses/new', expense('mem1'))], 'deny'],
+  ['an admin sets the budget', 'admin1', TEAM, [set('finance/budget', { currency: 'GBP', lines: [{ id: 'b1', name: 'Parts', amount: 500, phaseId: '' }], updatedAt: 2 })], 'allow'],
+  ['a member cannot set the budget', 'mem1', TEAM, [set('finance/budget', { currency: 'GBP', lines: [], updatedAt: 2 })], 'deny'],
+  // Plans: only a platform admin changes them; teams ask for Pro
+  ['a platform admin gives a team Pro', 'plat', TEAM, [upd('team', { plan: { tier: 'pro', edu: true, until: 0, by: 'plat', at: 1, note: 'Pilot' } })], 'allow'],
+  ['the plan must name the admin who set it', 'plat', TEAM, [upd('team', { plan: { tier: 'pro', edu: false, until: 0, by: 'owner', at: 1, note: '' } })], 'deny'],
+  ['a platform admin cannot change anything else', 'plat', TEAM, [upd('team', { name: 'Mine now' })], 'deny'],
+  ['the owner cannot give their own team Pro', 'owner', TEAM, [upd('team', { plan: { tier: 'pro', edu: false, until: 0, by: 'owner', at: 1, note: '' } })], 'deny'],
+  ['an admin of the team cannot change its plan', 'admin1', TEAM, [upd('team', { plan: { tier: 'org', edu: false, until: 0, by: 'admin1', at: 1, note: '' } })], 'deny'],
+  ['a new team cannot start on Pro', 'newbie', 'brand-new', [set('team', teamDoc({ ownerUid: 'newbie', plan: { tier: 'pro', edu: false, until: 0, by: 'newbie', at: 1, note: '' } })), set('members/newbie', { uid: 'newbie', email: 'new@x.com', name: 'N', photo: '', roleId: 'owner', joinedAt: 1 })], 'deny'],
+  ['a team settings manager asks for Pro', 'admin1', TEAM, [set('requests/pro', { teamId: TEAM, teamName: 'Robotics', members: 4, wants: 'edu', note: 'UAS team', by: 'admin1', byName: 'A', email: 'admin1@x.com', at: 1, status: 'open' })], 'allow'],
+  ['a member without settings cannot ask for Pro', 'mem1', TEAM, [set('requests/pro', { teamId: TEAM, teamName: 'Robotics', members: 4, wants: 'pro', note: '', by: 'mem1', byName: 'M', email: 'mem1@x.com', at: 1, status: 'open' })], 'deny'],
+  ['a team cannot approve its own request', 'admin1', TEAM, [set('requests/pro', { teamId: TEAM, teamName: 'Robotics', members: 4, wants: 'pro', note: '', by: 'admin1', byName: 'A', email: 'admin1@x.com', at: 1, status: 'approved' })], 'deny'],
+  ['a member asks the owner and admins for Pro', 'mem1', TEAM, [set('requests/ask-mem1', { by: 'mem1', byName: 'M', at: 1, note: 'Need approvals' })], 'allow'],
+  ['…only in their own name', 'mem1', TEAM, [set('requests/ask-admin1', { by: 'admin1', byName: 'A', at: 1, note: '' })], 'deny'],
+  ['a non-member cannot ask', 'evil', TEAM, [set('requests/ask-evil', { by: 'evil', byName: 'E', at: 1, note: '' })], 'deny'],
+  // Free Pro Education with a verified university email
+  ['a university-email owner turns on Pro Education', 'ownerUni', TEAM, [claim('owner', [TEAM]), upd('team', eduPlan('owner'))], 'allow'],
+  ['…only with this team in their claims for the year', 'ownerUni', TEAM, [upd('team', eduPlan('owner'))], 'deny'],
+  ['…at most 3 teams a year', 'ownerUni', TEAM, [claim('owner', ['x', 'y', 'z', TEAM]), upd('team', eduPlan('owner'))], 'deny'],
+  ['…claims are for this year only', 'ownerUni', TEAM, [claim('owner', [TEAM], YEAR - 1), upd('team', eduPlan('owner'))], 'deny'],
+  ['nobody writes claims for someone else', 'ownerUni', TEAM, [set('/eduClaims/mem1', { year: YEAR, teams: [TEAM] })], 'deny'],
+  ['a student with a code-verified university email (personal sign-in) turns it on', 'admin1', TEAM, [claim('admin1', [TEAM]), upd('team', eduPlan('admin1'))], 'allow'],
+  ['…but not with an unverified email', 'ownerUniUnverified', TEAM, [claim('owner', [TEAM]), upd('team', eduPlan('owner'))], 'deny'],
+  ['…not with an ordinary email', 'owner', TEAM, [claim('owner', [TEAM]), upd('team', eduPlan('owner'))], 'deny'],
+  ['…not for longer than about a year at a time', 'ownerUni', TEAM, [claim('owner', [TEAM]), upd('team', eduPlan('owner', 500))], 'deny'],
+  ['…not full Pro, only Pro Education', 'ownerUni', TEAM, [claim('owner', [TEAM]), upd('team', eduPlan('owner', 365, { edu: false }))], 'deny'],
+  ['…not an Organisation plan', 'ownerUni', TEAM, [claim('owner', [TEAM]), upd('team', eduPlan('owner', 365, { tier: 'org' }))], 'deny'],
+  ['a member without settings cannot, even with a university email', 'mem1Uni', TEAM, [claim('mem1', [TEAM]), upd('team', eduPlan('mem1'))], 'deny'],
+  // Sub-teams and extra costs
+  ['an admin sets up sub-teams', 'admin1', TEAM, [upd('team', { subteams: [{ id: 'f', name: 'Fuselage', color: '#3182ce', members: ['mem1'], leads: ['mem1'] }] })], 'allow'],
+  ['a member cannot change sub-teams', 'mem1', TEAM, [upd('team', { subteams: [] })], 'deny'],
+  ['at most 20 sub-teams', 'admin1', TEAM, [upd('team', { subteams: Array.from({ length: 21 }, (_, i) => ({ id: 's' + i, name: 'S', color: '#3182ce', members: [], leads: [] })) })], 'deny'],
+  ['a part can carry extra costs and a sub-team', 'mem1', TEAM, [upd('parts/pt_mem1', { extras: [{ label: 'Shipping', amount: 3.99, percent: false }], subteamId: 'f' })], 'allow'],
+  ['a part has at most 10 extra costs', 'mem1', TEAM, [upd('parts/pt_mem1', { extras: Array.from({ length: 11 }, () => ({ label: 'x', amount: 1, percent: false })) })], 'deny'],
+  // Parts linked to payments, and the finance history
+  ['a payment can cover several parts', 'admin1', TEAM, [set('expenses/new', expense('admin1', { partIds: ['pt_mem1', 'pt_2'] }))], 'allow'],
+  ['a payment covers at most 30 parts', 'admin1', TEAM, [set('expenses/new', expense('admin1', { partIds: Array.from({ length: 31 }, (_, i) => 'p' + i) }))], 'deny'],
+  ['an admin moves spending to another budget line', 'admin1', TEAM, [upd('expenses/x_admin1', { budgetId: 'b2', updatedAt: 5 })], 'allow'],
+  ['an admin adds a history line with a change', 'admin1', TEAM, [set('finance/budget', { currency: 'GBP', lines: [], updatedAt: 2 }), set('financeLog/fl_new', logEntry('admin1'))], 'allow'],
+  ['a member adds a history line for a part change', 'mem1', TEAM, [set('financeLog/fl_new', logEntry('mem1', { kind: 'parts', text: 'Added part “Servo”' }))], 'allow'],
+  ['nobody writes a history line in someone else’s name', 'mem1', TEAM, [set('financeLog/fl_new', logEntry('admin1'))], 'deny'],
+  ['a viewer cannot add history lines', 'view1', TEAM, [set('financeLog/fl_new', logEntry('view1'))], 'deny'],
+  ['a history line needs a known kind', 'admin1', TEAM, [set('financeLog/fl_new', logEntry('admin1', { kind: 'other' }))], 'deny'],
+  ['a history line cannot be edited', 'admin1', TEAM, [upd('financeLog/fl_1', { text: 'Nothing happened' })], 'deny'],
+  ['even an admin cannot delete a history line', 'admin1', TEAM, [del('financeLog/fl_1')], 'deny'],
+  ['the owner can delete history (when deleting the team)', 'owner', TEAM, [del('financeLog/fl_1')], 'allow'],
+  ['a carried-forward copy names its original', 'mem1', TEAM, [upd('tasks/t_mem1', { carryOf: 't_old' })], 'allow'],
+  // Feature switches, people, time, risks, requirements
+  ['an admin turns features on', 'admin1', TEAM, [upd('team', { features: { people: true, time: true } })], 'allow'],
+  ['a member cannot change the team’s features', 'mem1', TEAM, [upd('team', { features: { people: true } })], 'deny'],
+  ['a member sets their own hours and skills', 'mem1', TEAM, [set('profiles/mem1', { capacity: 12, skills: ['CAD', 'ROS'], away: [{ from: '2026-12-20', to: '2027-01-02', note: 'Holiday' }], updatedAt: 2 })], 'allow'],
+  ['a member cannot set someone else’s hours', 'mem1', TEAM, [set('profiles/admin1', { capacity: 1, skills: [], away: [], updatedAt: 2 })], 'deny'],
+  ['a member manager sets anyone’s hours', 'admin1', TEAM, [set('profiles/mem1', { capacity: 8, skills: [], away: [], updatedAt: 2 })], 'allow'],
+  ['hours a week are at most 80', 'mem1', TEAM, [set('profiles/mem1', { capacity: 200, skills: [], away: [], updatedAt: 2 })], 'deny'],
+  ['a member logs time on their task', 'mem1', TEAM, [upd('tasks/t_mem1', { timeLog: [{ id: 'l1', uid: 'mem1', name: 'mem1', date: '2026-10-19', hours: 2, note: '' }], skill: 'CAD' })], 'allow'],
+  ['a member cannot log time on someone else’s task', 'mem1', TEAM, [upd('tasks/t_owner', { timeLog: [{ id: 'l1', uid: 'mem1', name: 'mem1', date: '2026-10-19', hours: 2, note: '' }] })], 'deny'],
+  ['a member adds a risk', 'mem1', TEAM, [set('risks/new', risk('mem1'))], 'allow'],
+  ['risk scores run 1–5', 'mem1', TEAM, [set('risks/new', risk('mem1', { impact: 9 }))], 'deny'],
+  ['a viewer cannot add risks', 'view1', TEAM, [set('risks/new', risk('view1'))], 'deny'],
+  ['a member updates the owner’s risk', 'mem1', TEAM, [upd('risks/rk_owner', { status: 'mitigating' })], 'allow'],
+  ['a member cannot delete the owner’s risk', 'mem1', TEAM, [del('risks/rk_owner')], 'deny'],
+  ['a member adds a requirement', 'mem1', TEAM, [set('requirements/new', requirement('mem1', { ref: 'REQ-002' }))], 'allow'],
+  ['a member marks a requirement verified', 'mem1', TEAM, [upd('requirements/rq_owner', { verified: true, verifiedBy: 'mem1', verifiedDate: '2026-10-19' })], 'allow'],
+  ['requirement priority must be must/should/could', 'mem1', TEAM, [set('requirements/new', requirement('mem1', { priority: 'urgent' }))], 'deny'],
+  // Account photos on memberships
+  ['a member sets their own uploaded photo', 'mem1', TEAM, [upd('members/mem1', { photo: 'data:image/png;base64,' + 'A'.repeat(2000) })], 'allow'],
+  ['a member cannot set someone else’s photo', 'mem1', TEAM, [upd('members/owner', { photo: 'data:image/png;base64,' + 'A'.repeat(2000) })], 'deny'],
+  ['an oversized photo is refused', 'mem1', TEAM, [upd('members/mem1', { photo: 'data:image/png;base64,' + 'A'.repeat(70000) })], 'deny'],
+];
+
+// [name, user, what, expected] — what: 'team' | 'tasks' (read of the team doc / tasks)
+export const readScenarios = [
+  ['a non-member cannot read the team', 'evil', 'team', 'deny'],
+  ['a member reads the team', 'view1', 'team', 'allow'],
+  ['a member reads the tasks', 'view1', 'tasks', 'allow'],
+  ['a signed-out visitor cannot read anything', null, 'team', 'deny'],
+];

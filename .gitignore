@@ -1,0 +1,25 @@
+# Dependencies and builds
+node_modules
+functions/node_modules
+dist
+dist-demo
+dist-google
+.firebase
+*.log
+
+# Secrets and per-machine settings (never commit these)
+.env
+.env.local
+.env.*.local
+functions/.env.*
+!functions/.env.example
+*.pem
+service-account*.json
+
+# Marketing media is big and can be regenerated with tools/marketing
+marketing/
+
+# Update bundles from Claude
+.tt-update*.zip
+.tt-tools.zip
+.DS_Store

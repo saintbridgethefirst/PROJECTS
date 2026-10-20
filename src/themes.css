@@ -1,0 +1,73 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Theme packs (see src/themes.js). Midnight and Daylight are the base dark and
+   light themes in board.css; each pack below overrides the palette on <html>.
+   Light packs also carry data-theme="light", so every light-mode rule applies.
+   --on-accent is the text colour used on accent-coloured buttons.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root { --on-accent: #fff; --accent-2: #b794f4; }
+:root[data-theme="light"] { --accent-2: #805ad5; }
+
+:root[data-pack="ocean"] {
+  --bg-main: #071a24; --bg-panel: #0c2532; --bg-header: rgba(7, 26, 36, 0.98); --bg-week: #10303f;
+  --border-color: #1d4555; --text-main: #e0f2f7; --text-muted: #8fb3bf; --line-color: #38bdf8; --minor: #7dd3fc;
+  --shadow-glow: rgba(56, 189, 248, 0.4); --drop-zone-bg: rgba(56, 189, 248, 0.08); --on-accent: #04131b; --accent-2: #2dd4bf;
+}
+:root[data-pack="forest"] {
+  --bg-main: #0b1510; --bg-panel: #122019; --bg-header: rgba(11, 21, 16, 0.98); --bg-week: #17291f;
+  --border-color: #24402f; --text-main: #e3f1e7; --text-muted: #93b3a0; --line-color: #4ade80; --minor: #86efac;
+  --shadow-glow: rgba(74, 222, 128, 0.35); --drop-zone-bg: rgba(74, 222, 128, 0.08); --on-accent: #06140c; --accent-2: #facc15;
+}
+:root[data-pack="grape"] {
+  --bg-main: #140f1f; --bg-panel: #1c1530; --bg-header: rgba(20, 15, 31, 0.98); --bg-week: #241b3d;
+  --border-color: #3a2d5c; --text-main: #ece6fa; --text-muted: #a99cc9; --line-color: #a78bfa; --minor: #c4b5fd;
+  --shadow-glow: rgba(167, 139, 250, 0.4); --drop-zone-bg: rgba(167, 139, 250, 0.08); --on-accent: #120b22; --accent-2: #f472b6;
+}
+:root[data-pack="graphite"] {
+  --bg-main: #121212; --bg-panel: #1c1c1c; --bg-header: rgba(18, 18, 18, 0.98); --bg-week: #232323;
+  --border-color: #333333; --text-main: #e8e8e8; --text-muted: #a3a3a3; --line-color: #f59e0b; --minor: #fbbf24;
+  --shadow-glow: rgba(245, 158, 11, 0.3); --drop-zone-bg: rgba(245, 158, 11, 0.07); --on-accent: #1a1100; --accent-2: #f97316;
+}
+:root[data-pack="contrast-dark"] {
+  --bg-main: #000000; --bg-panel: #0a0a0a; --bg-header: rgba(0, 0, 0, 0.99); --bg-week: #111111;
+  --border-color: #8a8a8a; --text-main: #ffffff; --text-muted: #e0e0e0; --line-color: #ffd60a; --minor: #7cc4ff;
+  --shadow-glow: rgba(255, 214, 10, 0.5); --drop-zone-bg: rgba(255, 214, 10, 0.12); --progress-bg: rgba(255, 255, 255, 0.18); --on-accent: #000; --accent-2: #ffffff;
+}
+:root[data-pack="paper"] {
+  --bg-main: #f5f0e6; --bg-panel: #fffaf0; --bg-header: rgba(245, 240, 230, 0.98); --bg-week: #fffdf7;
+  --border-color: #e6dccb; --text-main: #2b2418; --text-muted: #6b5d4a; --line-color: #b45309; --minor: #9a6b2f;
+  --shadow-base: rgba(80, 60, 20, 0.08); --shadow-glow: rgba(180, 83, 9, 0.18); --drop-zone-bg: rgba(180, 83, 9, 0.06); --accent-2: #a16207;
+}
+:root[data-pack="sakura"] {
+  --bg-main: #fdf2f6; --bg-panel: #ffffff; --bg-header: rgba(253, 242, 246, 0.98); --bg-week: #fff7fa;
+  --border-color: #f5d0de; --text-main: #2d1a24; --text-muted: #7a5a69; --line-color: #db2777; --minor: #be185d;
+  --shadow-base: rgba(120, 30, 70, 0.07); --shadow-glow: rgba(219, 39, 119, 0.18); --drop-zone-bg: rgba(219, 39, 119, 0.05); --accent-2: #9333ea;
+}
+:root[data-pack="mint"] {
+  --bg-main: #effaf6; --bg-panel: #ffffff; --bg-header: rgba(239, 250, 246, 0.98); --bg-week: #f7fdfb;
+  --border-color: #cdeee2; --text-main: #12302a; --text-muted: #4c6f66; --line-color: #0d9488; --minor: #0f766e;
+  --shadow-base: rgba(10, 70, 60, 0.07); --shadow-glow: rgba(13, 148, 136, 0.18); --drop-zone-bg: rgba(13, 148, 136, 0.05); --accent-2: #2563eb;
+}
+:root[data-pack="contrast-light"] {
+  --bg-main: #ffffff; --bg-panel: #ffffff; --bg-header: rgba(255, 255, 255, 0.99); --bg-week: #ffffff;
+  --border-color: #1a1a1a; --text-main: #000000; --text-muted: #262626; --line-color: #0040c0; --minor: #0040c0;
+  --shadow-base: rgba(0, 0, 0, 0.15); --shadow-glow: rgba(0, 64, 192, 0.3); --drop-zone-bg: rgba(0, 64, 192, 0.07); --progress-bg: rgba(0, 0, 0, 0.18); --accent-2: #000000;
+}
+:root[data-pack^="contrast"] .task-card, :root[data-pack^="contrast"] .btn, :root[data-pack^="contrast"] .top-btn { border-width: 2px; }
+
+/* Theme picker */
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.theme-group { font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--text-muted); margin: 18px 0 8px; }
+.theme-group:first-child { margin-top: 0; }
+.theme-card { display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 2px solid var(--border-color); border-radius: 14px; background: var(--bg-panel); color: var(--text-main); font: inherit; text-align: left; cursor: pointer; }
+.theme-card:hover { border-color: var(--text-muted); }
+.theme-card.on { border-color: var(--line-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--line-color) 25%, transparent); }
+.theme-card b { font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.theme-card .hint { font-size: 11.5px; line-height: 1.35; }
+.theme-prev { position: relative; height: 74px; border-radius: 9px; overflow: hidden; border: 1px solid rgba(127, 127, 127, 0.25); display: grid; grid-template-columns: 32% 1fr; }
+.theme-prev .tp-side { padding: 8px 6px; display: flex; flex-direction: column; gap: 5px; }
+.theme-prev .tp-main { padding: 9px 8px; display: flex; flex-direction: column; gap: 6px; }
+.theme-prev i { display: block; height: 5px; border-radius: 3px; opacity: .85; }
+.theme-prev .tp-card { border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.theme-prev .tp-btn { width: 44%; height: 9px; border-radius: 4px; }
+.theme-prev.auto { grid-template-columns: 1fr 1fr; }
+.theme-check { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--line-color); color: var(--on-accent); font-size: 11px; }

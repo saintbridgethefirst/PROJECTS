@@ -1,0 +1,1965 @@
+
+
+        /* ===================================================================
+           MULTI-USER LAYER — overrides and additions on top of the v13 board.
+           Everything here talks to the app through window.TT (src/main.js).
+           =================================================================== */
+
+        // ---------- Saving: every edit goes through the app's sync engine ----------
+        let commitCount = 0;
+        function saveDatabase(coalesceKey) {
+            commitCount++;
+            const n = propagateCarry();
+            TT.commit(coalesceKey);
+            takeCarrySnapshot();
+            if (n) toast('Also updated ' + n + ' later carried-forward cop' + (n === 1 ? 'y' : 'ies') + '.', 2500);
+        }
+        function undo() { TT.undo(); }
+        function redo() { TT.redo(); }
+        const undoStack = { get length() { return TT.canUndo() ? 1 : 0; } };
+        const redoStack = { get length() { return TT.canRedo() ? 1 : 0; } };
+
+        function deleteActiveNode() {
+            if (activeNode && activeNode.type === 'person') { TT.removeMember(activeNode.id); return; }
+            const b = commitCount; _deleteActiveNodeCore(); if (commitCount !== b) toast('Deleted.', 8000, 'Undo', undo);
+        }
+        function deleteWeek(i) { const b = commitCount; _deleteWeekCore(i); if (commitCount !== b) toast('Week deleted.', 8000, 'Undo', undo); }
+        function deleteNodeViaMenu(node) {
+            if (node.type === 'person') { TT.removeMember(node.id); return; }
+            const prev = activeNode; activeNode = node; deleteActiveNode(); if (activeNode === node) activeNode = prev;
+        }
+
+        // Collapsing a week is a personal view setting, not a team change.
+        function toggleWeekCollapse(index) { const w = weeksData[index]; if (!w) return; w.collapsed = !w.collapsed; TT.setCollapsed(w.key, w.collapsed); render(); }
+        function setAllWeeksCollapsed(v) { weeksData.forEach(w => { w.collapsed = v; TT.setCollapsed(w.key, v); }); render(); }
+
+        // People are team members (accounts); names come from their accounts.
+        function addPerson() { TT.openInvite(); }
+        async function addPersonFlow() { TT.openInvite(); }
+        async function renameFlow(node, label) {
+            if (node.type === 'person') { toast('Names come from each person’s account. They can change theirs under 👤 Account.', 5000); return; }
+            if (node.name !== undefined) {
+                const v = await askText('Rename ' + label, node.name);
+                if (!v || v === node.name) return;
+                node.name = v; saveDatabase(); renderFilters(); render();
+                if (activeNode === node) openEditor(node);
+            }
+        }
+        function movePerson(p, d) {
+            if (moveInArray(db, db.indexOf(p), db.indexOf(p) + d)) { TT.savePersonOrder(db.filter(x => !x.former).map(x => x.id)); renderFilters(); render(); flashNode(p.id); }
+        }
+        function changeUser() { TT.openAccount(); }
+
+        function logHistory(task, field, originalValue, newValue) {
+            if (!task.history) task.history = [];
+            task.history.unshift({ time: getTimestamp(), user: (TT.me && TT.me.name) || 'Someone', field: field, original: String(originalValue ?? ''), updated: String(newValue ?? '') });
+            if (task.history.length > 100) task.history.length = 100;
+        }
+
+        function addWeek(customTitle) {
+            if (!TT.can('weeks.manage')) { toast('Your role can’t add weeks.'); return; }
+            const nextNum = weeksData.length + 1; const newKey = 'wk_' + generateId().slice(3);
+            const start = nextWeekStart();
+            weeksData.push({ key: newKey, title: customTitle || TT.weekTitle(start, weeksData), metric: '', collapsed: false, startDate: start });
+            db.forEach(p => p.categories.forEach(c => c[newKey] = []));
+            hiddenWeeks.clear(); if (weeksData.length > 2) { for (let i = 0; i < weeksData.length - 2; i++) hiddenWeeks.add(weeksData[i].key); }
+            saveDatabase(); renderFilters(); render();
+            setTimeout(() => { const canvas = document.getElementById('canvas-container'); if (canvas) canvas.scrollTo({ left: canvas.scrollWidth, behavior: 'smooth' }); }, 100);
+        }
+        // Suggested name when adding a week (after week afterIndex, or at the end), following the team's numbering choice.
+        function suggestWeekTitle(afterIndex) {
+            const atEnd = afterIndex === null || afterIndex === undefined || afterIndex >= weeksData.length - 1;
+            const start = atEnd ? nextWeekStart() : (weeksData[afterIndex].startDate ? addDaysISO(weeksData[afterIndex].startDate, 7) : '');
+            return TT.weekTitle(start, weeksData);
+        }
+        function isoWeekOf(iso) {
+            const d = parseISO(iso) || new Date(); const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day); const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+            return Math.ceil(((t - y0) / 86400000 + 1) / 7);
+        }
+
+        // ---------- Permission gates on export / analytics ----------
+        function exportOffline() { if (!TT.can('data.export')) return toast('Your role can’t export data.'); XLSX.writeFile(generateWorkbook(false), safeFileName(TT.team.name) + '_Tracker_' + dateStamp() + '.xlsx'); }
+        function downloadBackup() { if (!TT.can('data.export')) return toast('Your role can’t export data.'); _downloadBackupBase(); }
+        function openAnalytics(tab) {
+            if (!TT.can('analytics.view')) return toast('Your role can’t open analytics.');
+            _openAnalyticsBase(tab);
+            const pt = document.querySelector('#analytics-overlay .an-tab[data-tab="planning"]');
+            if (pt && !TT.feature('planning')) { pt.remove(); if (anTab === 'planning') { anTab = 'overview'; renderAnalytics(); } }
+            const exp = document.getElementById('an-export');
+            subteamAnalyticsUi(exp);
+            if (exp && !document.getElementById('an-report')) { const b = document.createElement('button'); b.className = 'top-btn accent'; b.id = 'an-report'; b.title = 'A progress report for your supervisor: PDF, Word or email'; b.textContent = '📄 Progress report'; b.onclick = () => { closeAnalytics(); TT.openReport(); }; exp.before(b); }
+        }
+        async function restoreBackupFile(file) { TT.importFile(file); }
+        function safeFileName(s) { return String(s || 'Team').replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 40) || 'Team'; }
+
+        // ---------- Custom fields helpers ----------
+        function teamFields() { return (TT.team && TT.team.fields) || []; }
+        function memberName(uid) { const p = db.find(x => x.id === uid); return p ? p.name : ''; }
+        function displayCustom(f, v) {
+            if (v === undefined || v === null || v === '') return '';
+            if (f.type === 'checkbox') return v ? '✓' : '';
+            if (f.type === 'date') return fmtShort(v);
+            if (f.type === 'person') return memberName(v);
+            if (f.type === 'url') { try { return new URL(v).hostname; } catch (e) { return ''; } }
+            return String(v);
+        }
+        function cleanCustomInput(f, raw) {
+            switch (f.type) {
+                case 'number': { if (raw === '') return null; const n = Number(raw); return Number.isFinite(n) ? n : null; }
+                case 'checkbox': return !!raw;
+                case 'select': return f.options.includes(raw) ? raw : '';
+                case 'url': { if (!raw) return ''; try { const u = new URL(raw); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch (e) { return ''; } }
+                case 'date': return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
+                default: return String(raw).slice(0, 1000);
+            }
+        }
+        function taskOwner(task) { const loc = locateTask(task.id); return loc ? loc.person.id : null; }
+
+        // ---------- Cards: icon, custom fields, attachments ----------
+        function createTaskCard(task, person, cat, weekKey) {
+            const card = _createTaskCardBase(task, person, cat, weekKey);
+            if (task.isGhost) return card;
+            const title = card.querySelector('.card-title');
+            if (task.icon && title) {
+                const ic = document.createElement('span'); ic.className = 'task-icon';
+                if (task.icon.startsWith('data:image/')) { const img = document.createElement('img'); img.src = task.icon; img.alt = ''; ic.appendChild(img); }
+                else ic.textContent = task.icon;
+                title.prepend(ic);
+            }
+            const ph = phaseOf(task);
+            if (ph && title) title.after(phaseTagEl(ph));
+            if (task.repeat && (task.repeat.every || task.repeat.seriesId) && title) {
+                const rp = document.createElement('span'); rp.className = 'repeat-chip';
+                rp.textContent = '🔁' + (task.repeat.every ? ' ' + REPEAT_TEXT[task.repeat.every] : '');
+                rp.title = task.repeat.every ? 'Repeats ' + REPEAT_TEXT[task.repeat.every].toLowerCase() + (task.repeat.until ? ' until ' + fmtShort(task.repeat.until) : '') : 'Part of a repeating task';
+                title.appendChild(rp);
+            }
+            if (phaseHidden(task)) card.classList.add('hidden-by-phase');
+            const plan = document.createElement('div'); plan.className = 'plan-chips';
+            const logged = TT.feature('time') ? chainLogged(task) : 0;
+            if (logged) { const e = document.createElement('span'); e.className = 'effort-chip time-chip' + (task.effort && logged > task.effort ? ' over' : ''); e.textContent = '🕒 ' + fmtHours(logged).replace('h', '') + (TT.feature('planning') && task.effort ? ' / ' + fmtHours(task.effort) : 'h'); e.title = 'Hours logged' + (task.effort ? ' against the ' + fmtHours(task.effort) + ' estimate' : ''); plan.appendChild(e); }
+            else if (TT.feature('planning') && task.effort !== null && task.effort !== undefined) { const e = document.createElement('span'); e.className = 'effort-chip'; e.textContent = '⏱ ' + fmtHours(task.effort); e.title = 'Estimated effort'; plan.appendChild(e); }
+            if (TT.feature('people') && task.skill && task.flag !== 'completed') { const e = document.createElement('span'); e.className = 'effort-chip skill-chip'; e.textContent = '🎯 ' + task.skill; e.title = 'Needs: ' + task.skill; plan.appendChild(e); }
+            if (task.flag !== 'completed' && TT.stageOf(task) === 'doing') { const d = document.createElement('span'); d.className = 'stage-chip'; d.textContent = '🔵 Doing'; plan.appendChild(d); }
+            const dc = TT.feature('planning') ? depChip(task) : null; if (dc) plan.appendChild(dc);
+            const cc = carryChip(task); if (cc) plan.appendChild(cc);
+            const nb = TT.feature('notebook') ? TT.notebookCount(task.id) : 0; if (nb) { const n = document.createElement('span'); n.className = 'effort-chip nb-chip'; n.textContent = '📓 ' + nb; n.title = nb + ' lab notebook entr' + (nb === 1 ? 'y' : 'ies'); plan.appendChild(n); }
+            if (plan.childNodes.length) card.insertBefore(plan, card.querySelector('.progress-wrapper'));
+            const shown = teamFields().filter(f => f.showOnCard).map(f => [f, displayCustom(f, task.custom && task.custom[f.id])]).filter(([, v]) => v);
+            const anchor = card.querySelector('.progress-wrapper');
+            if (shown.length) {
+                const chips = document.createElement('div'); chips.className = 'cf-chips';
+                shown.forEach(([f, v]) => { const c = document.createElement('span'); c.className = 'cf-chip'; const b = document.createElement('b'); b.textContent = v; c.append(f.name + ': ', b); chips.appendChild(c); });
+                card.insertBefore(chips, anchor);
+            }
+            const nComments = TT.commentCount(task.id);
+            if (nComments) {
+                const cc = document.createElement('div'); cc.className = 'att-chip cm-chip'; cc.textContent = '💬 ' + nComments + (nComments === 1 ? ' comment' : ' comments');
+                card.insertBefore(cc, anchor);
+            }
+            if (TT.hasUnreadMention(task.id)) {
+                const dot = document.createElement('span'); dot.className = 'mention-dot'; dot.textContent = '@'; dot.title = 'You were mentioned in a comment here';
+                card.appendChild(dot); card.classList.add('has-mention');
+            }
+            const ghLinks = (task.attachments || []).filter(a => TT.parseGithub(a.url));
+            if (ghLinks.length) {
+                const row = document.createElement('div'); row.className = 'gh-chips';
+                ghLinks.slice(0, 3).forEach(a => { const g = TT.parseGithub(a.url); const c = ghChip(a.url, '#' + g.number); row.appendChild(c); });
+                card.insertBefore(row, anchor);
+            }
+            if (task.attachments && task.attachments.length) {
+                const a = document.createElement('div'); a.className = 'att-chip'; a.textContent = '📎 ' + task.attachments.length + (task.attachments.length === 1 ? ' file' : ' files');
+                card.insertBefore(a, anchor);
+            }
+            if (!TT.canEditOwner(person.id)) card.setAttribute('draggable', 'false');
+            // "⋯" opens the same actions as right-click (the only way on touch screens besides press-and-hold)
+            const more = document.createElement('button'); more.type = 'button'; more.className = 'card-more';
+            more.setAttribute('aria-label', 'Task actions'); more.title = 'Task actions'; more.textContent = '⋯';
+            more.addEventListener('click', (e) => { e.stopPropagation(); const r = more.getBoundingClientRect(); onBoardContextMenu({ target: card, clientX: r.left, clientY: r.bottom + 4, preventDefault() {} }); });
+            card.appendChild(more);
+            const baseClick = card.onclick;
+            card.onclick = (e) => { if (baseClick) baseClick.call(card, e); if (isCompact()) setPanel(true); };
+            return card;
+        }
+
+        // ---------- Editor panel ----------
+        const ICON_CHOICES = ['🔧', '⚙️', '🤖', '📐', '🧪', '📊', '📝', '💡', '🚀', '🎯', '⚡', '🔌', '🖥️', '📦', '🧠', '📷'];
+        function openEditor(nodeData) {
+            if (nodeData.type === 'person') return openPersonPanel(nodeData);
+            _openEditorBase(nodeData);
+            const form = document.getElementById('edit-form'); if (!form) return;
+            if (nodeData.type === 'category') {
+                const f = findCatById(nodeData.id);
+                if (f && !TT.canEditOwner(f.person.id)) makeReadOnly(form);
+                return;
+            }
+            const owner = taskOwner(nodeData);
+            const editable = TT.canEditOwner(owner);
+            const extra = document.createElement('div');
+            if (nodeData.dueDate) {
+                const due = form.querySelector('.due-field');
+                if (due) { const a = document.createElement('button'); a.type = 'button'; a.className = 'link-btn cal-link'; a.textContent = '📅 Add to my calendar'; a.onclick = () => TT.taskIcs(nodeData.id); due.after(a); }
+            }
+            extra.appendChild(phaseSection(nodeData, editable));
+            extra.appendChild(planningSection(nodeData, editable));
+            extra.appendChild(repeatSection(nodeData, editable));
+            extra.appendChild(iconSection(nodeData, editable));
+            if (teamFields().length) extra.appendChild(customFieldSection(nodeData, editable));
+            extra.appendChild(attachmentSection(nodeData, editable));
+            const chainNote = carryNote(nodeData); if (chainNote) extra.prepend(chainNote);
+            const linked = TT.linkedSection(nodeData.id); if (linked) extra.appendChild(linked);
+            if (TT.feature('people')) extra.appendChild(skillSection(nodeData, editable));
+            if (TT.feature('time')) extra.appendChild(timeSection(nodeData));
+            if (TT.feature('notebook')) extra.appendChild(TT.notebookSection(nodeData.id));
+            extra.appendChild(TT.commentSection(nodeData.id));
+            if (nodeData.updatedBy) { const n = document.createElement('div'); n.className = 'hint'; n.style.marginTop = '14px'; n.textContent = 'Last change by ' + nodeData.updatedBy + (nodeData.updatedAt ? ' · ' + new Date(nodeData.updatedAt).toLocaleString() : ''); extra.appendChild(n); }
+            const hist = [...form.querySelectorAll('label')].find(l => l.textContent === 'History Log');
+            form.insertBefore(extra, hist || null);
+            if (!editable) makeReadOnly(form);
+        }
+        function makeReadOnly(form) {
+            // Comments stay open: people can discuss a task they're not allowed to edit.
+            form.querySelectorAll('input, textarea, select, button').forEach(n => { if (!n.closest('.comments-section, .nb-section, .linked-section, .carry-note') && !n.classList.contains('cal-link')) n.disabled = true; });
+            form.querySelectorAll('.due-quick, [data-edit-only], .btn-danger').forEach(n => { n.style.display = 'none'; });
+            const note = document.createElement('div'); note.className = 'read-only-note';
+            note.textContent = 'View only — your role can’t edit this.';
+            form.prepend(note);
+        }
+        function section(title) {
+            const s = document.createElement('div'); s.className = 'panel-section';
+            const h = document.createElement('h4'); h.textContent = title; s.appendChild(h); return s;
+        }
+        function iconSection(task, editable) {
+            const s = section('Icon');
+            const row = document.createElement('div'); row.className = 'icon-row';
+            const set = (v) => { if ((task.icon || '') === v) return; logHistory(task, 'Icon', task.icon ? 'icon' : 'none', v ? 'icon' : 'none'); task.icon = v; saveDatabase(); render(); openEditor(task); };
+            ICON_CHOICES.forEach(ic => { const b = document.createElement('button'); b.type = 'button'; b.className = 'icon-pick' + (task.icon === ic ? ' on' : ''); b.textContent = ic; b.title = 'Use ' + ic; b.onclick = () => set(ic); row.appendChild(b); });
+            if (task.icon && task.icon.startsWith('data:image/')) { const b = document.createElement('button'); b.type = 'button'; b.className = 'icon-pick on'; const img = document.createElement('img'); img.src = task.icon; img.alt = 'Custom icon'; b.appendChild(img); row.appendChild(b); }
+            s.appendChild(row);
+            const actions = document.createElement('div'); actions.className = 'row'; actions.dataset.editOnly = '1';
+            const up = document.createElement('button'); up.type = 'button'; up.className = 'btn small'; up.textContent = 'Upload image…';
+            up.onclick = async () => { try { const d = await TT.pickImage(64, 24000); if (d) set(d); } catch (e) { toast(e.message, 5000); } };
+            actions.appendChild(up);
+            if (task.icon) { const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'btn small ghost'; rm.textContent = 'Remove icon'; rm.onclick = () => set(''); actions.appendChild(rm); }
+            if (editable) s.appendChild(actions);
+            return s;
+        }
+        function customFieldSection(task, editable) {
+            const s = section('Details');
+            if (!task.custom) task.custom = {};
+            teamFields().forEach(f => {
+                const wrap = document.createElement('label'); wrap.style.display = 'block';
+                const lab = document.createElement('span'); lab.textContent = f.name; lab.style.cssText = 'display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin:10px 0 5px';
+                wrap.appendChild(lab);
+                let input; const cur = task.custom[f.id];
+                if (f.type === 'select' || f.type === 'person') {
+                    input = document.createElement('select');
+                    const opts = f.type === 'select' ? f.options.map(o => [o, o]) : db.filter(p => !p.former).map(p => [p.id, p.name]);
+                    [['', '—'], ...opts].forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; if ((cur || '') === v) o.selected = true; input.appendChild(o); });
+                } else if (f.type === 'checkbox') {
+                    input = document.createElement('input'); input.type = 'checkbox'; input.checked = !!cur; input.style.width = 'auto';
+                } else {
+                    input = document.createElement('input');
+                    input.type = { number: 'number', date: 'date', url: 'url' }[f.type] || 'text';
+                    input.value = cur === undefined || cur === null ? '' : String(cur);
+                    if (f.type === 'url') input.placeholder = 'https://…';
+                }
+                input.dataset.fieldId = f.id;
+                input.addEventListener('change', () => {
+                    const raw = f.type === 'checkbox' ? input.checked : input.value;
+                    const v = cleanCustomInput(f, raw);
+                    if (JSON.stringify(task.custom[f.id] ?? null) === JSON.stringify(v ?? null)) return;
+                    logHistory(task, f.name, displayCustom(f, task.custom[f.id]) || '—', displayCustom(f, v) || '—');
+                    task.custom = { ...task.custom, [f.id]: v };
+                    saveDatabase(); render();
+                });
+                wrap.appendChild(input);
+                if (f.type === 'url' && cur) { const a = document.createElement('a'); a.href = cur; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = 'Open link'; a.style.fontSize = '12px'; wrap.appendChild(a); }
+                s.appendChild(wrap);
+            });
+            return s;
+        }
+        function attachmentSection(task, editable) {
+            const s = section('Files & links');
+            const list = document.createElement('div'); list.className = 'att-list';
+            const icons = { gdrive: '🟩', onedrive: '🟦', link: '🔗', github: '🐙' };
+            (task.attachments || []).forEach(a => {
+                const row = document.createElement('div'); row.className = 'att-item';
+                const ic = document.createElement('span'); ic.textContent = icons[a.provider] || '🔗';
+                const link = document.createElement('a'); link.href = a.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = a.name || a.url; link.title = (a.addedBy ? 'Added by ' + a.addedBy + ' · ' : '') + a.url;
+                row.append(ic, link);
+                if (TT.parseGithub(a.url)) { ic.textContent = '🐙'; row.appendChild(ghChip(a.url, '', true)); }
+                if (editable) {
+                    const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'btn small ghost'; rm.textContent = 'Remove'; rm.dataset.editOnly = '1';
+                    rm.onclick = () => { if (!confirm('Remove "' + (a.name || 'this link') + '" from the task? The file itself stays where it is.')) return; logHistory(task, 'Attachment removed', a.name, ''); task.attachments = task.attachments.filter(x => x.id !== a.id); saveDatabase(); render(); openEditor(task); };
+                    row.appendChild(rm);
+                }
+                list.appendChild(row);
+            });
+            if (!(task.attachments || []).length) { const e = document.createElement('div'); e.className = 'hint'; e.textContent = 'No files yet.'; list.appendChild(e); }
+            s.appendChild(list);
+            // Every linked GitHub issue / pull request is closed or merged → offer to complete the task
+            const gh = (task.attachments || []).filter(a => TT.parseGithub(a.url));
+            if (editable && gh.length && task.flag !== 'completed') {
+                Promise.all(gh.map(a => TT.githubStatus(a.url))).then(st => {
+                    if (!st.every(x => x && x.done) || !s.isConnected || task.flag === 'completed') return;
+                    const box = document.createElement('div'); box.className = 'gh-done-box';
+                    const t = document.createElement('span'); t.textContent = gh.length === 1 ? 'The linked GitHub ' + (st[0].kind === 'pull' ? 'pull request is ' + st[0].state : 'issue is closed') + '.' : 'All ' + gh.length + ' linked GitHub items are closed or merged.';
+                    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small'; b.textContent = '✓ Mark task completed';
+                    b.onclick = () => { const old = task.flag; task.flag = 'completed'; task.completedDate = todayISO(); logHistory(task, 'Task Status Flag', old, 'completed (GitHub closed)'); saveDatabase(); render(); openEditor(task); };
+                    box.append(t, b); s.appendChild(box);
+                });
+            }
+            if (editable) {
+                const add = document.createElement('button'); add.type = 'button'; add.className = 'btn small'; add.textContent = '📎 Attach a file or link'; add.dataset.editOnly = '1';
+                add.onclick = () => TT.openAttach(task.id);
+                s.appendChild(add);
+            }
+            return s;
+        }
+        /** Called by the attach dialog once a file is uploaded or a link added. */
+        function addAttachmentToTask(taskId, att) {
+            const loc = locateTask(taskId); if (!loc) { toast('That task no longer exists.'); return false; }
+            const t = loc.task; t.attachments = [...(t.attachments || []), att];
+            logHistory(t, 'Attachment added', '', att.name);
+            saveDatabase(); render(); if (activeNode && activeNode.id === taskId) openEditor(t);
+            return true;
+        }
+        window.boardAddAttachment = addAttachmentToTask;
+
+        function openPersonPanel(person) {
+            activeNode = person;
+            const noSel = document.getElementById('no-selection'); if (noSel) noSel.style.display = 'none';
+            const form = document.getElementById('edit-form'); if (!form) return;
+            form.style.display = 'block'; form.replaceChildren();
+            const h = document.createElement('div'); h.className = 'member-meta';
+            const name = document.createElement('div'); name.style.cssText = 'font-size:18px;font-weight:800;margin-bottom:4px'; name.textContent = person.name;
+            h.appendChild(name);
+            if (person.former) { const p = document.createElement('div'); p.className = 'hint'; p.textContent = 'This person has left the team. Their rows stay until someone with “Edit everyone’s tasks” moves or deletes them.'; h.appendChild(p); }
+            else {
+                const e = document.createElement('div'); e.className = 'muted'; e.textContent = person.email; h.appendChild(e);
+                const r = document.createElement('div'); r.style.marginTop = '8px'; const pill = document.createElement('span'); pill.className = 'pill blue'; pill.textContent = TT.roleName(person.roleId); r.appendChild(pill); h.appendChild(r);
+            }
+            const count = db.find(p => p.id === person.id)?.categories.reduce((n, c) => n + weeksData.reduce((m, w) => m + (c[w.key] || []).length, 0), 0) || 0;
+            const stats = document.createElement('div'); stats.className = 'hint'; stats.style.marginTop = '10px'; stats.textContent = count + (count === 1 ? ' task' : ' tasks') + ' on the board';
+            h.appendChild(stats);
+            form.appendChild(h);
+            const actions = document.createElement('div'); actions.className = 'row'; actions.style.marginTop = '18px';
+            const mk = (label, fn, cls) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small ' + (cls || ''); b.textContent = label; b.onclick = fn; actions.appendChild(b); };
+            if (!person.former && (TT.canEditOwner(person.id))) mk('➕ Add category', () => addCategoryFlow(person));
+            if (!person.former && TT.can('members.manage') && person.roleId !== 'owner' && person.id !== TT.me.uid) {
+                mk('Change role', () => TT.openMemberRole(person.id));
+                mk('Remove from team', () => TT.removeMember(person.id), 'danger');
+            }
+            if (person.id === TT.me.uid) mk('Edit my name', () => TT.openAccount());
+            form.appendChild(actions);
+        }
+
+        // ---------- Menus ----------
+        function personMenuItems(p) {
+            const i = db.indexOf(p); const isMe = TT.me && p.id === TT.me.uid;
+            const manage = TT.can('members.manage') && !p.former && p.roleId !== 'owner' && !isMe;
+            return [
+                { header: (p.former ? 'Former member' : TT.roleName(p.roleId)) + ' · ' + p.name },
+                { icon: '🗂️', label: 'Open details', action: () => openEditorForNode(p) },
+                !p.former && TT.canEditOwner(p.id) ? { icon: '➕', label: 'Add category…', action: () => addCategoryFlow(p) } : null,
+                { divider: true },
+                { icon: '⬆️', label: 'Move up (my view)', disabled: i <= 0, action: () => movePerson(p, -1) },
+                { icon: '⬇️', label: 'Move down (my view)', disabled: i >= db.length - 1, action: () => movePerson(p, 1) },
+                db.length > 1 ? { icon: '👁️', label: 'Show only this person', action: () => showOnlyPerson(p) } : null,
+                hiddenPersons.size ? { icon: '👥', label: 'Show everyone', action: showEverything } : null,
+                manage ? { divider: true } : null,
+                manage ? { icon: '🔑', label: 'Change role…', action: () => TT.openMemberRole(p.id) } : null,
+                manage ? { icon: '🚪', label: 'Remove from team…', danger: true, action: () => TT.removeMember(p.id) } : null,
+            ];
+        }
+        function canvasMenuItems() {
+            const items = _canvasMenuItemsBase();
+            const team = [
+                { divider: true },
+                { header: 'Team' },
+                TT.can('data.export') ? { icon: '✨', label: 'AI summary…', action: () => TT.openAI() } : null,
+                { icon: '📅', label: 'Add deadlines to my calendar…', action: () => TT.openCalendar() },
+                { icon: '⚙️', label: 'Team settings…', action: () => TT.openSettings() },
+            ];
+            return items.map(it => {
+                if (!it) return it;
+                if (it.label === 'Add team member…') return TT.can('members.manage') ? { ...it, label: 'Invite team member…' } : null;
+                if ((it.label === 'Add week…' || it.label === 'Set week dates…') && !TT.can('weeks.manage')) return null;
+                if ((it.label === 'Analytics dashboard' || it.label === 'Deadline timeline') && !TT.can('analytics.view')) return null;
+                if (it.label === 'Backup & export') {
+                    const sub = [
+                        TT.can('data.export') ? { icon: '💾', label: 'Download full backup (JSON)', action: downloadBackup } : null,
+                        TT.can('data.export') ? { icon: '📊', label: 'Download Excel report', action: exportOffline } : null,
+                        (TT.can('tasks.editOwn') || TT.can('tasks.editAll')) ? { icon: '📥', label: 'Import tasks from a file…', action: () => TT.importFromPicker() } : null,
+                    ].filter(Boolean);
+                    return sub.length ? { ...it, label: 'Data', submenu: sub } : null;
+                }
+                return it;
+            }).concat(team);
+        }
+        function taskMenuItems(loc) {
+            const items = _taskMenuItemsBase(loc);
+            if (!TT.canEditOwner(loc.person.id)) {
+                return [{ header: 'Task (view only)' }, { icon: '🔎', label: 'Open details', action: () => openEditorForNode(loc.task) }];
+            }
+            const at = items.findIndex(it => it && it.label === 'Duplicate');
+            items.splice(at + 1, 0, { icon: '📎', label: 'Attach file or link…', action: () => TT.openAttach(loc.task.id) });
+            const phaseItem = phaseMenuItem(loc); if (phaseItem) items.splice(at + 1, 0, phaseItem);
+            if (loc.task.dueDate) items.splice(at + 1, 0, { icon: '📅', label: 'Add deadline to my calendar', action: () => TT.taskIcs(loc.task.id) });
+            items.splice(at + 1, 0, { icon: '💾', label: 'Save as template…', action: () => saveAsTemplate(loc) });
+            if (TT.feature('planning')) items.splice(at + 1, 0, { icon: '⛓', label: 'Waits on another task…', action: () => pickPrereq(loc.task) });
+            items.splice(at + 1, 0, stageMenuItem(loc));
+            // Move to another week (drag and drop isn't available on touch screens)
+            const others = weeksData.filter(w => w.key !== loc.weekKey);
+            if (others.length) {
+                const carry = items.findIndex(it => it && typeof it.label === 'string' && it.label.startsWith('Carry forward'));
+                items.splice(carry > -1 ? carry + 1 : at + 2, 0, { icon: '↔️', label: 'Move to week', submenu: others.map(w => ({ icon: '📅', label: w.title + (w.startDate ? ' · ' + fmtShort(w.startDate) : ''), action: () => moveTaskToWeek(loc, w.key) })) });
+            }
+            return items;
+        }
+
+        // ---------- Analytics export: include custom fields ----------
+        function exportTaskList() {
+            if (!TT.can('data.export')) return toast('Your role can’t export data.');
+            const rows = collectTasks(); const k = kpis(rows); const fields = teamFields();
+            const head = ['Team member', 'Category', 'Week', 'Week start', 'Phase', 'Task', 'Priority', TT.label('status').label, 'Flag', TT.label('jiraId').label, 'Deadline', 'Days to deadline', 'Overdue', 'Completed on', 'Sub-tasks done', 'Sub-tasks total', 'Supporting', 'Files', 'Stage', 'Effort (h)', 'Waits on'].concat(fields.map(f => f.name));
+            const aoa = [head].concat(rows.map(r => [r.person.name, r.cat.name, r.week.title, r.week.startDate || '', (phaseOf(r.t) || {}).name || '', r.t.name, r.t.priority, r.t.status, r.t.flag, r.t.jiraId || '', r.due, r.days === null ? '' : r.days, r.overdue ? 'YES' : '', r.t.completedDate || '', (r.t.subtasks || []).filter(s => s.completed).length, (r.t.subtasks || []).length, r.sup.join(', '), (r.t.attachments || []).map(a => a.url).join('\n'), STAGE_LABEL[TT.stageOf(r.t)], r.t.effort ?? '', prereqs(r.t).map(l => l.task.name).join('; ')].concat(fields.map(f => displayCustom(f, r.t.custom && r.t.custom[f.id])))));
+            const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = head.map((h, i) => ({ wch: i === 5 ? 40 : 14 }));
+            const sum = [['Metric', 'Value'], ['Team', TT.team.name], ['Generated', todayISO()], ['Filter: person', anPerson === 'all' ? 'Everyone' : ((db.find(p => p.id === anPerson) || {}).name || '')], ['Filter: weeks', anScope], ['Total tasks', k.total], ['Completed', k.completed], ['Completion %', k.pct], ['Pending', k.pending], ['Backlog', k.backlog], ['Open (no flag)', k.open], ['Overdue', k.overdue], ['Due in 7 days', k.dueWeek], ['Open Blocker/Critical', k.risk], ['Open without deadline', k.noDeadline], ['Sub-task completion %', k.subPct]];
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sum), 'Summary'); XLSX.utils.book_append_sheet(wb, ws, 'Tasks');
+            XLSX.writeFile(wb, safeFileName(TT.team.name) + '_Analytics_' + dateStamp() + '.xlsx'); toast('Task list exported.');
+        }
+
+        /** Plain rows for AI summaries, Sheets export and tests. */
+        window.boardRows = function (opts) {
+            opts = opts || {};
+            const savedScope = anScope, savedPerson = anPerson, savedPhase = anPhase, savedSt = anSubteam;
+            anScope = opts.scope || 'all'; anPerson = opts.person || 'all'; anSubteam = opts.subteam || ''; if (opts.allPhases) anPhase = 'all';
+            try {
+                const fields = teamFields();
+                return collectTasks().map(r => ({
+                    id: r.t.id, phaseId: r.t.phaseId || '', waitIssues: depState(r.t).issues.map(i => i.text), carryCount: r.carryCount || 1, firstWeek: (r.startWeek || r.week).title,
+                    person: r.person.name, personId: r.person.id, category: r.cat.name, week: r.week.title, weekStart: r.week.startDate || '',
+                    task: r.t.name, priority: r.t.priority, status: r.t.status, ref: r.t.jiraId || '', flag: r.status,
+                    deadline: r.due, daysToDeadline: r.days, overdue: r.overdue, completedOn: r.t.completedDate || '', phase: (phaseOf(r.t) || {}).name || '',
+                    stage: STAGE_LABEL[TT.stageOf(r.t)], effort: r.t.effort ?? null, waitsOn: prereqs(r.t).map(l => l.task.name),
+                    subtasks: (r.t.subtasks || []).map(s => ({ title: s.title, done: !!s.completed })),
+                    supporting: r.sup, files: (r.t.attachments || []).map(a => ({ name: a.name, url: a.url, provider: a.provider })),
+                    custom: Object.fromEntries(fields.map(f => [f.name, displayCustom(f, r.t.custom && r.t.custom[f.id])]).filter(([, v]) => v !== '')),
+                }));
+            } finally { anScope = savedScope; anPerson = savedPerson; anPhase = savedPhase; anSubteam = savedSt; }
+        };
+        window.boardKpis = function (opts) {
+            opts = opts || {}; const s1 = anScope, s2 = anPerson, s3 = anSubteam; anScope = opts.scope || 'all'; anPerson = opts.person || 'all'; anSubteam = opts.subteam || '';
+            try { return kpis(collectTasks()); } finally { anScope = s1; anPerson = s2; anSubteam = s3; }
+        };
+
+        // ---------- App ⇄ board API ----------
+        window.boardGetModel = () => ({ weeksData, db });
+        window.boardApplyModel = function (model) {
+            const activeId = activeNode && activeNode.id, activeType = activeNode && activeNode.type;
+            weeksData = model.weeksData; db = model.db;
+            hiddenPersons = new Set([...hiddenPersons].filter(id => db.some(p => p.id === id)));
+            hiddenWeeks = new Set([...hiddenWeeks].filter(k => weeksData.some(w => w.key === k)));
+            let next = null;
+            if (activeId) {
+                if (activeType === 'task') { const loc = locateTask(activeId); next = loc && loc.task; }
+                else if (activeType === 'category') { const f = findCatById(activeId); next = f && f.cat; }
+                else if (activeType === 'person') next = db.find(p => p.id === activeId) || null;
+            }
+            activeNode = next;
+            if (editingHeader()) deferredRender = true; else { renderFilters(); render(); }
+            const form = document.getElementById('edit-form');
+            const typing = form && form.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+            if (!activeNode) { if (activeId) closeEditor(); }
+            else if (!typing) openEditor(activeNode);
+            if (document.getElementById('analytics-overlay')) renderAnalytics();
+            scheduleRecurring();
+            takeCarrySnapshot();
+            if (window.boardFitTopBar) window.boardFitTopBar();
+        };
+        window.boardReset = function () {
+            weeksData = []; db = []; activeNode = null; hiddenPersons = new Set(); hiddenWeeks = new Set();
+            closeEditor(); closeAnalytics(); closeContextMenu();
+            const n = document.getElementById('nodes-container'); if (n) n.innerHTML = '';
+            const h = document.getElementById('dynamic-headers'); if (h) h.innerHTML = '';
+            const s = document.getElementById('lines-svg'); if (s) s.innerHTML = '';
+        };
+        updateThemeButtons();
+
+        // Save the current model as one change (used by the importer).
+        window.boardCommit = function (key) { saveDatabase(key); renderFilters(); render(); };
+        window.boardRender = function () { if (editingHeader()) { deferredRender = true; return; } renderFilters(); render(); };
+        window.generateId = generateId;   // const at top level isn't on window by itself
+
+        // Every column you can edit gets an "Add task" button at its foot, so there is
+        // always somewhere to click even when the column is full of cards.
+        function renderCategoryRow(person, cat, container, visibleWeeks) {
+            _renderCategoryRowBase(person, cat, container, visibleWeeks);
+            const label = container.lastElementChild && container.lastElementChild.querySelector('.node-cat');
+            if (label) label.title = cat.name;   // the full name, if a long one is cut short
+            if (cat.isSupportRow || person.former || !TT.canEditOwner(person.id)) return;
+            const row = container.lastElementChild; if (!row) return;
+            row.querySelectorAll('.col-week:not(.collapsed-col)').forEach(col => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'col-add'; b.textContent = '＋ Add task';
+                b.setAttribute('aria-label', 'Add task to ' + cat.name);
+                b.onclick = (e) => { e.stopPropagation(); addTaskFlow(cat, col.dataset.weekKey); };
+                col.appendChild(b);
+            });
+        }
+
+        // Timeline: days remaining for one task row (r from collectTasks). Short form for the
+        // sticky task column, long form after the bar and in the tooltip.
+        function daysLeftLabel(r) {
+            if (r.done) return { short: '✓', long: 'done' };
+            if (r.days === null || r.days === undefined) return { short: '–', long: 'no deadline' };
+            if (r.days < 0) return { short: (-r.days) + 'd late', long: (-r.days) + (r.days === -1 ? ' day' : ' days') + ' overdue' };
+            if (r.days === 0) return { short: 'today', long: 'due today' };
+            return { short: r.days + 'd', long: r.days + (r.days === 1 ? ' day' : ' days') + ' left' };
+        }
+
+        // Account photo for a person row: only a small uploaded image or an https link is shown.
+        function personPhotoHtml(person) {
+            const src = person && person.photo;
+            if (typeof src !== 'string' || !src) return '';
+            const ok = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(src) || /^https:\/\/[^\s"'<>]+$/.test(src);
+            return ok ? '<img class="person-photo" src="' + esc(src) + '" alt="" referrerpolicy="no-referrer">' : '';
+        }
+
+        // Deadline field in the task editor: readable date + days left; click opens the calendar.
+        function dueDisplayHtml(task) {
+            const d = task && parseISO(task.dueDate);
+            if (!d) return '<span class="due-ico">📅</span><span>Pick a deadline</span>';
+            const date = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+            const info = dueInfo(task); let left = '';
+            if (task.flag === 'completed') left = 'done';
+            else if (info && info.days < 0) left = (-info.days) + (info.days === -1 ? ' day' : ' days') + ' overdue';
+            else if (info && info.days === 0) left = 'due today';
+            else if (info) left = info.days + (info.days === 1 ? ' day' : ' days') + ' left';
+            return '<span class="due-ico">📅</span><span>' + esc(date) + '</span>' + (left ? '<span class="due-left ' + (info ? info.cls : '') + '">' + esc(left) + '</span>' : '');
+        }
+        function openDuePicker() {
+            const inp = document.getElementById('edit-due'); if (!inp || inp.disabled) return;
+            try { if (typeof inp.showPicker === 'function') { inp.showPicker(); return; } } catch (e) { /* fall back below */ }
+            inp.classList.add('show'); inp.focus();   // older browsers: show the native box instead
+        }
+
+        // One history entry as a readable line: "<what>: <old> → <new>", or "<what>: <value>".
+        function histLineHtml(h) {
+            const field = String(h.field || 'Change');
+            const what = esc(field.charAt(0).toUpperCase() + field.slice(1));
+            const val = (v) => '<span class="hist-val-box">' + esc(v) + '</span>';
+            if (h.original && h.updated) return '<span class="hist-what">' + what + ':</span> ' + val(h.original) + ' <span class="hist-arrow">→</span> ' + val(h.updated);
+            if (h.updated || h.original) return '<span class="hist-what">' + what + ':</span> ' + val(h.updated || h.original);
+            return '<span class="hist-what">' + what + '</span>';
+        }
+
+        // Keep person and category names in view while scrolling down long rows: they stick just
+        // below the week headers, whose height changes with wrapping, so measure it.
+        (function trackBoardHeaderHeight() {
+            const head = document.getElementById('timeline-headers'); if (!head) return;
+            const set = () => document.documentElement.style.setProperty('--board-head-h', head.getBoundingClientRect().height + 'px');
+            set(); if (typeof ResizeObserver === 'function') new ResizeObserver(set).observe(head); else window.addEventListener('resize', set);
+        })();
+        (function editorHeaderShadow() {
+            const panel = document.getElementById('editor-panel'); if (!panel) return;
+            panel.addEventListener('scroll', () => panel.classList.toggle('scrolled', panel.scrollTop > 4), { passive: true });
+        })();
+
+        // ---------- Phone & tablet ----------
+        // Below 1100px the editor becomes a sheet that slides over the board instead of a column.
+        const COMPACT_MQ = window.matchMedia('(max-width: 1100px)');
+        function isCompact() { return COMPACT_MQ.matches; }
+        function setPanel(open) {
+            const panel = document.getElementById('editor-panel'); const toggleDiv = document.getElementById('floating-toggles');
+            if (!panel) return;
+            panel.classList.toggle('hidden', !open);
+            if (toggleDiv) toggleDiv.style.display = open ? 'none' : 'flex';
+            panel.style.marginRight = (!open && !isCompact()) ? (-panel.offsetWidth) + 'px' : '';
+            document.body.classList.toggle('panel-open', open && isCompact());
+            setTimeout(drawLines, 350);
+            if (window.boardFitTopBar) { setTimeout(window.boardFitTopBar, 0); setTimeout(window.boardFitTopBar, 380); }
+        }
+        function toggleSidebar() { const panel = document.getElementById('editor-panel'); if (panel) setPanel(panel.classList.contains('hidden')); }
+        (function initCompactLayout() {
+            const screen = document.getElementById('board-screen');
+            if (screen && !document.getElementById('panel-backdrop')) {
+                const bd = document.createElement('div'); bd.id = 'panel-backdrop'; bd.addEventListener('click', () => setPanel(false)); screen.appendChild(bd);
+            }
+            if (isCompact()) setPanel(false);
+            const onChange = () => setPanel(!isCompact());
+            if (COMPACT_MQ.addEventListener) COMPACT_MQ.addEventListener('change', onChange); else COMPACT_MQ.addListener(onChange);
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && isCompact() && document.body.classList.contains('panel-open') && !document.querySelector('#quick-menu.active, #dialog-overlay, .modal-overlay, #analytics-overlay')) setPanel(false); });
+        })();
+
+        function moveTaskToWeek(loc, weekKey) {
+            const arr = loc.cat[loc.weekKey]; const i = arr ? arr.indexOf(loc.task) : -1; if (i < 0) return;
+            const from = weeksData.find(w => w.key === loc.weekKey), to = weeksData.find(w => w.key === weekKey);
+            arr.splice(i, 1);
+            if (!Array.isArray(loc.cat[weekKey])) loc.cat[weekKey] = [];
+            loc.cat[weekKey].push(loc.task);
+            logHistory(loc.task, 'Moved', from ? from.title : '', to ? to.title : '');
+            hiddenWeeks.delete(weekKey); saveDatabase(); renderFilters(); render(); flashNode(loc.task.id);
+            toast('Moved to ' + (to ? to.title : 'another week') + '.');
+        }
+
+        // Press and hold anything on the board = right-click (touch screens have no right button).
+        (function longPressMenus() {
+            const cv = document.getElementById('canvas-container'); if (!cv) return;
+            let timer = null, start = null, fired = false;
+            const cancel = () => { clearTimeout(timer); timer = null; };
+            cv.addEventListener('touchstart', (e) => {
+                fired = false;   // a new touch: forget any earlier long press, so this tap isn't swallowed
+                if (e.touches.length !== 1) { cancel(); return; }
+                const target = e.target;
+                if (target.closest && target.closest('input, textarea, select, a, [contenteditable="true"], .card-more')) return;
+                const t = e.touches[0]; start = { x: t.clientX, y: t.clientY };
+                cancel();
+                timer = setTimeout(() => {
+                    fired = true;
+                    onBoardContextMenu({ target, clientX: start.x, clientY: start.y, preventDefault() {} });
+                    try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) { /* not supported */ }
+                }, 500);
+            }, { passive: true });
+            cv.addEventListener('touchmove', (e) => { if (!timer || !start) return; const t = e.touches[0]; if (Math.hypot(t.clientX - start.x, t.clientY - start.y) > 10) cancel(); }, { passive: true });
+            cv.addEventListener('touchend', (e) => { cancel(); if (fired) { e.preventDefault(); setTimeout(() => { fired = false; }, 600); } }, { passive: false });
+            cv.addEventListener('touchcancel', cancel);
+            // After a long press, swallow the click the browser may still send, so the menu stays open.
+            cv.addEventListener('click', (e) => { if (fired) { fired = false; e.stopPropagation(); e.preventDefault(); } }, true);
+        })();
+
+        // Phones: submenus open in place of the menu, with a Back item.
+        let lastMenu = null;
+        function drillDownMenus() { return window.matchMedia('(max-width: 640px)').matches; }
+        function showDrillDown(items) {
+            const back = lastMenu;
+            fillMenu(quickMenu, [{ icon: '‹', label: 'Back', action: () => { if (back) showMenu(back.x, back.y, back.items); } }, { divider: true }, ...items], false);
+            quickMenu.classList.add('active'); menuOpenedAt = Date.now();
+            placeMenu(quickMenu, back ? back.x : 8, back ? back.y : 8);
+            const first = quickMenu.querySelectorAll('.qm-btn:not(:disabled)')[1]; if (first) try { first.focus({ preventScroll: true }); } catch (e) { /* */ }
+        }
+
+        // ---------- Project phases (Research → Design → Build → Test…) ----------
+        function teamPhases() { return (TT.team && TT.team.phases) || []; }
+        function phaseById(id) { return id ? teamPhases().find(p => p.id === id) || null : null; }
+        function phaseOf(task) { return phaseById(task && task.phaseId); }
+        const hiddenPhases = new Set();   // phase ids hidden on the board; '' = tasks with no phase
+        function phaseRange(p) {
+            if (p.start && p.end) return fmtShort(p.start) + ' – ' + fmtShort(p.end);
+            if (p.start) return 'from ' + fmtShort(p.start);
+            if (p.end) return 'until ' + fmtShort(p.end);
+            return 'no dates';
+        }
+        function phaseTagEl(p) {
+            const tag = document.createElement('span'); tag.className = 'phase-tag'; tag.style.setProperty('--phase', p.color);
+            tag.textContent = p.name; tag.title = 'Phase: ' + p.name + ' (' + phaseRange(p) + ')'; return tag;
+        }
+        function setTaskPhase(task, id) {
+            if ((task.phaseId || '') === (id || '')) return;
+            const before = phaseOf(task), after = phaseById(id);
+            logHistory(task, 'Phase', before ? before.name : '—', after ? after.name : '—');
+            task.phaseId = id || '';
+            saveDatabase(); render();
+            if (activeNode && activeNode.id === task.id) openEditor(task);
+        }
+        function phaseSection(task, editable) {
+            const s = section('Phase');
+            const list = teamPhases();
+            if (!list.length) {
+                const h = document.createElement('div'); h.className = 'hint';
+                h.textContent = TT.can('team.settings') ? 'No phases yet. Split the project into stages in Team settings ▸ Phases.' : 'Your team has not set up phases yet.';
+                s.appendChild(h);
+                if (TT.can('team.settings')) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small'; b.textContent = 'Set up phases…'; b.dataset.editOnly = '1'; b.onclick = () => TT.openSettings('phases'); s.appendChild(b); }
+                return s;
+            }
+            const sel = document.createElement('select'); sel.id = 'edit-phase'; sel.setAttribute('aria-label', 'Phase');
+            [['', 'No phase'], ...list.map(p => [p.id, p.name + ' · ' + phaseRange(p)])].forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; if ((task.phaseId || '') === v || (v === '' && !phaseOf(task))) o.selected = true; sel.appendChild(o); });
+            sel.addEventListener('change', () => setTaskPhase(task, sel.value));
+            s.appendChild(sel);
+            const p = phaseOf(task);
+            if (p && p.milestone) { const m = document.createElement('div'); m.className = 'hint'; m.style.marginTop = '6px'; m.textContent = '🏁 Milestone: ' + p.milestone + (p.end ? ' (' + fmtShort(p.end) + ')' : ''); s.appendChild(m); }
+            return s;
+        }
+        function phaseMenuItem(loc) {
+            const list = teamPhases(); if (!list.length) return null;
+            const cur = loc.task.phaseId || '';
+            return { icon: '🧭', label: 'Phase', submenu: [{ icon: cur ? '○' : '●', label: 'No phase', action: () => setTaskPhase(loc.task, '') }]
+                .concat(list.map(p => ({ icon: p.id === cur ? '●' : '○', label: p.name, action: () => setTaskPhase(loc.task, p.id) }))) };
+        }
+
+        // Board filter
+        function renderFilters() {
+            _renderFiltersBase();
+            const wrap = document.getElementById('filter-phase-wrap'), box = document.getElementById('filter-phases');
+            if (!wrap || !box) return;
+            const list = teamPhases();
+            [...hiddenPhases].forEach(id => { if (id && !list.some(p => p.id === id)) hiddenPhases.delete(id); });
+            wrap.hidden = !list.length;
+            box.replaceChildren();
+            list.map(p => [p.id, p.name, p.color]).concat([['', 'No phase', '']]).forEach(([id, name, color]) => {
+                const l = document.createElement('label'); const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = id; cb.checked = !hiddenPhases.has(id);
+                cb.onchange = () => { if (cb.checked) hiddenPhases.delete(id); else hiddenPhases.add(id); render(); };
+                const dot = document.createElement('i'); dot.className = 'phase-dot'; if (color) dot.style.background = color;
+                l.append(cb, ' ', dot, ' ' + name); box.appendChild(l);
+            });
+        }
+        function massSelectPhases(show) {
+            hiddenPhases.clear(); if (!show) { teamPhases().forEach(p => hiddenPhases.add(p.id)); hiddenPhases.add(''); }
+            renderFilters(); render();
+        }
+        function phaseHidden(task) { const p = phaseOf(task); return hiddenPhases.has(p ? p.id : ''); }
+
+        // Analytics: Phase filter
+        function phaseMatches(t) {
+            if (anPhase === 'all') return true;
+            const p = phaseOf(t);
+            return anPhase === 'none' ? !p : !!p && p.id === anPhase;
+        }
+        function phaseAnalyticsFilterHtml() {
+            const list = teamPhases(); if (!list.length) return '';
+            if (anPhase !== 'all' && anPhase !== 'none' && !list.some(p => p.id === anPhase)) anPhase = 'all';
+            return '<label>Phase <select id="an-phase"><option value="all">All phases</option>' + list.map(p => '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>').join('') + '<option value="none">No phase</option></select></label>';
+        }
+        function wirePhaseAnalyticsFilter(ov) {
+            const sel = ov.querySelector('#an-phase'); if (!sel) return;
+            sel.value = anPhase; sel.addEventListener('change', () => { anPhase = sel.value; renderAnalytics(); });
+        }
+
+        // Analytics: Phases tab
+        function phaseState(p, today) {
+            if (!p.start && !p.end) return { key: 'nodates', label: 'No dates' };
+            if (p.start && daysBetweenISO(today, p.start) > 0) return { key: 'upcoming', label: 'Starts in ' + plural(daysBetweenISO(today, p.start), 'day') };
+            if (p.end && daysBetweenISO(p.end, today) > 0) return { key: 'ended', label: 'Ended ' + fmtShort(p.end) };
+            if (p.end) { const d = daysBetweenISO(today, p.end); return { key: 'active', label: d === 0 ? 'Ends today' : plural(d, 'day') + ' left' }; }
+            return { key: 'active', label: 'In progress' };
+        }
+        function phaseHealth(p, c, today) {
+            const total = c.total || 0, done = c.completed || 0; const open = total - done;
+            const st = phaseState(p, today);
+            if (!total) return { cls: '', text: 'No tasks yet' };
+            if (st.key === 'ended') return open ? { cls: 't-bad', text: plural(open, 'task') + ' still open' } : { cls: 't-good', text: 'Completed' };
+            if (!open) return { cls: 't-good', text: 'All tasks done' };
+            if (st.key === 'active' && p.start && p.end) {
+                const span = Math.max(1, daysBetweenISO(p.start, p.end)); const gone = Math.min(span, Math.max(0, daysBetweenISO(p.start, today)));
+                const expected = Math.round(gone / span * 100), actual = Math.round(done / total * 100);
+                return actual + 10 < expected ? { cls: 't-warn', text: 'Behind: ' + actual + '% done, ' + expected + '% of time used' } : { cls: 't-good', text: 'On track: ' + actual + '% done, ' + expected + '% of time used' };
+            }
+            return { cls: '', text: Math.round(done / total * 100) + '% done' };
+        }
+        function renderPhases(rows) {
+            const list = teamPhases(); const today = todayISO();
+            if (!list.length) return '<div class="an-empty">No phases yet. ' + (TT.can('team.settings') ? 'Add them in <b>Team settings ▸ Phases</b> (for example Research → Design → Build → Test), then pick a phase for each task.' : 'Ask your team owner or an admin to add them in Team settings ▸ Phases.') + '</div>';
+            const groups = list.map(p => ({ p, rows: rows.filter(r => { const q = phaseOf(r.t); return q && q.id === p.id; }) }));
+            const none = rows.filter(r => !phaseOf(r.t));
+            const mx = Math.max(1, ...groups.map(g => g.rows.length), none.length);
+            // Bands: every dated phase on one shared date scale
+            const dated = list.filter(p => p.start && p.end);
+            let bands = '';
+            if (dated.length) {
+                let lo = dated[0].start, hi = dated[0].end;
+                dated.forEach(p => { if (daysBetweenISO(p.start, lo) > 0) lo = p.start; if (daysBetweenISO(hi, p.end) > 0) hi = p.end; });
+                const span = Math.max(1, daysBetweenISO(lo, hi) + 1); const pct = (iso) => Math.max(0, Math.min(100, daysBetweenISO(lo, iso) / span * 100));
+                const todayIn = daysBetweenISO(lo, today) >= 0 && daysBetweenISO(today, hi) >= 0;
+                bands = '<div class="an-card an-wide"><h4>Phase plan <span class="an-hint">' + esc(fmtShort(lo)) + ' – ' + esc(fmtShort(hi)) + '</span></h4><div class="ph-bands">' +
+                    dated.map(p => '<div class="ph-band-row"><div class="ph-band-l" title="' + esc(p.name) + '">' + esc(p.name) + '</div><div class="ph-band-track"><div class="ph-band" style="--phase:' + esc(p.color) + ';left:' + pct(p.start) + '%;width:' + Math.max(1.5, pct(addDaysISO(p.end, 1)) - pct(p.start)) + '%" title="' + esc(p.name + ' · ' + phaseRange(p)) + '"></div>' +
+                        (p.milestone ? '<div class="ph-ms" style="left:' + pct(p.end) + '%" title="' + esc('🏁 ' + p.milestone + ' · ' + fmtShort(p.end)) + '"></div>' : '') + '</div></div>').join('') +
+                    (todayIn ? '<div class="ph-today" style="left:calc(var(--ph-l) + (100% - var(--ph-l)) * ' + (pct(today) / 100).toFixed(4) + ')" title="Today"></div>' : '') + '</div></div>';
+            }
+            const card = (p, rs) => {
+                const c = countBy(rs, () => 'x').get('x') || { total: 0 }; const st = p ? phaseState(p, today) : null; const h = p ? phaseHealth(p, c, today) : { cls: '', text: '' };
+                const pc = c.total ? Math.round((c.completed || 0) / c.total * 100) : 0;
+                return '<div class="ph-card" style="--phase:' + esc(p ? p.color : '#a0aec0') + '"><div class="ph-card-head"><b>' + esc(p ? p.name : 'No phase') + '</b>' +
+                    (st ? '<span class="ph-state ph-' + st.key + '">' + esc(st.label) + '</span>' : '') + '</div>' +
+                    (p ? '<div class="an-note">' + esc(phaseRange(p)) + (p.milestone ? ' · 🏁 ' + esc(p.milestone) : '') + '</div>' : '<div class="an-note">Tasks not yet given a phase</div>') +
+                    '<div class="an-row"><div class="an-row-l">' + plural(c.total, 'task') + ' · ' + pc + '%</div>' + segBar(c, mx) + '</div>' +
+                    (h.text ? '<div class="ph-health ' + h.cls + '">' + esc(h.text) + '</div>' : '') + '</div>';
+            };
+            const cards = '<div class="an-card an-wide"><h4>Progress per phase</h4><div class="ph-cards">' + groups.map(g => card(g.p, g.rows)).join('') + (none.length ? card(null, none) : '') + '</div>' + legendHtml() + '</div>';
+            return '<div class="an-grid">' + bands + cards + '</div>';
+        }
+
+        // Timeline tab: phase bands at the top, on the same date scale as the tasks
+        function phaseExtent(minISO, maxISO) {
+            teamPhases().forEach(p => {
+                if (p.start && daysBetweenISO(p.start, minISO) > 0) minISO = p.start;
+                if (p.end && daysBetweenISO(maxISO, p.end) > 0) maxISO = p.end;
+            });
+            return { minISO, maxISO };
+        }
+        function phaseTimelineRows(LABEL_W, trackW, dw, clampX) {
+            const list = teamPhases().filter(p => p.start && p.end); if (!list.length) return '';
+            let html = '<div class="gt-row gt-group"><div class="gt-label" style="width:' + LABEL_W + 'px">🧭 Phases</div><div class="gt-track" style="width:' + trackW + 'px"></div></div>';
+            list.forEach(p => {
+                const x0 = clampX(p.start), x1 = clampX(p.end); const tip = p.name + ' — ' + phaseRange(p) + (p.milestone ? ' — 🏁 ' + p.milestone : '');
+                html += '<div class="gt-row gt-phase-row"><div class="gt-label" style="width:' + LABEL_W + 'px" title="' + esc(tip) + '"><i class="phase-dot" style="background:' + esc(p.color) + '"></i><span class="gt-name">' + esc(p.name) + '</span></div>' +
+                    '<div class="gt-track" style="width:' + trackW + 'px;background-size:' + (7 * dw) + 'px 100%"><div class="gt-bar gt-phase" style="--phase:' + esc(p.color) + ';left:' + (x0 * dw) + 'px;width:' + Math.max(dw, (x1 - x0 + 1) * dw) + 'px" title="' + esc(tip) + '"></div>' +
+                    (p.milestone ? '<div class="gt-bar gt-ms gt-phase-ms" style="left:' + (x1 * dw + dw / 2 - 7) + 'px" title="' + esc('🏁 ' + p.milestone) + '"></div><span class="gt-due" style="left:' + ((x1 + 1) * dw + 6) + 'px">🏁 ' + esc(p.milestone) + '</span>' : '') + '</div></div>';
+            });
+            return html;
+        }
+
+        // ---------- Open a task from elsewhere (My tasks, mentions, activity) ----------
+        window.boardOpenTask = function (taskId) {
+            if (!locateTask(taskId)) { toast('That task no longer exists.'); return; }
+            hiddenPhases.clear(); const q = document.getElementById('search-tasks'); if (q && q.value) { q.value = ''; performSearch(); }
+            openOriginalTask(taskId);
+            if (isCompact()) setPanel(true);
+            const n = document.getElementById(taskId); if (n && n.scrollIntoView) try { n.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' }); } catch (e) { /* */ }
+        };
+
+        // ---------- Week headers: never redraw them while someone is typing in one ----------
+        // (A redraw replaces the box being typed in, so the text and cursor would be lost.)
+        let deferredRender = false;
+        function editingHeader() {
+            const a = document.activeElement;
+            return !!(a && a.closest && a.closest('#timeline-headers') && (a.isContentEditable || /^(INPUT|TEXTAREA)$/.test(a.tagName)));
+        }
+        function flushDeferredRender() {
+            if (!deferredRender) return;
+            setTimeout(() => { if (editingHeader()) return; deferredRender = false; renderFilters(); render(); }, 0);
+        }
+        (function () { const h = document.getElementById('timeline-headers'); if (h) h.addEventListener('focusout', flushDeferredRender); })();
+        // Week metric: saved once you finish (click away, Enter or Tab), not on every keystroke.
+        function metricKey(e, n) {
+            e.stopPropagation();
+            if (e.key === 'Enter') { e.preventDefault(); n.blur(); }
+            else if (e.key === 'Escape') { e.preventDefault(); const w = weeksData[+n.dataset.week]; n.innerText = (w && w.metric) || ''; n.blur(); }
+        }
+        function commitMetric(i, n) {
+            const w = weeksData[i]; if (!w || !TT.can('weeks.manage')) return;
+            const v = n.innerText.replace(/\s+/g, ' ').trim().slice(0, 60);
+            if (v !== (w.metric || '')) updateWeekField(i, 'metric', v);
+            if (!v) n.innerText = '';
+        }
+
+        // ---------- Theme packs: the theme buttons open the theme picker ----------
+        function toggleTheme() { TT.openThemes(); }
+        function updateThemeButtons() {
+            ['theme-toggle-inner', 'theme-toggle-outer'].forEach(id => { const b = document.getElementById(id); if (b) { b.innerHTML = '🎨<span class="lbl-lg"> Theme</span>'; b.setAttribute('aria-label', 'Theme'); b.title = 'Theme: ' + TT.themeName() + ' — click to change'; } });
+        }
+        window.boardThemeChanged = function () { updateThemeButtons(); if (document.getElementById('analytics-overlay')) renderAnalytics(); drawLines(); };
+
+        // ---------- GitHub issue / pull-request state chips ----------
+        const GH_TEXT = { open: 'Open', closed: 'Closed', merged: 'Merged', draft: 'Draft' };
+        function ghChip(url, prefix, withTitle) {
+            const c = document.createElement('a'); c.className = 'gh-chip gh-loading'; c.href = url; c.target = '_blank'; c.rel = 'noopener noreferrer';
+            c.textContent = (prefix ? prefix + ' · ' : '') + '…'; c.title = 'GitHub';
+            c.addEventListener('click', (e) => e.stopPropagation());
+            TT.githubStatus(url).then(st => {
+                if (!st) return;
+                c.classList.remove('gh-loading'); c.classList.add('gh-' + st.state);
+                const word = GH_TEXT[st.state] || (st.note ? '🔒' : '?');
+                c.textContent = (prefix ? prefix + ' · ' : '') + word + (st.state === 'closed' && st.reason === 'not_planned' ? ' (not planned)' : '') + (withTitle && st.title ? ' — ' + st.title : '');
+                c.title = st.label + (st.title ? ': ' + st.title : '') + (st.note ? ' — ' + st.note : '');
+            });
+            return c;
+        }
+
+        // ---------- Circle (radial) menu: same items and actions as the list menu ----------
+        // Chosen per person in Your account ▸ Right-click menu. Items with a ▸ open an outer
+        // ring (or replace the ring on small screens, with Back in the middle).
+        function showMenu(x, y, rawItems) {
+            if (TT.menuStyle && TT.menuStyle() === 'circle') { _closeContextMenuBase(); showRadial(x, y, rawItems); return; }
+            closeRadial(); _showMenuBase(x, y, rawItems);
+        }
+        function closeContextMenu() { _closeContextMenuBase(); closeRadial(); }
+        // Remember what the menu is for, so the circle can sit beside it instead of on top of it.
+        const MENU_ANCHORS = '.task-card, .node-person, .node-cat, .header-week, .col-week';
+        let menuAnchorEl = null;
+        function onBoardContextMenu(e) {
+            const t = e && e.target;
+            menuAnchorEl = t && t.closest ? t.closest(MENU_ANCHORS) : null;
+            return _onBoardContextMenuBase(e);
+        }
+        /** Centre for the circle: beside the anchor (right, left, below, above), else at the pointer. */
+        function radialCentre(x, y, ringR, reach, vw, vh) {
+            const full = menuAnchorEl && menuAnchorEl.isConnected ? menuAnchorEl.getBoundingClientRect() : null;
+            const clampX = (v, r) => Math.max(r + 8, Math.min(v, vw - r - 8)), clampY = (v, r) => Math.max(r + 8, Math.min(v, vh - r - 8));
+            if (full && full.width && full.height && !menuAnchorEl.classList.contains('col-week')) {
+                // First keep the whole card clear; if the screen is too small (phones), keep its top
+                // (priority and title) clear instead.
+                const head = menuAnchorEl.classList.contains('task-card') ? { left: full.left, right: full.right, top: full.top, bottom: Math.min(full.bottom, full.top + 96), width: full.width, height: Math.min(full.height, 96) } : null;
+                for (const [a, r] of [[full, reach], [full, ringR], ...(head ? [[head, reach], [head, ringR]] : [])]) {
+                    const gap = 12, my = a.top + a.height / 2, mx = a.left + a.width / 2;
+                    const fitsY = vh >= 2 * r + 16, fitsX = vw >= 2 * r + 16;
+                    if (a.right + gap + 2 * r <= vw - 8 && fitsY) return { cx: a.right + gap + r, cy: clampY(my, r), side: 'right' };
+                    if (a.left - gap - 2 * r >= 8 && fitsY) return { cx: a.left - gap - r, cy: clampY(my, r), side: 'left' };
+                    if (a.bottom + gap + 2 * r <= vh - 8 && fitsX) return { cx: clampX(mx, r), cy: a.bottom + gap + r, side: 'below' };
+                    if (a.top - gap - 2 * r >= 8 && fitsX) return { cx: clampX(mx, r), cy: a.top - gap - r, side: 'above' };
+                }
+            }
+            return { cx: clampX(x, reach), cy: clampY(y, reach), side: 'pointer' };
+        }
+        let radial = null;
+        function closeRadial() { if (radial) { radial.el.remove(); document.removeEventListener('keydown', radial.onKey, true); radial = null; } }
+        const SVGNS = 'http://www.w3.org/2000/svg';
+        function svgEl(tag, attrs) { const n = document.createElementNS(SVGNS, tag); Object.entries(attrs || {}).forEach(([k, v]) => n.setAttribute(k, v)); return n; }
+        function polar(cx, cy, r, deg) { const a = (deg - 90) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; }
+        function wedge(cx, cy, r0, r1, a0, a1) {
+            const large = (a1 - a0) > 180 ? 1 : 0;
+            const [x0, y0] = polar(cx, cy, r1, a0), [x1, y1] = polar(cx, cy, r1, a1), [x2, y2] = polar(cx, cy, r0, a1), [x3, y3] = polar(cx, cy, r0, a0);
+            return `M${x0} ${y0} A${r1} ${r1} 0 ${large} 1 ${x1} ${y1} L${x2} ${y2} A${r0} ${r0} 0 ${large} 0 ${x3} ${y3} Z`;
+        }
+        // Wrap a label into at most `lines` lines of about `max` characters.
+        function wrapLabel(text, max, lines) {
+            const words = String(text).replace(/…$/, '').split(/\s+/); const out = []; let cur = '';
+            words.forEach(w => { if (!cur) cur = w; else if ((cur + ' ' + w).length <= max) cur += ' ' + w; else { out.push(cur); cur = w; } });
+            if (cur) out.push(cur);
+            const res = out.slice(0, lines).map(l => l.length > max ? l.slice(0, Math.max(1, max - 1)) + '…' : l);
+            if (out.length > lines) res[lines - 1] = res[lines - 1].replace(/…?$/, '').slice(0, Math.max(1, max - 1)) + '…';
+            return res;
+        }
+        function runItem(it) {
+            closeContextMenu();
+            try { const r = it.action && it.action(); if (r && r.catch) r.catch(err => { console.error(err); toast('Something went wrong: ' + err.message); }); }
+            catch (err) { console.error(err); toast('Something went wrong: ' + err.message); }
+        }
+        function showRadial(x, y, rawItems) {
+            closeRadial();
+            const clean = cleanMenuItems(rawItems);
+            const title = (clean.find(i => i.header) || {}).header || 'Actions';
+            const items = clean.filter(i => !i.header && !i.divider);
+            if (!items.length) return;
+            const vw = window.innerWidth, vh = window.innerHeight;
+            const R0 = 50, R1 = Math.min(160, Math.floor(Math.min(vw, vh) / 2) - 14), R2 = R1 + 6, R3 = R1 + 84;
+            const roomOuter = Math.min(vw, vh) >= 2 * R3 + 16;
+            const reach = roomOuter ? R3 : R1;
+            const { cx, cy, side } = radialCentre(x, y, R1, reach, vw, vh);
+            const size = 2 * R3 + 4, o = size / 2;   // svg drawing centre
+            const el = document.createElement('div'); el.id = 'radial-menu'; el.className = 'radial-menu'; el.dataset.side = side;
+            el.style.left = (cx - o) + 'px'; el.style.top = (cy - o) + 'px'; el.style.width = el.style.height = size + 'px';
+            el.setAttribute('role', 'menu'); el.setAttribute('aria-label', title);
+            const svg = svgEl('svg', { width: size, height: size, viewBox: `0 0 ${size} ${size}` });
+            const ringG = svgEl('g', { class: 'rm-ring' }), outerG = svgEl('g', { class: 'rm-outer' });
+            const hub = svgEl('g', { class: 'rm-hub', tabindex: '-1', role: 'button' });
+            hub.appendChild(svgEl('circle', { cx: o, cy: o, r: R0 - 4 }));
+            const hubTitle = svgEl('text', { x: o, y: o - 13, class: 'rm-hub-title', 'text-anchor': 'middle' });
+            const hubText = svgEl('text', { x: o, y: o + 4, class: 'rm-hub-text', 'text-anchor': 'middle' });
+            hub.append(hubTitle, hubText);
+            svg.append(ringG, outerG, hub); el.appendChild(svg);
+            ['click', 'mousedown', 'contextmenu', 'touchstart'].forEach(ev => el.addEventListener(ev, (e) => { e.stopPropagation(); if (ev === 'contextmenu') e.preventDefault(); }, { passive: ev !== 'contextmenu' && ev !== 'click' }));
+            document.body.appendChild(el);
+            const state = { el, stack: [], current: items, title, openSub: null, segs: [] };
+            const setHub = (head, text) => {
+                hubTitle.textContent = head;
+                hubText.replaceChildren(); wrapLabel(text, 13, 3).forEach((l, i) => { const t = svgEl('tspan', { x: o, dy: i ? '1.2em' : '0' }); t.textContent = l; hubText.appendChild(t); });
+            };
+            const restHub = () => setHub(state.stack.length ? '‹ Back' : title, state.stack.length ? state.stack[state.stack.length - 1].label : (roomOuter || !isTouchLike() ? 'Choose an action' : 'Tap an action'));
+            function seg(group, it, a0, a1, r0, r1, onPick, opts) {
+                const g = svgEl('g', { class: 'rm-seg' + (it.danger ? ' danger' : '') + (it.disabled ? ' disabled' : '') + (it.submenu ? ' has-sub' : '') + (it.checked ? ' checked' : ''), tabindex: it.disabled ? '-1' : '0', role: 'menuitem', 'aria-label': it.label + (it.submenu ? ' (more)' : ''), 'aria-disabled': it.disabled ? 'true' : 'false' });
+                const gap = Math.min(1.2, (a1 - a0) / 6);
+                g.appendChild(svgEl('path', { d: wedge(o, o, r0, r1, a0 + gap, a1 - gap) }));
+                const mid = (a0 + a1) / 2, rm = (r0 + r1) / 2;
+                const arc = 2 * Math.PI * rm * ((a1 - a0) / 360);
+                const [tx, ty] = polar(o, o, rm, mid);
+                const label = String(it.label).split(' · ')[0];
+                const lines = wrapLabel(label, Math.max(4, Math.floor(arc / 6.4)), opts && opts.oneLine ? 1 : 2);
+                const ic = svgEl('text', { x: tx, y: ty - (lines.length > 1 ? 9 : 4), class: 'rm-icon', 'text-anchor': 'middle', 'dominant-baseline': 'middle' }); ic.textContent = it.icon || '•';
+                const tl = svgEl('text', { x: tx, y: ty + (lines.length > 1 ? 9 : 13), class: 'rm-label', 'text-anchor': 'middle' });
+                lines.forEach((l, i) => { const t = svgEl('tspan', { x: tx, dy: i ? '1.15em' : '0' }); t.textContent = l; tl.appendChild(t); });
+                g.append(ic, tl);
+                if (it.submenu) { const [ax, ay] = polar(o, o, r1 - 7, mid); const ar = svgEl('text', { x: ax, y: ay, class: 'rm-arrow', 'text-anchor': 'middle', 'dominant-baseline': 'middle', transform: `rotate(${mid} ${ax} ${ay})` }); ar.textContent = '▲'; g.appendChild(ar); }
+                if (it.checked) { const [cx2, cy2] = polar(o, o, r0 + 9, mid); const ck = svgEl('text', { x: cx2, y: cy2, class: 'rm-check', 'text-anchor': 'middle', 'dominant-baseline': 'middle' }); ck.textContent = '✓'; g.appendChild(ck); }
+                const focusIn = () => { setHub(group === outerG ? (state.openSub ? state.openSub.label.split(' · ')[0] : title) : (state.stack.length ? '‹ Back' : title), it.label); g.classList.add('hover'); if (opts && opts.onHover) opts.onHover(); };
+                const focusOut = () => g.classList.remove('hover');
+                g.addEventListener('mouseenter', focusIn); g.addEventListener('focus', focusIn);
+                g.addEventListener('mouseleave', () => { focusOut(); }); g.addEventListener('blur', focusOut);
+                g.addEventListener('click', (e) => { e.stopPropagation(); if (!it.disabled) onPick(); });
+                g.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && !it.disabled) { e.preventDefault(); e.stopPropagation(); onPick(true); } });
+                group.appendChild(g);
+                return g;
+            }
+            function closeOuter() { outerG.replaceChildren(); state.openSub = null; ringG.querySelectorAll('.rm-seg.open').forEach(s => s.classList.remove('open')); }
+            function openOuter(it, mid, g, focusFirst) {
+                if (state.openSub === it) { if (focusFirst) { const f = outerG.querySelector('.rm-seg:not(.disabled)'); if (f) f.focus(); } return; }
+                closeOuter();
+                const subs = cleanMenuItems(it.submenu).filter(i => !i.header && !i.divider);
+                const per = Math.max(16, Math.min(34, 200 / Math.max(1, subs.length)));
+                const span = per * subs.length;
+                if (!roomOuter || span > 330) { drill(it); return; }
+                state.openSub = it; g.classList.add('open');
+                let start = mid - span / 2;
+                subs.forEach((s, i) => seg(outerG, s, start + i * per, start + (i + 1) * per, R2, R3, () => { if (s.submenu) drill(s); else runItem(s); }, { oneLine: false }));
+                if (focusFirst) { const f = outerG.querySelector('.rm-seg:not(.disabled)'); if (f) f.focus(); }
+            }
+            function drill(it) {
+                state.stack.push({ label: it.label.split(' · ')[0], items: state.current });
+                drawRing(cleanMenuItems(it.submenu).filter(i => !i.header && !i.divider), true);
+            }
+            function drawRing(list, focusFirst) {
+                closeOuter(); ringG.replaceChildren(); state.current = list;
+                const n = list.length; const per = 360 / n;
+                list.forEach((it, i) => {
+                    const a0 = i * per - per / 2, a1 = a0 + per, mid = (a0 + a1) / 2;
+                    const g = seg(ringG, it, a0, a1, R0, R1, (viaKey) => { if (it.submenu) { if (roomOuter && !state.stack.length) openOuter(it, mid, g, !!viaKey); else drill(it); } else runItem(it); },
+                        { onHover: () => { if (it.submenu && roomOuter && !state.stack.length && !isTouchLike()) openOuter(it, mid, g, false); else if (!it.submenu) closeOuter(); } });
+                });
+                restHub();
+                if (focusFirst) { const f = ringG.querySelector('.rm-seg:not(.disabled)'); if (f) f.focus({ preventScroll: true }); }
+            }
+            function back() {
+                if (state.openSub) { const g = ringG.querySelector('.rm-seg.open'); closeOuter(); if (g) g.focus(); restHub(); return; }
+                if (state.stack.length) { const prev = state.stack.pop(); drawRing(prev.items, true); return; }
+                closeContextMenu();
+            }
+            hub.addEventListener('click', (e) => { e.stopPropagation(); back(); });
+            hub.addEventListener('mouseenter', () => { setHub(state.stack.length || state.openSub ? '‹ Back' : title, state.stack.length || state.openSub ? 'Back' : 'Close'); });
+            hub.addEventListener('mouseleave', restHub);
+            // Keyboard: arrows move around the ring (and in/out of the outer ring), Enter picks, Esc goes back.
+            const onKey = (e) => {
+                if (!radial) return;
+                const inOuter = outerG.contains(document.activeElement);
+                const segs = [...(inOuter ? outerG : ringG).querySelectorAll('.rm-seg:not(.disabled)')];
+                const i = segs.indexOf(document.activeElement);
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); back(); }
+                else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); if (segs.length) segs[(i + 1 + segs.length) % segs.length].focus(); }
+                else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); if (segs.length) segs[(i - 1 + segs.length * 2) % segs.length].focus(); }
+                else if (e.key === 'Tab') { e.preventDefault(); if (segs.length) segs[(i + (e.shiftKey ? -1 : 1) + segs.length * 2) % segs.length].focus(); }
+            };
+            document.addEventListener('keydown', onKey, true);
+            radial = { el, onKey };
+            menuOpenedAt = Date.now();
+            drawRing(items, true);
+            requestAnimationFrame(() => el.classList.add('in'));
+        }
+        function isTouchLike() { try { return window.matchMedia('(hover: none)').matches; } catch (e) { return false; } }
+
+        // ---------- Jump targets for search ----------
+        window.boardFocusPerson = function (uid) {
+            const p = db.find(x => x.id === uid); if (!p) { toast('That person has no row on this board yet.'); return; }
+            hiddenPersons.delete(uid); renderFilters(); render(); openEditorForNode(p); if (isCompact()) setPanel(true); flashNode(uid);
+        };
+        window.boardShowWeek = function (key) {
+            hiddenWeeks.delete(key); const w = weeksData.find(x => x.key === key); if (w && w.collapsed) { w.collapsed = false; TT.setCollapsed(key, false); }
+            renderFilters(); render();
+            setTimeout(() => { const el = document.querySelector('.header-week[data-week-key="' + key + '"]'); if (el) { el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); el.classList.add('flash-hl'); setTimeout(() => el.classList.remove('flash-hl'), 1400); } }, 60);
+        };
+        window.boardShowPhase = function (id) {
+            // Show only this phase's tasks (the side panel's phase filter shows how to undo it)
+            hiddenPhases.clear(); teamPhases().forEach(p => { if (p.id !== id) hiddenPhases.add(p.id); }); hiddenPhases.add('');
+            renderFilters(); render();
+            const ph = phaseById(id); toast('Showing the ' + (ph ? ph.name : '') + ' phase only.', 6000, 'Show all', () => massSelectPhases(true));
+        };
+
+        // ---------- Task templates ----------
+        async function saveAsTemplate(loc) {
+            const t = loc.task;
+            const name = await askText('Save as template', t.name, 'Template name (e.g. Experiment)'); if (!name) return;
+            const w = weeksData.find(x => x.key === loc.weekKey);
+            const dueOffset = t.dueDate && w && w.startDate ? Math.max(0, Math.min(365, daysBetweenISO(w.startDate, t.dueDate))) : null;
+            const ok = await TT.saveTemplate(name, { ...t, dueOffset });
+            if (ok) toast('Saved “' + name + '”. Right-click any column ▸ Add from template to use it.', 6000);
+        }
+        function templateItems(person, cat, weekKey) {
+            return TT.templates.map(tpl => ({ icon: tpl.task.icon && !tpl.task.icon.startsWith('data:') ? tpl.task.icon : '📋', label: tpl.name + (tpl.task.subtasks.length ? ' · ' + tpl.task.subtasks.length + ' sub-tasks' : ''), action: () => addFromTemplate(person, cat, weekKey, tpl) }));
+        }
+        async function addFromTemplate(person, cat, weekKey, tpl) {
+            if (!TT.canEditOwner(person.id)) { toast('Your role can’t add tasks here.'); return; }
+            const w = weeksData.find(x => x.key === weekKey);
+            const name = await askText('New task from “' + tpl.name + '”' + (w ? ' – ' + w.title : ''), tpl.task.name || tpl.name, 'Task title'); if (!name) return;
+            const T = tpl.task;
+            const t = { id: generateId(), type: 'task', name, priority: T.priority, status: T.status || 'TODO', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'none',
+                dueDate: T.dueOffset !== null && w && w.startDate ? addDaysISO(w.startDate, T.dueOffset) : '', phaseId: phaseById(T.phaseId) ? T.phaseId : '',
+                subtasks: T.subtasks.map(title => ({ id: generateId(), title, completed: false })), history: [], custom: { ...T.custom }, icon: T.icon || '', attachments: [], effort: T.effort ?? null, stage: '', dependsOn: [] };
+            logHistory(t, 'Task Status', '', 'Created from template “' + tpl.name + '”');
+            if (!Array.isArray(cat[weekKey])) cat[weekKey] = [];
+            cat[weekKey].push(t); saveDatabase(); render(); flashNode(t.id);
+            openEditorForNode(t); if (isCompact()) setPanel(true);
+        }
+        function columnMenuItems(person, cat, weekKey) {
+            const items = _columnMenuItemsBase(person, cat, weekKey);
+            const w = weeksData.find(x => x.key === weekKey);
+            if (w && !w.collapsed && TT.canEditOwner(person.id)) {
+                const at = items.findIndex(it => it && typeof it.label === 'string' && it.label.startsWith('Add task here'));
+                const sub = TT.templates.length ? { icon: '📋', label: 'Add from template', submenu: templateItems(person, cat, weekKey) }
+                    : { icon: '📋', label: 'Add from template…', action: () => toast('No templates yet. Right-click a task ▸ Save as template.', 6000) };
+                items.splice(at + 1, 0, sub);
+            }
+            return items;
+        }
+
+        // ---------- Repeating tasks ----------
+        const REPEAT_TEXT = { 1: 'Weekly', 2: 'Every 2 weeks', 4: 'Every 4 weeks' };
+        function repeatSection(task, editable) {
+            const s = section('Repeat');
+            const r = task.repeat;
+            if (r && r.seriesId && !r.every) {
+                const h = document.createElement('div'); h.className = 'hint'; h.textContent = '🔁 A copy of a repeating task. Change or stop the repeat on the first task.';
+                s.appendChild(h);
+                const orig = locateTask(r.seriesId);
+                if (orig) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small'; b.textContent = 'Open the first task'; b.onclick = () => openOriginalTask(r.seriesId); s.appendChild(b); }
+                return s;
+            }
+            const row = document.createElement('div'); row.className = 'repeat-row';
+            const sel = document.createElement('select'); sel.id = 'edit-repeat'; sel.setAttribute('aria-label', 'Repeat');
+            [['0', 'Doesn’t repeat'], ['1', 'Every week'], ['2', 'Every 2 weeks'], ['4', 'Every 4 weeks']].forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; if (String((r && r.every) || 0) === v) o.selected = true; sel.appendChild(o); });
+            row.appendChild(sel);
+            const untilWrap = document.createElement('label'); untilWrap.className = 'repeat-until';
+            const ul = document.createElement('span'); ul.textContent = 'until';
+            const until = document.createElement('input'); until.type = 'date'; until.id = 'edit-repeat-until'; until.value = (r && r.until) || ''; until.setAttribute('aria-label', 'Repeat until');
+            untilWrap.append(ul, until); untilWrap.style.display = r && r.every ? '' : 'none';
+            row.appendChild(untilWrap);
+            s.appendChild(row);
+            const note = document.createElement('div'); note.className = 'hint'; note.style.marginTop = '6px';
+            note.textContent = r && r.every ? 'A copy appears in each matching week, including weeks added later. Deleting a copy only removes that one.' : 'Copies go into later weeks automatically, in the same row.';
+            s.appendChild(note);
+            const apply = () => {
+                const every = Number(sel.value); const old = task.repeat;
+                const next = every ? { every, until: until.value || '', through: old && old.every ? old.through : '', seriesId: '' } : null;
+                if (JSON.stringify(old || null) === JSON.stringify(next)) return;
+                logHistory(task, 'Repeat', old && old.every ? REPEAT_TEXT[old.every] : 'No', every ? REPEAT_TEXT[every] + (next.until ? ' until ' + next.until : '') : 'No');
+                task.repeat = next; saveDatabase(); render(); openEditor(task);
+            };
+            sel.addEventListener('change', apply); until.addEventListener('change', apply);
+            return s;
+        }
+        let recurringBusy = false, recurringTimer = null;
+        function scheduleRecurring() { clearTimeout(recurringTimer); recurringTimer = setTimeout(materializeRecurring, 60); }
+        /** Put copies of repeating tasks into the weeks after their last handled week. Safe to run any time. */
+        function materializeRecurring() {
+            if (recurringBusy || !weeksData.length) return;
+            recurringBusy = true;
+            try {
+                let changed = false; const created = [];
+                const exists = new Set(); db.forEach(p => p.categories.forEach(c => weeksData.forEach(w => (c[w.key] || []).forEach(t => exists.add(t.id)))));
+                db.forEach(person => {
+                    if (person.former || !TT.canEditOwner(person.id)) return;
+                    person.categories.forEach(cat => weeksData.forEach((w0, i0) => (cat[w0.key] || []).slice().forEach(t => {
+                        const r = t.repeat; if (!r || !r.every) return;
+                        const ti = r.through ? weeksData.findIndex(w => w.key === r.through) : -1;
+                        const from = Math.max(i0, ti) + 1;
+                        for (let j = from; j < weeksData.length; j++) {
+                            const w = weeksData[j];
+                            const dist = w0.startDate && w.startDate ? Math.round(daysBetweenISO(w0.startDate, w.startDate) / 7) : j - i0;
+                            if (dist <= 0 || dist % r.every) continue;
+                            if (r.until && w.startDate && daysBetweenISO(r.until, w.startDate) > 0) continue;
+                            const id = (t.id + '_' + w.key).slice(0, 64);
+                            if (exists.has(id)) continue;
+                            const copy = { id, type: 'task', name: t.name, priority: t.priority, status: t.status === 'Done' ? 'TODO' : t.status, jiraId: t.jiraId || '',
+                                supportPersonId: t.supportPersonId || null, supportPersonId2: t.supportPersonId2 || null, flag: 'none', completedDate: '',
+                                dueDate: t.dueDate ? addDaysISO(t.dueDate, dist * 7) : '', phaseId: t.phaseId || '', icon: t.icon || '', custom: { ...(t.custom || {}) }, attachments: [],
+                                subtasks: (t.subtasks || []).map(x => ({ id: generateId(), title: x.title, completed: false })),
+                                repeat: { every: 0, until: '', through: '', seriesId: t.id }, history: [], effort: t.effort ?? null, stage: '', dependsOn: [], skill: t.skill || '', timeLog: [] };
+                            logHistory(copy, 'Repeated', '', 'from ' + w0.title + ' (' + REPEAT_TEXT[r.every].toLowerCase() + ')');
+                            if (!Array.isArray(cat[w.key])) cat[w.key] = [];
+                            cat[w.key].push(copy); exists.add(id); created.push(copy); changed = true;
+                        }
+                        const last = weeksData[weeksData.length - 1].key;
+                        if (weeksData.length - 1 > ti && r.through !== last) { t.repeat = { ...r, through: last }; changed = true; }
+                    })));
+                });
+                if (changed) {
+                    TT.commit(null, { noUndo: true }); render();
+                    if (created.length) toast('🔁 Added ' + created.length + ' repeating task' + (created.length === 1 ? '' : 's') + '.', 3500);
+                }
+            } finally { recurringBusy = false; }
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        //  Phase 6: planning — Kanban view, task dependencies, effort, workload,
+        //  burndown. A task's Kanban column is TT.stageOf(task): completed tasks
+        //  are Done; otherwise its `stage` ('todo' / 'doing'), or a guess from its
+        //  status text. `effort` is an estimate in hours; `dependsOn` lists the
+        //  tasks it waits on.
+        // ═════════════════════════════════════════════════════════════════════
+        const STAGE_LABEL = { todo: 'To do', doing: 'Doing', done: 'Done' };
+        const STAGE_ICON = { todo: '⚪', doing: '🔵', done: '✅' };
+        const STAGE_ORDER = ['todo', 'doing', 'done'];
+        function fmtHours(h) { return h === null || h === undefined ? '' : String(+Number(h).toFixed(2)) + 'h'; }
+        function weekIdx(key) { return weeksData.findIndex(w => w.key === key); }
+        function allTaskLocs() {
+            const out = [];
+            db.forEach(person => person.categories.forEach(cat => weeksData.forEach(w => (Array.isArray(cat[w.key]) ? cat[w.key] : []).forEach((task, index) => out.push({ person, cat, weekKey: w.key, index, task })))));
+            return out;
+        }
+        function weekTitle(key) { const w = weeksData.find(x => x.key === key); return w ? w.title : ''; }
+
+        function setTaskStage(task, stage) {
+            const before = TT.stageOf(task); if (before === stage) return false;
+            if (stage === 'done') { task.flag = 'completed'; stampCompletion(task); }
+            else { if (task.flag === 'completed') { task.flag = 'none'; stampCompletion(task); } task.stage = stage; }
+            logHistory(task, 'Stage', STAGE_LABEL[before], STAGE_LABEL[stage]);
+            saveDatabase(); render();
+            if (activeNode && activeNode.id === task.id) openEditor(task);
+            return true;
+        }
+        function setTaskEffort(task, raw) {
+            const v = TT.cleanEffort(raw);
+            if ((task.effort ?? null) === v) return;
+            logHistory(task, 'Effort', fmtHours(task.effort) || 'none', fmtHours(v) || 'none');
+            task.effort = v; saveDatabase(); render();
+        }
+
+        // ---------- Dependencies ----------
+        /** What a task waits on. A prerequisite that was carried forward counts as its latest copy
+         *  (that is the one that gets finished), and each piece of work is listed once. */
+        /** The latest week's copy of a (possibly carried-forward) task. */
+        function latestLoc(id, locs, roots) {
+            locs = locs || allTaskLocs(); roots = roots || carryRootMap(locs); const r = roots.get(id) || id;
+            const chain = locs.filter(l => (roots.get(l.task.id) || l.task.id) === r).sort((a, b) => weekIdx(a.weekKey) - weekIdx(b.weekKey));
+            return chain.length ? chain[chain.length - 1] : locateTask(id);
+        }
+        function prereqs(task) {
+            const locs = allTaskLocs(); const roots = carryRootMap(locs); const seen = new Set(); const out = [];
+            (task.dependsOn || []).forEach(id => {
+                const r = roots.get(id) || id; if (seen.has(r)) return; seen.add(r);
+                const l = latestLoc(id, locs, roots); if (l) out.push(l);
+            });
+            return out;
+        }
+        /** Tasks waiting on this one (or on any other copy of it). */
+        function dependents(task) {
+            const locs = allTaskLocs(); const roots = carryRootMap(locs); const mine = roots.get(task.id) || task.id;
+            return latestOfChains(locs.filter(l => (l.task.dependsOn || []).some(id => (roots.get(id) || id) === mine)));
+        }
+        /** Would making `task` wait on `otherId` create a loop? */
+        function makesLoop(task, otherId) {
+            const locs = allTaskLocs(); const roots = carryRootMap(locs); const rootOf = (id) => roots.get(id) || id;
+            const me = rootOf(task.id); const seen = new Set(); const stack = [otherId];
+            while (stack.length) {
+                const id = stack.pop(); const r = rootOf(id); if (r === me) return true; if (seen.has(r)) continue; seen.add(r);
+                locs.filter(l => rootOf(l.task.id) === r).forEach(l => (l.task.dependsOn || []).forEach(x => stack.push(x)));
+            }
+            return false;
+        }
+        /** Open prerequisites of a task and any schedule problems with them. */
+        function depState(task) {
+            const today = todayISO(); const open = []; const issues = [];
+            if (task.flag === 'completed') return { open, issues };
+            const myWeek = (locateTask(task.id) || {}).weekKey;
+            prereqs(task).forEach(l => {
+                const p = l.task; if (p.flag === 'completed') return;
+                open.push(l);
+                if (p.dueDate && daysBetweenISO(today, p.dueDate) < 0) issues.push({ loc: l, text: '“' + p.name + '” is overdue' });
+                else if (task.dueDate && p.dueDate && daysBetweenISO(task.dueDate, p.dueDate) > 0) issues.push({ loc: l, text: '“' + p.name + '” is due ' + fmtShort(p.dueDate) + ', after this task (' + fmtShort(task.dueDate) + ')' });
+                else if (!p.dueDate && myWeek && weekIdx(l.weekKey) > weekIdx(myWeek)) issues.push({ loc: l, text: '“' + p.name + '” is planned for a later week (' + weekTitle(l.weekKey) + ')' });
+            });
+            return { open, issues };
+        }
+        function depChip(task) {
+            const s = depState(task); if (!s.open.length) return null;
+            const c = document.createElement('div'); c.className = 'dep-chip' + (s.issues.length ? ' warn' : '');
+            c.textContent = (s.issues.length ? '⚠ ' : '⛓ ') + 'Waits on ' + s.open.length;
+            c.title = (s.issues.length ? s.issues.map(i => i.text) : s.open.map(l => 'Waiting on “' + l.task.name + '”')).join('\n');
+            return c;
+        }
+        function pickPrereq(task) {
+            const locs = allTaskLocs(); const roots = carryRootMap(locs); const rootOf = (id) => roots.get(id) || id; const have = new Set((task.dependsOn || []).map(rootOf));
+            const items = latestOfChains(locs).filter(l => rootOf(l.task.id) !== rootOf(task.id) && !have.has(rootOf(l.task.id)) && !makesLoop(task, l.task.id)).map(l => {
+                const st = TT.stageOf(l.task);
+                return { group: l.person.name, icon: STAGE_ICON[st], title: l.task.name || 'Untitled task',
+                    sub: [weekTitle(l.weekKey), STAGE_LABEL[st], l.task.dueDate && 'due ' + fmtShort(l.task.dueDate), l.task.jiraId].filter(Boolean).join(' · '),
+                    fields: [[l.task.name, 3], [l.task.jiraId, 2], [l.person.name, 1], [weekTitle(l.weekKey), 1]], suggest: true,
+                    run: () => addPrereq(task, l.task.id) };
+            });
+            TT.pickFrom(items, 'Which task does “' + (task.name || 'this task') + '” wait on?', 'No other tasks to choose from.');
+        }
+        function addPrereq(task, id) {
+            const cur = task.dependsOn || [];
+            if (cur.length >= TT.MAX_DEPS) { toast('A task can wait on up to ' + TT.MAX_DEPS + ' others.'); return; }
+            if (makesLoop(task, id)) { toast('That would make the tasks wait on each other.'); return; }
+            const l = locateTask(id); if (!l) return;
+            task.dependsOn = cur.concat(id); logHistory(task, 'Waits on', '', l.task.name);
+            saveDatabase(); render(); if (activeNode && activeNode.id === task.id) openEditor(task);
+        }
+        function removePrereq(task, id) {
+            const l = locateTask(id);
+            task.dependsOn = (task.dependsOn || []).filter(x => x !== id); logHistory(task, 'Waits on', l ? l.task.name : 'a deleted task', '');
+            saveDatabase(); render(); if (activeNode && activeNode.id === task.id) openEditor(task);
+        }
+
+        // ---------- Editor: stage, effort, waits on / blocks ----------
+        function planningSection(task, editable) {
+            const s = section(TT.feature('planning') ? 'Planning' : 'Stage');
+            const st = TT.stageOf(task);
+            const seg = document.createElement('div'); seg.className = 'seg-toggle stage-toggle'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Stage');
+            STAGE_ORDER.forEach(k => {
+                const b = document.createElement('button'); b.type = 'button'; b.dataset.stage = k; b.className = k === st ? 'on' : '';
+                b.setAttribute('aria-pressed', String(k === st)); b.textContent = STAGE_ICON[k] + ' ' + STAGE_LABEL[k];
+                b.onclick = () => setTaskStage(task, k); seg.appendChild(b);
+            });
+            const row1 = document.createElement('div'); row1.className = 'plan-row';
+            const l1 = document.createElement('span'); l1.className = 'plan-l'; l1.textContent = 'Stage'; row1.append(l1, seg);
+            const row2 = document.createElement('div'); row2.className = 'plan-row';
+            const l2 = document.createElement('label'); l2.className = 'plan-l'; l2.textContent = 'Effort'; l2.htmlFor = 'edit-effort';
+            const inp = document.createElement('input'); inp.type = 'number'; inp.id = 'edit-effort'; inp.min = '0'; inp.max = '999'; inp.step = '0.5'; inp.inputMode = 'decimal';
+            inp.placeholder = 'hours'; inp.value = task.effort ?? ''; inp.className = 'effort-input';
+            inp.addEventListener('change', () => setTaskEffort(task, inp.value));
+            inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+            const u = document.createElement('span'); u.className = 'hint'; u.textContent = 'hours (estimate)';
+            row2.append(l2, inp, u);
+            s.append(row1);
+            if (!TT.feature('planning')) return s;
+            s.append(row2);
+
+            const ds = depState(task);
+            const h = document.createElement('div'); h.className = 'plan-sub'; h.textContent = 'Waits on'; s.appendChild(h);
+            const list = document.createElement('div'); list.className = 'dep-list';
+            const deps = task.dependsOn || [];
+            if (!deps.length) { const e = document.createElement('div'); e.className = 'hint'; e.textContent = 'Nothing. Add the tasks that must finish before this one can.'; list.appendChild(e); }
+            deps.forEach(id => {
+                const l = latestLoc(id); const row = document.createElement('div'); row.className = 'dep-item';
+                if (!l) { row.classList.add('gone'); row.append('A deleted task'); }
+                else {
+                    const st2 = TT.stageOf(l.task); const issue = ds.issues.find(i => i.loc.task.id === l.task.id);
+                    const b = document.createElement('button'); b.type = 'button'; b.className = 'link-btn dep-open'; b.textContent = STAGE_ICON[st2] + ' ' + (l.task.name || 'Untitled task');
+                    b.onclick = () => openOriginalTask(id);
+                    const meta = document.createElement('span'); meta.className = 'dep-meta'; meta.textContent = [l.person.name, weekTitle(l.weekKey), l.task.dueDate && 'due ' + fmtShort(l.task.dueDate)].filter(Boolean).join(' · ');
+                    row.append(b, meta);
+                    if (issue) { row.classList.add('warn'); const w = document.createElement('div'); w.className = 'dep-warn'; w.textContent = '⚠ ' + issue.text; row.appendChild(w); }
+                }
+                if (editable) { const x = document.createElement('button'); x.type = 'button'; x.className = 'dep-x'; x.textContent = '✕'; x.title = 'Stop waiting on this'; x.setAttribute('aria-label', 'Remove'); x.onclick = () => removePrereq(task, id); row.appendChild(x); }
+                list.appendChild(row);
+            });
+            s.appendChild(list);
+            if (editable && deps.length < TT.MAX_DEPS) { const add = document.createElement('button'); add.type = 'button'; add.className = 'btn small'; add.dataset.editOnly = '1'; add.textContent = '⛓ Add a task this waits on…'; add.onclick = () => pickPrereq(task); s.appendChild(add); }
+            const blocks = dependents(task);
+            if (blocks.length) {
+                const h2 = document.createElement('div'); h2.className = 'plan-sub'; h2.textContent = 'Blocks'; s.appendChild(h2);
+                const bl = document.createElement('div'); bl.className = 'dep-list';
+                blocks.forEach(l => { const row = document.createElement('div'); row.className = 'dep-item'; const b = document.createElement('button'); b.type = 'button'; b.className = 'link-btn dep-open'; b.textContent = STAGE_ICON[TT.stageOf(l.task)] + ' ' + (l.task.name || 'Untitled task'); b.onclick = () => openOriginalTask(l.task.id); const meta = document.createElement('span'); meta.className = 'dep-meta'; meta.textContent = [l.person.name, weekTitle(l.weekKey)].filter(Boolean).join(' · '); row.append(b, meta); bl.appendChild(row); });
+                s.appendChild(bl);
+            }
+            return s;
+        }
+        function stageMenuItem(loc) {
+            const cur = TT.stageOf(loc.task);
+            return { icon: '🗂️', label: 'Stage', submenu: STAGE_ORDER.map(k => ({ icon: k === cur ? '✓' : STAGE_ICON[k], label: STAGE_LABEL[k], action: () => setTaskStage(loc.task, k) })) };
+        }
+
+        // ---------- Board ⇄ Kanban view ----------
+        let boardView = (() => { try { return localStorage.getItem('tt_view') === 'kanban' ? 'kanban' : 'board'; } catch (e) { return 'board'; } })();
+        let kbScope = (() => { try { return localStorage.getItem('tt_kb_scope') || 'visible'; } catch (e) { return 'visible'; } })();
+        let kbLanes = (() => { try { return localStorage.getItem('tt_kb_lanes') || 'none'; } catch (e) { return 'none'; } })();
+        let kbMine = false;
+        function savePref(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* */ } }
+        function boardSetView(v) {
+            boardView = v === 'kanban' ? 'kanban' : 'board'; savePref('tt_view', boardView);
+            document.body.classList.toggle('view-kanban', boardView === 'kanban');
+            document.querySelectorAll('[data-view]').forEach(b => { const on = b.dataset.view === boardView; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+            if (boardView === 'kanban') renderKanban(); else { const k = document.getElementById('kanban-view'); if (k) k.innerHTML = ''; render(); }
+        }
+        window.boardSetView = boardSetView;
+        window.boardView = () => boardView;
+        function render() {
+            syncSubteamView();
+            _renderBase();
+            markSubteams();
+            fitCategoryLabels();
+            renderSubteamBar();
+            if (boardView === 'kanban') renderKanban();
+        }
+        // Category names: shrink a label's text only as much as needed for its longest word to fit
+        // the column (so words wrap between words, not in the middle), never below a readable size.
+        let fitCanvas = null;
+        function fitCategoryLabels() {
+            const labels = document.querySelectorAll('#nodes-container .node-cat > .row-label'); if (!labels.length) return;
+            fitCanvas = fitCanvas || document.createElement('canvas'); const g = fitCanvas.getContext('2d'); if (!g) return;
+            labels.forEach(l => {
+                l.style.fontSize = '';
+                const cs = window.getComputedStyle(l); const base = parseFloat(cs.fontSize) || 12; const avail = l.clientWidth; if (!avail) return;
+                const ls = parseFloat(cs.letterSpacing) || 0; const upper = cs.textTransform === 'uppercase';
+                g.font = cs.fontWeight + ' ' + base + 'px ' + cs.fontFamily;
+                const words = (upper ? l.textContent.toUpperCase() : l.textContent).split(/\s+/).filter(Boolean);
+                const widest = Math.max(0, ...words.map(w => g.measureText(w).width + ls * w.length));
+                if (widest > avail) l.style.fontSize = Math.max(8.5, Math.floor(base * avail / widest * 10) / 10) + 'px';
+            });
+        }
+        (function () { let t = null; window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(fitCategoryLabels, 150); }); })();
+        function kbWeeks() {
+            if (kbScope === 'all') return weeksData.slice();
+            if (kbScope === 'current') { const w = weeksData.find(isCurrentWeek) || weeksData[weeksData.length - 1]; return w ? [w] : []; }
+            return getVisibleWeeks();
+        }
+        function kbRows() {
+            const weeks = new Set(kbWeeks().map(w => w.key)); const q = ((document.getElementById('search-tasks') || {}).value || '').trim().toLowerCase();
+            return latestOfChains(allTaskLocs().filter(l => weeks.has(l.weekKey))).filter(l => !hiddenPersons.has(l.person.id) && !phaseHidden(l.task) && !l.task.isGhost
+                && (!kbMine || l.person.id === (TT.me && TT.me.uid))
+                && (!q || [l.task.name, l.task.jiraId, l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
+        }
+        const PRIO_RANK = { Blocker: 0, Critical: 1, Major: 2, Minor: 3 };
+        function kbSort(st) {
+            if (st === 'done') return (a, b) => String(b.task.completedDate || '').localeCompare(String(a.task.completedDate || '')) || a.task.name.localeCompare(b.task.name);
+            return (a, b) => (PRIO_RANK[a.task.priority] - PRIO_RANK[b.task.priority]) || ((a.task.dueDate || '9999') < (b.task.dueDate || '9999') ? -1 : (a.task.dueDate || '9999') > (b.task.dueDate || '9999') ? 1 : 0) || a.task.name.localeCompare(b.task.name);
+        }
+        function kbCard(l, showOwner) {
+            const t = l.task; const editable = TT.canEditOwner(l.person.id);
+            const c = document.createElement('div'); c.className = 'kb-card prio-' + String(t.priority).toLowerCase(); c.id = 'kb-' + t.id; c.dataset.id = t.id; c.tabIndex = 0;
+            c.setAttribute('role', 'button'); c.setAttribute('aria-label', t.name + ', ' + STAGE_LABEL[TT.stageOf(t)] + (editable ? '. Alt + arrow keys move it between columns.' : ''));
+            if (activeNode && activeNode.id === t.id) c.classList.add('selected');
+            const title = document.createElement('div'); title.className = 'kb-title';
+            if (t.icon && !t.icon.startsWith('data:')) { const ic = document.createElement('span'); ic.className = 'task-icon'; ic.textContent = t.icon; title.appendChild(ic); }
+            title.append(t.name || 'Untitled task'); c.appendChild(title);
+            const meta = document.createElement('div'); meta.className = 'kb-meta';
+            const add = (cls, text, tip) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; if (tip) s.title = tip; meta.appendChild(s); return s; };
+            add('kb-prio', (PRIO_ICON[t.priority] || '') + ' ' + t.priority);
+            if (showOwner) add('kb-owner', '👤 ' + l.person.name);
+            add('kb-week', weekTitle(l.weekKey));
+            const di = dueInfo(t); if (di) add('kb-due ' + di.cls, di.label);
+            const lg = TT.feature('time') ? chainLogged(t) : 0;
+            if (lg) add('effort-chip', '🕒 ' + fmtHours(lg) + (TT.feature('planning') && t.effort ? ' / ' + fmtHours(t.effort) : ''), 'Hours logged');
+            else if (TT.feature('planning') && t.effort !== null && t.effort !== undefined) add('effort-chip', '⏱ ' + fmtHours(t.effort), 'Estimated effort');
+            const subs = t.subtasks || []; if (subs.length) add('kb-subs', '☑ ' + subs.filter(x => x.completed).length + '/' + subs.length, 'Sub-tasks done');
+            const n = TT.commentCount(t.id); if (n) add('kb-cm', '💬 ' + n);
+            const ch = carryChain(t); if (ch && ch.length > 1) add('kb-carry', '↪ ' + ch.length + ' wks', 'Carried forward since ' + weekTitle(ch[0].weekKey));
+            c.appendChild(meta);
+            const ph = phaseOf(t); if (ph) c.appendChild(phaseTagEl(ph));
+            const dc = TT.feature('planning') ? depChip(t) : null; if (dc) c.appendChild(dc);
+            const more = document.createElement('button'); more.type = 'button'; more.className = 'card-more'; more.textContent = '⋯'; more.title = 'Task actions'; more.setAttribute('aria-label', 'Task actions');
+            more.addEventListener('click', (e) => { e.stopPropagation(); const r = more.getBoundingClientRect(); const loc = locateTask(t.id); if (loc) showMenu(r.left, r.bottom + 4, taskMenuItems(loc)); });
+            c.appendChild(more);
+            c.addEventListener('click', () => { const loc = locateTask(t.id); if (!loc) return; activeNode = loc.task; openEditorForNode(loc.task); if (isCompact()) setPanel(true); document.querySelectorAll('.kb-card.selected').forEach(x => x.classList.remove('selected')); c.classList.add('selected'); });
+            c.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); const loc = locateTask(t.id); if (loc) showMenu(e.clientX, e.clientY, taskMenuItems(loc)); });
+            c.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); return; }
+                if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && editable) {
+                    e.preventDefault(); const i = STAGE_ORDER.indexOf(TT.stageOf(t)); const j = i + (e.key === 'ArrowRight' ? 1 : -1);
+                    if (j >= 0 && j < STAGE_ORDER.length && setTaskStage(t, STAGE_ORDER[j])) { const n2 = document.getElementById('kb-' + t.id); if (n2) n2.focus(); toast('Moved to ' + STAGE_LABEL[STAGE_ORDER[j]] + '.', 2000); }
+                }
+            });
+            if (editable) {
+                c.draggable = true;
+                c.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-tt-task', t.id); e.dataTransfer.effectAllowed = 'move'; c.classList.add('dragging'); document.body.classList.add('kb-dragging'); });
+                c.addEventListener('dragend', () => { c.classList.remove('dragging'); document.body.classList.remove('kb-dragging'); document.querySelectorAll('.kb-drop').forEach(x => x.classList.remove('kb-drop')); });
+            }
+            return c;
+        }
+        function kbDropZone(zone, stage, laneId) {
+            zone.dataset.stage = stage;
+            zone.addEventListener('dragover', (e) => { if (!e.dataTransfer.types.includes('text/x-tt-task')) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; zone.classList.add('kb-drop'); });
+            zone.addEventListener('dragleave', (e) => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('kb-drop'); });
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault(); zone.classList.remove('kb-drop');
+                const id = e.dataTransfer.getData('text/x-tt-task'); const loc = locateTask(id); if (!loc) return;
+                if (!TT.canEditOwner(loc.person.id)) { toast('Your role can’t change this task.'); return; }
+                if (laneId && laneId !== loc.person.id) toast('Tasks stay with their owner; only the stage changed.', 3500);
+                if (setTaskStage(loc.task, stage)) flashKb(id);
+            });
+        }
+        function flashKb(id) { setTimeout(() => { const n = document.getElementById('kb-' + id); if (n) { n.classList.add('flash-hl'); setTimeout(() => n.classList.remove('flash-hl'), 1200); } }, 60); }
+        function renderKanban() {
+            let view = document.getElementById('kanban-view');
+            if (!view) { const mv = document.getElementById('main-view'); if (!mv) return; view = document.createElement('div'); view.id = 'kanban-view'; view.setAttribute('aria-label', 'Kanban board'); mv.appendChild(view); }
+            const scrollers = [...view.querySelectorAll('.kb-list')].map(x => x.scrollTop); const hScroll = (view.querySelector('.kb-board') || {}).scrollLeft || 0;
+            const focusId = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('kb-card') ? document.activeElement.dataset.id : null;
+            const rows = kbRows();
+            const bar = document.createElement('div'); bar.className = 'kb-toolbar';
+            const sel = (id, label, opts, val, on) => { const w = document.createElement('label'); w.className = 'kb-ctl'; w.append(label + ' '); const s = document.createElement('select'); s.id = id; opts.forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; s.appendChild(o); }); s.value = val; s.onchange = () => on(s.value); w.appendChild(s); return w; };
+            bar.appendChild(sel('kb-scope', 'Weeks', [['visible', 'Shown on the board'], ['current', 'This week'], ['all', 'All weeks']], kbScope, v => { kbScope = v; savePref('tt_kb_scope', v); renderKanban(); }));
+            bar.appendChild(sel('kb-lanes', 'Rows', [['none', 'One row'], ['person', 'One per person']], kbLanes, v => { kbLanes = v; savePref('tt_kb_lanes', v); renderKanban(); }));
+            const mine = document.createElement('label'); mine.className = 'kb-ctl kb-check'; const cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'kb-mine'; cb.checked = kbMine; cb.onchange = () => { kbMine = cb.checked; renderKanban(); }; mine.append(cb, ' Only my tasks'); bar.appendChild(mine);
+            const hours = rows.filter(l => l.task.effort).reduce((a, l) => a + l.task.effort, 0);
+            const sum = document.createElement('span'); sum.className = 'kb-sum'; sum.textContent = rows.length + (rows.length === 1 ? ' task' : ' tasks') + (hours ? ' · ' + fmtHours(hours) + ' estimated' : ''); bar.appendChild(sum);
+            const hint = document.createElement('span'); hint.className = 'kb-hint'; hint.textContent = 'Drag cards between columns · Alt + ← → with the keyboard'; bar.appendChild(hint);
+
+            const board = document.createElement('div'); board.className = 'kb-board' + (kbLanes === 'person' ? ' with-lanes' : '');
+            const head = document.createElement('div'); head.className = 'kb-head';
+            STAGE_ORDER.forEach(st => {
+                const items = rows.filter(l => TT.stageOf(l.task) === st); const h = items.filter(l => l.task.effort).reduce((a, l) => a + l.task.effort, 0);
+                const d = document.createElement('div'); d.className = 'kb-col-head kb-' + st; d.innerHTML = '<span class="kb-col-name">' + STAGE_ICON[st] + ' ' + STAGE_LABEL[st] + '</span><span class="kb-count">' + items.length + '</span>' + (h ? '<span class="kb-hours">' + esc(fmtHours(h)) + '</span>' : '');
+                head.appendChild(d);
+            });
+            board.appendChild(head);
+            const lanes = kbLanes === 'person' ? db.filter(p => !p.former && !hiddenPersons.has(p.id) && rows.some(l => l.person.id === p.id)).map(p => ({ id: p.id, name: p.name, rows: rows.filter(l => l.person.id === p.id) })) : [{ id: '', name: '', rows }];
+            if (!rows.length) { const e = document.createElement('div'); e.className = 'kb-empty'; e.textContent = 'No tasks here. Change the week or person filters, or add tasks on the board.'; board.appendChild(e); }
+            lanes.forEach(lane => {
+                if (kbLanes === 'person') { const lh = document.createElement('div'); lh.className = 'kb-lane-head'; lh.textContent = '👤 ' + lane.name + ' · ' + lane.rows.length; board.appendChild(lh); }
+                const laneEl = document.createElement('div'); laneEl.className = 'kb-lane';
+                STAGE_ORDER.forEach(st => {
+                    const col = document.createElement('div'); col.className = 'kb-list kb-' + st; col.setAttribute('aria-label', STAGE_LABEL[st] + (lane.name ? ' – ' + lane.name : ''));
+                    const items = lane.rows.filter(l => TT.stageOf(l.task) === st).sort(kbSort(st));
+                    const CAP = st === 'done' ? 40 : 400;
+                    items.slice(0, CAP).forEach(l => col.appendChild(kbCard(l, kbLanes !== 'person')));
+                    if (items.length > CAP) { const m = document.createElement('div'); m.className = 'kb-more'; m.textContent = '+ ' + (items.length - CAP) + ' more completed (narrow the weeks to see them)'; col.appendChild(m); }
+                    if (!items.length) { const m = document.createElement('div'); m.className = 'kb-placeholder'; m.textContent = st === 'doing' ? 'Drag a task here when you start it' : st === 'done' ? 'Finished tasks land here' : 'Nothing waiting'; col.appendChild(m); }
+                    kbDropZone(col, st, lane.id); laneEl.appendChild(col);
+                });
+                board.appendChild(laneEl);
+            });
+            view.replaceChildren(bar, board);
+            board.scrollLeft = hScroll; [...view.querySelectorAll('.kb-list')].forEach((x, i) => { if (scrollers[i]) x.scrollTop = scrollers[i]; });
+            if (focusId) { const n = document.getElementById('kb-' + focusId); if (n) n.focus({ preventScroll: true }); }
+        }
+        // boardOpenTask/openOriginalTask while the Kanban is showing: highlight the Kanban card
+        const _openOriginalTaskBase = openOriginalTask;
+        openOriginalTask = function (taskId) { _openOriginalTaskBase(taskId); if (boardView === 'kanban') { const n = document.getElementById('kb-' + taskId); if (n) { try { n.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* */ } } flashKb(taskId); } };
+        (function () { const q = document.getElementById('search-tasks'); if (q) q.addEventListener('input', () => { if (boardView === 'kanban') renderKanban(); }); })();
+        document.body.classList.toggle('view-kanban', boardView === 'kanban');
+        document.querySelectorAll('[data-view]').forEach(b => { const on = b.dataset.view === boardView; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+
+        // ---------- Analytics: Planning tab (workload, burndown, dependencies at risk) ----------
+        let anBurn = '';
+        function burnRange(id) {
+            if (id && id !== 'weeks') { const p = phaseById(id); if (p && p.start && p.end) return { start: p.start, end: p.end, label: p.name, phaseId: p.id }; }
+            const dated = weeksData.filter(w => w.startDate); if (!dated.length) return null;
+            return { start: dated[0].startDate, end: addDaysISO(dated[dated.length - 1].startDate, 6), label: 'All weeks', phaseId: null };
+        }
+        function defaultBurn() {
+            const today = todayISO(); const ps = teamPhases().filter(p => p.start && p.end);
+            const now = ps.find(p => daysBetweenISO(p.start, today) >= 0 && daysBetweenISO(today, p.end) >= 0);
+            return (now || ps[0] || { id: 'weeks' }).id;
+        }
+        function burndownSvg(range) {
+            const saved = anPhase; anPhase = 'all';
+            let rows; try { rows = collectTasks(); } finally { anPhase = saved; }
+            if (range.phaseId) rows = rows.filter(r => r.t.phaseId === range.phaseId);
+            if (!rows.length) return '<div class="an-empty">No tasks in ' + esc(range.label) + ' yet.</div>';
+            const est = rows.filter(r => r.t.effort > 0); const byHours = est.length > 0; const unit = byHours ? 'h' : ' tasks';
+            const use = byHours ? est : rows; const val = r => byHours ? r.t.effort : 1;
+            const total = use.reduce((a, r) => a + val(r), 0);
+            const days = Math.max(1, daysBetweenISO(range.start, range.end)); const today = todayISO();
+            const upto = Math.max(0, Math.min(days, daysBetweenISO(range.start, today)));
+            const done = (d) => use.filter(r => r.done && r.t.completedDate && daysBetweenISO(r.t.completedDate, addDaysISO(range.start, d)) >= 0).reduce((a, r) => a + val(r), 0);
+            const doneBefore = use.filter(r => r.done && r.t.completedDate && daysBetweenISO(r.t.completedDate, range.start) > 0).reduce((a, r) => a + val(r), 0);
+            const W = 640, H = 230, L = 46, R = 14, T = 14, B = 34, iw = W - L - R, ih = H - T - B;
+            const x = d => L + d / days * iw, y = v => T + ih - (total ? v / total : 0) * ih;
+            let actual = ''; const step = Math.max(1, Math.ceil(days / 120));
+            if (daysBetweenISO(range.start, today) >= 0) { const pts = []; for (let d = 0; d <= upto; d += step) pts.push([d, total - done(d)]); if (pts[pts.length - 1][0] !== upto) pts.push([upto, total - done(upto)]); actual = '<polyline class="bd-actual" points="' + pts.map(([d, v]) => x(d).toFixed(1) + ',' + y(v).toFixed(1)).join(' ') + '"/>' + '<circle class="bd-dot" cx="' + x(upto).toFixed(1) + '" cy="' + y(total - done(upto)).toFixed(1) + '" r="4"/>'; }
+            const grid = [0, .25, .5, .75, 1].map(f => '<line class="bd-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(total * f).toFixed(1) + '" y2="' + y(total * f).toFixed(1) + '"/><text class="bd-tick" x="' + (L - 6) + '" y="' + (y(total * f) + 4).toFixed(1) + '" text-anchor="end">' + (+(total * f).toFixed(1)) + '</text>').join('');
+            const xt = [0, .5, 1].map(f => { const d = Math.round(days * f); return '<text class="bd-tick" x="' + x(d).toFixed(1) + '" y="' + (H - 12) + '" text-anchor="' + (f === 0 ? 'start' : f === 1 ? 'end' : 'middle') + '">' + esc(fmtShort(addDaysISO(range.start, d))) + '</text>'; }).join('');
+            const todayLine = daysBetweenISO(range.start, today) >= 0 && daysBetweenISO(today, range.end) >= 0 ? '<line class="bd-today" x1="' + x(upto).toFixed(1) + '" x2="' + x(upto).toFixed(1) + '" y1="' + T + '" y2="' + (T + ih) + '"/><text class="bd-tick bd-today-l" x="' + (x(upto) + 4).toFixed(1) + '" y="' + (T + 10) + '">today</text>' : '';
+            const svg = '<svg class="burndown" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Burndown for ' + esc(range.label) + '">' + grid + xt + '<line class="bd-ideal" x1="' + x(0) + '" y1="' + y(total) + '" x2="' + x(days) + '" y2="' + y(0) + '"/>' + todayLine + actual + '</svg>';
+            const left = total - done(upto); const ideal = total * (1 - upto / days);
+            const diff = left - ideal; const tol = Math.max(byHours ? 1 : 0.5, total * 0.05);
+            const verdict = daysBetweenISO(range.start, today) < 0 ? 'Starts ' + fmtShort(range.start) + '.' : left <= 0 ? '🎉 Everything is done.' : Math.abs(diff) <= tol ? '👍 On track.' : diff > 0 ? '⚠ Behind the ideal line by ' + (+diff.toFixed(1)) + unit + '.' : '🚀 Ahead of the ideal line by ' + (+(-diff).toFixed(1)) + unit + '.';
+            const notes = [];
+            if (byHours && est.length < rows.length) notes.push((rows.length - est.length) + ' task' + (rows.length - est.length === 1 ? '' : 's') + ' without an estimate aren’t counted.');
+            if (!byHours) notes.push('No effort estimates yet, so this counts tasks. Add hours in the editor ▸ Planning ▸ Effort.');
+            if (doneBefore) notes.push((+doneBefore.toFixed(1)) + unit + ' were finished before the start date.');
+            return '<div class="bd-summary"><b>' + (+left.toFixed(1)) + unit + '</b> left of ' + (+total.toFixed(1)) + unit + ' · ' + verdict + '</div>' + svg +
+                '<div class="an-legend"><span><i class="bd-key ideal"></i>Ideal</span><span><i class="bd-key actual"></i>Remaining</span></div>' + (notes.length ? '<p class="an-note">' + esc(notes.join(' ')) + '</p>' : '');
+        }
+        function renderPlanning(rows) {
+            const cap = TT.capacity; const open = rows.filter(r => !r.done);
+            const estOpen = open.filter(r => r.t.effort > 0).reduce((a, r) => a + r.t.effort, 0);
+            const noEst = open.filter(r => !(r.t.effort > 0)).length;
+            const waiting = open.filter(r => depState(r.t).open.length); const risky = open.map(r => ({ r, s: depState(r.t) })).filter(x => x.s.issues.length);
+            const stages = { todo: 0, doing: 0, done: 0 }; rows.forEach(r => stages[TT.stageOf(r.t)]++);
+            const kpi = (label, v, cls, sub) => '<div class="an-kpi ' + (cls || '') + '"><div class="an-kpi-v">' + v + '</div><div class="an-kpi-l">' + label + '</div>' + (sub ? '<div class="an-kpi-s">' + sub + '</div>' : '') + '</div>';
+            const kp = '<div class="an-kpis">' + kpi('To do · Doing · Done', stages.todo + ' · ' + stages.doing + ' · ' + stages.done) + kpi('Open work estimated', fmtHours(estOpen) || '0h') + kpi('Open tasks without an estimate', noEst, noEst ? 'warn' : '') + kpi('Waiting on other tasks', waiting.length) + kpi('Waiting, and at risk', risky.length, risky.length ? 'bad' : '') + '</div>';
+            // Workload: hours per person per week
+            const weeks = weeksData.filter(w => rows.some(r => r.week.key === w.key));
+            const people = db.filter(p => !p.former && (anPerson === 'all' || p.id === anPerson));
+            const canCap = TT.canSetCapacity();
+            const capCtl = '<label class="an-inline">Capacity per person <input id="an-capacity" type="number" min="0" max="80" step="1" value="' + (cap || '') + '" placeholder="–" ' + (canCap ? '' : 'disabled title="Only people who can change team settings can set this"') + '> hours / week</label>';
+            let work = '<div class="an-empty">No tasks in these weeks.</div>';
+            if (weeks.length && people.length) {
+                const cell = (list, uid, w) => {
+                    const cap = TT.feature('people') ? TT.capacityFor(uid, w.startDate || '') : TT.capacity;
+                    const h = list.filter(r => r.t.effort > 0).reduce((a, r) => a + r.t.effort, 0); const hd = list.filter(r => r.done && r.t.effort > 0).reduce((a, r) => a + r.t.effort, 0);
+                    const unest = list.filter(r => !r.done && !(r.t.effort > 0)).length;
+                    if (!list.length) return '<td class="wl-cell wl-empty">·</td>';
+                    const over = cap && h > cap; const scale = Math.max(cap || 0, h, 1);
+                    const tip = list.length + ' task' + (list.length === 1 ? '' : 's') + ', ' + fmtHours(h) + ' estimated (' + fmtHours(hd) + ' done)' + (unest ? ', ' + unest + ' open without an estimate' : '') + (over ? ' — over capacity' : '');
+                    return '<td class="wl-cell' + (over ? ' over' : '') + '" title="' + esc(tip) + '"><div class="wl-v">' + (h ? esc(fmtHours(h)) : '–') + (unest ? '<span class="wl-q">+' + unest + '?</span>' : '') + '</div><div class="wl-bar"><i class="wl-done" style="width:' + (hd / scale * 100).toFixed(1) + '%"></i><i class="wl-open" style="width:' + ((h - hd) / scale * 100).toFixed(1) + '%"></i>' + (cap ? '<b class="wl-cap" style="left:' + Math.min(100, cap / scale * 100).toFixed(1) + '%"></b>' : '') + '</div></td>';
+                };
+                work = '<div class="an-table-wrap"><table class="an-table wl-table"><tr><th>Team member</th>' + weeks.map(w => '<th title="' + esc(w.startDate ? fmtRange(w.startDate) : '') + '">' + esc(w.title) + '</th>').join('') + '<th>Total</th></tr>' +
+                    people.map(p => { const mine = rows.filter(r => r.person.id === p.id); return '<tr><td><b>' + esc(p.name) + '</b></td>' + weeks.map(w => cell(mine.filter(r => r.week.key === w.key), p.id, w)).join('') + '<td class="wl-total">' + esc(fmtHours(mine.filter(r => r.t.effort > 0).reduce((a, r) => a + r.t.effort, 0)) || '–') + '</td></tr>'; }).join('') + '</table></div>' +
+                    '<div class="an-legend"><span><i class="bd-key done"></i>Done</span><span><i class="bd-key open"></i>Open</span>' + (cap ? '<span><i class="bd-key cap"></i>Capacity (' + cap + 'h)</span>' : '') + '<span>+N? = open tasks without an estimate</span></div>';
+            }
+            // Burndown
+            const ps = teamPhases().filter(p => p.start && p.end);
+            if (!anBurn || (anBurn !== 'weeks' && !ps.some(p => p.id === anBurn))) anBurn = defaultBurn();
+            const range = burnRange(anBurn);
+            const burnSel = '<label class="an-inline">Show <select id="an-burn">' + ps.map(p => '<option value="' + esc(p.id) + '"' + (p.id === anBurn ? ' selected' : '') + '>🧭 ' + esc(p.name) + ' (' + esc(fmtShort(p.start)) + ' – ' + esc(fmtShort(p.end)) + ')</option>').join('') + '<option value="weeks"' + (anBurn === 'weeks' ? ' selected' : '') + '>All weeks</option></select></label>';
+            const burn = range ? burndownSvg(range) : '<div class="an-empty">Give your weeks start dates (right-click the board ▸ Set week dates…) or give a phase start and end dates to see a burndown.</div>';
+            // Dependencies at risk
+            const riskTbl = risky.length ? '<div class="an-table-wrap"><table class="an-table"><tr><th>Task</th><th>Who</th><th>Week</th><th>Problem</th></tr>' + risky.map(({ r, s }) => '<tr class="an-click" data-jump="' + esc(r.t.id) + '"><td>' + esc(r.t.name) + '</td><td>' + esc(r.person.name) + '</td><td>' + esc(r.week.title) + '</td><td class="t-bad">' + s.issues.map(i => esc(i.text)).join('<br>') + '</td></tr>').join('') + '</table></div>' : '<div class="an-empty">No task is waiting on something that’s late. 👍</div>';
+            return kp + '<div class="an-grid"><div class="an-card an-wide"><h4>Workload: estimated hours per person per week ' + capCtl + '</h4>' + work + '</div>' +
+                '<div class="an-card an-wide"><h4>Burndown ' + burnSel + '</h4>' + burn + '</div>' +
+                '<div class="an-card an-wide"><h4>⛓ Waiting on late tasks</h4>' + riskTbl + '</div></div>';
+        }
+        document.addEventListener('change', async (e) => {
+            if (e.target && e.target.id === 'an-burn') { anBurn = e.target.value; renderAnalytics(); }
+            else if (e.target && e.target.id === 'an-capacity') { const ok = await TT.setCapacity(e.target.value); if (ok) toast(Number(e.target.value) > 0 ? 'Capacity set to ' + Math.round(Number(e.target.value)) + ' hours a week.' : 'Capacity cleared.', 2500); }
+        });
+
+        // ---------- Top bar: keep it on one row by dropping labels only when needed ----------
+        (function fitTopBar() {
+            const bar = document.getElementById('top-bar'); if (!bar || !window.ResizeObserver) return;
+            const wraps = () => {
+                const kids = [...bar.querySelectorAll('#top-actions > *, #floating-toggles > *')].filter(k => k.offsetParent !== null);
+                if (kids.length < 2) return false;
+                const top = Math.min(...kids.map(k => k.offsetTop));
+                return kids.some(k => k.offsetTop > top + 6);
+            };
+            let busy = false;
+            const fit = () => {
+                if (busy) return; busy = true;
+                try { for (let lvl = 0; lvl <= 5; lvl++) { bar.dataset.tight = String(lvl); if (!wraps()) break; } } finally { busy = false; }
+            };
+            let lastW = 0;
+            const ro = new ResizeObserver(() => { const w = bar.clientWidth; if (w !== lastW) { lastW = w; fit(); } else if (wraps()) fit(); });
+            ro.observe(bar);
+            // content changes (team name, labels, badges, fonts) can make it wrap without a width change
+            const acts = document.getElementById('top-actions'); if (acts) ro.observe(acts);
+            if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+            window.boardFitTopBar = fit;
+        })();
+
+        // ═════════════════════════════════════════════════════════════════════
+        //  Carried-forward chains: copies of a task carried into later weeks are
+        //  one piece of work. Edits to a task flow into its later copies (not
+        //  backwards, and never the done/not-done state or history), and views
+        //  that count tasks show the chain once.
+        // ═════════════════════════════════════════════════════════════════════
+        const CARRY_FIELDS = ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'dueDate', 'phaseId', 'subtasks', 'custom', 'icon', 'attachments', 'effort', 'skill', 'dependsOn'];
+        const CARRY_LABEL = { name: 'title', priority: 'priority', status: 'status', jiraId: 'reference', supportPersonId: 'support', supportPersonId2: 'support', dueDate: 'deadline', phaseId: 'phase', subtasks: 'sub-tasks', custom: 'fields', icon: 'icon', attachments: 'files', effort: 'effort', skill: 'skill needed', dependsOn: 'waits on' };
+        let carrySnap = new Map();
+        function snapOf(t) { const o = {}; CARRY_FIELDS.forEach(f => { o[f] = JSON.stringify(t[f] ?? null); }); return o; }
+        function takeCarrySnapshot() { carrySnap = new Map(allTaskLocs().map(l => [l.task.id, snapOf(l.task)])); }
+        /** id → chain root, using the names as they were before the current edit. */
+        function carryRootMap(locs) {
+            locs = locs || allTaskLocs();
+            return TT.carryRoots(locs.map(l => { const s = carrySnap.get(l.task.id); return { id: l.task.id, carryOf: l.task.carryOf || '', name: s ? JSON.parse(s.name) : l.task.name, cat: l.cat.id, weekIdx: weekIdx(l.weekKey), history: l.task.history }; }));
+        }
+        /** The chain a task belongs to, in week order (null if it isn't part of one). */
+        function carryChain(task, roots, locs) {
+            locs = locs || allTaskLocs(); roots = roots || carryRootMap(locs);
+            const r = roots.get(task.id); if (!r) return null;
+            const list = locs.filter(l => roots.get(l.task.id) === r).sort((a, b) => weekIdx(a.weekKey) - weekIdx(b.weekKey));
+            return list.length > 1 ? list : null;
+        }
+        function latestOfChains(locs) {
+            const roots = carryRootMap(allTaskLocs()); const best = new Map();
+            locs.forEach(l => { const r = roots.get(l.task.id) || l.task.id; const b = best.get(r); if (!b || weekIdx(l.weekKey) > weekIdx(b.weekKey)) best.set(r, l); });
+            return locs.filter(l => best.get(roots.get(l.task.id) || l.task.id) === l);
+        }
+        /** Copy edited fields into later copies of the same chain. Returns how many copies changed. */
+        function propagateCarry() {
+            if (!carrySnap.size) return 0;
+            const locs = allTaskLocs(); const roots = carryRootMap(locs);
+            const groups = new Map(); locs.forEach(l => { const r = roots.get(l.task.id); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(l); });
+            const touched = new Set();
+            groups.forEach((list, root) => {
+                if (list.length < 2) return;
+                list.sort((a, b) => weekIdx(a.weekKey) - weekIdx(b.weekKey));
+                list.forEach((src, i) => {
+                    const before = carrySnap.get(src.task.id); if (!before) return;
+                    const now = snapOf(src.task); const changed = CARRY_FIELDS.filter(f => now[f] !== before[f]);
+                    if (!changed.length) return;
+                    list.slice(i + 1).forEach(dst => {
+                        if (!TT.canEditOwner(dst.person.id)) return;
+                        const diff = changed.filter(f => JSON.stringify(dst.task[f] ?? null) !== now[f]);
+                        if (!diff.length) return;
+                        diff.forEach(f => { dst.task[f] = JSON.parse(now[f]); });
+                        if (!dst.task.carryOf && dst.task.id !== root) dst.task.carryOf = root;
+                        logHistory(dst.task, 'Carried update', '', 'From ' + weekTitle(src.weekKey) + ': ' + [...new Set(diff.map(f => CARRY_LABEL[f]))].join(', '));
+                        touched.add(dst.task.id);
+                    });
+                });
+            });
+            return touched.size;
+        }
+        function carryChip(task) {
+            const ch = carryChain(task); if (!ch) return null;
+            const i = ch.findIndex(l => l.task.id === task.id);
+            const c = document.createElement('span'); c.className = 'effort-chip carry-chip';
+            c.textContent = '↪ week ' + (i + 1) + ' of ' + ch.length;
+            c.title = 'Carried forward: ' + ch.map(l => weekTitle(l.weekKey)).join(' → ') + '. Changes flow into later weeks.';
+            return c;
+        }
+        function carryNote(task) {
+            const ch = carryChain(task); if (!ch) return null;
+            const i = ch.findIndex(l => l.task.id === task.id); const later = ch.slice(i + 1);
+            const n = document.createElement('div'); n.className = 'carry-note';
+            const lead = document.createElement('b'); lead.textContent = '↪ Carried forward · week ' + (i + 1) + ' of ' + ch.length;
+            n.appendChild(lead);
+            const trail = document.createElement('div'); trail.className = 'carry-trail';
+            ch.forEach((l, j) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'carry-step' + (j === i ? ' on' : '') + (l.task.flag === 'completed' ? ' done' : ''); b.textContent = weekTitle(l.weekKey); b.title = 'Open this week’s copy'; b.onclick = () => openOriginalTask(l.task.id); trail.appendChild(b); });
+            n.appendChild(trail);
+            const p = document.createElement('div'); p.className = 'hint';
+            p.textContent = later.length ? 'Changes here also update the ' + later.length + ' later cop' + (later.length === 1 ? 'y' : 'ies') + ' (not their done/not-done state).' : 'This is the latest week. Earlier weeks’ changes flow into it.';
+            n.appendChild(p);
+            return n;
+        }
+        // Analytics rows: one per chain (the latest copy), with its first week and length
+        function collectTasks(ignorePerson) {
+            let rows = _collectTasksBase(ignorePerson);
+            if (anSubteam) { const st = subteamList().find(s => s.id === anSubteam); if (st) rows = rows.filter(r => st.members.includes(r.person.id)); else anSubteam = ''; }
+            if (rows.length < 2) return rows;
+            const locs = allTaskLocs(); const roots = carryRootMap(locs);
+            const by = new Map(); rows.forEach(r => { const k = roots.get(r.t.id) || r.t.id; if (!by.has(k)) by.set(k, []); by.get(k).push(r); });
+            const out = [];
+            by.forEach(list => {
+                if (list.length === 1) { out.push(list[0]); return; }
+                list.sort((a, b) => a.weekIndex - b.weekIndex);
+                const last = list[list.length - 1];
+                out.push({ ...last, startWeek: list[0].week, carryCount: list.length });
+            });
+            return out;
+        }
+
+        // ---------- Research tools: tasks from meeting actions, task lists for pickers ----------
+        window.boardAddTask = function ({ ownerUid, name, dueDate, note }) {
+            const person = db.find(p => p.id === ownerUid && !p.former);
+            if (!person) return { error: 'That person isn’t in the team any more.' };
+            if (!TT.canEditOwner(person.id)) return { error: 'Your role can’t add tasks to ' + person.name + '’s row. Make yourself the owner, or ask them.' };
+            const cat = person.categories[0]; if (!cat) return { error: person.name + ' has no category yet — add one on the board first.' };
+            let w = null;
+            if (dueDate) w = weeksData.slice().reverse().find(x => x.startDate && daysBetweenISO(x.startDate, dueDate) >= 0) || null;
+            if (!w) w = weeksData.find(isCurrentWeek) || weeksData[weeksData.length - 1];
+            if (!w) return { error: 'Add a week to the board first.' };
+            const t = { id: generateId(), type: 'task', name: String(name || 'New task').slice(0, 500), priority: 'Minor', status: 'TODO', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'none', dueDate: dueDate || '', subtasks: [], history: [], custom: {}, icon: '', attachments: [] };
+            logHistory(t, 'Task Status', '', note || 'Created');
+            if (!Array.isArray(cat[w.key])) cat[w.key] = [];
+            cat[w.key].push(t); saveDatabase(); renderFilters(); render();
+            return { id: t.id, week: w.title };
+        };
+        window.boardTaskList = function () {
+            return latestOfChains(allTaskLocs()).map(l => ({ id: l.task.id, name: l.task.name, person: l.person.name, week: weekTitle(l.weekKey), due: l.task.dueDate || '', done: l.task.flag === 'completed' }));
+        };
+
+        // Redraw the open task editor when something shown in it changes elsewhere (e.g. a notebook entry),
+        // unless the person is typing in it.
+        window.boardRefreshEditor = function () {
+            const form = document.getElementById('edit-form');
+            if (!activeNode || activeNode.type !== 'task' || !form || form.style.display === 'none') return;
+            if (form.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+            const scroll = (document.getElementById('editor-panel') || {}).scrollTop || 0;
+            openEditor(activeNode);
+            const p = document.getElementById('editor-panel'); if (p) p.scrollTop = scroll;
+        };
+
+        // ═════════════════════════════════════════════════════════════════════
+        //  People and capacity / time logging (advanced features)
+        // ═════════════════════════════════════════════════════════════════════
+        /** Hours logged on every carried-forward copy of a task. */
+        function chainLogged(t) { const ch = carryChain(t); return ch ? Math.round(ch.reduce((a, l) => a + loggedOf(l.task), 0) * 100) / 100 : loggedOf(t); }
+        function loggedOf(t) { return Math.round((Array.isArray(t.timeLog) ? t.timeLog : []).reduce((a, e) => a + (Number(e.hours) || 0), 0) * 100) / 100; }
+        function mondayISO(iso) { const d = parseISO(iso || todayISO()) || new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return toISO(d); }
+        /** "Needs skill" + who has it and the free hours that week. */
+        function skillSection(task, editable) {
+            const s = section('Skill needed');
+            const loc = locateTask(task.id); const week = loc ? weeksData.find(w => w.key === loc.weekKey) : null;
+            const skills = [...new Set(TT.profiles.flatMap(p => p.skills))].sort();
+            const row = document.createElement('div'); row.className = 'plan-row';
+            const inp = document.createElement('input'); inp.id = 'edit-skill'; inp.maxLength = 40; inp.placeholder = skills.length ? 'e.g. ' + skills.slice(0, 3).join(', ') : 'e.g. CAD, ROS, soldering'; inp.value = task.skill || ''; inp.setAttribute('list', 'edit-skill-list'); inp.className = 'skill-input';
+            const dl = document.createElement('datalist'); dl.id = 'edit-skill-list'; skills.forEach(k => { const o = document.createElement('option'); o.value = k; dl.appendChild(o); });
+            inp.addEventListener('change', () => { const v = inp.value.trim().slice(0, 40); if ((task.skill || '') === v) return; logHistory(task, 'Skill needed', task.skill || 'none', v || 'none'); task.skill = v; saveDatabase(); render(); openEditor(task); });
+            inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+            row.append(inp, dl); s.appendChild(row);
+            if (!task.skill) { const h = document.createElement('div'); h.className = 'hint'; h.textContent = 'Say what this task needs and TeamTrack suggests who has the skill and the hours.'; s.appendChild(h); return s; }
+            const used = (uid) => allTaskLocs().filter(l => l.person.id === uid && loc && l.weekKey === loc.weekKey && l.task.flag !== 'completed' && l.task.id !== task.id).reduce((a, l) => a + (l.task.effort || 0), 0);
+            const people = db.filter(p => !p.former).map(p => { const prof = TT.profileOf(p.id); const has = prof.skills.some(k => k.toLowerCase() === task.skill.toLowerCase()); const cap = TT.capacityFor(p.id, week && week.startDate ? week.startDate : ''); return { p, has, cap, free: Math.max(0, cap - used(p.id)) }; }).filter(x => x.has);
+            people.sort((a, b) => (b.cap ? b.free : -1) - (a.cap ? a.free : -1));
+            const list = document.createElement('div'); list.className = 'dep-list';
+            if (!people.length) { const h = document.createElement('div'); h.className = 'hint'; h.textContent = 'Nobody lists “' + task.skill + '” yet. Add skills in Tools ▸ People.'; list.appendChild(h); }
+            people.forEach(x => {
+                const r = document.createElement('div'); r.className = 'dep-item';
+                const b = document.createElement('b'); b.textContent = x.p.name + (loc && x.p.id === loc.person.id ? ' (has it now)' : '');
+                const m = document.createElement('span'); m.className = 'dep-meta'; m.textContent = x.cap ? fmtHours(x.free) + ' free' + (week ? ' in ' + week.title : '') : 'hours not set';
+                r.append(b, m);
+                if (loc && x.p.id !== loc.person.id && TT.canEditOwner(loc.person.id) && TT.canEditOwner(x.p.id)) { const a = document.createElement('button'); a.type = 'button'; a.className = 'btn small sugg-assign'; a.textContent = 'Give to ' + x.p.name.split(' ')[0]; a.onclick = () => window.boardAssignTask(task.id, x.p.id); r.appendChild(a); }
+                list.appendChild(r);
+            });
+            s.appendChild(list);
+            return s;
+        }
+        window.boardAssignTask = function (taskId, uid) {
+            const loc = locateTask(taskId); const to = db.find(p => p.id === uid);
+            if (!loc || !to) return false;
+            if (!TT.canEditOwner(loc.person.id) || !TT.canEditOwner(uid)) { toast('Your role can’t move tasks between people.'); return false; }
+            const cat = to.categories[0]; if (!cat) { toast(to.name + ' has no category yet.'); return false; }
+            loc.cat[loc.weekKey].splice(loc.index, 1);
+            if (!Array.isArray(cat[loc.weekKey])) cat[loc.weekKey] = [];
+            cat[loc.weekKey].push(loc.task);
+            logHistory(loc.task, 'Assignment', loc.person.name, to.name);
+            saveDatabase(); renderFilters(); render(); openEditorForNode(loc.task); flashNode(loc.task.id);
+            toast('Given to ' + to.name + '.');
+            return true;
+        };
+        /** Hours spent on a task: total against the estimate, entries, and a quick “Log time”. */
+        function timeSection(task) {
+            const s = section('🕒 Time spent');
+            const owner = taskOwner(task); const mayLog = TT.canEditOwner(owner);
+            // A carried-forward task is one piece of work: hours from every week's copy count toward its estimate.
+            const chain = carryChain(task); const copies = chain ? chain.map(l => l.task) : [task];
+            const total = Math.round(copies.reduce((a, t) => a + loggedOf(t), 0) * 100) / 100; const est = TT.feature('planning') ? task.effort : null;
+            const head = document.createElement('div'); head.className = 'time-head';
+            const b = document.createElement('b'); b.textContent = fmtHours(total) || '0h'; head.appendChild(b);
+            if (est) { head.append(' of ' + fmtHours(est) + ' estimated'); const bar = document.createElement('div'); bar.className = 'fin-bar' + (total > est ? ' over' : ''); const i = document.createElement('i'); i.style.width = Math.min(100, total / est * 100).toFixed(1) + '%'; bar.appendChild(i); head.appendChild(bar); }
+            s.appendChild(head);
+            const weekOfCopy = new Map(chain ? chain.map(l => [l.task.id, weekTitle(l.weekKey)]) : []);
+            const log = copies.flatMap(t => (t.timeLog || []).map(e => ({ ...e, _copy: t }))).sort((a, c) => (c.date || '').localeCompare(a.date || ''));
+            if (log.length) {
+                const ul = document.createElement('div'); ul.className = 'time-list';
+                log.slice(0, 12).forEach(e => {
+                    const r = document.createElement('div'); r.className = 'time-row';
+                    r.textContent = fmtShort(e.date) + ' · ' + e.name + ' · ' + fmtHours(e.hours) + (e.note ? ' — ' + e.note : '') + (e._copy !== task ? ' · ↪ ' + (weekOfCopy.get(e._copy.id) || 'earlier week') : '');
+                    if (e._copy === task && mayLog && (e.uid === (TT.me && TT.me.uid) || TT.can('tasks.editAll'))) { const x = document.createElement('button'); x.type = 'button'; x.className = 'dep-x'; x.textContent = '✕'; x.setAttribute('aria-label', 'Remove entry'); x.onclick = () => { task.timeLog = (task.timeLog || []).filter(y => y.id !== e.id); logHistory(task, 'Time', fmtHours(e.hours), 'removed'); saveDatabase(); render(); openEditor(task); }; r.appendChild(x); }
+                    ul.appendChild(r);
+                });
+                if (log.length > 12) { const m = document.createElement('div'); m.className = 'hint'; m.textContent = '+ ' + (log.length - 12) + ' earlier entries (see Tools ▸ Timesheet)'; ul.appendChild(m); }
+                s.appendChild(ul);
+            }
+            if (mayLog) {
+                const row = document.createElement('div'); row.className = 'time-add';
+                const h = document.createElement('input'); h.type = 'number'; h.id = 'time-hours'; h.min = '0.25'; h.max = '24'; h.step = '0.25'; h.placeholder = 'Hours'; h.inputMode = 'decimal';
+                const d = document.createElement('input'); d.type = 'date'; d.id = 'time-date'; d.value = todayISO();
+                const n = document.createElement('input'); n.id = 'time-note'; n.placeholder = 'What you did (optional)'; n.maxLength = 200;
+                const go = document.createElement('button'); go.type = 'button'; go.className = 'btn small primary'; go.id = 'time-log'; go.textContent = 'Log time';
+                go.onclick = () => {
+                    const v = Math.round(Number(h.value) * 4) / 4; if (!(v > 0 && v <= 24)) { toast('Enter the hours (up to 24).'); return; }
+                    task.timeLog = (task.timeLog || []).concat({ id: generateId(), uid: TT.me.uid, name: TT.me.name || 'Someone', date: d.value || todayISO(), hours: v, note: n.value.trim().slice(0, 200) });
+                    logHistory(task, 'Time', '', fmtHours(v) + ' logged'); saveDatabase(); render(); openEditor(task); toast('Logged ' + fmtHours(v) + '.');
+                };
+                h.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+                row.append(h, d, n, go); s.appendChild(row);
+            }
+            return s;
+        }
+        /** Every task with its person and week (for Tools ▸ People). Not collapsed: a carried copy is work in its week. */
+        window.boardLoad = function () {
+            return allTaskLocs().map(l => { const w = weeksData.find(x => x.key === l.weekKey) || {}; return { taskId: l.task.id, name: l.task.name, personId: l.person.id, person: l.person.name, weekKey: l.weekKey, weekTitle: w.title || '', weekStart: w.startDate || '', effort: Number(l.task.effort) || 0, done: l.task.flag === 'completed', skill: l.task.skill || '' }; });
+        };
+        /** Every logged hour (for Tools ▸ Timesheet). */
+        window.boardTimeEntries = function () {
+            const out = [];
+            const locs = allTaskLocs(); const roots = carryRootMap(locs);
+            locs.forEach(l => (l.task.timeLog || []).forEach(e => out.push({ ...e, taskId: l.task.id, chainId: roots.get(l.task.id) || l.task.id, taskName: l.task.name, owner: l.person.name, effort: l.task.effort ?? null })));
+            return out;
+        };
+
+
+        // ---------- Sub-teams: groups of people inside the project (Fuselage, Payload, Electronics…) ----------
+        var anSubteam = '';
+        let subteamView = ''; let subteamHidden = null;
+        function subteamList() { return TT.team && TT.feature('subteams') ? (TT.team.subteams || []) : []; }
+        function subteamPrefKey() { return 'tt_subteam_' + (TT.teamId || ''); }
+        let subteamTeam = null;
+        /** Each team remembers which sub-team you were looking at. */
+        function loadSubteamPref() {
+            if (subteamTeam === (TT.teamId || '')) return;
+            subteamTeam = TT.teamId || ''; subteamHidden = null;
+            try { subteamView = localStorage.getItem(subteamPrefKey()) || ''; } catch (e) { subteamView = ''; }
+        }
+        function sameSet(a, b) { if (!a || a.size !== b.size) return false; for (const x of a) if (!b.has(x)) return false; return true; }
+        /** People hidden when showing one sub-team: everyone not in it. */
+        function hiddenFor(st) { return new Set(db.filter(p => !st.members.includes(p.id)).map(p => p.id)); }
+        /** Keep the board's person filter in step with the chosen sub-team, even as membership changes. */
+        function syncSubteamView() {
+            loadSubteamPref();
+            if (!subteamView) return;
+            const st = subteamList().find(s => s.id === subteamView);
+            if (!st) { if (subteamHidden && sameSet(hiddenPersons, subteamHidden)) hiddenPersons.clear(); subteamView = ''; subteamHidden = null; saveSubteamPref(); renderFilters(); return; }
+            const want = hiddenFor(st);
+            if (subteamHidden === null || sameSet(hiddenPersons, subteamHidden)) { if (!sameSet(hiddenPersons, want)) { hiddenPersons = want; renderFilters(); } subteamHidden = want; }
+            else { subteamView = ''; subteamHidden = null; saveSubteamPref(); }   // the person filter was changed by hand
+        }
+        function saveSubteamPref() { try { localStorage.setItem(subteamPrefKey(), subteamView); } catch (e) { /* */ } }
+        function boardShowSubteam(id) {
+            loadSubteamPref();
+            const st = subteamList().find(s => s.id === id);
+            if (st) { subteamView = id; subteamHidden = hiddenFor(st); hiddenPersons = new Set(subteamHidden); }
+            else { if (subteamView) hiddenPersons.clear(); subteamView = ''; subteamHidden = null; }
+            saveSubteamPref(); renderFilters(); render();
+        }
+        window.boardShowSubteam = boardShowSubteam;
+        window.boardSubteamView = () => subteamView;
+        /** A strip above the board: Everyone · Fuselage · Payload … */
+        function renderSubteamBar() {
+            let bar = document.getElementById('subteam-bar'); const list = subteamList();
+            if (!list.length) { if (bar) bar.remove(); return; }
+            if (!bar) { const cc = document.getElementById('canvas-container'); if (!cc) return; bar = document.createElement('div'); bar.id = 'subteam-bar'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Sub-teams'); cc.before(bar); }
+            const chip = (id, label, color, count) => '<button type="button" class="st-tab' + (subteamView === id ? ' on' : '') + '" data-st="' + esc(id) + '" aria-pressed="' + (subteamView === id) + '"' + (color ? ' style="--st:' + esc(color) + '"' : '') + '>' + (color ? '<i></i>' : '') + esc(label) + (count === null ? '' : ' <span>' + count + '</span>') + '</button>';
+            const inMine = list.filter(s => s.members.includes(TT.me && TT.me.uid));
+            bar.innerHTML = '<span class="st-bar-label">🧩 Sub-teams</span>' + chip('', 'Everyone', '', null) + list.map(s => chip(s.id, s.name, s.color, s.members.filter(u => db.some(p => p.id === u)).length)).join('') +
+                (inMine.length && !inMine.some(s => s.id === subteamView) ? '<button type="button" class="st-mine" data-st="' + esc(inMine[0].id) + '" title="Show the sub-team you’re in">Mine</button>' : '') +
+                (TT.can('analytics.view') ? '<button type="button" class="st-progress" data-st-progress="1" title="Progress of each sub-team">📊 Progress</button>' : '');
+            bar.onclick = (e) => {
+                const p = e.target.closest('[data-st-progress]'); if (p) { openAnalytics('subteams'); return; }
+                const b = e.target.closest('[data-st]'); if (b) boardShowSubteam(b.dataset.st);
+            };
+        }
+        /** Coloured tags on each person: the sub-teams they're in (★ = lead). */
+        function markSubteams() {
+            const list = subteamList(); if (!list.length) return;
+            db.forEach(p => {
+                const node = document.getElementById(p.id); if (!node || !node.classList.contains('node-person')) return;
+                const mine = list.filter(s => s.members.includes(p.id)); if (!mine.length) return;
+                const tags = document.createElement('div'); tags.className = 'st-tags';
+                mine.forEach(s => { const t = document.createElement('span'); t.className = 'st-tag'; t.style.setProperty('--st', s.color); const lead = s.leads.includes(p.id); t.textContent = (lead ? '★ ' : '') + s.name; t.title = s.name + (lead ? ' — lead' : ''); tags.appendChild(t); });
+                const label = node.querySelector(':scope > span'); (label || node).appendChild(tags);
+            });
+        }
+        // Analytics: a Sub-team filter and a Sub-teams tab comparing their progress
+        function subteamAnalyticsUi(exp) {
+            const list = subteamList(); const ov = document.getElementById('analytics-overlay'); if (!ov) return;
+            if (anSubteam && !list.some(s => s.id === anSubteam)) anSubteam = '';
+            if (!list.length) { if (anTab === 'subteams') { anTab = 'overview'; renderAnalytics(); } return; }
+            if (exp && !document.getElementById('an-subteam')) {
+                const l = document.createElement('label'); l.textContent = 'Sub-team ';
+                const sel = document.createElement('select'); sel.id = 'an-subteam';
+                [['', 'All sub-teams']].concat(list.map(s => [s.id, s.name])).forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); });
+                sel.value = anSubteam; sel.onchange = () => { anSubteam = sel.value; renderAnalytics(); };
+                l.appendChild(sel); const pl = ov.querySelector('#an-person'); (pl ? pl.closest('label') : exp).after(l);
+            }
+            const tabs = ov.querySelector('.an-tabs');
+            if (tabs && !tabs.querySelector('[data-tab="subteams"]')) {
+                const b = document.createElement('button'); b.className = 'an-tab'; b.dataset.tab = 'subteams'; b.textContent = 'Sub-teams';
+                b.addEventListener('click', () => { anTab = 'subteams'; renderAnalytics(); });
+                const team = tabs.querySelector('[data-tab="team"]'); if (team) team.after(b); else tabs.appendChild(b);
+                if (anTab === 'subteams') renderAnalytics();
+            }
+        }
+        function renderAnalytics() {
+            if (anTab !== 'subteams') return _renderAnalyticsBase();
+            const body = document.getElementById('an-body'); if (!body) return;
+            document.querySelectorAll('#analytics-overlay .an-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === anTab));
+            try { body.innerHTML = renderSubteams(); } catch (e) { console.error(e); body.innerHTML = '<div class="an-empty">Could not draw this view: ' + esc(e.message) + '</div>'; }
+        }
+        window.boardSubteamStats = function (opts) { return subteamStats(opts || {}); };
+        function subteamStats(opts) {
+            const s1 = anSubteam, s2 = anPerson, s3 = anScope; anSubteam = ''; anPerson = 'all'; if (opts.scope) anScope = opts.scope;
+            let rows; try { rows = collectTasks(); } finally { anSubteam = s1; anPerson = s2; anScope = s3; }
+            const list = subteamList(); const live = new Set(db.filter(p => !p.former).map(p => p.id));
+            const group = (st) => { const r = rows.filter(x => st.members.includes(x.person.id)); const k = kpis(r); return { id: st.id, name: st.name, color: st.color, people: st.members.filter(u => live.has(u)).length, leads: st.leads.map(u => (db.find(p => p.id === u) || {}).name).filter(Boolean), total: k.total, done: k.completed, pct: k.pct, overdue: k.overdue, dueWeek: k.dueWeek, risk: k.risk, rows: r }; };
+            const out = list.map(group);
+            const loose = db.filter(p => !p.former && !list.some(s => s.members.includes(p.id))).map(p => p.id);
+            if (loose.length) out.push({ ...group({ id: '', name: 'Not in a sub-team', color: '', members: loose, leads: [] }), none: true });
+            return out;
+        }
+        function renderSubteams() {
+            const stats = subteamStats({});
+            const bar = (pct, color) => '<div class="st-prog"><i style="width:' + Math.min(100, pct) + '%;' + (color ? 'background:' + esc(color) : '') + '"></i></div>';
+            const cards = stats.map(s => '<div class="st-card' + (s.none ? ' none' : '') + '" style="--st:' + esc(s.color || 'var(--text-muted)') + '">' +
+                '<div class="st-card-head"><b>' + esc(s.name) + '</b><span class="hint">' + (s.people + (s.people === 1 ? ' person' : ' people')) + (s.leads.length ? ' · lead' + (s.leads.length > 1 ? 's' : '') + ': ' + esc(s.leads.join(', ')) : '') + '</span></div>' +
+                '<div class="st-card-pct">' + s.pct + '%<span class="hint"> done · ' + s.done + ' of ' + s.total + ' tasks</span></div>' + bar(s.pct, s.color) +
+                '<div class="st-card-kpis"><span class="' + (s.overdue ? 't-bad' : '') + '">⏰ ' + s.overdue + ' overdue</span><span>📅 ' + s.dueWeek + ' due this week</span><span class="' + (s.risk ? 't-warn' : '') + '">🔥 ' + s.risk + ' critical open</span></div>' +
+                (s.none ? '' : '<div class="st-card-foot"><button type="button" class="top-btn" data-st-board="' + esc(s.id) + '">Show on board</button><button type="button" class="top-btn" data-st-an="' + esc(s.id) + '">Their analytics</button></div>') + '</div>').join('');
+            const ov = document.getElementById('analytics-overlay');
+            if (ov && !ov.dataset.stWired) {
+                ov.dataset.stWired = '1';
+                ov.addEventListener('click', (e) => {
+                    const b = e.target.closest('[data-st-board]'); if (b) { closeAnalytics(); boardShowSubteam(b.dataset.stBoard); return; }
+                    const a = e.target.closest('[data-st-an]'); if (a) { anSubteam = a.dataset.stAn; anTab = 'overview'; const sel = document.getElementById('an-subteam'); if (sel) sel.value = anSubteam; renderAnalytics(); }
+                });
+            }
+            return '<div class="st-note">Each sub-team’s progress across ' + (anScope === 'all' ? 'all weeks' : anScope === 'last4' ? 'the last 4 weeks' : 'the weeks on the board') + '. Someone in two sub-teams counts in both.</div><div class="st-cards">' + cards + '</div>';
+        }
+
+        // ---------- Week dates: changing one week's start moves every later week with it ----------
+        function applyWeekDates(i, v) {
+            const next = TT.cascadeWeeks(weeksData, i, cleanISO(v));
+            const moved = next.slice(i + 1).filter((w, j) => w.startDate !== weeksData[i + 1 + j].startDate).length;
+            next.forEach((w, j) => { weeksData[j].startDate = w.startDate; weeksData[j].title = w.title; });
+            saveDatabase(); render();
+            return moved;
+        }
+        async function setWeekStartFlow(i) {
+            const w = weeksData[i]; if (!w) return;
+            const later = weeksData.length - i - 1;
+            const v = await askText('Start date of "' + w.title + '"' + (later ? ' (the ' + later + ' week' + (later === 1 ? '' : 's') + ' after it follow on, 7 days apart)' : ''), w.startDate || todayISO(), '', 'date');
+            if (!v) return;
+            const moved = applyWeekDates(i, v);
+            toast('Week date set' + (moved ? '; ' + moved + ' later week' + (moved === 1 ? '' : 's') + ' moved to follow on. Ctrl+Z to undo.' : '.'), moved ? 5000 : 2500);
+        }
+        async function autoDateWeeksFlow() {
+            if (!weeksData.length) { toast('Add a week first.'); return; }
+            const first = weeksData[0].startDate;
+            const v = await askText('Start date of the FIRST week (later weeks follow 7 days apart)', first || todayISO(), '', 'date');
+            if (!v) return; applyWeekDates(0, v); toast('Week dates set.');
+        }

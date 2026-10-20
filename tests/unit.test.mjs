@@ -1,0 +1,644 @@
+// Unit tests: sync engine + permissions + the demo's rules copy.  Run: npm test
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mergeChanges, invert } from '../src/sync.js';
+import { can, canEditOwnedBy, DEFAULT_ROLES } from '../src/permissions.js';
+import { findMentions, cleanComment, cleanRepeat, cleanTemplate, stageOf, cleanEffort, cleanDeps, cleanCapacity } from '../src/model.js';
+import { cleanTeam, cleanTask, cleanMember, cleanPhoto, cleanPhase, nextWeekTitle, renumberWeeks, isoWeekNumber } from '../src/model.js';
+import { buildPrompt } from '../src/ai.js';
+import { cleanMeeting, cleanNotebookEntry, cleanPart, cleanExpense, cleanBudget, cleanPaper, partTotal, carryRoots } from '../src/model.js';
+import { parseBibtex, toBibtex, actionsFromNotes, financeSummary } from '../src/research.js';
+import { buildReport, reportHtml, reportText, resolvePeriod } from '../src/report.js';
+import { paidParts, cleanLogEntry, cleanSubteams, subteamsOf, cleanExtras, partItems, partExtras, planOf, hasPro, memberRoom, cleanPlan, isAcademicEmail } from '../src/model.js';
+
+test('extra costs on a part: fixed amounts, percentages and discounts', () => {
+  const p = cleanPart({ name: 'Spar', qty: 2, unitCost: 10, extras: [{ label: 'Shipping', amount: 3.99 }, { label: 'VAT / tax', amount: 20, percent: true }, { label: '', amount: 'x' }] });
+  assert.equal(partItems(p), 20); assert.equal(p.extras[2].label, 'Extra'); assert.equal(p.extras[2].amount, 0);
+  assert.equal(partExtras(p), 7.99); assert.equal(partTotal(p), 27.99);
+  assert.equal(partTotal(cleanPart({ qty: 1, unitCost: 10, extras: [{ label: 'Discount', amount: -15 }] })), 0, 'never below zero');
+  assert.equal(cleanExtras([{ amount: 500, percent: true }])[0].amount, 100, 'a percentage is capped at 100');
+  assert.equal(cleanExtras(Array.from({ length: 15 }, () => ({ amount: 1 }))).length, 10);
+  assert.equal(partTotal(cleanPart({ qty: 3, unitCost: 2 })), 6, 'parts without extras are unchanged');
+});
+
+test('sub-teams: cleaning, leads must be members, membership lookup', () => {
+  const st = cleanSubteams([{ id: 'f', name: '  Fuselage ', members: ['a', 'b', 'b', 7], leads: ['b', 'z'] }, { id: 'f', name: 'dup' }, { name: '', color: 'red' }, null]);
+  assert.equal(st.length, 2); assert.equal(st[0].name, 'Fuselage'); assert.deepEqual(st[0].members, ['a', 'b']); assert.deepEqual(st[0].leads, ['b']);
+  assert.equal(st[1].name, 'Sub-team'); assert.match(st[1].color, /^#[0-9a-f]{6}$/i);
+  assert.deepEqual(subteamsOf({ subteams: st }, 'a').map(s => s.id), ['f']);
+  assert.equal(cleanSubteams(Array.from({ length: 30 }, (_, i) => ({ id: 's' + i }))).length, 20);
+  assert.deepEqual(cleanTeam({ name: 'T' }).subteams, []);
+});
+
+test('report for one sub-team', () => {
+  const team = cleanTeam({ name: 'Drone', features: { subteams: true }, subteams: [{ id: 'f', name: 'Fuselage', members: ['a'] }, { id: 'e', name: 'Electronics', members: ['b'] }] });
+  const rows = [{ id: '1', personId: 'a', person: 'Ann', task: 'Foam', flag: 'completed', completedOn: '2026-10-18', stage: 'Done', subtasks: [] }, { id: '2', personId: 'b', person: 'Bo', task: 'ESC', flag: 'none', stage: 'To do', subtasks: [] }];
+  const data = { team, rows, members: [{ uid: 'a', name: 'Ann' }, { uid: 'b', name: 'Bo' }], today: '2026-10-19', author: 'X', parts: [cleanPart({ name: 'Spar', subteamId: 'f', status: 'needed' }), cleanPart({ name: 'Wire', subteamId: 'e', status: 'needed' })] };
+  let r = buildReport(data, { period: '7', person: 'st:f' });
+  assert.equal(r.title, 'Progress report — Fuselage');
+  const txt = reportText(r); assert.ok(txt.includes('Foam') && !txt.includes('ESC'), txt);
+  r = buildReport(data, { period: '7', person: 'all' });
+  const s = r.sections.find(x => x.key === 'subteams'); assert.ok(s, 'whole-team report has a sub-team section');
+  assert.deepEqual(s.table.rows.map(x => x[0]), ['Fuselage', 'Electronics']); assert.equal(s.table.rows[0][4], '100%');
+});
+import { budgetChanges, expenseChanges, partChanges, removeLinePlan } from '../src/finance-log.js';
+import { cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, workdaysFree, capacityFor, hasSkill, cleanTimeLog, loggedHours, cleanRisk, riskScore, cleanRequirement, nextReqRef } from '../src/model.js';
+import { heatClass, crossTeamLoad, reqCoverage, timesheetRange, riskBand } from '../src/tools-extra.js';
+import { checkWrite, checkRead, applyOps, checkProfileWrite } from '../src/rules-sim.js';
+import { fixture, users, writeScenarios, readScenarios, TEAM, task as taskDoc } from './scenarios.mjs';
+
+const team = cleanTeam({ name: 'T', ownerUid: 'o', roles: DEFAULT_ROLES, weeks: [{ key: 'w1', title: 'W1' }, { key: 'w2', title: 'W2' }] });
+const members = [{ uid: 'o', name: 'Olivia', email: 'o@x', roleId: 'owner' }, { uid: 'm', name: 'Max', email: 'm@x', roleId: 'member' }, { uid: 'v', name: 'Val', email: 'v@x', roleId: 'viewer' }];
+const categories = [{ id: 'c1', name: 'GEN', ownerUid: 'm', order: 0 }, { id: 'c2', name: 'GEN', ownerUid: 'o', order: 0 }];
+const tasks = [cleanTask(taskDoc('m', 'c1', { name: 'A', order: 0 }), 'ta'), cleanTask(taskDoc('m', 'c1', { name: 'B', order: 1, weekId: 'w2' }), 'tb'), cleanTask(taskDoc('o', 'c2', { name: 'C' }), 'tc')];
+const state = { team, members, categories, tasks };
+
+test('model round-trips: flatten(buildModel(db)) reproduces the documents', () => {
+  const flat = flatten(buildModel(state));
+  assert.deepEqual(Object.keys(flat.tasks).sort(), ['ta', 'tb', 'tc']);
+  assert.equal(flat.tasks.tb.weekId, 'w2'); assert.equal(flat.tasks.tb.ownerUid, 'm'); assert.equal(flat.tasks.ta.categoryId, 'c1');
+  assert.deepEqual(flat.cats.c1, { name: 'GEN', ownerUid: 'm', order: 0 });
+  assert.deepEqual(diff(flat, flatten(buildModel(state))), [], 'no spurious changes');
+});
+
+test('orphans (deleted week or category) are never shown or written', () => {
+  const s2 = { ...state, tasks: [...tasks, cleanTask(taskDoc('m', 'c1', { weekId: 'gone' }), 'orphan'), cleanTask(taskDoc('m', 'nocat'), 'orphan2')] };
+  const flat = flatten(buildModel(s2));
+  assert.ok(!flat.tasks.orphan && !flat.tasks.orphan2);
+  assert.deepEqual(diff(flat, flatten(buildModel(s2))), []);
+});
+
+test('a former member keeps their rows under a placeholder person', () => {
+  const model = buildModel({ ...state, members: members.filter(m => m.uid !== 'm') });
+  const ghost = model.db.find(p => p.id === 'm');
+  assert.ok(ghost && ghost.former); assert.equal(ghost.categories.length, 1);
+});
+
+test('diff finds edits, moves, creates and deletes; ops only send changed fields', () => {
+  const base = flatten(buildModel(state));
+  const model = buildModel(state);
+  const max = model.db.find(p => p.id === 'm');
+  max.categories[0].w1[0].name = 'A renamed';                       // edit
+  max.categories[0].w2.push(max.categories[0].w1.shift());           // move A to week 2 (B shifts order)
+  max.categories[0].w1.push({ id: 'tnew', name: 'New' });            // create (sparse fields → defaults)
+  model.db.find(p => p.id === 'o').categories[0].w1 = [];            // delete C
+  const changes = diff(base, flatten(model));
+  const ops = changesToOps(changes, { uid: 'm', name: 'Max' });
+  const byPath = Object.fromEntries(ops.map(o => [o.path, o]));
+  assert.equal(byPath['tasks/ta'].type, 'update');
+  assert.equal(byPath['tasks/ta'].data.name, 'A renamed'); assert.equal(byPath['tasks/ta'].data.weekId, 'w2');
+  assert.ok(!('priority' in byPath['tasks/ta'].data), 'unchanged fields are not sent');
+  assert.equal(byPath['tasks/tnew'].type, 'set');
+  assert.deepEqual(byPath['tasks/tnew'].data.custom, {}); assert.deepEqual(byPath['tasks/tnew'].data.attachments, []); assert.equal(byPath['tasks/tnew'].data.icon, '');
+  assert.equal(byPath['tasks/tc'].type, 'delete');
+});
+
+test('permission check blocks edits outside your rows and role', () => {
+  const base = flatten(buildModel(state));
+  const model = buildModel(state); model.db.find(p => p.id === 'o').categories[0].w1[0].name = 'x';
+  const ch = diff(base, flatten(model));
+  assert.deepEqual(deniedChanges(ch, team, members[1]), ['edit this task'], 'member cannot edit owner task');
+  assert.deepEqual(deniedChanges(ch, team, members[0]), [], 'owner can');
+  const m2 = buildModel(state); m2.weeksData.push({ key: 'w3', title: 'W3', metric: '', startDate: '' });
+  assert.deepEqual(deniedChanges(diff(base, flatten(m2)), team, members[2]), ['change weeks'], 'viewer cannot add weeks');
+});
+
+test('undo restores only what you changed; redo re-applies; coalescing merges', () => {
+  const ch1 = [{ kind: 'task', id: 't', before: { name: 'a', ownerUid: 'm' }, after: { name: 'b', ownerUid: 'm' } }];
+  const ch2 = [{ kind: 'task', id: 't', before: { name: 'b', ownerUid: 'm' }, after: { name: 'c', ownerUid: 'm' } }];
+  const merged = mergeChanges(ch1, ch2);
+  assert.equal(merged.length, 1); assert.equal(merged[0].before.name, 'a'); assert.equal(merged[0].after.name, 'c');
+  assert.deepEqual(mergeChanges(ch1, invert(ch1)), [], 'edit + revert cancels out');
+  const undo = restoreOps(merged, { uid: 'm', name: 'Max' }, 'before');
+  assert.equal(undo[0].type, 'update'); assert.equal(undo[0].data.name, 'a');
+  const created = [{ kind: 'task', id: 'n', before: null, after: { name: 'n', ownerUid: 'm' } }];
+  assert.equal(restoreOps(created, { uid: 'm', name: 'M' }, 'before')[0].type, 'delete', 'undo create = delete');
+  assert.equal(restoreOps(created, { uid: 'm', name: 'M' }, 'after')[0].type, 'set', 'redo create = recreate');
+});
+
+test('permissions: owner always, roles otherwise', () => {
+  assert.ok(can(team, members[0], 'roles.manage'));
+  assert.ok(can(team, members[1], 'tasks.editOwn')); assert.ok(!can(team, members[1], 'members.manage'));
+  assert.ok(canEditOwnedBy(team, members[1], 'm')); assert.ok(!canEditOwnedBy(team, members[1], 'o'));
+  assert.ok(!canEditOwnedBy(team, members[2], 'v'));
+  assert.ok(!can(team, { uid: 'x', roleId: 'deleted-role' }, 'analytics.view'));
+});
+
+test('cleanTask strips hostile or malformed data', () => {
+  const t = cleanTask({ name: 'x'.repeat(900), priority: 'Mega', flag: 'pwn', icon: 'javascript:alert(1)', attachments: [{ url: 'javascript:alert(1)', name: 'bad' }, { url: 'https://ok.com/a', name: 'ok' }], custom: { f1: 'v', nope: 'x' }, subtasks: 'nope' }, 'id1', [{ id: 'f1', type: 'text', options: [] }]);
+  assert.equal(t.name.length, 500); assert.equal(t.priority, 'Minor'); assert.equal(t.flag, 'none');
+  assert.equal(t.icon, 'java'); assert.equal(t.attachments.length, 1); assert.deepEqual(t.custom, { f1: 'v' }); assert.deepEqual(t.subtasks, []);
+});
+
+// ── Security scenarios against the demo's rules copy ─────────────────────────
+for (const [name, who, teamId, ops, expected] of writeScenarios) {
+  test('rules: ' + name, () => {
+    const pre = fixture(); let ok = true; let err;
+    try { const post = applyOps(pre, teamId, ops); ops.forEach(op => checkWrite(pre, post, users[who], teamId, op)); }
+    catch (e) { ok = false; err = e; }
+    assert.equal(ok ? 'allow' : 'deny', expected, err ? err.message : 'was allowed');
+  });
+}
+for (const [name, who, , expected] of readScenarios) {
+  test('rules (read): ' + name, () => {
+    let ok = true; try { checkRead(fixture(), who ? users[who] : null, TEAM); } catch { ok = false; }
+    assert.equal(ok ? 'allow' : 'deny', expected);
+  });
+}
+
+test('week numbering: own numbering counts on from the highest WEEK n; calendar uses ISO weeks', () => {
+  assert.equal(nextWeekTitle('sequence', [], '2026-10-12'), 'WEEK 1');
+  assert.equal(nextWeekTitle('sequence', [{ title: 'WEEK 1' }, { title: 'Sprint review' }, { title: 'week 7' }], ''), 'WEEK 8');
+  assert.equal(nextWeekTitle('sequence', [{ title: 'Kick-off' }, { title: 'Build' }], ''), 'WEEK 3');
+  assert.equal(nextWeekTitle('calendar', [{ title: 'WEEK 1' }], '2026-10-12'), 'WEEK 42');
+  assert.equal(nextWeekTitle('calendar', [], ''), 'WEEK 1', 'calendar without a date falls back to counting');
+  assert.equal(isoWeekNumber('2026-01-01'), 1);
+  assert.equal(isoWeekNumber('2027-01-01'), 53, '1 Jan 2027 is a Friday, so it belongs to week 53 of 2026');
+  assert.equal(isoWeekNumber('2026-12-28'), 53);
+  const weeks = [{ key: 'a', title: 'WEEK 40', startDate: '2026-09-28' }, { key: 'b', title: 'x', startDate: '' }, { key: 'c', title: 'WEEK 42', startDate: '2026-10-12' }];
+  assert.deepEqual(renumberWeeks('sequence', weeks).map(w => w.title), ['WEEK 1', 'WEEK 2', 'WEEK 3']);
+  assert.deepEqual(renumberWeeks('calendar', weeks).map(w => w.title), ['WEEK 40', 'x', 'WEEK 42'], 'undated weeks keep their name');
+  assert.equal(cleanTeam({ name: 'T' }).weekNaming, 'sequence', 'teams default to own numbering');
+  assert.equal(cleanTeam({ name: 'T', weekNaming: 'calendar' }).weekNaming, 'calendar');
+  assert.equal(cleanTeam({ name: 'T', weekNaming: 'bogus' }).weekNaming, 'sequence');
+});
+
+test('phases: cleaned, capped, and a task keeps its phase through a board edit', () => {
+  const p = cleanPhase({ id: 'ph 1', name: '<b>Research</b>'.repeat(10), color: 'red', start: '2026-10-01', end: 'soon', milestone: 'Lit review done' }, 1);
+  assert.equal(p.id, 'ph_1'); assert.equal(p.name.length, 60); assert.match(p.color, /^#[0-9a-f]{6}$/, 'bad colours fall back to the palette');
+  assert.equal(p.start, '2026-10-01'); assert.equal(p.end, '', 'non-dates are dropped');
+  assert.equal(cleanTeam({ name: 'T' }).phases.length, 0);
+  assert.equal(cleanTeam({ name: 'T', phases: Array.from({ length: 30 }, (_, i) => ({ id: 'p' + i, name: 'P' + i })) }).phases.length, 20, 'at most 20 phases');
+  assert.equal(cleanTask({ name: 'x' }, 't').phaseId, '', 'no phase by default');
+  assert.equal(cleanTask({ name: 'x', phaseId: 'ph1' }, 't').phaseId, 'ph1');
+  const base = flatten(buildModel(state));
+  const model = buildModel(state); model.db.find(p => p.id === 'm').categories[0].w1[0].phaseId = 'ph1';
+  const ch = diff(base, flatten(model));
+  assert.equal(ch.length, 1); assert.deepEqual(changesToOps(ch, { uid: 'm', name: 'Max' })[0].data.phaseId, 'ph1', 'only the phase is written');
+  assert.equal(diff(base, flatten(buildModel(state))).length, 0, 'tasks without a phase do not cause writes');
+});
+
+test('AI prompt lists phases and each task’s phase', () => {
+  const row = { week: 'WEEK 1', weekStart: '', person: 'Max', category: 'GEN', task: 'Survey', priority: 'Minor', flag: 'none', status: '', deadline: '', overdue: false, completedOn: '', phase: 'Research', subtasks: [], supporting: [], custom: {}, files: [] };
+  const out = buildPrompt([row], { total: 1, completed: 0, pct: 0, pending: 0, backlog: 0, open: 1, overdue: 0, dueWeek: 0, risk: 0 }, { goal: 'status' }, 'T', [{ name: 'Research', start: '2026-10-01', end: '2026-10-31', milestone: 'Lit review' }]);
+  assert.match(out, /Project phases, in order: Research \(2026-10-01 to 2026-10-31\) — milestone: Lit review/);
+  assert.match(out, /phase Research/);
+});
+
+test('mentions: full names, longest first, not inside email addresses', () => {
+  const ms = [{ uid: 'a', name: 'Ana', email: 'ana@x.com' }, { uid: 'b', name: 'Ana Lopez', email: 'al@x.com' }, { uid: 'c', name: 'Tom (Lab)', email: 'tom@x.com' }];
+  assert.deepEqual(findMentions('hi @Ana Lopez and @tom (lab), cc @ana', ms), ['b', 'c', 'a']);
+  assert.deepEqual(findMentions('@Ana Lopez only', ms), ['b'], '"@Ana Lopez" does not also mention Ana');
+  assert.deepEqual(findMentions('@Anabel', ms), [], 'partial names do not match');
+  assert.deepEqual(findMentions('mail me at x@ana.com', ms), [], 'email addresses are not mentions');
+  assert.deepEqual(findMentions('(@al) please', ms), ['b'], 'the part of an email before @ works too');
+  const c = cleanComment({ taskId: 't 1', authorUid: 'u', text: 'x'.repeat(3000), mentions: ['a', 'a', 'b'], createdAt: '5' }, 'c1');
+  assert.equal(c.taskId, 't_1'); assert.equal(c.text.length, 2000); assert.deepEqual(c.mentions, ['a', 'b']); assert.equal(c.createdAt, 5);
+});
+
+test('calendar: events for deadlines and phases, valid .ics', async () => {
+  globalThis.location = { origin: 'https://uni-teamtrack.web.app', pathname: '/' };
+  const { teamEvents, buildIcs } = await import('../src/calendar.js');
+  const session = { teamId: 't1', team: { name: 'Robotics, Group; "A"', weeks: [{ key: 'w1', title: 'WEEK 1' }], phases: [{ id: 'p1', name: 'Build', start: '2026-10-01', end: '2026-10-31', milestone: 'Demo day' }, { id: 'p2', name: 'Test', start: '', end: '' }] },
+    members: [{ uid: 'u1', name: 'Max' }, { uid: 'u2', name: 'Ana' }],
+    tasks: [cleanTask({ ...taskDoc('u1', 'c1'), name: 'Order servos', dueDate: '2026-10-31', phaseId: 'p1', subtasks: [{ id: 's', title: 'x', completed: true }] }, 'a'),
+      cleanTask({ ...taskDoc('u2', 'c1'), name: 'Ana task', dueDate: '2026-11-02' }, 'b'),
+      cleanTask({ ...taskDoc('u1', 'c1'), name: 'Done one', dueDate: '2026-10-05', flag: 'completed', completedDate: '2026-10-04' }, 'c'),
+      cleanTask({ ...taskDoc('u1', 'c1'), name: 'No date' }, 'd')] };
+  const mine = teamEvents(session, { scope: 'mine', uid: 'u1' });
+  assert.deepEqual(mine.map(e => e.id).sort(), ['milestone-p1', 'phase-p1', 'task-a'], 'my open deadline + dated phase + milestone');
+  assert.equal(mine[0].id, 'phase-p1', 'sorted by date');
+  assert.equal(mine.find(e => e.id === 'task-a').end, '2026-11-01', 'all-day event ends the next day (month rollover)');
+  assert.equal(mine.find(e => e.id === 'phase-p1').end, '2026-11-01', 'phase covers its last day');
+  assert.match(mine.find(e => e.id === 'task-a').description, /Phase: Build[\s\S]*Sub-tasks: 1 of 1 done[\s\S]*https:\/\/uni-teamtrack.web.app\/#\/t\/t1/);
+  assert.equal(teamEvents(session, { scope: 'all', uid: 'u1', includePhases: false }).length, 2, 'whole team, open only, no phases');
+  assert.equal(teamEvents(session, { scope: 'all', uid: 'u1', includeDone: true, includePhases: false }).length, 3, 'completed included on request');
+  const ics = buildIcs(mine, { calName: 'TeamTrack – ' + session.team.name, teamId: 't1' });
+  assert.ok(ics.startsWith('BEGIN:VCALENDAR\r\nVERSION:2.0\r\n') && ics.endsWith('END:VCALENDAR\r\n'));
+  assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 3);
+  assert.match(ics, /UID:task-a\.t1@teamtrack/); assert.match(ics, /DTSTART;VALUE=DATE:20261031\r\nDTEND;VALUE=DATE:20261101/);
+  assert.match(ics, /X-WR-CALNAME:TeamTrack – Robotics\\, Group\\; "A"/, 'commas and semicolons escaped');
+  assert.ok(ics.split('\r\n').every(l => new TextEncoder().encode(l).length <= 75), 'long lines folded to 75 bytes');
+  assert.equal((ics.match(/BEGIN:VALARM/g) || []).length, 2, 'reminders on the deadline and the milestone, not the phase band');
+});
+
+test('import: Jira CSV columns, Trello board export, GitHub links', async () => {
+  const { rowsFromTable, rowsFromTrello } = await import('../src/importer.js');
+  const { parseGithub } = await import('../src/github.js');
+  const TT = { label: (k) => ({ jiraId: { label: 'Reference ID' }, status: { label: 'Status badge' } }[k]), team: { fields: [] } };
+  const jira = [['Summary', 'Issue key', 'Issue id', 'Issue Type', 'Status', 'Priority', 'Assignee', 'Due date', 'Resolved', 'Epic Link', 'Sprint'],
+    ['Calibrate IMU', 'ROB-12', '10012', 'Task', 'In Progress', 'Highest', 'Ana Lopez', '21/Oct/26 12:00 AM', '', 'Sensors', 'Sprint 3'],
+    ['Write report', 'ROB-13', '10013', 'Story', 'Done', 'Low', 'max@uni.ac.uk', '', '15/Oct/26 3:10 PM', '', '']];
+  const r = rowsFromTable(jira, TT);
+  assert.equal(r.length, 2);
+  assert.deepEqual([r[0].task, r[0].ref, r[0].status, r[0].priority, r[0].owner, r[0].deadline, r[0].category, r[0].week, r[0].flag],
+    ['Calibrate IMU', 'ROB-12', 'In Progress', 'Blocker', 'Ana Lopez', '2026-10-21', 'Sensors', 'Sprint 3', 'none'], 'Jira columns mapped (Epic preferred over Issue Type)');
+  assert.deepEqual([r[1].flag, r[1].completedOn, r[1].priority, r[1].category], ['completed', '2026-10-15', 'Minor', 'Story'], 'Done → completed with the resolved date');
+  const board = { name: 'Robot build', lists: [{ id: 'l1', name: 'To do' }, { id: 'l2', name: 'Done' }, { id: 'l3', name: 'Old', closed: true }],
+    members: [{ id: 'm1', fullName: 'Ana Lopez' }, { id: 'm2', fullName: 'Max Reed' }], labels: [{ id: 'b1', name: 'Mechanical' }, { id: 'b2', name: 'High' }],
+    checklists: [{ id: 'c1', checkItems: [{ name: 'Second', state: 'incomplete', pos: 2 }, { name: 'First', state: 'complete', pos: 1 }] }],
+    cards: [{ id: 'x1', idShort: 4, name: 'Design gripper', idList: 'l1', idMembers: ['m1', 'm2'], idLabels: ['b1', 'b2'], due: '2026-10-24T17:00:00.000Z', idChecklists: ['c1'], shortUrl: 'https://trello.com/c/abc' },
+      { id: 'x2', idShort: 5, name: 'Order parts', idList: 'l2', idMembers: [], idLabels: [], due: null },
+      { id: 'x3', idShort: 6, name: 'Archived card', idList: 'l1', closed: true },
+      { id: 'x4', idShort: 7, name: 'In archived list', idList: 'l3' }] };
+  const t = rowsFromTrello(board);
+  assert.deepEqual(t.map(x => x.task), ['Design gripper', 'Order parts'], 'archived cards and lists are skipped');
+  assert.deepEqual([t[0].owner, t[0].supporting[0], t[0].category, t[0].priority, t[0].deadline, t[0].status, t[0].ref], ['Ana Lopez', 'Max Reed', 'Mechanical', 'Critical', '2026-10-24', 'To do', 'Trello #4']);
+  assert.deepEqual(t[0].subtasks, [{ title: 'First', completed: true }, { title: 'Second', completed: false }], 'checklist items become sub-tasks, in order');
+  assert.equal(t[0].links[0].url, 'https://trello.com/c/abc');
+  assert.deepEqual([t[1].flag, t[1].category], ['completed', 'Robot build'], 'a card in a Done list is completed');
+  assert.deepEqual(parseGithub('https://github.com/acme/robot-arm/pull/42/files'), { owner: 'acme', repo: 'robot-arm', kind: 'pull', number: 42, label: 'acme/robot-arm#42' });
+  assert.equal(parseGithub('https://github.com/acme/robot-arm/issues/7').kind, 'issue');
+  assert.equal(parseGithub('https://github.com/acme/robot-arm'), null);
+  assert.equal(parseGithub('https://evil.com/github.com/a/b/issues/1'), null);
+});
+
+test('repeat and templates are cleaned', () => {
+  assert.equal(cleanRepeat(null), null);
+  assert.equal(cleanRepeat({ every: 3 }), null, 'only 1, 2 or 4 weeks');
+  assert.deepEqual(cleanRepeat({ every: '2', until: '2026-12-01', through: 'wk 1', junk: 1 }), { every: 2, until: '2026-12-01', through: 'wk_1', seriesId: '' });
+  assert.deepEqual(cleanRepeat({ seriesId: 'id_abc' }), { every: 0, until: '', through: '', seriesId: 'id_abc' }, 'copies keep their series');
+  assert.equal(cleanTask({ name: 'x', repeat: { every: 1 } }, 't').repeat.every, 1);
+  const tpl = cleanTemplate({ name: 'Experiment', task: { name: 'Run test', priority: 'Bogus', subtasks: ['Plan', { title: 'Run' }, ''], custom: { f1: 'x', nope: 'y' }, dueOffset: 4 }, createdBy: 'u1' }, 'tpl1', [{ id: 'f1' }]);
+  assert.deepEqual([tpl.task.priority, tpl.task.subtasks, tpl.task.custom, tpl.task.dueOffset], ['Minor', ['Plan', 'Run'], { f1: 'x' }, 4]);
+  assert.equal(cleanTemplate({ name: '', task: { dueOffset: -2 } }, 't').task.dueOffset, null);
+});
+
+test('account photos: small images and https links kept, anything else dropped', () => {
+  const ok = 'data:image/png;base64,' + 'A'.repeat(1000);
+  assert.equal(cleanPhoto(ok), ok);
+  assert.equal(cleanPhoto('https://lh3.googleusercontent.com/a/abc'), 'https://lh3.googleusercontent.com/a/abc');
+  assert.equal(cleanPhoto('http://example.com/a.png'), '', 'plain http is not shown');
+  assert.equal(cleanPhoto('javascript:alert(1)'), '');
+  assert.equal(cleanPhoto('data:image/svg+xml;base64,PHN2Zz4='), '', 'SVG data URLs are refused');
+  assert.equal(cleanPhoto('data:image/png;base64,' + 'A'.repeat(80000)), '', 'too large');
+  assert.equal(cleanMember({ name: 'x', photo: ok }, 'u1').photo, ok);
+});
+
+test('profile rules: only you can write your profile, with a small photo', () => {
+  const me = { uid: 'u1', email: 'u1@x.com', emailVerified: true };
+  assert.doesNotThrow(() => checkProfileWrite(me, 'u1', { photo: 'data:image/png;base64,AAAA', updatedAt: 1 }));
+  assert.doesNotThrow(() => checkProfileWrite(me, 'u1', { photo: '', updatedAt: 1 }));
+  assert.throws(() => checkProfileWrite(me, 'u2', { photo: '', updatedAt: 1 }), /permission/i);
+  assert.throws(() => checkProfileWrite(null, 'u1', { photo: '', updatedAt: 1 }), /permission/i);
+  assert.throws(() => checkProfileWrite(me, 'u1', { photo: '', admin: true }), /permission/i);
+  assert.throws(() => checkProfileWrite(me, 'u1', { photo: 'x'.repeat(70000) }), /permission/i);
+  assert.doesNotThrow(() => checkProfileWrite(me, 'u1', { photo: '', theme: 'sakura', updatedAt: 1 }), 'a theme can be saved');
+  assert.throws(() => checkProfileWrite(me, 'u1', { photo: '', theme: 'x'.repeat(41) }), /permission/i);
+  assert.throws(() => checkProfileWrite(me, 'u1', { photo: '', theme: 7 }), /permission/i);
+  assert.doesNotThrow(() => checkProfileWrite(me, 'u1', { photo: '', menuStyle: 'circle', updatedAt: 1 }), 'menu style can be saved');
+  assert.throws(() => checkProfileWrite(me, 'u1', { photo: '', menuStyle: 'triangle' }), /permission/i);
+});
+
+test('sub-tasks, custom fields and attachments edited in place are detected and saved', () => {
+  const state = { team: { weeks: [{ key: 'w1', title: 'WEEK 1', metric: '', startDate: '' }] }, members: [{ uid: 'u1', name: 'A', roleId: 'owner' }],
+    categories: [{ id: 'c1', name: 'GEN', ownerUid: 'u1', order: 0 }],
+    tasks: [{ ...taskDoc('u1', 'c1'), id: 't1', subtasks: [{ id: 's1', title: 'One', completed: false }], custom: { f1: 'x' }, attachments: [] }] };
+  const model = buildModel(state);
+  const base = flatten(model);
+  const t = model.db[0].categories[0].w1[0];
+  t.subtasks.push({ id: 's2', title: 'Two', completed: false });   // add
+  t.subtasks[0].completed = true;                                   // tick
+  t.custom.f1 = 'y';                                                // edit custom field in place
+  t.attachments.push({ name: 'Doc', url: 'https://example.com' });
+  const changes = diff(base, flatten(model));
+  assert.equal(changes.length, 1);
+  const ops = changesToOps(changes, { uid: 'u1', name: 'A' });
+  assert.deepEqual(ops[0].data.subtasks.map(s => [s.title, s.completed]), [['One', true], ['Two', false]]);
+  assert.equal(ops[0].data.custom.f1, 'y');
+  assert.equal(ops[0].data.attachments.length, 1);
+  assert.equal(state.tasks[0].subtasks.length, 1, 'server state is not changed by board edits');
+});
+
+test('planning: stage, effort, dependencies and capacity are cleaned', () => {
+  assert.equal(stageOf({ flag: 'completed', stage: 'doing' }), 'done', 'completed always means Done');
+  assert.equal(stageOf({ flag: 'none', stage: 'doing' }), 'doing');
+  assert.equal(stageOf({ flag: 'none', stage: '', status: 'In Progress' }), 'doing', 'guessed from status text');
+  assert.equal(stageOf({ flag: 'none', stage: '', status: 'TODO' }), 'todo');
+  assert.equal(stageOf({ flag: 'none', stage: 'todo', status: 'In progress' }), 'todo', 'an explicit stage wins over the status text');
+  assert.equal(cleanEffort('2.6'), 2.5, 'rounded to quarter hours'); assert.equal(cleanEffort(''), null); assert.equal(cleanEffort(-1), null); assert.equal(cleanEffort(1e6), null); assert.equal(cleanEffort(0), 0);
+  assert.deepEqual(cleanDeps(['a', 'a', 'me', 'b c', null], 'me'), ['a', 'b_c'], 'no duplicates, no self, safe ids');
+  assert.equal(cleanDeps(Array.from({ length: 20 }, (_, i) => 'x' + i)).length, 10);
+  assert.equal(cleanCapacity('12.4'), 12); assert.equal(cleanCapacity(0), 0); assert.equal(cleanCapacity(500), 0);
+  const t = cleanTask({ name: 'x', stage: 'nope', effort: 'abc', dependsOn: 'x' }, 't');
+  assert.equal(t.stage, ''); assert.equal(t.effort, null); assert.deepEqual(t.dependsOn, []);
+  assert.equal(cleanTeam({ name: 'T', capacity: 10 }).capacity, 10);
+  assert.equal(cleanTemplate({ name: 'n', task: { name: 'x', effort: 3 } }, 'id').task.effort, 3);
+});
+
+test('planning fields survive a board edit and are saved as changes', () => {
+  const t0 = cleanTask(taskDoc('m', 'c1', { name: 'A', stage: 'doing', effort: 2, dependsOn: ['tc'] }), 'ta');
+  const s = { ...state, tasks: [t0, ...tasks.slice(1)] };
+  const model = buildModel(s); const before = flatten(model);
+  assert.equal(before.tasks.ta.stage, 'doing'); assert.equal(before.tasks.ta.effort, 2); assert.deepEqual(before.tasks.ta.dependsOn, ['tc']);
+  const tk = model.db.find(p => p.id === 'm').categories[0].w1[0]; tk.effort = 5; tk.dependsOn.push('tb');
+  const ch = diff(before, flatten(model));
+  assert.equal(ch.length, 1); assert.equal(ch[0].after.effort, 5); assert.deepEqual(ch[0].after.dependsOn, ['tc', 'tb']);
+});
+
+test('finance: only finance roles can read money (demo rules)', () => {
+  const f = fixture();
+  assert.throws(() => checkRead(f, users.mem1, TEAM, 'expenses'), /permission/i);
+  assert.doesNotThrow(() => checkRead(f, users.admin1, TEAM, 'expenses'));
+  assert.doesNotThrow(() => checkRead(f, users.mem1, TEAM, 'parts'));
+});
+
+test('research records are cleaned', () => {
+  const m = cleanMeeting({ title: 'x'.repeat(300), attendees: ['a', 'a', 'b c'], actions: [{ text: '' }, { text: 'Do it', ownerUid: 'u 1', dueDate: 'soon' }] }, 'm1');
+  assert.equal(m.title.length, 120); assert.deepEqual(m.attendees, ['a', 'b_c']); assert.equal(m.actions.length, 1); assert.equal(m.actions[0].dueDate, ''); assert.equal(m.actions[0].ownerUid, 'u_1');
+  const n = cleanNotebookEntry({ taskId: 't', text: 'hi', images: ['javascript:x', 'data:image/png;base64,AAAA', 'data:image/png;base64,' + 'A'.repeat(300000)] }, 'n');
+  assert.deepEqual(n.images, ['data:image/png;base64,AAAA']);
+  const p = cleanPart({ name: 'Servo', qty: '3', unitCost: '2.499', status: 'lost', url: 'javascript:alert(1)' }, 'p');
+  assert.equal(p.qty, 3); assert.equal(p.unitCost, 2.5); assert.equal(p.status, 'needed'); assert.equal(p.url, ''); assert.equal(partTotal(p), 7.5);
+  const x = cleanExpense({ kind: 'weird', amount: -5 }, 'x'); assert.equal(x.kind, 'expense'); assert.equal(x.amount, 0);
+  assert.equal(cleanBudget({ currency: 'XYZ', lines: [{ name: 'Parts', amount: '100' }] }).currency, 'GBP');
+  assert.equal(cleanBudget({ lines: [{ name: 'Parts', amount: '100' }] }).lines[0].amount, 100);
+  const pp = cleanPaper({ title: 'T', doi: 'https://doi.org/10.1/X', year: 'nope', status: 'x', tags: ['a', 'a'] }, 'pp');
+  assert.equal(pp.doi, '10.1/X'); assert.equal(pp.year, null); assert.equal(pp.status, 'to-read'); assert.deepEqual(pp.tags, ['a']);
+});
+
+test('meeting notes: action lines become action items with owners and dates', () => {
+  const members = [{ uid: 'u1', name: 'Tom Reed' }, { uid: 'u2', name: 'Aisha Khan' }];
+  const found = actionsFromNotes('Agenda\n- [ ] Order servos @Tom Reed by 2026-11-01\nTODO: write the report\nAction: @Aisha Khan book the lab\n- plain bullet', members);
+  assert.equal(found.length, 3);
+  assert.deepEqual(found[0], { text: 'Order servos', ownerUid: 'u1', dueDate: '2026-11-01' });
+  assert.equal(found[1].text, 'write the report'); assert.equal(found[1].ownerUid, '');
+  assert.equal(found[2].ownerUid, 'u2'); assert.equal(found[2].text, 'book the lab');
+});
+
+test('literature: BibTeX in and out', () => {
+  const bib = '@article{smith2024,\n  title = {Robust {Grasping} of Objects},\n  author = {Smith, Anna and Lee, Bo},\n  year = {2024},\n  journal = "IEEE RA-L",\n  doi = {10.1109/LRA.2024.1}\n}\n@comment{skip}\n@inproceedings{x, title={Second}, author={Ng, Al}, booktitle={ICRA}, year=2023}';
+  const items = parseBibtex(bib);
+  assert.equal(items.length, 2);
+  assert.equal(items[0].title, 'Robust Grasping of Objects'); assert.equal(items[0].authors, 'Anna Smith, Bo Lee'); assert.equal(items[0].venue, 'IEEE RA-L'); assert.equal(items[0].doi, '10.1109/LRA.2024.1');
+  assert.equal(items[1].venue, 'ICRA'); assert.equal(items[1].year, '2023');
+  const out = toBibtex(items.map(i => cleanPaper(i, 'p')));
+  assert.match(out, /@article\{smith2024robust,/); assert.match(out, /author = \{Anna Smith and Bo Lee\}/);
+  assert.equal(parseBibtex(out).length, 2, 'round trip');
+});
+
+test('finance: budget lines, spending, income and committed parts', () => {
+  const b = cleanBudget({ currency: 'GBP', lines: [{ id: 'b1', name: 'Parts', amount: 500 }, { id: 'b2', name: 'Travel', amount: 200 }] });
+  const ex = [cleanExpense({ kind: 'expense', amount: 120, budgetId: 'b1', partId: 'p2' }), cleanExpense({ kind: 'expense', amount: 30 }), cleanExpense({ kind: 'income', amount: 1000 })];
+  const parts = [cleanPart({ name: 'a', qty: 2, unitCost: 50, status: 'ordered', budgetId: 'b1' }, 'p1'), cleanPart({ name: 'b', qty: 1, unitCost: 120, status: 'ordered', budgetId: 'b1' }, 'p2'), cleanPart({ name: 'c', qty: 1, unitCost: 9, status: 'needed' }, 'p3')];
+  const s = financeSummary(b, ex, parts);
+  assert.equal(s.total, 700); assert.equal(s.spent, 150); assert.equal(s.income, 1000);
+  assert.equal(s.committed, 100, 'ordered but not yet paid for (p2 already has an expense)');
+  assert.equal(s.remaining, 450); assert.equal(s.balance, 850);
+  assert.equal(s.lines[0].spent, 120); assert.equal(s.lines[0].committed, 100); assert.equal(s.other.spent, 30);
+});
+
+test('carried-forward chains: explicit links and older copies matched by history', () => {
+  const carried = [{ field: 'Action', original: 'WEEK 1', updated: 'Carried forward to WEEK 2' }];
+  const items = [
+    { id: 'a1', name: 'Paper', cat: 'c', weekIdx: 0, history: [] },
+    { id: 'a2', name: 'Paper', cat: 'c', weekIdx: 1, history: carried },
+    { id: 'a3', name: 'Paper', cat: 'c', weekIdx: 2, history: carried, carryOf: 'a2' },
+    { id: 'b1', name: 'Paper', cat: 'other', weekIdx: 1, history: carried },
+    { id: 'c1', name: 'Paper', cat: 'c', weekIdx: 3, history: [] },
+  ];
+  const r = carryRoots(items);
+  assert.equal(r.get('a2'), 'a1'); assert.equal(r.get('a3'), 'a1');
+  assert.equal(r.get('b1'), 'b1', 'different row: not the same task');
+  assert.equal(r.get('c1'), 'c1', 'same name but never carried: a separate task');
+  assert.equal(cleanTask({ name: 'x', carryOf: 'x' }, 'x').carryOf, '', 'a task is never its own original');
+});
+
+test('progress report: period, sections, person filter and finance gating', () => {
+  const today = '2026-10-19';
+  const row = (o) => ({ id: o.id, task: o.task, person: o.person || 'Tom', personId: o.personId || 'u1', phase: o.phase || '', phaseId: o.phaseId || '', priority: o.priority || 'Minor', flag: o.flag || 'none', stage: o.stage || 'To do',
+    deadline: o.deadline || '', daysToDeadline: o.days ?? null, overdue: !!o.overdue, completedOn: o.completedOn || '', subtasks: o.subtasks || [], waitIssues: o.waitIssues || [], carryCount: o.carry || 1 });
+  const rows = [
+    row({ id: 't1', task: 'Order servos', flag: 'completed', completedOn: '2026-10-16', phaseId: 'ph1', phase: 'Build' }),
+    row({ id: 't2', task: 'Old thing', flag: 'completed', completedOn: '2026-09-01' }),
+    row({ id: 't3', task: 'Wire the arm', stage: 'Doing', deadline: '2026-10-25', days: 6, phaseId: 'ph1', phase: 'Build', subtasks: [{ done: true }, { done: false }], carry: 3 }),
+    row({ id: 't4', task: 'Write report', deadline: '2026-10-12', days: -7, overdue: true, person: 'Aisha', personId: 'u2' }),
+    row({ id: 't5', task: 'Assemble', waitIssues: ['“Order frame” is overdue'] }),
+  ];
+  const team = { name: 'Robot Science', phases: [{ id: 'ph1', name: 'Build', start: '2026-10-01', end: '2026-11-30', milestone: 'Arm moves' }], weeks: [{ key: 'w1', startDate: '2026-09-28' }] };
+  const data = { team, rows, today, author: 'Aisha', money: false, members: [{ uid: 'u1', name: 'Tom' }, { uid: 'u2', name: 'Aisha' }],
+    meetings: [{ title: 'Supervisor', date: '2026-10-15', notes: 'Notes\n- x\n\nDecisions\n- Use MG996R servos\n- Meet weekly\n\nActions\n- [ ] a', actions: [{ text: 'Order servos', ownerUid: 'u1', taskId: 't1' }] }],
+    notebook: [{ taskId: 't3', authorUid: 'u1', authorName: 'Tom', date: '2026-10-17', text: 'Torque 1.2 Nm', images: [] }], parts: [{ name: 'Servo', qty: 4, unitCost: 6.5, status: 'ordered', orderedDate: '2026-10-14' }],
+    papers: [], expenses: [{ kind: 'expense', amount: 26, date: '2026-10-16', budgetId: '' }], budget: { currency: 'GBP', lines: [] } };
+  assert.deepEqual(resolvePeriod({ period: '7' }, today, team, rows), { from: '2026-10-13', to: '2026-10-19', label: 'Last 7 days' });
+  assert.equal(resolvePeriod({ period: 'phase:ph1' }, today, team, rows).from, '2026-10-01');
+  const R = buildReport(data, { period: '7', person: 'all', message: 'Hi Dr Smith' });
+  const sec = (k) => R.sections.find(s => s.key === k);
+  assert.ok(!sec('finance'), 'no finance section without the permission');
+  assert.equal(sec('summary').kpis[0][1], 1, 'one task completed in the last 7 days');
+  assert.deepEqual(sec('completed').table.rows.map(r => r[0]), ['Order servos']);
+  assert.equal(sec('progress').table.rows[0][0], 'Wire the arm (week 3)');
+  assert.equal(sec('upcoming').table.rows.length, 1);
+  assert.equal(sec('risks').table.rows.length, 2, 'overdue + waiting on a late task');
+  assert.equal(sec('phases').table.rows[0][2], '1/2 (50%)');
+  assert.deepEqual(sec('meetings').items[0].lines.slice(0, 2), ['Decision: Use MG996R servos', 'Decision: Meet weekly']);
+  assert.ok(sec('meetings').items[0].lines.some(l => l === 'Action: Order servos (Tom) — done'));
+  assert.equal(sec('notebook').items.length, 1);
+  assert.ok(sec('parts').lines.some(l => l.startsWith('Ordered: Servo × 4')) && !sec('parts').lines.join(' ').includes('£'), 'no money shown to non-finance roles');
+  const withMoney = buildReport({ ...data, money: true }, { period: '7' });
+  assert.ok(withMoney.sections.find(s => s.key === 'finance').lines[0].includes('£26'), 'finance roles see spending');
+  const mine = buildReport(data, { period: '7', person: 'u2', sections: ['summary', 'risks', 'people'] });
+  assert.equal(mine.title, 'Progress report — Aisha');
+  assert.deepEqual(mine.sections.map(s => s.key), ['summary', 'risks'], 'only chosen sections; no by-person table for one person');
+  assert.equal(mine.sections[1].table.rows.length, 1);
+  const html = reportHtml(R); assert.match(html, /Hi Dr Smith/); assert.match(html, /<h2>Completed in this period<\/h2>/);
+  assert.ok(!reportHtml({ ...R, team: '<script>x</script>' }).includes('<script>x'), 'escaped');
+  const text = reportText(R); assert.match(text, /COMPLETED IN THIS PERIOD\n• Order servos — Tom — Build — 16 Oct/);
+});
+
+test('feature switches: new teams start simple, older teams keep what they had', () => {
+  assert.equal(NEW_TEAM_FEATURES.planning, true); assert.equal(NEW_TEAM_FEATURES.parts, false); assert.equal(NEW_TEAM_FEATURES.people, false);
+  const legacy = cleanFeatures(undefined); assert.equal(legacy.parts, true); assert.equal(legacy.finance, true); assert.equal(legacy.risks, false);
+  const f = cleanFeatures({ people: true, nonsense: true, parts: 'yes' }); assert.equal(f.people, true); assert.equal(f.parts, false, 'non-boolean → the new-team default'); assert.ok(!('nonsense' in f));
+  assert.equal(cleanTeam({ name: 'T', features: { risks: true } }).features.risks, true);
+});
+
+test('people: profiles, time off and capacity', () => {
+  const p = cleanProfile({ capacity: '12.4', skills: ['CAD', 'cad', ' ROS ', ''], away: [{ from: '2026-10-23', to: '2026-10-21', note: 'Conference' }, { from: 'x', to: 'y' }] }, 'u1');
+  assert.equal(p.capacity, 12); assert.deepEqual(p.skills, ['CAD', 'ROS']); assert.deepEqual(p.away, [{ from: '2026-10-21', to: '2026-10-23', note: 'Conference' }]);
+  assert.equal(workdaysFree('2026-10-19', p.away), 2, 'Mon–Fri minus Wed, Thu, Fri');
+  assert.equal(capacityFor(p, 0, '2026-10-19'), 4.8);
+  assert.equal(capacityFor(cleanProfile({}, 'u2'), 10, '2026-10-19'), 10, 'falls back to the team’s hours');
+  assert.equal(capacityFor(cleanProfile({}, 'u2'), 0, '2026-10-19'), 0, 'unknown');
+  assert.ok(hasSkill(p, 'cad')); assert.ok(!hasSkill(p, 'Python'));
+  assert.equal(heatClass(0, 10), 'empty'); assert.equal(heatClass(3, 10), 'low'); assert.equal(heatClass(8, 10), 'ok'); assert.equal(heatClass(10.5, 10), 'high'); assert.equal(heatClass(15, 10), 'over'); assert.equal(heatClass(2, null), 'away'); assert.equal(heatClass(4, 0), 'nocap');
+});
+
+test('workload across teams adds up each person’s hours per calendar week', () => {
+  const sn = (name, weeks, tasks, members, profiles = [], capacity = 0) => ({ team: { name, weeks, capacity }, tasks, members, profiles });
+  const a = sn('Robotics', [{ key: 'w1', startDate: '2026-10-19' }, { key: 'w2', startDate: '2026-10-26' }], [{ ownerUid: 'u1', weekId: 'w1', effort: 6, name: 'Gripper' }, { ownerUid: 'u1', weekId: 'w2', effort: 2, name: 'Test' }], [{ uid: 'u1', name: 'Tom' }], [{ uid: 'u1', capacity: 10, away: [] }]);
+  const b = sn('Thesis', [{ key: 'x1', startDate: '2026-10-21' }], [{ ownerUid: 'u1', weekId: 'x1', effort: 7, name: 'Write ch.2' }, { ownerUid: 'u2', weekId: 'x1', effort: 3, name: 'Read' }], [{ uid: 'u1', name: 'Tom' }, { uid: 'u2', name: 'Ana' }], [], 8);
+  const ppl = crossTeamLoad([a, b], ['2026-10-19', '2026-10-26']);
+  const tom = ppl.find(p => p.uid === 'u1');
+  assert.equal(tom.cells['2026-10-19'].hours, 13, '6 in Robotics + 7 in Thesis (a Wednesday start counts as that week)');
+  assert.deepEqual(tom.cells['2026-10-19'].byTeam, { Robotics: 6, Thesis: 7 });
+  assert.equal(tom.capacity, 10); assert.equal(tom.teams.length, 2);
+  assert.equal(ppl.find(p => p.uid === 'u2').capacity, 8, 'team default when no profile');
+});
+
+test('time logging, risks and requirements', () => {
+  const log = cleanTimeLog([{ id: 'a', uid: 'u', name: 'Tom', date: '2026-10-19', hours: '1.3', note: 'x' }, { hours: 2 }, { date: '2026-10-19', hours: 30 }]);
+  assert.equal(log.length, 2); assert.equal(log[0].hours, 1.25); assert.equal(log[1].hours, 24);
+  assert.equal(loggedHours({ timeLog: log }), 25.25);
+  assert.equal(cleanTask({ name: 'x', timeLog: log, skill: '  CAD  ' }, 't').skill, 'CAD');
+  const r = cleanRisk({ title: 'Late parts', likelihood: 9, impact: '4', status: 'weird' }, 'r'); assert.equal(r.likelihood, 3); assert.equal(r.impact, 4); assert.equal(r.status, 'open'); assert.equal(riskScore(r), 12);
+  assert.equal(riskBand(15), 'high'); assert.equal(riskBand(8), 'med'); assert.equal(riskBand(4), 'low');
+  assert.equal(nextReqRef([{ ref: 'REQ-001' }, { ref: 'REQ-009' }, { ref: 'custom' }]), 'REQ-010'); assert.equal(nextReqRef([]), 'REQ-001');
+  const reqs = [cleanRequirement({ title: 'a', taskIds: ['t1'], verified: true, priority: 'must' }, 'q1'), cleanRequirement({ title: 'b', taskIds: ['t2'], priority: 'must' }, 'q2'), cleanRequirement({ title: 'c' }, 'q3'), cleanRequirement({ title: 'd', status: 'dropped' }, 'q4')];
+  const tasks = { t1: { flag: 'completed' }, t2: { flag: 'none' } };
+  const cov = reqCoverage(reqs, (id) => tasks[id] || null);
+  assert.deepEqual([cov.total, cov.covered, cov.delivered, cov.verified, cov.coveredPct, cov.mustOpen], [3, 2, 1, 1, 67, 1]);
+  assert.deepEqual(timesheetRange('week', '2026-10-21'), { from: '2026-10-19', to: '2026-10-25' });
+  assert.deepEqual(timesheetRange('lastmonth', '2026-10-21'), { from: '2026-09-01', to: '2026-09-30' });
+});
+
+// ── Parts ↔ payments and the finance history ────────────────────────────────
+const N = { money: (v) => '£' + Number(v || 0).toFixed(2), line: (id) => ({ b1: 'Parts', b2: 'Travel' })[id] || 'Not assigned', part: (id) => ({ p1: 'Fuselage', p2: 'Servo' })[id] || 'a deleted part', task: () => 'Build', phase: () => 'Phase 1', status: (s) => s };
+
+test('records not yet saved have no id (so each new part, risk or paper gets its own)', () => {
+  assert.equal(cleanPart({ name: 'a' }).id, ''); assert.equal(cleanPaper({}).id, ''); assert.equal(cleanRisk({}).id, ''); assert.equal(cleanRequirement({}).id, '');
+  assert.equal(cleanExpense({}).id, ''); assert.equal(cleanMeeting({}).id, ''); assert.equal(cleanPart({}, 'pt_1').id, 'pt_1'); assert.equal(cleanPart({ id: 'a b' }).id, 'a_b');
+});
+
+test('payments: partIds, the old partId and paidParts', () => {
+  const a = cleanExpense({ kind: 'expense', amount: 10, partId: 'p1', partIds: ['p2', 'p2', 7, ''] });
+  assert.deepEqual(a.partIds, ['p2', 'p1']); assert.equal(a.partId, 'p2');
+  assert.deepEqual(cleanExpense({ amount: 1 }).partIds, []);
+  assert.equal(cleanExpense({ partIds: Array.from({ length: 40 }, (_, i) => 'x' + i) }).partIds.length, 30);
+  const m = paidParts([cleanExpense({ kind: 'expense', amount: 5, partIds: ['p1', 'p2'], date: '2026-10-01' }, 'e1'), cleanExpense({ kind: 'income', amount: 5, partIds: ['p3'] }, 'e2')]);
+  assert.equal(m.get('p1').id, 'e1'); assert.equal(m.get('p2').id, 'e1'); assert.ok(!m.has('p3'), 'income never pays for a part');
+});
+
+test('finance: committed counts bought parts that no payment covers', () => {
+  const b = cleanBudget({ currency: 'GBP', lines: [{ id: 'b1', name: 'Parts', amount: 100 }] });
+  const parts = [cleanPart({ name: 'Fuselage', qty: 1, unitCost: 12.99, status: 'ordered' }, 'p1'), cleanPart({ name: 'Servo', qty: 2, unitCost: 5, status: 'received', budgetId: 'b1' }, 'p2'), cleanPart({ name: 'Wing', qty: 1, unitCost: 3, status: 'needed' }, 'p3')];
+  let s = financeSummary(b, [cleanExpense({ kind: 'expense', amount: 12.99 })], parts);
+  assert.equal(s.committed, 22.99, 'unlinked: both bought parts are still committed');
+  s = financeSummary(b, [cleanExpense({ kind: 'expense', amount: 12.99, partIds: ['p1'] })], parts);
+  assert.equal(s.committed, 10, 'linked: the fuselage is no longer counted twice');
+  assert.equal(s.spent, 12.99); assert.equal(s.lines[0].committed, 10); assert.equal(s.other.committed, 0);
+  s = financeSummary(b, [cleanExpense({ kind: 'expense', amount: 22.99, partIds: ['p1', 'p2'] })], parts);
+  assert.equal(s.committed, 0, 'one payment can cover several parts');
+});
+
+test('finance history: budget changes in plain English', () => {
+  const before = cleanBudget({ currency: 'GBP', lines: [{ id: 'b1', name: 'Parts', amount: 100 }, { id: 'b2', name: 'Travel', amount: 50 }] });
+  const after = cleanBudget({ currency: 'EUR', lines: [{ id: 'b1', name: 'Components', amount: 120, phaseId: 'ph1' }, { id: 'b3', name: 'Printing', amount: 0 }] });
+  const t = budgetChanges(before, after, N);
+  ['Currency changed from GBP to EUR', 'Renamed budget line “Parts” to “Components”', '“Components” budget £100.00 → £120.00', '“Components” phase set to Phase 1', 'Added budget line “Printing”', 'Removed budget line “Travel” (£50.00)'].forEach(x => assert.ok(t.includes(x), x + ' in: ' + t));
+  assert.equal(budgetChanges(before, before, N), '');
+});
+
+test('finance history: spending, income and parts', () => {
+  const x = cleanExpense({ kind: 'expense', amount: 12.99, date: '2026-10-18', description: 'Fuselage (TEMU)', budgetId: 'b1', partIds: ['p1'] }, 'e1');
+  assert.equal(expenseChanges(null, x, N), 'Added spending £12.99 dated 2026-10-18 — Fuselage (TEMU) · budget line “Parts” · pays for “Fuselage”');
+  assert.equal(expenseChanges(x, null, N), 'Deleted spending £12.99 — Fuselage (TEMU) (dated 2026-10-18)');
+  const y = { ...x, amount: 14, budgetId: 'b2', partIds: ['p1', 'p2'], receiptUrl: 'https://r' };
+  const t = expenseChanges(x, y, N);
+  assert.ok(t.startsWith('Edited spending “Fuselage (TEMU)”: ') && t.includes('amount £12.99 → £14.00') && t.includes('budget line “Parts” → “Travel”') && t.includes('linked “Servo”') && t.includes('receipt added'), t);
+  assert.equal(expenseChanges(x, { ...x }, N), '', 'no change, no history line');
+  assert.ok(expenseChanges(null, cleanExpense({ kind: 'income', amount: 500, description: 'Grant' }), N).startsWith('Added income £500.00'));
+  const p = cleanPart({ name: 'Fuselage', qty: 1, unitCost: 12.99, status: 'needed' }, 'p1');
+  assert.equal(partChanges(null, p, N), 'Added part “Fuselage” (£12.99) — needed');
+  assert.equal(partChanges(p, { ...p, status: 'ordered', unitCost: 11 }, N), 'Part “Fuselage”: needed → ordered; cost each £12.99 → £11.00');
+  assert.equal(partChanges(p, { ...p, notes: 'blue' }, N), '', 'notes are not money');
+  assert.equal(partChanges(p, null, N), 'Deleted part “Fuselage” (£12.99)');
+  assert.ok(cleanLogEntry({ text: 'x'.repeat(900), kind: 'nope' }).text.length === 600 && cleanLogEntry({ kind: 'nope' }).kind === 'budget');
+});
+
+test('deleting a budget line moves its spending and parts', () => {
+  const b = cleanBudget({ currency: 'GBP', lines: [{ id: 'b1', name: 'Parts', amount: 100 }, { id: 'b2', name: 'Travel', amount: 50 }] });
+  const ex = [cleanExpense({ kind: 'expense', amount: 10, budgetId: 'b1' }, 'e1'), cleanExpense({ kind: 'expense', amount: 5.5, budgetId: 'b1' }, 'e2'), cleanExpense({ kind: 'expense', amount: 3, budgetId: 'b2' }, 'e3')];
+  const parts = [cleanPart({ name: 'Servo', budgetId: 'b1' }, 'p1'), cleanPart({ name: 'Bolt' }, 'p2')];
+  let plan = removeLinePlan(b, 'b1', 'b2', ex, parts, N);
+  assert.deepEqual(plan.budget.lines.map(l => l.id), ['b2']); assert.equal(plan.index, 0);
+  assert.deepEqual(plan.moves, [{ path: 'expenses/e1', from: 'b1', to: 'b2' }, { path: 'expenses/e2', from: 'b1', to: 'b2' }, { path: 'parts/p1', from: 'b1', to: 'b2' }]);
+  assert.equal(plan.text, 'Deleted budget line “Parts” (budget £100.00); moved 2 spending entries (£15.50) and 1 part to “Travel”');
+  plan = removeLinePlan(b, 'b1', 'b1', ex, parts, N);
+  assert.equal(plan.to, '', 'a line can’t be moved into itself — falls back to Not assigned');
+  assert.equal(removeLinePlan(b, 'b2', '', [], [], N).text, 'Deleted budget line “Travel” (budget £50.00)');
+  assert.equal(removeLinePlan(b, 'zz', '', ex, parts, N), null);
+});
+
+test('rules (read): finance history only for finance roles', () => {
+  const st = fixture();
+  assert.throws(() => checkRead(st, users.mem1, TEAM, 'financeLog'));
+  assert.doesNotThrow(() => checkRead(st, users.admin1, TEAM, 'financeLog'));
+  assert.doesNotThrow(() => checkRead(st, users.owner, TEAM, 'financeLog'));
+});
+
+test('plans: what is in force, expiry, Pro features and member room', () => {
+  assert.equal(planOf({}).tier, 'free'); assert.equal(planOf({}).members, 30); assert.equal(planOf({}).ownTeams, 5); assert.equal(planOf({}).label, 'Free');
+  assert.equal(cleanPlan({ tier: 'gold' }).tier, 'free');
+  const pro = { plan: { tier: 'pro', edu: true, until: Date.parse('2027-09-01') } };
+  assert.equal(planOf(pro, Date.parse('2027-01-01')).label, 'Pro Education'); assert.equal(planOf(pro, Date.parse('2027-01-01')).members, 100);
+  const later = planOf(pro, Date.parse('2027-10-01')); assert.equal(later.tier, 'free'); assert.ok(later.expired, 'past its end date the team is back on Free');
+  assert.ok(hasPro(pro, 'approvals', Date.parse('2027-01-01')) && !hasPro(pro, 'sso', Date.parse('2027-01-01')), 'Pro has Pro features, not Organisation ones');
+  assert.ok(hasPro({ plan: { tier: 'org' } }, 'sso') && !hasPro({}, 'history'));
+  assert.deepEqual(memberRoom({}, 28, 1), { limit: 30, used: 29, left: 1, full: false });
+  assert.ok(memberRoom({}, 29, 1).full); assert.equal(memberRoom({ plan: { tier: 'pro' } }, 29, 1).left, 70);
+});
+
+test('rules (read): a platform admin sees teams and requests, not their work', () => {
+  const st = fixture();
+  assert.doesNotThrow(() => checkRead(st, users.plat, TEAM)); assert.doesNotThrow(() => checkRead(st, users.plat, TEAM, 'requests'));
+  assert.throws(() => checkRead(st, users.plat, TEAM, 'tasks')); assert.throws(() => checkRead(st, users.evil, TEAM, 'requests'));
+});
+
+test('university emails that get free Pro Education', () => {
+  ['a@bristol.ac.uk', 'B@MIT.EDU', 'c@unsw.edu.au', 'd@iitb.ac.in', 'e@student.ethz.ch', 'f@epfl.ch'].forEach(e => assert.ok(isAcademicEmail(e), e));
+  ['a@gmail.com', 'b@ac.uk.evil.com', 'c@education.com', 'd@edu', ''].forEach(e => assert.ok(!isAcademicEmail(e), e));
+});
+
+import { scrub, errorDoc, ignorable } from '../src/monitor.js';
+test('error reports carry no personal data', () => {
+  assert.equal(scrub('Failed for aisha@uni.ac.uk at https://x.app/#/t/abc?token=123 id 12345678', 200), 'Failed for <email> at https://x.app/ id <n>');
+  const d = errorDoc('error', { message: 'x'.repeat(500), stack: 'at f (https://app/x.js?v=1:1:2)' });
+  assert.equal(d.msg.length, 300); assert.ok(!d.stack.includes('?v=1') && d.kind === 'error' && typeof d.at === 'number');
+  assert.ok(ignorable('ResizeObserver loop limit exceeded') && ignorable('boom', 'at chrome-extension://abc/x.js') && !ignorable('TypeError: x is undefined', 'at board.js'));
+});
+test('rules: error reports and email choices', () => {
+  const st = fixture();
+  const rep = (who, data) => { const op = { type: 'set', path: '/clientErrors/e1', data }; const post = applyOps(st, TEAM, [op]); checkWrite(st, post, users[who], TEAM, op); };
+  const good = { kind: 'error', msg: 'boom', stack: '', where: '#/t', ua: 'x', build: 'b', at: 1, uid: 'mem1', expireAt: 1 };
+  assert.doesNotThrow(() => rep('mem1', good));
+  assert.throws(() => rep('mem1', { ...good, uid: 'owner' }), /error report/, 'only in your own name');
+  assert.throws(() => rep('mem1', { ...good, taskText: 'secret' }), /error report/, 'no extra fields');
+  assert.doesNotThrow(() => checkProfileWrite(users.mem1, 'mem1', { notify: { mentions: false, digest: true }, updatedAt: 1 }));
+  assert.throws(() => checkProfileWrite(users.mem1, 'owner', { notify: { mentions: false }, updatedAt: 1 }));
+});
+
+test('changing a week start date moves every later week to follow on', async () => {
+  const { cascadeWeekDates } = await import('../src/model.js');
+  const weeks = [{ title: 'WEEK 1', startDate: '2026-08-11' }, { title: 'WEEK 2', startDate: '2026-10-26' }, { title: 'Exam break', startDate: '' }, { title: 'WEEK 4', startDate: '2027-01-04' }];
+  const a = cascadeWeekDates(weeks, 0, '2026-10-19');
+  assert.deepEqual(a.map(w => w.startDate), ['2026-10-19', '2026-10-26', '2026-11-02', '2026-11-09']);
+  assert.deepEqual(a.map(w => w.title), ['WEEK 1', 'WEEK 2', 'Exam break', 'WEEK 4'], 'own numbering keeps titles');
+  const b = cascadeWeekDates(weeks, 1, '2026-12-28');
+  assert.equal(b[0].startDate, '2026-08-11', 'earlier weeks untouched');
+  assert.deepEqual(b.slice(1).map(w => w.startDate), ['2026-12-28', '2027-01-04', '2027-01-11'], 'crosses the year end');
+  const c = cascadeWeekDates(weeks, 0, '2026-10-19', 'calendar');
+  assert.deepEqual(c.map(w => w.title), ['WEEK 43', 'WEEK 44', 'Exam break', 'WEEK 46'], 'calendar naming renames numbered weeks, keeps custom names');
+  assert.equal(weeks[0].startDate, '2026-08-11', 'input not changed');
+  assert.deepEqual(cascadeWeekDates(weeks, 0, 'nope').map(w => w.startDate), weeks.map(w => w.startDate), 'bad date ignored');
+});
+
+test('carried-forward copies share their links (carryIndex)', async () => {
+  const { carryIndex, uniqueChains } = await import('../src/model.js');
+  const weeks = [{ key: 'w1' }, { key: 'w2' }, { key: 'w3' }];
+  const tasks = [
+    { id: 'a', name: 'Read paper', categoryId: 'c', weekId: 'w1', carryOf: '' },
+    { id: 'b', name: 'Read paper', categoryId: 'c', weekId: 'w2', carryOf: 'a' },
+    { id: 'c3', name: 'Read paper', categoryId: 'c', weekId: 'w3', carryOf: 'a' },
+    { id: 'x', name: 'Other', categoryId: 'c', weekId: 'w2', carryOf: '' },
+  ];
+  const ix = carryIndex(tasks, weeks);
+  assert.deepEqual(ix.ids('c3'), ['a', 'b', 'c3']);
+  assert.equal(ix.latest('a').id, 'c3', 'links to the first copy resolve to the latest');
+  assert.ok(ix.same('a', 'b') && !ix.same('a', 'x'));
+  assert.deepEqual(ix.ids('x'), ['x']); assert.deepEqual(ix.ids('gone'), ['gone']);
+  assert.deepEqual(uniqueChains(['a', 'x', 'c3', 'b'], ix), ['a', 'x'], 'one chip per piece of work');
+  // the first copy was deleted: later copies still find each other and old links still resolve
+  const ix2 = carryIndex(tasks.slice(1), weeks);
+  assert.equal(ix2.latest('a').id, 'c3', 'a link to the deleted first copy still finds the latest');
+});

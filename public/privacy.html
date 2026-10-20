@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy · TeamTrack</title>
+<meta name="description" content="How TeamTrack handles your data.">
+<style>
+:root { --bg: #f7fafc; --panel: #fff; --text: #1a202c; --muted: #4a5568; --line: #e2e8f0; --accent: #2b6cb0; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0b0f19; --panel: #131722; --text: #e2e8f0; --muted: #a0aec0; --line: #2d3748; --accent: #63b3ed; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 40px 20px 64px; }
+header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+.mark { width: 36px; height: 36px; border-radius: 10px; background: #4299e1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 7px; align-items: end; }
+.mark i { background: #fff; border-radius: 2px; height: 100%; } .mark i:nth-child(2) { height: 70%; } .mark i:nth-child(3) { height: 45%; }
+header a { color: var(--text); font-weight: 800; font-size: 20px; text-decoration: none; }
+h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.02em; }
+.updated { color: var(--muted); margin: 0 0 28px; }
+h2 { font-size: 19px; margin: 30px 0 8px; }
+p, li { color: var(--text); } ul { padding-left: 22px; } li { margin: 4px 0; }
+a { color: var(--accent); }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin: 18px 0; }
+footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+<header><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span><a href="/">TeamTrack</a></header>
+<h1>Privacy policy</h1>
+<p class="updated">Last updated 18 October 2026</p>
+<p>TeamTrack is a team progress tracker run by Rushikesh Vibhandik for student and research project groups. This page explains what information it keeps, why, and the choices you have. Questions: <a href="mailto:rushivibhandik.college@gmail.com">rushivibhandik.college@gmail.com</a>.</p>
+
+<h2>What we store</h2>
+<ul>
+<li><b>Your account:</b> your name, email address and, if you add one, your profile photo. Sign-in is handled by Google Firebase Authentication (email and password, "Sign in with Google", or "Continue with Microsoft" where the site offers it).</li>
+<li><b>Your teams' work:</b> the teams you belong to and your role, and what you and your teammates add: weeks, categories, tasks, deadlines, sub-tasks, comments, @mentions, project phases, team logos and links to files.</li>
+<li><b>Your preferences:</b> for example the theme you choose.</li>
+<li><b>In your browser only:</b> a few settings such as filters, unsent comment drafts and which mentions you have read. These never leave your device.</li>
+</ul>
+<p>Everything except the browser-only settings is stored in Google Firebase (Cloud Firestore) and is visible only to members of the team it belongs to, as enforced by the database's security rules. Your account photo and name are shown to the teams you join.</p>
+
+<h2>Google Drive, Sheets and Calendar</h2>
+<p>These features are optional and only run when you press the button for them. You sign in to your own Google account and approve access; TeamTrack runs in your browser and talks to Google directly. It asks for the narrowest permissions available:</p>
+<ul>
+<li><b>Google Drive (<code>drive.file</code>):</b> to upload a file you choose into a TeamTrack folder in your Drive, share it with your team, and create the Google Sheets you export to. TeamTrack can only see files it created or that you picked, never the rest of your Drive.</li>
+<li><b>Google Calendar (<code>calendar.app.created</code>):</b> to create a separate "TeamTrack" calendar in your account and keep task deadlines and project phases in it. TeamTrack cannot see or change any of your other calendars.</li>
+</ul>
+<p>The access is only used for these actions. TeamTrack does not keep your Google access token on a server, does not read your other Google data, and stores only the link to an uploaded file (with the task it belongs to).</p>
+<div class="box">TeamTrack's use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</div>
+
+<h2>Microsoft OneDrive</h2>
+<p>Where the site offers it, "Upload to my OneDrive" works the same way: you sign in to your own Microsoft account and approve access (Microsoft Graph <code>Files.ReadWrite</code>). TeamTrack uses it only to upload a file you choose into a TeamTrack folder in your OneDrive and share it with your team; it stores only the link. You can remove the access at any time from your Microsoft account's app permissions.</p>
+
+<h2>GitHub links</h2>
+<p>If you add a link to a GitHub issue or pull request, your browser asks GitHub's public API whether it is open, closed or merged. No GitHub account is used and nothing about you is sent to GitHub beyond the request itself.</p>
+
+<h2>AI summaries</h2>
+<p>"Copy for AI" builds a text summary of the board that you can paste into a chatbot of your choice; nothing is sent automatically. If you choose to add your own Gemini API key, the summary is sent from your browser to Google's Gemini service with that key, which is kept only in your browser.</p>
+
+<h2>What we don't do</h2>
+<ul>
+<li>We don't sell or rent your information, or use it for advertising.</li>
+<li>We don't use advertising or tracking cookies or analytics.</li>
+<li>We don't share your information with anyone outside your teams, except the service providers that run TeamTrack (Google Firebase, and Google Drive, Sheets or Calendar, or Microsoft OneDrive, if you use them).</li>
+</ul>
+
+<h2>Keeping and deleting data</h2>
+<ul>
+<li>Team data is kept while the team exists. A team owner can delete the team, which removes its tasks, comments and memberships.</li>
+<li>You can leave a team, remove your photo, or ask for your account to be deleted by emailing <a href="mailto:rushivibhandik.college@gmail.com">rushivibhandik.college@gmail.com</a>.</li>
+<li>Files you uploaded stay in your own Google Drive; you can delete them there. You can remove TeamTrack's access to your Google account at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>, and delete the TeamTrack calendar in Google Calendar.</li>
+</ul>
+
+<h2>Security</h2>
+<p>Data is sent over HTTPS and stored by Google Firebase. Access is limited by team membership and role (owner, admin, member, viewer), checked on the server.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes, the date at the top will change. Significant changes will be announced in the app.</p>
+<footer><a href="/">Open TeamTrack</a> · <a href="/privacy.html">Privacy policy</a> · <a href="/terms.html">Terms of service</a></footer>
+</main>
+</body>
+</html>
