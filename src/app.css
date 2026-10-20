@@ -679,3 +679,11 @@ button.tx-part:hover { border-color: var(--line-color); }
 
 .del-list { padding-left: 18px; font-size: 13px; line-height: 1.5; }
 .del-list li { margin-bottom: 4px; }
+
+/* Pilot numbers (Platform admin) */
+.adm-stats-scroll { overflow-x: auto; }
+.adm-stats-table { min-width: 640px; font-size: 13px; }
+.adm-stats-table td, .adm-stats-table th { white-space: nowrap; }
+.adm-quiet td { opacity: .55; }
+.adm-spark { width: 84px; height: 22px; display: block; }
+.adm-spark polyline { fill: none; stroke: var(--line-color); stroke-width: 1.5; stroke-linejoin: round; }

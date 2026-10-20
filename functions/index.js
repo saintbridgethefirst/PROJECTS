@@ -15,6 +15,7 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { refreshAll } from './stats.js';
 import { exportUserData, deleteUserData, transferOwnership as transferOwnershipImpl, teamsToHandOver } from './privacy.js';
 import { normEmail, isAcademicEmail, newCode, hashCode, emailKey, checkSend, checkConfirm, codeEmail, CODE_MINUTES, VERIFIED_DAYS,
   proActive, wants, mentionEmail, digestItems, digestEmail, inviteChanged, inviteEmail, MAX_INVITE_EMAILS_PER_DAY,
@@ -242,4 +243,15 @@ export const transferOwnership = onCall({ region: REGION, invoker: 'public', max
 export const myOwnedTeams = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('myOwnedTeams', async () => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   return { teams: await teamsToHandOver(db, req.auth.uid) };
+}));
+
+// ── Pilot numbers (counts only; see stats.js) ───────────────────────────────
+export const dailyTeamStats = onSchedule({ schedule: '15 5 * * *', timeZone: 'Europe/London', region: REGION, timeoutSeconds: 540, maxInstances: 1 }, async () => {
+  console.log('team stats', await refreshAll(db));
+});
+/** Platform admins: recompute now (Settings ▸ Plan ▸ Platform admin ▸ Refresh). */
+export const refreshTeamStats = onCall({ region: REGION, invoker: 'public', maxInstances: 1, timeoutSeconds: 300 }, (req) => explain('refreshTeamStats', async () => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  if (!(await db.doc('admins/' + req.auth.uid).get()).exists) throw new HttpsError('permission-denied', 'Only platform admins can do this.');
+  return refreshAll(db);
 }));

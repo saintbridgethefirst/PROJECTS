@@ -256,6 +256,10 @@ export const data = {
     const { addDoc, Timestamp } = await import('firebase/firestore');
     await addDoc(collection(db, 'feedback'), { ...d, expireAt: Timestamp.fromMillis(Date.now() + 365 * 864e5) });
   },
+  /** Pilot numbers per team (counts only; written daily by the dailyTeamStats function). */
+  watchTeamStats(cb, onError) {
+    return onSnapshot(collection(db, 'teamStats'), (s) => cb(s.docs.map(d => ({ ...d.data(), id: d.id }))), onError);
+  },
   watchFeedback(cb, onError) {
     return onSnapshot(query(collection(db, 'feedback'), orderBy('at', 'desc'), limit(100)), (s) => cb(s.docs.map(d => ({ ...d.data(), id: d.id }))), onError);
   },

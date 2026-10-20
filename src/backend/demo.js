@@ -188,6 +188,7 @@ export const data = {
     const myTeams = () => Object.entries(store.teams).filter(([, T]) => T.members && T.members[me.uid]);
     const owned = () => myTeams().filter(([, T]) => T.members[me.uid].roleId === 'owner' && Object.keys(T.members).length > 1).map(([id, T]) => ({ teamId: id, name: T.doc.name, members: Object.keys(T.members).length }));
     if (name === 'myOwnedTeams') return { teams: owned() };
+    if (name === 'refreshTeamStats') { if (!(store.admins && store.admins[me.uid])) fail('permission-denied', 'Only platform admins can do this.'); notify(); return { teams: Object.keys(store.teams).length, removed: 0 }; }
     if (name === 'exportMyData') {
       const email = normEmail(me.email); const list = (o) => Object.entries(o || {}).map(([id, d]) => ({ id, ...clone(d) }));
       return { about: 'Everything TeamTrack stores about you (demo).', account: { uid: me.uid, email: me.email, displayName: me.name, providers: ['demo'] }, profile: clone(store.users[me.uid]),
@@ -236,6 +237,23 @@ export const data = {
     const op = { type: 'set', path: '/feedback/' + newId('fb'), data: { ...d, expireAt: Date.now() + 365 * 864e5 } };
     const post = applyOps(store, null, [op]); checkWrite(store, post, me, null, op);
     store = post; persist();
+  },
+  /** Pilot numbers per team, computed from the demo store the way functions/stats.js does. */
+  watchTeamStats(cb, onError) {
+    return subscribe(() => {
+      const me = authCtx(); if (!me || !(store.admins && store.admins[me.uid])) throw Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });
+      const now = Date.now(), week = now - 7 * 864e5;
+      return Object.entries(store.teams).map(([id, T]) => {
+        const members = Object.values(T.members || {}); const names = new Set(members.map(m => m.name)); const nameOf = new Map(members.map(m => [m.uid, m.name]));
+        const tasks = Object.values(T.tasks || {}); const changed = tasks.filter(t => (t.updatedAt || 0) >= week); const comments = Object.values(T.comments || {}).filter(c => (c.createdAt || 0) >= week);
+        const active = new Set(); changed.forEach(t => { if (names.has(t.updatedBy)) active.add(t.updatedBy); if ((t.createdAt || 0) >= week && nameOf.get(t.createdBy)) active.add(nameOf.get(t.createdBy)); }); comments.forEach(c => { if (nameOf.get(c.authorUid)) active.add(nameOf.get(c.authorUid)); });
+        const d = new Date(now).toISOString().slice(0, 10);
+        return { id, name: T.doc.name, plan: (T.doc.plan && T.doc.plan.tier) || 'free', edu: !!(T.doc.plan && T.doc.plan.edu), createdAt: T.doc.createdAt || 0, members: members.length, invitesPending: Object.keys(T.invites || {}).length,
+          tasks: tasks.length, weeks: (T.doc.weeks || []).length, active7: active.size, tasksChanged7: changed.length, tasksCreated7: changed.filter(t => (t.createdAt || 0) >= week).length, comments7: comments.length,
+          feedback7: Object.values((store.root && store.root.feedback) || {}).filter(f => f.teamId === id && f.at >= week).length, lastActivity: Math.max(0, ...tasks.map(t => t.updatedAt || 0)),
+          features: Object.entries(T.doc.features || {}).filter(([, on]) => on).map(([k]) => k).sort(), at: now, history: [{ d, active7: active.size, changed7: changed.length, members: members.length }] };
+      });
+    }, cb, onError);
   },
   watchFeedback(cb, onError) {
     return subscribe(() => {

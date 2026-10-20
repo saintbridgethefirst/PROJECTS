@@ -162,6 +162,47 @@ function plan(pane, ctx, { invites, rerender } = {}) {
   if (TT.isPlatformAdmin) pane.append(adminPlans(ctx, rerender));
   else if (DEMO_MODE) pane.append(el('p.hint.plan-demo', {}, 'Demo: ', el('button.link-btn', { type: 'button', id: 'plan-demo-admin', onclick: async () => { await TT.demoMakeAdmin(); toast('You are now a platform admin in this demo.'); rerender && rerender(); } }, 'make me a platform admin'), ' to try giving teams Pro.'));
 }
+// ── Pilot numbers (Platform admin) ──────────────────────────────────────────
+const ago = (t) => { if (!t) return 'never'; const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d + ' days ago'; };
+/** A tiny line of people active in the last 7 days, one point per day (up to 8 weeks). */
+function sparkline(history) {
+  const NS = 'http://www.w3.org/2000/svg'; const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 84 22'); svg.setAttribute('class', 'adm-spark'); svg.setAttribute('aria-hidden', 'true');
+  const pts = (history || []).slice(-56); if (pts.length < 2) return svg;
+  const max = Math.max(1, ...pts.map(p => p.active7));
+  const line = document.createElementNS(NS, 'polyline');
+  line.setAttribute('points', pts.map((p, i) => (2 + i * 80 / (pts.length - 1)).toFixed(1) + ',' + (20 - p.active7 / max * 18).toFixed(1)).join(' '));
+  svg.append(line); return svg;
+}
+export function teamStatsView(rows, TT) {
+  const box = el('div');
+  const list = [...rows].sort((a, b) => (b.active7 - a.active7) || (b.lastActivity - a.lastActivity));
+  const people = list.reduce((n, r) => n + r.members, 0), active = list.reduce((n, r) => n + r.active7, 0);
+  const updated = Math.max(0, ...list.map(r => r.at || 0));
+  const refresh = el('button.btn.small.ghost', { type: 'button', id: 'adm-stats-refresh', onclick: async () => {
+    refresh.disabled = true; refresh.textContent = 'Counting…';
+    try { const r = await TT.refreshTeamStats(); toast('Counted ' + r.teams + ' team' + (r.teams === 1 ? '' : 's') + '.'); }
+    catch (e) { toast(String((e && e.message) || e), 6000); }
+    refresh.disabled = false; refresh.textContent = 'Refresh now';
+  } }, 'Refresh now');
+  box.append(el('p.hint', {}, el('b', {}, String(list.filter(r => r.active7 > 0).length)), ' of ' + list.length + ' teams active this week · ', el('b', {}, String(active)), ' of ' + people + ' people (' + (people ? Math.round(100 * active / people) : 0) + '%) changed something. ',
+    'Counts only, never what teams wrote. Updated daily' + (updated ? ', last ' + ago(updated) : '') + '. ', refresh));
+  if (!list.length) { box.append(el('p.hint', {}, 'No numbers yet: press Refresh now, or wait for tomorrow morning.')); return box; }
+  const head = el('tr', {}, ...['Team', 'Plan', 'People', 'Active this week', 'Tasks changed', 'Comments', 'Last change', '8-week trend'].map(h => el('th', {}, h)));
+  const body = list.map(r => el('tr' + (r.active7 === 0 ? '.adm-quiet' : ''), {},
+    el('td', {}, el('b', {}, r.name || r.id), r.feedback7 ? el('span.hint', {}, ' · 💬 ' + r.feedback7) : ''),
+    el('td', {}, r.plan === 'free' ? 'Free' : (r.plan === 'org' ? 'Org' : 'Pro') + (r.edu ? ' Edu' : '')),
+    el('td', {}, String(r.members) + (r.invitesPending ? ' (+' + r.invitesPending + ' invited)' : '')),
+    el('td', {}, r.active7 + ' of ' + r.members + (r.members ? ' (' + Math.round(100 * r.active7 / r.members) + '%)' : '')),
+    el('td', {}, String(r.tasksChanged7) + (r.tasksCreated7 ? ' (' + r.tasksCreated7 + ' new)' : '')),
+    el('td', {}, String(r.comments7)),
+    el('td', {}, ago(r.lastActivity)),
+    el('td', {}, sparkline(r.history))));
+  box.append(el('div.adm-stats-scroll', {}, el('table.tbl.adm-stats-table', {}, head, ...body)),
+    el('p.hint', {}, 'Active = changed a task or commented in the last 7 days. A greyed row had no changes this week.'));
+  return box;
+}
+
 function adminPlans(ctx, rerender) {
   const s = ctx.session, TT = ctx.TT; const cur = s.team.plan || {};
   const tier = el('select', { id: 'adm-tier' }, [['free', 'Free'], ['pro', 'Pro'], ['org', 'Organisation']].map(([v, t]) => el('option', { value: v, selected: (cur.tier || 'free') === v }, t)));
@@ -172,6 +213,7 @@ function adminPlans(ctx, rerender) {
   const eduList = el('div.adm-edu-teams', {}, el('p.hint', {}, 'Loading…'));
   const errList = el('div.adm-errors', {}, el('p.hint', {}, 'Loading…'));
   const fbList = el('div.adm-feedback', {}, el('p.hint', {}, 'Loading…'));
+  const statsBox = el('div.adm-stats', {}, el('p.hint', {}, 'Loading…'));
   const sec = el('section.plan-admin', {}, el('h4', {}, '🛠 Platform admin'),
     el('p.hint', {}, 'Only you see this. Changes apply immediately; payments will do this automatically later.'),
     el('div.adm-row', {}, el('label.field', {}, el('span', {}, 'This team’s plan'), tier), el('label.row.adm-edu', {}, edu, ' Education'), el('label.field', {}, el('span', {}, 'Until (optional)'), until), el('label.field.adm-note', {}, el('span', {}, 'Note'), note),
@@ -179,6 +221,7 @@ function adminPlans(ctx, rerender) {
         const ok = await TT.setTeamPlan(s.teamId, { tier: tier.value, edu: edu.checked, until: until.value ? new Date(until.value + 'T23:59:59').getTime() : 0, note: note.value });
         if (ok) { toast('Plan set to ' + tier.options[tier.selectedIndex].text + (edu.checked && tier.value !== 'free' ? ' Education' : '') + '.'); setTimeout(() => rerender && rerender(), 300); }
       } }, 'Set plan')),
+    el('h4', {}, '📈 Teams using TeamTrack'), statsBox,
     el('h4', {}, 'Pro requests from all teams'), list,
     el('h4', {}, 'Teams on Pro Education'), eduList,
     el('h4', {}, '💬 Feedback'), fbList,
@@ -192,6 +235,10 @@ function adminPlans(ctx, rerender) {
         el('button.btn.small.primary', { type: 'button', onclick: async () => { if (await TT.setTeamPlan(r.teamId, { tier: r.wants === 'org' ? 'org' : 'pro', edu: r.wants === 'edu', note: 'Pilot' }) && await TT.decideRequest(r.teamId, 'approved')) toast('Approved ' + r.teamName + '.'); } }, 'Approve' + (r.wants === 'edu' ? ' (Pro Education)' : r.wants === 'org' ? ' (Organisation)' : ' (Pro)')),
         el('button.btn.small.ghost', { type: 'button', onclick: async () => { if (await TT.decideRequest(r.teamId, 'declined')) toast('Declined.'); } }, 'Decline')))) : [el('p.hint', {}, 'No open requests.')]));
   }, (e) => { list.replaceChildren(el('p.hint', {}, 'Could not load requests: ' + (e.message || e))); });
+  const unsubStats = TT.watchTeamStats((rows) => {
+    if (!sec.isConnected) { unsubStats && unsubStats(); return; }
+    statsBox.replaceChildren(teamStatsView(rows, TT));
+  }, (e) => { statsBox.replaceChildren(el('p.hint', {}, 'Could not load: ' + (e.message || e))); });
   const KINDS = { bug: '🐞', idea: '💡', question: '❓', other: '💬' };
   const unsubFb = TT.watchFeedback((rows) => {
     if (!sec.isConnected) { unsubFb && unsubFb(); return; }

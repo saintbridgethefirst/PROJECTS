@@ -53,6 +53,7 @@ try {
   fbs = Object.values(((await store(A)).root || {}).feedback || {}); const priv = fbs.find(f => f.text === 'Private one');
   ok(priv && priv.ua === '' && priv.errors.length === 0 && priv.teamId === '', 'unticking technical details leaves them out');
 
+  await A.click('.col-add'); await A.waitForSelector('#dialog-overlay input'); await A.fill('#dialog-overlay input', 'Battery test'); await A.click('#dialog-overlay .dlg-ok'); await sleep(300);
   step('The platform admin sees them, grouped');
   await A.click('#top-actions button:has-text("Settings")'); await A.click('.settings-nav button:has-text("Plan")'); await sleep(250);
   await A.click('#plan-demo-admin'); await sleep(600);
@@ -60,6 +61,12 @@ try {
   const errText = await A.locator('.adm-errors').textContent();
   ok(errText.includes('Test crash for <email> in task <n>') && errText.includes('1×'), 'listed with how often');
   ok(await A.locator('.adm-errors .adm-err').count() >= 3, 'crash, promise and refused save all listed');
+  await A.waitForSelector('.adm-stats-table');
+  const statsRow = A.locator('.adm-stats-table tr', { hasText: 'Drone Challenge' });
+  ok(await statsRow.count() === 1 && (await statsRow.textContent()).includes('1 of 1'), 'team numbers: Drone Challenge, 1 of 1 people active');
+  ok((await A.locator('.adm-stats').textContent()).includes('Counts only'), 'says it’s counts only');
+  await A.click('#adm-stats-refresh'); await sleep(300);
+  ok((await A.locator('.toast', { hasText: 'Counted' }).count()) >= 1, 'Refresh now works');
   ok((await A.locator('.adm-feedback').textContent()).includes('A dark mode for the Gantt chart') && await A.locator('.adm-feedback a', { hasText: 'Reply' }).count() >= 1, 'feedback is listed for the admin, with a Reply link');
   if (SHOTS) await A.screenshot({ path: `${SHOTS}/monitor-admin.png` });
   await A.keyboard.press('Escape'); await sleep(200);

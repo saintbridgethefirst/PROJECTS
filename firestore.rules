@@ -220,6 +220,11 @@ service cloud.firestore {
         && request.resource.data.expireAt is timestamp;
       allow update: if false;
     }
+    // Pilot numbers per team (counts only), written by the dailyTeamStats function.
+    match /teamStats/{id} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
     match /clientErrors/{id} {
       allow read, delete: if isPlatformAdmin();
       allow create: if signedIn() && request.resource.data.keys().hasOnly(['kind', 'msg', 'stack', 'where', 'ua', 'build', 'at', 'uid', 'expireAt'])

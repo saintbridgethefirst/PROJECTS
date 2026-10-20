@@ -939,6 +939,8 @@ window.TT = {
   },
   async withdrawProRequest() { return writeOps([{ type: 'delete', path: 'requests/pro' }]); },
   watchPlanRequests: (cb, onError) => backend.data.watchPlanRequests(cb, onError),
+  watchTeamStats: (cb, onError) => (backend.data.watchTeamStats ? backend.data.watchTeamStats(cb, onError) : () => {}),
+  refreshTeamStats: () => backend.data.callFunction('refreshTeamStats', {}),
   watchFeedback: (cb, onError) => (backend.data.watchFeedback ? backend.data.watchFeedback(cb, onError) : () => {}),
   openFeedback: (kind) => openFeedback(app, kind),
   watchClientErrors: (cb, onError) => backend.data.watchClientErrors ? backend.data.watchClientErrors(cb, onError) : () => {},
