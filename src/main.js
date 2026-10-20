@@ -592,6 +592,18 @@ function stateForModel() {
   return { team: s.team, members: s.members, categories: s.categories, tasks: s.tasks, personOrder: readPref('order', []), collapsed: readPref('collapsed', {}) };
 }
 
+/** Everything the board draws from: the tasks/weeks/categories plus the team settings and people. */
+/** What the cards show from data outside the board (comment, mention and notebook chips, which add up over carried copies). */
+function chipSignature(s) {
+  const ix = carryIndexOf(s); const by = new Map();
+  const add = (taskId, k) => { const r = ix.rootOf(taskId); const e = by.get(r) || by.set(r, { c: 0, n: 0, m: 0 }).get(r); e[k]++; };
+  (s.comments || []).forEach(c => add(c.taskId, 'c'));
+  (s.notebook || []).forEach(n => add(n.taskId, 'n'));
+  if (user) collab.unreadMentions(user.uid, s.comments || []).forEach(c => add(c.taskId, 'm'));
+  return [...by.entries()].map(([r, e]) => r + ':' + e.c + ',' + e.n + ',' + e.m + ':' + ix.ids(r).join(',')).sort().join(';');
+}
+function boardSignature(s, flat) { return JSON.stringify(flat) + '|' + chipSignature(s) + '|' + JSON.stringify(s.team) + '|' + JSON.stringify(s.members) + '|' + JSON.stringify(readPref('order', [])) + '|' + JSON.stringify(readPref('collapsed', {})); }
+
 function refresh() {
   const s = session;
   if (!s || !s.team || !s.members || !s.categories || !s.rawTasks) return;
@@ -600,7 +612,10 @@ function refresh() {
   if (!s.me) { toast('You’re no longer a member of this team.', 6000); goHome(); return; }
   const model = buildModel(stateForModel());
   s.base = flatten(model);
-  window.boardApplyModel(model);
+  // When the saved data that comes back is exactly what the board already shows (the echo of your
+  // own edit), don't redraw the whole board again.
+  const sig = boardSignature(s, s.base);
+  if (sig !== s.shownSig) { s.shownSig = sig; window.boardApplyModel(model); }
   updateChrome(); updateActivityBadge();
   if (pendingOpen && pendingOpen.teamId === s.teamId) { const id = pendingOpen.taskId; pendingOpen = null; setTimeout(() => window.boardOpenTask && window.boardOpenTask(id), 50); }
   syncMoney(s);
@@ -701,7 +716,7 @@ async function writeOps(ops, { quiet = false } = {}) {
     return false;
   }
 }
-function revert() { if (session && session.team) { const model = buildModel(stateForModel()); session.base = flatten(model); window.boardApplyModel(model); } }
+function revert() { if (session && session.team) { const model = buildModel(stateForModel()); session.base = flatten(model); session.shownSig = boardSignature(session, session.base); window.boardApplyModel(model); } }
 
 // ── Bridge used by board.js ─────────────────────────────────────────────────
 const UNDO_LIMIT = 60;
@@ -732,7 +747,7 @@ window.TT = {
     if (!changes.length) return;
     const denied = deniedChanges(changes, s.team, s.me);
     if (denied.length) { toast('You don’t have permission to ' + denied.join(' or ') + '.', 4500); revert(); return; }
-    s.base = flat;
+    s.base = flat; s.shownSig = boardSignature(s, flat);
     // Automatic changes (repeating-task copies) are saved but not put on your undo list.
     if (!opts.noUndo) {
       const now = Date.now(); const last = s.undo[s.undo.length - 1];
@@ -897,4 +912,4 @@ window.TT = {
   },
   goHome,
 };
-function ctx() { return { backend, user, session, TT: window.TT, writeOps, goHome, refresh: () => schedule() }; }
+function ctx() { return { backend, user, session, TT: window.TT, writeOps, goHome, refresh: () => { if (session) session.shownSig = null; schedule(); } }; }

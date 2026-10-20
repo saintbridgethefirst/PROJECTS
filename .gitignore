@@ -17,7 +17,7 @@ functions/.env.*
 service-account*.json
 
 # Marketing media is big and can be regenerated with tools/marketing
-marketing/
+/marketing/
 
 # Update bundles from Claude
 .tt-update*.zip

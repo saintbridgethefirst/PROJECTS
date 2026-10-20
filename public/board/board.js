@@ -105,8 +105,9 @@
         // --- Search Functionality ---
         function performSearch() {
             const query = document.getElementById('search-tasks').value.toLowerCase();
+            if (!query) { document.querySelectorAll('.task-card.hidden-by-search').forEach(c => c.classList.remove('hidden-by-search')); drawLines(); return; }
             document.querySelectorAll('.task-card').forEach(card => {
-                const text = card.innerText.toLowerCase();
+                const text = card.textContent.toLowerCase();
                 if(text.includes(query)) card.classList.remove('hidden-by-search');
                 else card.classList.add('hidden-by-search');
             });
@@ -696,11 +697,9 @@
             svg.style.width = nodesContainer.scrollWidth + 100 + 'px'; 
             svg.style.height = nodesContainer.scrollHeight + 100 + 'px'; 
             svg.innerHTML = ''; 
-            
-            connections.forEach(conn => {
-                const startEl = document.getElementById(conn.from); const endEl = document.getElementById(conn.to); if(!startEl || !endEl) return;
-                if (startEl.classList.contains('hidden-by-search') || endEl.classList.contains('hidden-by-search')) return;
-                const startRect = startEl.getBoundingClientRect(); const endRect = endEl.getBoundingClientRect();
+            const frag = document.createDocumentFragment();
+            const measured = connections.map(conn => { const startEl = document.getElementById(conn.from); const endEl = document.getElementById(conn.to); if (!startEl || !endEl || startEl.classList.contains('hidden-by-search') || endEl.classList.contains('hidden-by-search')) return null; if (startEl.checkVisibility && !(startEl.checkVisibility({ contentVisibilityAuto: true }) && endEl.checkVisibility({ contentVisibilityAuto: true }))) return null; return { conn, startRect: startEl.getBoundingClientRect(), endRect: endEl.getBoundingClientRect() }; });
+            measured.forEach(m => { if (!m) return; const { conn, startRect, endRect } = m;
                 if (startRect.width === 0 || endRect.width === 0) return; 
                 const scrollTop = canvas.scrollTop; const scrollLeft = canvas.scrollLeft;
                 const startX = startRect.right - canvasRect.left + scrollLeft; const startY = startRect.top + (startRect.height/2) - canvasRect.top + scrollTop;
@@ -708,12 +707,15 @@
                 const controlX = startX + (endX - startX) / 2;
                 let pathStr = `M ${startX} ${startY} C ${controlX} ${startY}, ${controlX} ${endY}, ${endX} ${endY}`;
                 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', pathStr); path.setAttribute('class', conn.type === 'support' ? 'connector-support' : 'connector');
-                svg.appendChild(path);
+                frag.appendChild(path);
             });
+            svg.appendChild(frag);
         }
-        window.addEventListener('resize', drawLines);
+        let linesQueued = false; const queueLines = () => { if (linesQueued) return; linesQueued = true; requestAnimationFrame(() => { linesQueued = false; drawLines(); }); };
+        window.addEventListener('resize', queueLines);
+        document.addEventListener('contentvisibilityautostatechange', queueLines, true);
         const canvasContainer = document.getElementById('canvas-container');
-        if(canvasContainer) canvasContainer.addEventListener('scroll', () => { requestAnimationFrame(drawLines); });
+        if(canvasContainer) canvasContainer.addEventListener('scroll', queueLines, { passive: true });
 
         // --- EXCEL FILE API ---
         
@@ -876,7 +878,7 @@
 
         // ---------- Lookup helpers ----------
         function findCatById(id) { for (const p of db) { const c = p.categories.find(c => c.id === id); if (c) return { person: p, cat: c }; } return null; }
-        function locateTask(taskId) {
+        function _locateTaskBase(taskId) {
             for (const person of db) for (const cat of person.categories) for (const w of weeksData) {
                 const arr = cat[w.key]; if (!Array.isArray(arr)) continue;
                 const index = arr.findIndex(t => t.id === taskId);
@@ -1226,7 +1228,8 @@
             const A = parseISO(a), B = parseISO(b); if (!A || !B) return null;
             return Math.round((Date.UTC(B.getFullYear(), B.getMonth(), B.getDate()) - Date.UTC(A.getFullYear(), A.getMonth(), A.getDate())) / 86400000);
         }
-        function fmtShort(iso) { const d = parseISO(iso); return d ? d.getDate() + ' ' + d.toLocaleString('default', { month: 'short' }) : ''; }
+        const MONTHS_SHORT = Array.from({ length: 12 }, (_, m) => new Date(2000, m, 1).toLocaleString('default', { month: 'short' }));
+        function fmtShort(iso) { const d = parseISO(iso); return d ? d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()] : ''; }
         function fmtRange(startISO) { return parseISO(startISO) ? fmtShort(startISO) + ' – ' + fmtShort(addDaysISO(startISO, 6)) : ''; }
         function isCurrentWeek(w) { const d = daysBetweenISO(w.startDate, todayISO()); return d !== null && d >= 0 && d <= 6; }
         function weekDatesHtml(w) {
@@ -1503,6 +1506,7 @@
             const n = propagateCarry();
             TT.commit(coalesceKey);
             takeCarrySnapshot();
+            scheduleRecurring(); // a new or changed repeating task gets its copies (no longer waits for the save to come back)
             if (n) toast('Also updated ' + n + ' later carried-forward cop' + (n === 1 ? 'y' : 'ies') + '.', 2500);
         }
         function undo() { TT.undo(); }
@@ -2660,7 +2664,16 @@
         const STAGE_ORDER = ['todo', 'doing', 'done'];
         function fmtHours(h) { return h === null || h === undefined ? '' : String(+Number(h).toFixed(2)) + 'h'; }
         function weekIdx(key) { return weeksData.findIndex(w => w.key === key); }
-        function allTaskLocs() {
+        // A drawing pass (board, Kanban, analytics) reads the same task list and carry chains
+        // hundreds of times; the model can't change in the middle of one, so they are worked out once.
+        let frameCache = null;
+        function withFrameCache(fn) { if (frameCache) return fn(); frameCache = {}; try { return fn(); } finally { frameCache = null; } }
+        function allTaskLocs() { if (frameCache) return frameCache.locs || (frameCache.locs = _allTaskLocsRaw()); return _allTaskLocsRaw(); }
+        function locateTask(taskId) {
+            if (frameCache) { if (!frameCache.byId) frameCache.byId = new Map(allTaskLocs().map(l => [l.task.id, l])); return frameCache.byId.get(taskId) || null; }
+            return _locateTaskBase(taskId);
+        }
+        function _allTaskLocsRaw() {
             const out = [];
             db.forEach(person => person.categories.forEach(cat => weeksData.forEach(w => (Array.isArray(cat[w.key]) ? cat[w.key] : []).forEach((task, index) => out.push({ person, cat, weekKey: w.key, index, task })))));
             return out;
@@ -2688,15 +2701,17 @@
          *  (that is the one that gets finished), and each piece of work is listed once. */
         /** The latest week's copy of a (possibly carried-forward) task. */
         function latestLoc(id, locs, roots) {
+            if (frameCache && !locs && !roots) { carryChain({ id }); const { rm, g } = frameCache.chains; const list = g.get(rm.get(id) || id); if (list && list.length) return list[list.length - 1]; return locateTask(id); }
             locs = locs || allTaskLocs(); roots = roots || carryRootMap(locs); const r = roots.get(id) || id;
             const chain = locs.filter(l => (roots.get(l.task.id) || l.task.id) === r).sort((a, b) => weekIdx(a.weekKey) - weekIdx(b.weekKey));
             return chain.length ? chain[chain.length - 1] : locateTask(id);
         }
         function prereqs(task) {
-            const locs = allTaskLocs(); const roots = carryRootMap(locs); const seen = new Set(); const out = [];
+            if (!(task.dependsOn || []).length) return [];
+            const locs = allTaskLocs(); const roots = carryRootMap(frameCache ? undefined : locs); const seen = new Set(); const out = [];
             (task.dependsOn || []).forEach(id => {
                 const r = roots.get(id) || id; if (seen.has(r)) return; seen.add(r);
-                const l = latestLoc(id, locs, roots); if (l) out.push(l);
+                const l = frameCache ? latestLoc(id) : latestLoc(id, locs, roots); if (l) out.push(l);
             });
             return out;
         }
@@ -2834,31 +2849,38 @@
         }
         window.boardSetView = boardSetView;
         window.boardView = () => boardView;
-        function render() {
+        function render() { withFrameCache(() => {
             syncSubteamView();
             _renderBase();
             markSubteams();
             fitCategoryLabels();
             renderSubteamBar();
             if (boardView === 'kanban') renderKanban();
-        }
+        }); }
         // Category names: shrink a label's text only as much as needed for its longest word to fit
         // the column (so words wrap between words, not in the middle), never below a readable size.
         let fitCanvas = null;
         function fitCategoryLabels() {
-            const labels = document.querySelectorAll('#nodes-container .node-cat > .row-label'); if (!labels.length) return;
+            // Only labels in rows on screen (off-screen rows are skipped by the browser; they are fitted when they scroll in).
+            const labels = [...document.querySelectorAll('#nodes-container .node-cat > .row-label')].filter(l => !l.checkVisibility || l.checkVisibility({ contentVisibilityAuto: true })); if (!labels.length) return;
             fitCanvas = fitCanvas || document.createElement('canvas'); const g = fitCanvas.getContext('2d'); if (!g) return;
-            labels.forEach(l => {
-                l.style.fontSize = '';
-                const cs = window.getComputedStyle(l); const base = parseFloat(cs.fontSize) || 12; const avail = l.clientWidth; if (!avail) return;
-                const ls = parseFloat(cs.letterSpacing) || 0; const upper = cs.textTransform === 'uppercase';
-                g.font = cs.fontWeight + ' ' + base + 'px ' + cs.fontFamily;
+            // Write, then read everything, then write: one layout instead of one per label.
+            labels.forEach(l => { l.style.fontSize = ''; });
+            const cs = window.getComputedStyle(labels[0]); const base = parseFloat(cs.fontSize) || 12;
+            const ls = parseFloat(cs.letterSpacing) || 0; const upper = cs.textTransform === 'uppercase';
+            g.font = cs.fontWeight + ' ' + base + 'px ' + cs.fontFamily;
+            const widths = new Map(); const wordW = (w) => { if (!widths.has(w)) widths.set(w, g.measureText(w).width + ls * w.length); return widths.get(w); };
+            const avail = labels.map(l => l.clientWidth);
+            const sizes = labels.map((l, k) => {
+                if (!avail[k]) return '';
                 const words = (upper ? l.textContent.toUpperCase() : l.textContent).split(/\s+/).filter(Boolean);
-                const widest = Math.max(0, ...words.map(w => g.measureText(w).width + ls * w.length));
-                if (widest > avail) l.style.fontSize = Math.max(8.5, Math.floor(base * avail / widest * 10) / 10) + 'px';
+                const widest = Math.max(0, ...words.map(wordW));
+                return widest > avail[k] ? Math.max(8.5, Math.floor(base * avail[k] / widest * 10) / 10) + 'px' : '';
             });
+            labels.forEach((l, k) => { if (sizes[k]) l.style.fontSize = sizes[k]; });
         }
-        (function () { let t = null; window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(fitCategoryLabels, 150); }); })();
+        (function () { let t = null; window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(fitCategoryLabels, 150); });
+            let q = false; document.addEventListener('contentvisibilityautostatechange', (e) => { if (e.skipped || q) return; q = true; requestAnimationFrame(() => { q = false; fitCategoryLabels(); }); }, true); })();
         function kbWeeks() {
             if (kbScope === 'all') return weeksData.slice();
             if (kbScope === 'current') { const w = weeksData.find(isCurrentWeek) || weeksData[weeksData.length - 1]; return w ? [w] : []; }
@@ -2930,7 +2952,8 @@
             });
         }
         function flashKb(id) { setTimeout(() => { const n = document.getElementById('kb-' + id); if (n) { n.classList.add('flash-hl'); setTimeout(() => n.classList.remove('flash-hl'), 1200); } }, 60); }
-        function renderKanban() {
+        function renderKanban() { return withFrameCache(_renderKanban); }
+        function _renderKanban() {
             let view = document.getElementById('kanban-view');
             if (!view) { const mv = document.getElementById('main-view'); if (!mv) return; view = document.createElement('div'); view.id = 'kanban-view'; view.setAttribute('aria-label', 'Kanban board'); mv.appendChild(view); }
             const scrollers = [...view.querySelectorAll('.kb-list')].map(x => x.scrollTop); const hScroll = (view.querySelector('.kb-board') || {}).scrollLeft || 0;
@@ -3103,11 +3126,22 @@
         function takeCarrySnapshot() { carrySnap = new Map(allTaskLocs().map(l => [l.task.id, snapOf(l.task)])); }
         /** id → chain root, using the names as they were before the current edit. */
         function carryRootMap(locs) {
+            if (frameCache && !locs) return frameCache.roots || (frameCache.roots = carryRootMap(allTaskLocs()));
             locs = locs || allTaskLocs();
             return TT.carryRoots(locs.map(l => { const s = carrySnap.get(l.task.id); return { id: l.task.id, carryOf: l.task.carryOf || '', name: s ? JSON.parse(s.name) : l.task.name, cat: l.cat.id, weekIdx: weekIdx(l.weekKey), history: l.task.history }; }));
         }
         /** The chain a task belongs to, in week order (null if it isn't part of one). */
         function carryChain(task, roots, locs) {
+            if (frameCache && !roots && !locs) {
+                if (!frameCache.chains) {
+                    const all = allTaskLocs(), rm = carryRootMap(); const g = new Map();
+                    all.forEach(l => { const r = rm.get(l.task.id); if (!r) return; if (!g.has(r)) g.set(r, []); g.get(r).push(l); });
+                    g.forEach(list => list.sort((a, b) => weekIdx(a.weekKey) - weekIdx(b.weekKey)));
+                    frameCache.chains = { rm, g };
+                }
+                const { rm, g } = frameCache.chains; const r = rm.get(task.id); const list = r && g.get(r);
+                return list && list.length > 1 ? list : null;
+            }
             locs = locs || allTaskLocs(); roots = roots || carryRootMap(locs);
             const r = roots.get(task.id); if (!r) return null;
             const list = locs.filter(l => roots.get(l.task.id) === r).sort((a, b) => weekIdx(a.weekKey) - weekIdx(b.weekKey));
@@ -3396,7 +3430,8 @@
                 if (anTab === 'subteams') renderAnalytics();
             }
         }
-        function renderAnalytics() {
+        function renderAnalytics() { return withFrameCache(_renderAnalytics); }
+        function _renderAnalytics() {
             if (anTab !== 'subteams') return _renderAnalyticsBase();
             const body = document.getElementById('an-body'); if (!body) return;
             document.querySelectorAll('#analytics-overlay .an-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === anTab));

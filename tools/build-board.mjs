@@ -101,6 +101,19 @@ const patches = [
   ["<span class=\"gt-name\">' + PRIO_ICON[r.t.priority] + ' ' + esc(r.t.name) + '</span></div><div class=\"gt-track\"",
    "<span class=\"gt-name\">' + PRIO_ICON[r.t.priority] + ' ' + esc(r.t.name) + (r.carryCount > 1 ? ' <span class=\"gt-carry\" title=\"Carried forward across ' + r.carryCount + ' weeks\">↪ ' + r.carryCount + ' wks</span>' : '') + '</span></div><div class=\"gt-track\""],
 ];
+// Speed (stress test): the side-panel search read every card's laid-out text on every redraw.
+patches.push(["            const query = document.getElementById('search-tasks').value.toLowerCase();\n            document.querySelectorAll('.task-card').forEach(card => {\n                const text = card.innerText.toLowerCase();",
+  "            const query = document.getElementById('search-tasks').value.toLowerCase();\n            if (!query) { document.querySelectorAll('.task-card.hidden-by-search').forEach(c => c.classList.remove('hidden-by-search')); drawLines(); return; }\n            document.querySelectorAll('.task-card').forEach(card => {\n                const text = card.textContent.toLowerCase();"]);
+patches.push(["function fmtShort(iso) { const d = parseISO(iso); return d ? d.getDate() + ' ' + d.toLocaleString('default', { month: 'short' }) : ''; }",
+  "const MONTHS_SHORT = Array.from({ length: 12 }, (_, m) => new Date(2000, m, 1).toLocaleString('default', { month: 'short' }));\n        function fmtShort(iso) { const d = parseISO(iso); return d ? d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()] : ''; }"]);
+// Speed: measure every connector end first, then add all lines at once (adding a line between two
+// measurements forced the browser to lay out the whole page again for every line).
+patches.push(["            svg.innerHTML = ''; \n            \n            connections.forEach(conn => {\n                const startEl = document.getElementById(conn.from); const endEl = document.getElementById(conn.to); if(!startEl || !endEl) return;\n                if (startEl.classList.contains('hidden-by-search') || endEl.classList.contains('hidden-by-search')) return;\n                const startRect = startEl.getBoundingClientRect(); const endRect = endEl.getBoundingClientRect();",
+  "            svg.innerHTML = ''; \n            const frag = document.createDocumentFragment();\n            const measured = connections.map(conn => { const startEl = document.getElementById(conn.from); const endEl = document.getElementById(conn.to); if (!startEl || !endEl || startEl.classList.contains('hidden-by-search') || endEl.classList.contains('hidden-by-search')) return null; if (startEl.checkVisibility && !(startEl.checkVisibility({ contentVisibilityAuto: true }) && endEl.checkVisibility({ contentVisibilityAuto: true }))) return null; return { conn, startRect: startEl.getBoundingClientRect(), endRect: endEl.getBoundingClientRect() }; });\n            measured.forEach(m => { if (!m) return; const { conn, startRect, endRect } = m;"]);
+patches.push(["                svg.appendChild(path);\n            });\n        }\n        window.addEventListener('resize', drawLines);",
+  "                frag.appendChild(path);\n            });\n            svg.appendChild(frag);\n        }\n        let linesQueued = false; const queueLines = () => { if (linesQueued) return; linesQueued = true; requestAnimationFrame(() => { linesQueued = false; drawLines(); }); };\n        window.addEventListener('resize', queueLines);\n        document.addEventListener('contentvisibilityautostatechange', queueLines, true);"]);
+// Scrolling fires many events per frame: draw the connector lines at most once per frame.
+patches.push(["canvasContainer.addEventListener('scroll', () => { requestAnimationFrame(drawLines); });", "canvasContainer.addEventListener('scroll', queueLines, { passive: true });"]);
 for (const [a, b] of patches) {
   const n = src.split(a).length - 1;
   if (n !== 1) throw new Error(`Patch anchor found ${n} times: ${a.slice(0, 80)}`);
@@ -120,7 +133,7 @@ const DROP_VARS = new Set(['DB_NAME', 'STORE_NAME', 'currentUser', 'autoSaveTime
 const RENAME = { openEditor: '_openEditorBase', createTaskCard: '_createTaskCardBase', canvasMenuItems: '_canvasMenuItemsBase',
   taskMenuItems: '_taskMenuItemsBase', renderCategoryRow: '_renderCategoryRowBase', downloadBackup: '_downloadBackupBase', openAnalytics: '_openAnalyticsBase', renderFilters: '_renderFiltersBase',
   showMenu: '_showMenuBase', closeContextMenu: '_closeContextMenuBase', onBoardContextMenu: '_onBoardContextMenuBase',
-  columnMenuItems: '_columnMenuItemsBase', render: '_renderBase', collectTasks: '_collectTasksBase', renderAnalytics: '_renderAnalyticsBase' };
+  columnMenuItems: '_columnMenuItemsBase', render: '_renderBase', collectTasks: '_collectTasksBase', renderAnalytics: '_renderAnalyticsBase', locateTask: '_locateTaskBase' };
 const DROP_EXPR = [/updateUIUser\(\)/, /e\.key === 's'/, /'beforeunload'/, /'storage'/, /^loadDatabase\(\)/, /^checkStoredHandle\(\)/,
   /^lastSnapshot = /, /^refreshSyncUI\(\)/, /^renderFilters\(\);?$/, /^render\(\);?$/];
 
