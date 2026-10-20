@@ -642,3 +642,16 @@ test('carried-forward copies share their links (carryIndex)', async () => {
   const ix2 = carryIndex(tasks.slice(1), weeks);
   assert.equal(ix2.latest('a').id, 'c3', 'a link to the deleted first copy still finds the latest');
 });
+
+test('restore plan: writes changed/new docs, deletes extras, keeps the rest', async () => {
+  const { planRestore, fromJSON } = await import('../tools/ops/restore-team.mjs');
+  const live = { 'teams/T': { name: 'A' }, 'teams/T/tasks/a': { n: 1 }, 'teams/T/tasks/x': { n: 9 }, 'teams/T/members/u': { r: 'owner' } };
+  const backup = { 'teams/T': { name: 'A' }, 'teams/T/tasks/a': { n: 2 }, 'teams/T/tasks/b': { n: 3 }, 'teams/T/members/u': { r: 'owner' } };
+  const p = planRestore(live, backup);
+  assert.deepEqual(p.write.sort(), ['teams/T/tasks/a', 'teams/T/tasks/b']);
+  assert.deepEqual(p.del, ['teams/T/tasks/x']);
+  assert.equal(p.unchanged, 2);
+  assert.deepEqual(p.summary, { write: { tasks: 2 }, delete: { tasks: 1 } });
+  const T = { fromMillis: (m) => ({ ms: m }) };
+  assert.deepEqual(fromJSON({ a: { __ts: 5 }, b: [{ __ts: 6 }], c: { __ts: 1, x: 2 } }, T), { a: { ms: 5 }, b: [{ ms: 6 }], c: { __ts: 1, x: 2 } });
+});

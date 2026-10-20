@@ -1,0 +1,134 @@
+# Backups of the live database (uni-teamtrack).
+#
+#  • Every morning: checks that yesterday's automatic backup exists. If not, this run fails and
+#    GitHub emails you.
+#  • Actions ▸ Backups ▸ Run workflow:
+#      setup          – turns on the automatic backups (daily, kept 30 days; weekly, kept 14 weeks)
+#      check          – lists the backups that exist
+#      restore-team   – restores ONE team from a backup. Preview first (apply unticked), then apply.
+#                       The team's state just before the restore is kept as a downloadable file.
+#
+# Needs the FIREBASE_SERVICE_ACCOUNT secret, whose account has (besides Firebase Admin) the roles
+# Cloud Datastore Owner, Cloud Datastore Backups Admin, Cloud Datastore Backup Schedules Admin and
+# Cloud Datastore Restore Admin. See RUNBOOK.md.
+name: Backups
+
+on:
+  schedule:
+    - cron: '30 6 * * *'   # 06:30 UTC every day
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        options: [check, setup, restore-team]
+        default: check
+      team_id:
+        description: "restore-team: the team ID (in the address bar after #/t/)"
+        type: string
+        default: ''
+      backup_date:
+        description: "restore-team: day of the backup, YYYY-MM-DD (empty = the latest)"
+        type: string
+        default: ''
+      apply:
+        description: "restore-team: really restore (unticked = preview only)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: backups
+  cancel-in-progress: false
+
+env:
+  PROJECT: uni-teamtrack
+
+jobs:
+  backups:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Where the database lives
+        id: db
+        run: |
+          LOC=$(gcloud firestore databases describe --database='(default)' --project "$PROJECT" --format='value(locationId)')
+          echo "Database location: $LOC"
+          echo "location=$LOC" >> "$GITHUB_OUTPUT"
+
+      - name: Turn on automatic backups
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'setup'
+        run: |
+          have=$(gcloud firestore backups schedules list --database='(default)' --project "$PROJECT" --format='value(dailyRecurrence,weeklyRecurrence.day)')
+          echo "Existing schedules: ${have:-none}"
+          if ! gcloud firestore backups schedules list --database='(default)' --project "$PROJECT" --format=json | grep -q dailyRecurrence; then
+            gcloud firestore backups schedules create --database='(default)' --project "$PROJECT" --recurrence=daily --retention=30d
+          fi
+          if ! gcloud firestore backups schedules list --database='(default)' --project "$PROJECT" --format=json | grep -q weeklyRecurrence; then
+            gcloud firestore backups schedules create --database='(default)' --project "$PROJECT" --recurrence=weekly --day-of-week=SUN --retention=98d
+          fi
+          gcloud firestore backups schedules list --database='(default)' --project "$PROJECT"
+          echo "::notice::Automatic backups are on: daily (kept 30 days) and weekly on Sundays (kept 14 weeks). The first one appears within 24 hours."
+
+      - name: Check the backups
+        if: github.event_name == 'schedule' || inputs.action == 'check' || inputs.action == 'setup'
+        run: |
+          gcloud firestore backups list --location="${{ steps.db.outputs.location }}" --project "$PROJECT" --format='table(name.basename():label=BACKUP,snapshotTime:label=TAKEN_AT,state)' || true
+          latest=$(gcloud firestore backups list --location="${{ steps.db.outputs.location }}" --project "$PROJECT" --format='value(snapshotTime)' --sort-by='~snapshotTime' --limit=1)
+          if [ -z "$latest" ]; then
+            if [ "${{ github.event_name }}" = "schedule" ]; then echo "::error::There are NO backups. Run Actions ▸ Backups ▸ setup."; exit 1; fi
+            echo "::warning::No backups yet. If you just ran setup, the first one appears within 24 hours."; exit 0
+          fi
+          age=$(( ( $(date +%s) - $(date -d "$latest" +%s) ) / 3600 ))
+          echo "Latest backup: $latest ($age hours ago)"
+          if [ "$age" -gt 36 ]; then echo "::error::The latest backup is $age hours old. Automatic backups may have stopped."; exit 1; fi
+          echo "::notice::Latest backup is $age hours old. OK."
+
+      - name: Restore a team
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'restore-team'
+        env:
+          TEAM: ${{ inputs.team_id }}
+          DAY: ${{ inputs.backup_date }}
+          APPLY: ${{ inputs.apply }}
+          LOC: ${{ steps.db.outputs.location }}
+        run: |
+          set -e
+          [[ "$TEAM" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || { echo "::error::Enter the team ID (the part after #/t/ in the address bar)."; exit 1; }
+          if [ -n "$DAY" ]; then
+            BACKUP=$(gcloud firestore backups list --location="$LOC" --project "$PROJECT" --format='value(name)' --filter="snapshotTime>=${DAY}T00:00:00Z AND snapshotTime<=${DAY}T23:59:59Z" --sort-by='~snapshotTime' --limit=1)
+          else
+            BACKUP=$(gcloud firestore backups list --location="$LOC" --project "$PROJECT" --format='value(name)' --sort-by='~snapshotTime' --limit=1)
+          fi
+          [ -n "$BACKUP" ] || { echo "::error::No backup found${DAY:+ for $DAY}. Run 'check' to see which exist."; exit 1; }
+          TMP="restore-${{ github.run_id }}"
+          echo "Using backup $BACKUP → temporary database $TMP"
+          gcloud firestore databases restore --source-backup="$BACKUP" --destination-database="$TMP" --project "$PROJECT"
+          for i in $(seq 1 120); do
+            st=$(gcloud firestore operations list --database="$TMP" --project "$PROJECT" --format='value(done)' 2>/dev/null | grep -c -v True || true)
+            [ "$st" = "0" ] && break; sleep 30
+          done
+          echo "TMP_DB=$TMP" >> "$GITHUB_ENV"
+          npm ci --ignore-scripts
+          FLAG=""; [ "$APPLY" = "true" ] && FLAG="--apply"
+          node tools/ops/restore-team.mjs --project "$PROJECT" --from "$TMP" --team "$TEAM" --out "team-$TEAM-before.json" $FLAG | tee restore.log
+          if [ "$APPLY" = "true" ]; then echo "::notice::Team $TEAM restored from $BACKUP."; else echo "::notice::Preview only — nothing changed. Run again with 'apply' ticked to restore."; fi
+
+      - name: Keep the before-restore snapshot
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'restore-team' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: team-${{ inputs.team_id }}-before-restore
+          path: |
+            team-*-before.json
+            restore.log
+          if-no-files-found: ignore
+          retention-days: 90
+
+      - name: Remove the temporary database
+        if: always() && env.TMP_DB != ''
+        run: gcloud firestore databases delete --database="$TMP_DB" --project "$PROJECT" --quiet || echo "::warning::Could not delete $TMP_DB — delete it in the console to avoid storage charges."

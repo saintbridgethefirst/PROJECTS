@@ -44,6 +44,8 @@ jobs:
         run: npm run test:functions
       - name: Security rules (real Firestore emulator)
         run: npm run test:rules
+      - name: Restore-a-team tool (Firestore emulator)
+        run: npm run test:ops
       - name: Browser
         run: npx playwright install --with-deps chromium
       - name: Browser tests (demo build)
