@@ -83,7 +83,7 @@ test('rules: I can save my menu style, list or circle only', async () => {
 test('rules: I can save my navigation, top or side only', async () => {
   await assertSucceeds(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { nav: 'side', updatedAt: 1 }, { merge: true }));
   await assertFails(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { nav: 'bottom', updatedAt: 1 }));
-  await assertFails(setDoc(doc(dbFor('mem2'), 'users', 'mem1'), { nav: 'side', updatedAt: 1 }, { merge: true }));
+  await assertFails(setDoc(doc(dbFor('admin1'), 'users', 'mem1'), { nav: 'side', updatedAt: 1 }, { merge: true }));
 });
 test('rules: a profile only holds a small photo', async () => {
   await assertFails(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { photo: 'x'.repeat(70000), updatedAt: 1 }));
