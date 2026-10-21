@@ -123,6 +123,7 @@ export function cleanTeam(t) {
     purchase: cleanPurchase(t.purchase),
     autos: cleanAutos(t.autos),
     github: cleanGithub(t.github),
+    currency: CURRENCIES.includes(t.currency) ? t.currency : '',
     plan: cleanPlan(t.plan),
     weeks: (Array.isArray(t.weeks) ? t.weeks : []).map(cleanWeek),
   };
@@ -691,6 +692,26 @@ export function cleanLogEntry(x, id) {
   return { id: id ? safeKey(id) : '', at: Number(x.at) || 0, by: str(x.by, 128), byName: str(x.byName, 80), kind: LOG_KINDS.includes(x.kind) ? x.kind : 'budget', text: str(x.text, 600) };
 }
 export const CURRENCIES = ['GBP', 'EUR', 'USD', 'INR', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD'];
+export const CURRENCY_NAMES = { GBP: 'British pound (£)', EUR: 'Euro (€)', USD: 'US dollar ($)', INR: 'Indian rupee (₹)', CHF: 'Swiss franc (CHF)', JPY: 'Japanese yen (¥)', CNY: 'Chinese yuan (¥)', AUD: 'Australian dollar (A$)', CAD: 'Canadian dollar (C$)' };
+/** The team's money: its own currency setting (everyone can see it), else the budget's (older teams), else pounds. */
+export function currencyOf(team, budget) {
+  if (team && CURRENCIES.includes(team.currency)) return team.currency;
+  if (budget && CURRENCIES.includes(budget.currency)) return budget.currency;
+  return 'GBP';
+}
+/** A sensible first currency from the browser's language and region (en-GB → GBP, de-DE → EUR, hi-IN → INR…). */
+export function guessCurrency(locale) {
+  const l = String(locale || '').replace('_', '-'); const region = (l.split('-')[1] || '').toUpperCase();
+  const EURO = ['AT', 'BE', 'CY', 'DE', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PT', 'SI', 'SK'];
+  const BY = { GB: 'GBP', UK: 'GBP', US: 'USD', IN: 'INR', CH: 'CHF', LI: 'CHF', JP: 'JPY', CN: 'CNY', AU: 'AUD', CA: 'CAD' };
+  if (BY[region]) return BY[region];
+  if (EURO.includes(region)) return 'EUR';
+  return 'GBP';
+}
+/** Money in the team's currency, e.g. £1,250 or ₹4,500.00. */
+export function formatMoney(n, currency, locale) {
+  try { return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2 }).format(n || 0); } catch { return (n || 0).toFixed(2); }
+}
 /** The project budget: a currency and budget lines (optionally tied to a phase). */
 export function cleanBudget(b) {
   b = b || {};

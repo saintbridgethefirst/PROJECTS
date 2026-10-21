@@ -8,7 +8,7 @@
 //  and text renderers only format what it returns.
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, modal, toast } from './ui.js';
-import { partTotal, cleanBudget, cleanFeatures, riskScore, carryIndexOf } from './model.js';
+import { partTotal, cleanBudget, currencyOf, cleanFeatures, riskScore, carryIndexOf } from './model.js';
 import { reqCoverage } from './tools-extra.js';
 import { seesMoney, financeSummary } from './research.js';
 
@@ -151,7 +151,7 @@ export function buildReport(data, opts) {
   const parts = (data.parts || []).filter(p => !st || p.subteamId === st.id);
   const ordered = parts.filter(p => between(p.orderedDate, period.from, period.to)); const received = parts.filter(p => between(p.receivedDate, period.from, period.to));
   const waiting = parts.filter(p => p.status === 'ordered'); const needed = parts.filter(p => p.status === 'needed');
-  const money = (n) => data.money ? ' · ' + fmtMoney(n, data.budget) : '';
+  const money = (n) => data.money ? ' · ' + fmtMoney(n, data.budget, data.team) : '';
   add('parts', { lines: [
     received.length ? 'Received: ' + received.map(p => p.name + (p.qty > 1 ? ' × ' + p.qty : '')).join(', ') + '.' : '',
     ordered.length ? 'Ordered: ' + ordered.map(p => p.name + (p.qty > 1 ? ' × ' + p.qty : '')).join(', ') + '.' : '',
@@ -163,13 +163,13 @@ export function buildReport(data, opts) {
     const sum = financeSummary(b, ex, data.parts || []);
     const spentIn = ex.filter(x => x.kind === 'expense' && between(x.date, period.from, period.to));
     const incomeIn = ex.filter(x => x.kind === 'income' && between(x.date, period.from, period.to));
-    add('finance', { kpis: [['Budget', fmtMoney(sum.total, b)], ['Spent to date', fmtMoney(sum.spent, b)], ['Committed', fmtMoney(sum.committed, b)], ['Remaining', fmtMoney(sum.remaining, b)]],
+    add('finance', { kpis: [['Budget', fmtMoney(sum.total, b, data.team)], ['Spent to date', fmtMoney(sum.spent, b, data.team)], ['Committed', fmtMoney(sum.committed, b, data.team)], ['Remaining', fmtMoney(sum.remaining, b, data.team)]],
       lines: [
-        'Spent in this period: ' + fmtMoney(spentIn.reduce((a, x) => a + x.amount, 0), b) + (spentIn.length ? ' (' + spentIn.map(x => x.description || 'item').slice(0, 8).join(', ') + (spentIn.length > 8 ? '…' : '') + ')' : '') + '.',
-        incomeIn.length ? 'Income received: ' + fmtMoney(incomeIn.reduce((a, x) => a + x.amount, 0), b) + '.' : '',
-        sum.total && sum.remaining < 0 ? '⚠ Over budget by ' + fmtMoney(-sum.remaining, b) + '.' : '',
+        'Spent in this period: ' + fmtMoney(spentIn.reduce((a, x) => a + x.amount, 0), b, data.team) + (spentIn.length ? ' (' + spentIn.map(x => x.description || 'item').slice(0, 8).join(', ') + (spentIn.length > 8 ? '…' : '') + ')' : '') + '.',
+        incomeIn.length ? 'Income received: ' + fmtMoney(incomeIn.reduce((a, x) => a + x.amount, 0), b, data.team) + '.' : '',
+        sum.total && sum.remaining < 0 ? '⚠ Over budget by ' + fmtMoney(-sum.remaining, b, data.team) + '.' : '',
       ].filter(Boolean),
-      table: sum.lines.length ? { head: ['Budget line', 'Budget', 'Spent', 'Committed', 'Left'], rows: sum.lines.map(l => [l.name, fmtMoney(l.amount, b), fmtMoney(l.spent, b), fmtMoney(l.committed, b), fmtMoney(l.amount - l.spent - l.committed, b)]) } : null });
+      table: sum.lines.length ? { head: ['Budget line', 'Budget', 'Spent', 'Committed', 'Left'], rows: sum.lines.map(l => [l.name, fmtMoney(l.amount, b, data.team), fmtMoney(l.spent, b, data.team), fmtMoney(l.committed, b, data.team), fmtMoney(l.amount - l.spent - l.committed, b, data.team)]) } : null });
   }
   const read = (data.papers || []).filter(p => p.status === 'read' && p.updatedAt && between(localISO(new Date(p.updatedAt)), period.from, period.to) && who(p.addedBy));
   const reading = (data.papers || []).filter(p => p.status === 'reading' && who(p.addedBy));
@@ -197,8 +197,8 @@ export function buildReport(data, opts) {
   }
   return R;
 }
-function fmtMoney(n, budget) {
-  const cur = cleanBudget(budget).currency;
+function fmtMoney(n, budget, team) {
+  const cur = currencyOf(team, cleanBudget(budget));
   try { return new Intl.NumberFormat('en-GB', { style: 'currency', currency: cur, maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2 }).format(n || 0); } catch { return String(n); }
 }
 

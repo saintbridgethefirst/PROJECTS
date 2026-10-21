@@ -5,7 +5,7 @@
 import { startFlag } from './start.js';
 import { APP_NAME, GOOGLE_CLIENT_ID, MS_CLIENT_ID, DEMO_MODE, LIMITS, STUDENT_EMAIL_CHECK, SERVER_EMAILS } from './config.js';
 import { PERMISSIONS, can, roleList, normEmail, isValidEmail } from './permissions.js';
-import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS, storedWorkflow, leadsIndex, cleanWorkflow, cleanPurchase, cleanAutos } from './model.js';
+import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS, storedWorkflow, leadsIndex, cleanWorkflow, cleanPurchase, cleanAutos, currencyOf, CURRENCIES, CURRENCY_NAMES, cleanBudget } from './model.js';
 import { el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { githubSection } from './github-ui.js';
 
@@ -449,11 +449,26 @@ function general(pane, ctx, { rerender } = {}) {
       editable ? el('button.btn.primary', { type: 'button', onclick: () => { const v = name.value.trim(); if (!v) return toast('Enter a team name.'); save(ctx, [{ type: 'update', path: 'team', data: { name: v.slice(0, 80) } }], 'Team renamed.'); } }, 'Save name') : ''),
     el('section', {}, el('h4', {}, 'Logo'), logoBox),
     weekNamingSection(ctx, editable, rerender),
+    currencySection(ctx),
     el('section', {}, el('h4', {}, 'Your role'), el('p.hint', {}, 'You are ', el('b', {}, ctx.TT.roleName(ctx.session.me.roleId)), ' in this team. ',
       ...PERMISSIONS.filter(p => can(T, ctx.session.me, p.key)).length ? ['You can: ', PERMISSIONS.filter(p => can(T, ctx.session.me, p.key)).map(p => p.label.toLowerCase()).join(', '), '.'] : ['You can view the board.'])),
   );
 }
 
+/** The team's currency: parts, purchases, budget and reports all use it. */
+function currencySection(ctx) {
+  const s = ctx.session, T = s.team; const editable = can(T, s.me, 'team.settings') || can(T, s.me, 'finance.edit');
+  const cur = currencyOf(T, s.budget);
+  const sel = el('select', { id: 'team-currency', disabled: !editable, 'aria-label': 'Currency', onchange: async (e) => {
+    const c = e.target.value; const ops = [{ type: 'update', path: 'team', data: { currency: c } }];
+    if (s.budget && s.budget.currency !== c && can(T, s.me, 'finance.edit')) ops.push({ type: 'set', path: 'finance/budget', data: { ...cleanBudget({ ...s.budget, currency: c }), updatedAt: Date.now() } });
+    await save(ctx, ops, 'Prices now show in ' + (CURRENCY_NAMES[c] || c) + '.');
+  } }, CURRENCIES.map(c => el('option', { value: c, selected: c === cur }, CURRENCY_NAMES[c] || c)));
+  return el('section', {}, el('h4', {}, 'Currency'),
+    el('p.hint', {}, 'The money this project works in: part prices, purchase approvals, the budget and reports. It only changes the symbol, not the amounts.'),
+    el('label.field', { style: { maxWidth: '320px' } }, el('span', {}, 'Currency'), sel),
+    editable ? '' : el('p.hint', {}, 'Only roles that manage finances or team settings change this.'));
+}
 /** How new weeks are named: own numbering (WEEK 1, 2, 3…) or calendar week numbers. */
 function weekNamingSection(ctx, editable, rerender = () => {}) {
   const T = ctx.session.team; const mode = T.weekNaming || 'sequence';

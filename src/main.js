@@ -20,6 +20,7 @@ import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue } from './gith
 import { refIdOf } from '../functions/ghsync.js';
 import { waitingPurchases, decidePurchase, declineDialog, purchaseOn, purchaseLine } from './purchases.js';
 import { signersFor, canSignStage, gateOnTheWay, checklistOf, cleanWhiteboard, cleanWbItem, cleanWorkflow, storedWorkflow, leadsIndex } from './model.js';
+import { guessCurrency, CURRENCIES } from './model.js';
 import { cleanComment, cleanTemplate, cleanEffort, cleanCapacity, MAX_DEPS, workflowOf, stageIdOf, stageKindOf, isCustomWorkflow, cleanMeeting, cleanNotebookEntry, cleanPart, cleanExpense, cleanBudget, cleanPaper, cleanLogEntry } from './model.js';
 import { openResearch, refreshResearch, seesMoney } from './research.js';
 import { notebookSection, notebookCount, linkedSection } from './notebook.js';
@@ -372,6 +373,7 @@ function renderHome() {
   } else invSec.hidden = true;
 
   const form = $('#create-team-form');
+  if (form.currency && !form.currency.dataset.set) { form.currency.value = guessCurrency(navigator.language); form.currency.dataset.set = '1'; }
   form.onsubmit = async (e) => {
     e.preventDefault();
     const name = form.name.value.trim(); if (!name) return;
@@ -380,7 +382,7 @@ function renderHome() {
     if (ownFree >= PLANS.free.ownTeams) { toast('On the Free plan you can own up to ' + PLANS.free.ownTeams + ' teams. Delete one you no longer use, or move a team to Pro (Settings ▸ Plan).', 7000); return; }
     const btn = form.querySelector('button'); btn.disabled = true;
     try {
-      const teamDoc = { name: name.slice(0, 80), logo: '', ownerUid: user.uid, createdAt: Date.now(), roles: DEFAULT_ROLES, fields: [], labels: DEFAULT_LABELS, weekNaming: 'sequence', phases: [], features: { ...NEW_TEAM_FEATURES }, weeks: [firstWeek()] };
+      const teamDoc = { name: name.slice(0, 80), logo: '', ownerUid: user.uid, createdAt: Date.now(), roles: DEFAULT_ROLES, fields: [], labels: DEFAULT_LABELS, weekNaming: 'sequence', phases: [], features: { ...NEW_TEAM_FEATURES }, weeks: [firstWeek()], currency: CURRENCIES.includes(form.currency && form.currency.value) ? form.currency.value : guessCurrency(navigator.language) };
       const id = await backend.data.createTeam(teamDoc, newMemberDoc('owner'));
       form.reset(); goTeam(id);
     } catch (err) { toast(friendlyError(err)); } finally { btn.disabled = false; }

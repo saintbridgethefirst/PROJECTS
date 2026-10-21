@@ -12,7 +12,7 @@ import { budgetChanges, expenseChanges, partChanges, removeLinePlan } from './fi
 import { people, timesheet, risks, requirements } from './tools-extra.js';
 import { can } from './permissions.js';
 import { purchaseOn, orderBlock, askApproval, decidePurchase, declineDialog } from './purchases.js';
-import { needsApproval, isApproved, canApprovePurchase } from './model.js';
+import { needsApproval, isApproved, canApprovePurchase, currencyOf, formatMoney, CURRENCY_NAMES } from './model.js';
 
 let R = null;   // { ctx, m, tab, sel, partEdit, paperEdit, txEdit, dirty, filters, logAll }
 const today = () => new Date().toLocaleDateString('en-CA');
@@ -41,7 +41,8 @@ const linkedTo = (list, id) => { const ix = carryIndexOf(S()); return (list || [
 /** Chips for linked task ids, one per piece of work. */
 const taskChips = (ids) => uniqueChains(ids, carryIndexOf(S())).map(id => taskChip(id));
 const budget = () => cleanBudget(S().budget);
-const fmtMoney = (n) => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: budget().currency, maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2 }).format(n || 0); } catch { return (n || 0).toFixed(2); } };
+const currency = () => currencyOf(S().team, S().budget);
+const fmtMoney = (n) => formatMoney(n, currency());
 /** Write ops; `log` is [kind, text] or a list of them — added to the Finance history in the same batch. */
 async function write(ops, log) {
   const lines = !log ? [] : Array.isArray(log[0]) ? log : [log];
@@ -399,7 +400,7 @@ function extrasEditor(v) {
       ...v.extras.map((x, i) => el('div.pt-extra', {},
         el('input.pt-extra-label', { value: x.label || '', list: 'pt-extra-labels', maxlength: 40, placeholder: 'e.g. Shipping', 'aria-label': 'What the extra cost is', oninput: (e) => { x.label = e.target.value; } }),
         el('input.pt-extra-amount', { type: 'number', step: '0.01', value: x.amount ?? '', 'aria-label': 'Amount', oninput: (e) => { x.amount = e.target.value; sumUp(); } }),
-        el('select.pt-extra-unit', { 'aria-label': 'Fixed amount or percent', onchange: (e) => { x.percent = e.target.value === '%'; sumUp(); } }, el('option', { value: 'money', selected: !x.percent }, budget().currency), el('option', { value: '%', selected: !!x.percent }, '% of items')),
+        el('select.pt-extra-unit', { 'aria-label': 'Fixed amount or percent', onchange: (e) => { x.percent = e.target.value === '%'; sumUp(); } }, el('option', { value: 'money', selected: !x.percent }, currency()), el('option', { value: '%', selected: !!x.percent }, '% of items')),
         el('button.chip-x', { type: 'button', title: 'Remove', 'aria-label': 'Remove extra cost', onclick: () => { v.extras.splice(i, 1); draw(); } }, '✕'))),
       v.extras.length < EXTRA_LIMIT ? el('div.rs-inline', {}, ...['Shipping', 'VAT / tax'].filter(l => !v.extras.some(x => x.label === l)).map(l => el('button.btn.small', { type: 'button', onclick: () => { v.extras.push(l === 'VAT / tax' ? { label: l, amount: 20, percent: true } : { label: l, amount: '', percent: false }); draw(); } }, '＋ ' + l)),
         el('button.btn.small', { type: 'button', id: 'pt-extra-add', onclick: () => { v.extras.push({ label: '', amount: '', percent: false }); draw(); } }, '＋ Other cost')) : '',
@@ -437,6 +438,12 @@ export function financeSummary(b, expenses, parts) {
   const r2 = (n) => Math.round(n * 100) / 100;
   return { lines, other, total: r2(total), spent: r2(spent), income: r2(income), committed: r2(committed), remaining: r2(total - spent - committed), balance: r2(income - spent) };
 }
+/** The team's currency: on the team (so everyone's prices use it) and on the budget, in one save. */
+async function setCurrency(c) {
+  const b = budget(); const ops = [{ type: 'update', path: 'team', data: { currency: c } }];
+  if (b.currency !== c) ops.push({ type: 'set', path: 'finance/budget', data: { ...cleanBudget({ ...b, currency: c }), updatedAt: Date.now() } });
+  if (await write(ops, ['budget', 'Currency changed from ' + currency() + ' to ' + c])) toast('Prices now show in ' + (CURRENCY_NAMES[c] || c) + '.');
+}
 async function saveBudget(b) {
   const next = cleanBudget(b);
   return write([{ type: 'set', path: 'finance/budget', data: { ...next, updatedAt: Date.now() } }], ['budget', budgetChanges(budget(), next, names())]);
@@ -473,7 +480,7 @@ function finance(pane) {
     (sum.other.spent || sum.other.committed) ? el('tr.fin-other', {}, el('td', {}, el('i', {}, 'Not assigned')), el('td'), sts.length ? el('td') : '', el('td'), el('td.num', {}, fmtMoney(sum.other.spent)), el('td.num', {}, sum.other.committed ? fmtMoney(sum.other.committed) : '–'), el('td'), el('td'), el('td')) : '');
   pane.append(el('div.rs-card', {},
     el('div.rs-subhead', {}, el('h4', {}, 'Budget'), el('span.spacer'),
-      el('label.rs-inline', {}, 'Currency ', el('select', { id: 'fin-currency', disabled: !edit, onchange: (e) => saveBudget({ ...b, currency: e.target.value }) }, CURRENCIES.map(c => el('option', { value: c, selected: b.currency === c }, c)))),
+      el('label.rs-inline', {}, 'Currency ', el('select', { id: 'fin-currency', disabled: !edit, title: 'The team’s currency (also in Settings ▸ General)', onchange: (e) => setCurrency(e.target.value) }, CURRENCIES.map(c => el('option', { value: c, selected: currency() === c }, c)))),
       edit ? el('button.btn.small', { type: 'button', id: 'fin-add-line', onclick: () => saveBudget({ ...b, lines: b.lines.concat({ id: newId('b'), name: 'New budget line', amount: 0, phaseId: '' }) }) }, '＋ Budget line') : ''),
     b.lines.length || sum.other.spent ? el('div.rs-table-wrap', {}, tbl) : el('p.hint', {}, edit ? 'Add budget lines, for example Components, Travel, Printing — optionally one per phase.' : 'No budget set yet.')));
   // Chart + forecast
@@ -659,7 +666,7 @@ function exportFinance() {
   const s = S(); const b = budget(); const sum = financeSummary(b, s.expenses || [], s.parts || []); const X = window.XLSX;
   const lineName = new Map(b.lines.map(l => [l.id, l.name]));
   const wb = X.utils.book_new();
-  X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['Team', s.team.name], ['Currency', b.currency], ['Generated', today()], [], ['Budget', sum.total], ['Spent', sum.spent], ['Committed (not paid yet)', sum.committed], ['Remaining', sum.remaining], ['Income received', sum.income], ['Balance (income − spent)', sum.balance]]), 'Summary');
+  X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['Team', s.team.name], ['Currency', currency()], ['Generated', today()], [], ['Budget', sum.total], ['Spent', sum.spent], ['Committed (not paid yet)', sum.committed], ['Remaining', sum.remaining], ['Income received', sum.income], ['Balance (income − spent)', sum.balance]]), 'Summary');
   X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['Budget line', 'Phase', 'Budget', 'Spent', 'Committed', 'Left'], ...sum.lines.map(l => [l.name, ((s.team.phases || []).find(p => p.id === l.phaseId) || {}).name || '', l.amount, l.spent, l.committed, l.amount - l.spent - l.committed]), ['Not assigned', '', 0, sum.other.spent, sum.other.committed, '']]), 'Budget');
   X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['Date', 'Type', 'What', 'Parts', 'Budget line', 'Paid by', 'Amount', 'Receipt link', 'Task', 'Recorded by'], ...(s.expenses || []).slice().sort((a, c) => (a.date || '').localeCompare(c.date || '')).map(x => [x.date, x.kind === 'income' ? 'Income' : 'Spending', x.description, x.partIds.map(partName).join(', '), lineName.get(x.budgetId) || '', x.payer, x.kind === 'income' ? x.amount : -x.amount, x.receiptUrl, (taskById(x.taskId) || {}).name || '', x.createdByName])]), 'Transactions');
   X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['When', 'Who', 'Area', 'What changed'], ...(s.financeLog || []).slice().sort((a, c) => a.at - c.at).map(e => [new Date(e.at).toLocaleString('en-GB'), e.byName, e.kind, e.text])]), 'History');

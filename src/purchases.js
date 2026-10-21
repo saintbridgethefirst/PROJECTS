@@ -5,9 +5,9 @@
 //  enforce the same thing (firestore.rules ▸ partApproval / purchaseOk / costKept).
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, modal, toast } from './ui.js';
-import { newId, cleanApproval, cleanBudget, cleanLogEntry, cleanPurchase, partTotal, needsApproval, isApproved, canApprovePurchase } from './model.js';
+import { formatMoney, currencyOf, newId, cleanApproval, cleanLogEntry, cleanPurchase, partTotal, needsApproval, isApproved, canApprovePurchase } from './model.js';
 
-const fmt = (s, n) => { const c = cleanBudget(s && s.budget).currency; try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: c, maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2 }).format(n || 0); } catch { return (n || 0).toFixed(2); } };
+const fmt = (s, n) => formatMoney(n, currencyOf(s && s.team, s && s.budget));
 const q = (t) => '“' + t + '”';
 
 export const purchaseOf = (s) => cleanPurchase(s && s.team && s.team.purchase);

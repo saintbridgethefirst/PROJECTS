@@ -81,6 +81,7 @@ export async function buildSample(user, now = Date.now()) {
   team.doc.features.whiteboards = true;
   // Workflow steps 3 and 4: purchase approvals over £100, and the automatic steps.
   team.doc.purchase = { on: true, over: 100 };
+  team.doc.currency = 'GBP';
   team.doc.autos = { partsTo: 'build', tellWaiting: true, remindDays: 3 };
   // GitHub sync: a (made-up) repository is connected, so Settings ▸ Integrations can simulate events.
   team.doc.github = { repo: 'skyhawk-uav/flight-software', issues: true, done: true, owner: user.uid, connectedAt: now - 10 * DAY };

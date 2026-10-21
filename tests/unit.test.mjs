@@ -826,3 +826,12 @@ test('workflow: which stage a task is in; old tasks map onto the new stages', ()
   assert.equal(stageKindOf({ flag: 'none', stage: 'test' }, ENG), 'doing', 'analytics still see Doing');
   assert.equal(stageIdOf({ flag: 'none', stage: 'doing' }), 'doing', 'no workflow: classic behaviour');
 });
+
+test('currency: the team’s own, else the budget’s, else pounds; a first guess from the browser', async () => {
+  const { currencyOf, guessCurrency, formatMoney } = await import('../src/model.js');
+  assert.equal(currencyOf({ currency: 'INR' }, { currency: 'GBP' }), 'INR');
+  assert.equal(currencyOf({}, { currency: 'EUR' }), 'EUR', 'older teams keep their budget’s currency');
+  assert.equal(currencyOf({}, null), 'GBP');
+  assert.equal(guessCurrency('en-GB'), 'GBP'); assert.equal(guessCurrency('de-DE'), 'EUR'); assert.equal(guessCurrency('hi-IN'), 'INR'); assert.equal(guessCurrency('de-CH'), 'CHF'); assert.equal(guessCurrency('en'), 'GBP');
+  assert.ok(formatMoney(12.5, 'EUR', 'en-GB').includes('€'));
+});
