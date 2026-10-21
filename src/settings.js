@@ -20,6 +20,7 @@ export function openSettings(ctx, tab = 'general', focusUid = null) {
   let current = TABS.some(t => t[0] === tab) ? tab : 'general';
   let invites = []; let invUnsub = null;
   const m = modal('Team settings', { onClose: () => { invUnsub && invUnsub(); window.TTSettingsRefresh = null; } });
+  m.box.classList.add('settings-modal');
   m.body.style.padding = '0'; m.body.style.display = 'flex'; m.foot.remove();
   const nav = el('nav.settings-nav', { 'aria-label': 'Settings sections' });
   const pane = el('div.settings-pane');
@@ -299,7 +300,7 @@ function workflow(pane, ctx, { rerender } = {}) {
       const last = i === draft.length - 1;
       const color = el('select.wf-color', { 'aria-label': 'Colour of ' + st.name, disabled: !editable, onchange: (e) => { st.color = e.target.value; touch(); } }, STAGE_COLORS.map(c => el('option', { value: c, selected: c === st.color }, COLOR_NAMES[c] || c)));
       const name = el('input.wf-name', { value: st.name, maxlength: 30, 'aria-label': 'Stage name', disabled: !editable, oninput: (e) => { st.name = e.target.value; saveBtn.disabled = false; } });
-      const kind = last ? el('span.hint', {}, 'Done (finished)') : el('select', { 'aria-label': 'Counts as', disabled: !editable, onchange: (e) => { st.kind = e.target.value; touch(); } },
+      const kind = last ? el('span.hint.wf-kind', {}, 'Done (finished)') : el('select.wf-kind', { 'aria-label': 'Counts as', disabled: !editable, onchange: (e) => { st.kind = e.target.value; touch(); } },
         el('option', { value: 'todo', selected: st.kind === 'todo' }, 'To do'), el('option', { value: 'doing', selected: st.kind === 'doing' }, 'Doing'));
       const limit = last ? el('span.hint', {}, '—') : el('input.wf-limit', { type: 'number', min: 0, max: 99, value: st.limit || '', placeholder: 'none', 'aria-label': 'Most tasks at once in ' + st.name, disabled: !editable, oninput: (e) => { st.limit = Math.max(0, Math.min(99, Math.round(Number(e.target.value) || 0))); saveBtn.disabled = false; } });
       // Who signs off before a task moves on from this stage, and its checklist (workflow step 2).
@@ -326,7 +327,8 @@ function workflow(pane, ctx, { rerender } = {}) {
           el('span.wf-open.hint', {}, counts[st.id] ? counts[st.id] + ' open' : ''), acts),
         last ? '' : el('div.wf-more', {}, bit('To move on', so), el('div.wf-bit', {}, el('span.wf-bit-l', {}, 'Checklist'), cl), bit('Limit', limit)));
     });
-    box.replaceChildren(el('div.wf-list', {}, ...rows),
+    const head = el('div.wf-head', { 'aria-hidden': 'true' }, el('span'), el('span'), el('span', {}, 'Stage'), el('span', {}, 'Colour'), el('span', {}, 'Counts as'), el('span', {}, 'To move on'), el('span', {}, 'Checklist'), el('span', {}, 'Limit'), el('span'), el('span'));
+    box.replaceChildren(el('div.wf-list', {}, head, ...rows),
       editable && draft.length < MAX_STAGES ? el('button.btn.small', { type: 'button', id: 'wf-add', onclick: () => { const name = 'New stage'; draft.splice(draft.length - 1, 0, { id: newId(name + draft.length), name, kind: 'doing', color: STAGE_COLORS[draft.length % STAGE_COLORS.length], limit: 0 }); touch(); setTimeout(() => { const ins = box.querySelectorAll('.wf-name'); const n = ins[ins.length - 2]; if (n) { n.focus(); n.select(); } }, 30); } }, '+ Add a stage') : '');
   }
   const tpl = el('div.wf-templates', { role: 'group', 'aria-label': 'Start from a template' }, WORKFLOW_TEMPLATES.map(t => el('button.btn.small' + (JSON.stringify(t.stages.map(x => x.id)) === JSON.stringify(wf.stages.map(x => x.id)) ? '.primary' : '.ghost'), { type: 'button', dataset: { template: t.id }, disabled: !editable, title: t.help,
