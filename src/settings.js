@@ -134,7 +134,7 @@ function plan(pane, ctx, { invites, rerender } = {}) {
           e.target.disabled = true; status.textContent = 'Sending…';
           try {
             const r = await TT.sendStudentCode(email.value);
-            status.textContent = 'We sent a code to ' + r.email + '. It works for 15 minutes — check spam if it isn’t there.' + (r.demoCode ? ' (Demo: your code is ' + r.demoCode + ')' : '');
+            status.textContent = 'We sent a code to ' + r.email + '. It works for 15 minutes. Not in your inbox? Check your Junk folder.' + (r.demoCode ? ' (Demo: your code is ' + r.demoCode + ')' : '');
             step2.hidden = false; code.focus();
           } catch (err) { status.textContent = '⚠ ' + (err.message || 'Could not send the code.'); } finally { e.target.disabled = false; }
         } }, 'Send code')), step2, status,

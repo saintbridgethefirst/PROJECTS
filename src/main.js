@@ -106,7 +106,7 @@ function renderAuth() {
       e.preventDefault();
       if (!isValidEmail(inp.value)) { note.textContent = 'Enter a valid email address.'; return; }
       send.disabled = true;
-      try { await backend.auth.sendEmailLink(inp.value); note.textContent = 'Check your inbox for a sign-in link. You can close this tab.'; }
+      try { await backend.auth.sendEmailLink(inp.value); note.textContent = 'Check your inbox for a sign-in link. You can close this tab. Not there in a minute or two? Check your Junk folder.'; }
       catch (err) { note.textContent = friendlyError(err); } finally { send.disabled = false; }
     });
     box.append(form);
@@ -225,7 +225,7 @@ function passwordForm(note) {
         const u = await backend.auth.signUpPassword(name.value.trim(), email.value, pw.value);
         // onAuthStateChanged fired before the name was set; refresh so the name shows straight away.
         if (u) { user = u; if (!location.hash.startsWith('#/t/')) renderHome(); }
-        toast('Account created. We sent a verification email to ' + normEmail(email.value) + '.', 6000);
+        toast('Account created. We sent a verification email to ' + normEmail(email.value) + '. Not in your inbox? Check Junk.', 8000);
       } else {
         await backend.auth.signInPassword(email.value, pw.value);
       }
@@ -234,7 +234,7 @@ function passwordForm(note) {
   });
   forgot.addEventListener('click', async () => {
     if (!isValidEmail(email.value)) { note.textContent = 'Type your email address above first, then click “Forgot password?”.'; email.focus(); return; }
-    try { await backend.auth.resetPassword(email.value); note.textContent = 'If an account uses ' + normEmail(email.value) + ', a password reset email is on its way.'; }
+    try { await backend.auth.resetPassword(email.value); note.textContent = 'If an account uses ' + normEmail(email.value) + ', a password reset email is on its way. Not there in a minute or two? Check your Junk folder.'; }
     catch (err) { note.textContent = friendlyError(err); }
   });
   return el('div', {}, el('div.auth-or', {}, 'or use your email'), tabs, form);
@@ -262,7 +262,8 @@ function renderHome() {
   verify.hidden = !!user.emailVerified;
   if (!user.emailVerified) {
     verify.replaceChildren(el('b', {}, 'Verify your email to see invitations. '), `Team invitations are matched to ${user.email}, and only verified addresses can accept them. `,
-      el('button.btn.small', { type: 'button', onclick: async () => { try { await backend.auth.sendVerification(); toast('Verification email sent to ' + user.email); } catch (e) { toast(friendlyError(e)); } } }, 'Send verification email'), ' ',
+      el('span.verify-junk', {}, 'Email not arriving? Check your Junk folder. '),
+      el('button.btn.small', { type: 'button', onclick: async () => { try { await backend.auth.sendVerification(); toast('Verification email sent to ' + user.email + '. Not in your inbox? Check Junk.', 8000); } catch (e) { toast(friendlyError(e)); } } }, 'Send verification email'), ' ',
       el('button.btn.small.ghost', { type: 'button', onclick: async () => { const u = await backend.auth.reloadUser?.(); if (u && u.emailVerified) { user = u; renderHome(); } else toast('Still not verified. Open the link in the email first.'); } }, 'I’ve verified'));
   }
 
