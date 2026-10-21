@@ -125,6 +125,11 @@ const validPlanRequest = (d, uid) => hasOnly(d, ALLOWED.planRequest) && ['pro', 
 const validLog = (d) => hasOnly(d, ALLOWED.log) && typeof d.at === 'number' && typeof d.by === 'string' && isStr(d.byName, 80) &&
   ['budget', 'spending', 'income', 'parts'].includes(d.kind) && typeof d.text === 'string' && d.text.length > 0 && d.text.length <= 600;
 
+const validWhiteboard = (d) => hasOnly(d, ['name', 'createdBy', 'createdByName', 'createdAt', 'updatedAt']) && typeof d.name === 'string' && d.name.length > 0 && d.name.length <= 80 && typeof d.createdBy === 'string' && typeof d.createdAt === 'number';
+const validWbItem = (d) => hasOnly(d, ['boardId', 'kind', 'x', 'y', 'w', 'h', 'text', 'color', 'taskId', 'from', 'to', 'z', 'createdBy', 'updatedAt']) &&
+  typeof d.boardId === 'string' && d.boardId.length > 0 && d.boardId.length <= 64 && ['note', 'text', 'title', 'task', 'link'].includes(d.kind) &&
+  ['x', 'y', 'w', 'h'].every(k => typeof d[k] === 'number') && isStr(d.text, 2000) &&
+  ['color', 'taskId', 'from', 'to'].every(k => d[k] === undefined || isStr(d[k], k === 'color' ? 20 : 64)) && typeof d.createdBy === 'string';
 /** SelfTrack items (firestore.rules ▸ validSelf). */
 const SELF_KEYS = ['uid', 'kind', 'title', 'area', 'scope', 'date', 'done', 'doneOn', 'order', 'createdAt', 'updatedAt', 'note', 'log', 'goal', 'skillId', 'mood', 'well', 'hard', 'areas', 'sync', 'archived', 'color'];
 const optStr = (d, k, n) => d[k] === undefined || isStr(d[k], n);
@@ -318,6 +323,15 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (!meMember) deny('not a member');
       if (isDelete) { if (!(id === auth.uid || can('members.manage'))) deny('delete profile'); return; }
       if (!((id === auth.uid || can('members.manage')) && validProfile(after))) deny('profile');
+      return;
+    }
+    case 'whiteboards':
+    case 'wbItems': {
+      if (!meMember) deny('not a member');
+      const editor = can('tasks.editOwn') || can('tasks.editAll'); const valid = coll === 'whiteboards' ? validWhiteboard : validWbItem;
+      if (isCreate) { if (!(editor && after.createdBy === auth.uid && valid(after))) deny(coll); return; }
+      if (isDelete) { if (!(coll === 'wbItems' ? editor : (before.createdBy === auth.uid || can('team.settings')))) deny('delete ' + coll); return; }
+      if (!(editor && after.createdBy === before.createdBy && valid(after))) deny('edit ' + coll);
       return;
     }
     case 'risks':

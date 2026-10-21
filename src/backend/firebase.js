@@ -301,7 +301,7 @@ export const data = {
   },
   async deleteTeam(teamId) {
     const ops = [];
-    for (const c of ['templates', 'comments', 'meetings', 'notebook', 'parts', 'papers', 'expenses', 'finance', 'financeLog', 'requests', 'profiles', 'risks', 'requirements', 'tasks', 'categories', 'invites']) {
+    for (const c of ['templates', 'comments', 'meetings', 'whiteboards', 'wbItems', 'notebook', 'parts', 'papers', 'expenses', 'finance', 'financeLog', 'requests', 'profiles', 'risks', 'requirements', 'tasks', 'categories', 'invites']) {
       (await getDocs(collection(db, 'teams', teamId, c))).docs.forEach(d => ops.push({ type: 'delete', path: c + '/' + d.id }));
     }
     const members = (await getDocs(collection(db, 'teams', teamId, 'members'))).docs;

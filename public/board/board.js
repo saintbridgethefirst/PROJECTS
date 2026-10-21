@@ -3088,6 +3088,7 @@
             if (boardView === 'kanban') renderKanban();
             if (boardView === 'gantt') renderGantt();
             updateApprovals();
+            if (window.__wbRefresh) window.__wbRefresh();
         }); }
         // Category names: shrink a label's text only as much as needed for its longest word to fit
         // the column (so words wrap between words, not in the middle), never below a readable size.
@@ -3704,7 +3705,7 @@
         }
 
         // ---------- Research tools: tasks from meeting actions, task lists for pickers ----------
-        window.boardAddTask = function ({ ownerUid, name, dueDate, note }) {
+        window.boardAddTask = function ({ ownerUid, name, dueDate, note, subtasks }) {
             const person = db.find(p => p.id === ownerUid && !p.former);
             if (!person) return { error: 'That person isn’t in the team any more.' };
             if (!TT.canEditOwner(person.id)) return { error: 'Your role can’t add tasks to ' + person.name + '’s row. Make yourself the owner, or ask them.' };
@@ -3713,12 +3714,14 @@
             if (dueDate) w = weeksData.slice().reverse().find(x => x.startDate && daysBetweenISO(x.startDate, dueDate) >= 0) || null;
             if (!w) w = weeksData.find(isCurrentWeek) || weeksData[weeksData.length - 1];
             if (!w) return { error: 'Add a week to the board first.' };
-            const t = { id: generateId(), type: 'task', name: String(name || 'New task').slice(0, 500), priority: 'Minor', status: 'TODO', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'none', dueDate: dueDate || '', subtasks: [], history: [], custom: {}, icon: '', attachments: [] };
+            const t = { id: generateId(), type: 'task', name: String(name || 'New task').slice(0, 500), priority: 'Minor', status: 'TODO', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'none', dueDate: dueDate || '', subtasks: (Array.isArray(subtasks) ? subtasks : []).slice(0, 100).map(title => ({ id: generateId(), title: String(title).slice(0, 300), completed: false })), history: [], custom: {}, icon: '', attachments: [] };
             logHistory(t, 'Task Status', '', note || 'Created');
             if (!Array.isArray(cat[w.key])) cat[w.key] = [];
             cat[w.key].push(t); saveDatabase(); renderFilters(); render();
             return { id: t.id, week: w.title };
         };
+        /** A task as the board has it right now (for the whiteboards): { task, person: { id, name } } or null. */
+        window.boardLocate = function (id) { const l = locateTask(id); return l ? { task: l.task, person: { id: l.person.id, name: l.person.name } } : null; };
         window.boardTaskList = function () {
             return latestOfChains(allTaskLocs()).map(l => ({ id: l.task.id, name: l.task.name, person: l.person.name, week: weekTitle(l.weekKey), due: l.task.dueDate || '', done: l.task.flag === 'completed' }));
         };

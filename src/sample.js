@@ -64,6 +64,20 @@ export async function buildSample(user, now = Date.now()) {
   const link = (id, on) => { const t = team.tasks[id]; if (t && team.tasks[on] && !(t.dependsOn || []).includes(on)) t.dependsOn = (t.dependsOn || []).concat(on); };
   link('t_fuselageas_112', 't_tailboomji_108'); link('t_rangetestk_67', 't_telemetryl_56'); link('t_flighttest_42', 't_criticalde_33');
   link('t_dropaccura_82', 't_payloadint_81'); link('t_autonomous_102', 't_targetdete_96'); link('t_batterymou_66', 't_wiringharn_60');
+  // A whiteboard: Design → Build → Test with real task cards, notes and arrows.
+  const wbId = 'wb_sample'; let z = 0;
+  team.whiteboards = { [wbId]: { name: 'Drone Challenge plan', createdBy: user.uid, createdByName: user.name || 'You', createdAt: now - 6 * DAY, updatedAt: now - DAY } };
+  const wi = {}; const item = (id, kind, x, y, extra) => { if (kind === 'task' && !team.tasks[extra.taskId]) return; wi[id] = { boardId: wbId, kind, x, y, w: { note: 260, text: 260, title: 420, task: 300, link: 0 }[kind], h: { note: 150, text: 44, title: 56, task: 104, link: 0 }[kind], text: '', color: '', taskId: '', from: '', to: '', z: z++, createdBy: user.uid, updatedAt: now - DAY, ...extra }; };
+  item('wi_t1', 'title', 0, 0, { text: 'Design' }); item('wi_t2', 'title', 0, 330, { text: 'Build' }); item('wi_t3', 'title', 0, 660, { text: 'Test' });
+  item('wi_cdr', 'task', 0, 80, { taskId: 't_criticalde_33' }); item('wi_cad', 'task', 360, 80, { taskId: 't_wingcadv_28' });
+  item('wi_n1', 'note', 740, 60, { color: '#fef08a', text: 'Landing gear ideas\n- Retract or fixed legs?\n- Carbon tube legs\n- Shock absorbers from foam' });
+  item('wi_wa', 'task', 0, 410, { taskId: 't_wingassemb_38' }); item('wi_tb', 'task', 360, 410, { taskId: 't_tailboomji_108' }); item('wi_fa', 'task', 720, 410, { taskId: 't_fuselageas_112' });
+  item('wi_rt', 'task', 0, 740, { taskId: 't_rangetestk_67' }); item('wi_ft', 'task', 360, 740, { taskId: 't_flighttest_42' });
+  item('wi_n2', 'note', 740, 720, { color: '#fbcfe8', text: 'Book the flying field\nAsk the club about Saturday slots' });
+  const arrow = (id, from, to, text = '') => { if (wi[from] && wi[to]) item(id, 'link', 0, 0, { from, to, text }); };
+  arrow('wl_1', 'wi_cdr', 'wi_cad'); arrow('wl_2', 'wi_cad', 'wi_wa', 'build'); arrow('wl_3', 'wi_tb', 'wi_fa'); arrow('wl_4', 'wi_wa', 'wi_rt', 'Testing'); arrow('wl_5', 'wi_fa', 'wi_ft'); arrow('wl_6', 'wi_n2', 'wi_ft');
+  team.wbItems = wi;
+  team.doc.features.whiteboards = true;
   const users = {};
   Object.values(raw.users).forEach(u => { if (u.uid !== ownerUid) users[u.uid] = u; });
   return { teamId: 't_sample_' + newId('x').slice(-10), team, users };

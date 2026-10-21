@@ -53,6 +53,9 @@ export const selfTask = (uid, over = {}) => ({ uid, kind: 'task', title: 'Read c
 
 export const signoff = (status, over = {}) => ({ stage: 'review', status, by: 'mem1', byName: 'mem1', at: 1, approver: '', approverName: '', note: '', decidedAt: 0, ...over });
 
+export const whiteboard = (createdBy, over = {}) => ({ name: 'Planning', createdBy, createdByName: createdBy, createdAt: 1, updatedAt: 1, ...over });
+export const wbItem = (createdBy, over = {}) => ({ boardId: 'wb_owner', kind: 'note', x: 0, y: 0, w: 220, h: 140, text: 'Idea', color: '#fef08a', taskId: '', from: '', to: '', z: 1, createdBy, updatedAt: 1, ...over });
+
 export function fixture() {
   return {
     users: {}, admins: { plat: true },
@@ -66,6 +69,7 @@ export function fixture() {
         tasks: { t_mem1: task('mem1', 'c_mem1'), t_owner: task('owner', 'c_owner'), t_wait: task('mem1', 'c_mem1', { stage: 'review', signoff: signoff('waiting') }) },
         comments: { cm_owner: comment('owner', 't_mem1', ['mem1']), cm_mem1: comment('mem1', 't_owner') },
         templates: { tpl_mem1: template('mem1'), tpl_owner: template('owner') },
+        whiteboards: { wb_owner: whiteboard('owner') }, wbItems: { wi_owner: wbItem('owner') },
         meetings: { mt_owner: meeting('owner') }, notebook: { nb_mem1: note('mem1', 't_mem1') }, parts: { pt_mem1: part('mem1') },
         papers: { pp_owner: paper('owner') }, profiles: { mem1: { capacity: 10, skills: ['CAD'], away: [], updatedAt: 1 } }, risks: { rk_owner: risk('owner') }, requirements: { rq_owner: requirement('owner') }, expenses: { x_admin1: expense('admin1') }, finance: { budget: { currency: 'GBP', lines: [], updatedAt: 1 } }, financeLog: { fl_1: logEntry('admin1') },
       },
@@ -269,6 +273,19 @@ export const writeScenarios = [
   ['a member sets their own uploaded photo', 'mem1', TEAM, [upd('members/mem1', { photo: 'data:image/png;base64,' + 'A'.repeat(2000) })], 'allow'],
   ['a member cannot set someone else’s photo', 'mem1', TEAM, [upd('members/owner', { photo: 'data:image/png;base64,' + 'A'.repeat(2000) })], 'deny'],
   ['an oversized photo is refused', 'mem1', TEAM, [upd('members/mem1', { photo: 'data:image/png;base64,' + 'A'.repeat(70000) })], 'deny'],
+  // Whiteboards: shared drawing for anyone who can edit tasks
+  ['a member starts a whiteboard', 'mem1', TEAM, [set('whiteboards/wb_new', whiteboard('mem1'))], 'allow'],
+  ['a viewer can’t start a whiteboard', 'view1', TEAM, [set('whiteboards/wb_new', whiteboard('view1'))], 'deny'],
+  ['a member adds a note to someone else’s board', 'mem1', TEAM, [set('wbItems/wi_new', wbItem('mem1'))], 'allow'],
+  ['a member moves someone else’s note (it’s shared)', 'mem1', TEAM, [upd('wbItems/wi_owner', { x: 300, y: 40 })], 'allow'],
+  ['nobody claims someone else’s note', 'mem1', TEAM, [upd('wbItems/wi_owner', { createdBy: 'mem1' })], 'deny'],
+  ['a viewer can’t draw', 'view1', TEAM, [upd('wbItems/wi_owner', { x: 1 })], 'deny'],
+  ['whiteboard items can’t carry unexpected fields', 'mem1', TEAM, [set('wbItems/wi_new', { ...wbItem('mem1'), script: 'x' })], 'deny'],
+  ['a note is at most 2000 characters', 'mem1', TEAM, [set('wbItems/wi_new', wbItem('mem1', { text: 'x'.repeat(2001) }))], 'deny'],
+  ['an item needs a known kind', 'mem1', TEAM, [set('wbItems/wi_new', wbItem('mem1', { kind: 'iframe' }))], 'deny'],
+  ['a member can’t delete someone else’s board', 'mem1', TEAM, [del('whiteboards/wb_owner')], 'deny'],
+  ['the board’s creator deletes it', 'owner', TEAM, [del('whiteboards/wb_owner')], 'allow'],
+  ['a stranger can’t draw on the team’s board', 'evil', TEAM, [set('wbItems/wi_new', wbItem('evil'))], 'deny'],
   // Sign-offs and checklists (workflow step 2)
   ['a member ticks checklist items on their task', 'mem1', TEAM, [upd('tasks/t_mem1', { checks: { review_c0: true } })], 'allow'],
   ['a member sends their task for sign-off', 'mem1', TEAM, [upd('tasks/t_mem1', { stage: 'review', signoff: signoff('waiting') })], 'allow'],

@@ -15,7 +15,7 @@ import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mer
 import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
-import { signersFor, canSignStage, gateOnTheWay, checklistOf } from './model.js';
+import { signersFor, canSignStage, gateOnTheWay, checklistOf, cleanWhiteboard, cleanWbItem } from './model.js';
 import { cleanComment, cleanTemplate, cleanEffort, cleanCapacity, MAX_DEPS, workflowOf, stageIdOf, stageKindOf, isCustomWorkflow, cleanMeeting, cleanNotebookEntry, cleanPart, cleanExpense, cleanBudget, cleanPaper, cleanLogEntry } from './model.js';
 import { openResearch, refreshResearch, seesMoney } from './research.js';
 import { notebookSection, notebookCount, linkedSection } from './notebook.js';
@@ -656,6 +656,7 @@ window.TTStartRefresh = () => drawStart();
 function closeTeam() {
   if (!session) return;
   endTour();
+  if (window.__wbClose) window.__wbClose();
   document.getElementById('start-card')?.remove();
   session.unsub && session.unsub();
   session.unsubComments && session.unsubComments();
@@ -744,9 +745,11 @@ const RESEARCH = [
   ['notebook', cleanNotebookEntry, 'notebook', 'board', 'notebook'], ['profiles', (p, id) => cleanProfile(p, id), 'profiles', 'board', null],
   ['risks', cleanRisk, 'risks', null, 'risks'], ['requirements', cleanRequirement, 'requirements', null, 'requirements'],
   ['requests', (r, id) => ({ ...r, id }), 'requests', 'settings', null],
+  ['whiteboards', cleanWhiteboard, 'whiteboards', 'wb', 'whiteboards'], ['wbItems', cleanWbItem, 'wbItems', 'wb', 'whiteboards'],
 ];
 function syncResearch(s) {
   const on = cleanFeatures(s.team.features);
+  const wb = document.getElementById('wb-btn'); if (wb) wb.hidden = !on.whiteboards;
   RESEARCH.forEach(([coll, clean, key, after, feature]) => {
     const want = !feature || on[feature];
     if (want && !s.researchUnsubs[coll]) {
@@ -770,6 +773,7 @@ function stopMoney(s) { if (s && s.unsubMoney) { s.unsubMoney.forEach(u => u && 
 function researchChanged(after) {
   refreshResearch(ctx());
   if (after === 'settings' && window.TTSettingsRefresh) window.TTSettingsRefresh();
+  if (after === 'wb' && window.__wbRefresh) window.__wbRefresh();
   if (after === 'board' && window.boardRender && session && session.booted) { window.boardRender(); if (window.boardRefreshEditor) window.boardRefreshEditor(); }
 }
 async function onFirstLoad() {
@@ -875,6 +879,7 @@ window.TT = {
   gateOnTheWay: (task, from, to) => { const w = workflowOf(session && session.team); return gateOnTheWay(task, w.stages, from, to); },
   checklistOf: (task) => { const w = workflowOf(session && session.team); return checklistOf(task, w.stages.find(s => s.id === stageIdOf(task, w.stages, w.moved))); },
   modal: (title, opts) => modal(title, opts),
+  openWhiteboards: (boardId) => import('./whiteboard.js').then(m => m.openWhiteboards(ctx(), boardId)),
   get teamId() { return session && session.teamId; },
   get user() { return user; },
   get isDemo() { return DEMO_MODE; },

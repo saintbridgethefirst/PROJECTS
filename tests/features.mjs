@@ -49,8 +49,8 @@ try {
   const T0 = await teamNamed(A, 'Robot Science');
   ok(T0.doc.features && T0.doc.features.planning === true && T0.doc.features.parts === false && T0.doc.features.people === false, 'new team: standard on, advanced off');
   await openFeatures(A);
-  ok(await A.locator('.feature-card:not(.pro-card)').count() === 11, 'Features page lists 11 features');
-  ok(await A.locator('.feature-card.on').count() === 4, 'four standard ones on');
+  ok(await A.locator('.feature-card:not(.pro-card)').count() === 12, 'Features page lists 12 features');
+  ok(await A.locator('.feature-card.on').count() === 5, 'five standard ones on (incl. Whiteboards)');
   if (SHOTS) await A.screenshot({ path: `${SHOTS}/features-settings.png` });
   await A.keyboard.press('Escape'); await sleep(200);
   await A.click('#research-btn'); await A.waitForSelector('.research-modal');
@@ -87,7 +87,7 @@ try {
   const B = await tab('Tom'); await signIn(B, 'Tom Reed', 'tom@uni.ac.uk');
   await B.click('#invites-list button:has-text("Join team")'); await B.waitForSelector('.node-cat'); await sleep(500);
   await openFeatures(B);
-  ok(await B.locator('.feature-card input:disabled').count() === 11, 'switches are disabled for a member');
+  ok(await B.locator('.feature-card input:disabled').count() === 12, 'switches are disabled for a member');
   await B.keyboard.press('Escape'); await sleep(200);
 
   step('People: hours, skills, time off, heatmap');

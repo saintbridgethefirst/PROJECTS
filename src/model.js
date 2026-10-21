@@ -716,6 +716,7 @@ export const FEATURES = [
   { key: 'meetings', group: 'standard', icon: '📝', name: 'Meetings', help: 'Meeting notes whose action items become tasks.' },
   { key: 'notebook', group: 'standard', icon: '📓', name: 'Lab notebook', help: 'Dated entries with photos on every task.' },
   { key: 'literature', group: 'standard', icon: '📚', name: 'Literature', help: 'Papers by DOI, reading status, notes and BibTeX.' },
+  { key: 'whiteboards', group: 'standard', icon: '🧭', name: 'Whiteboards', help: 'An endless canvas for planning together: sticky notes, headings, real task cards and arrows. Turn a note into a task in one click.' },
   { key: 'subteams', group: 'advanced', icon: '🧩', name: 'Sub-teams', help: 'Split a project into groups of people — Fuselage, Payload, Electronics… Each sub-team has leads, its own view of the board, its own progress, and can own parts and budget lines.' },
   { key: 'parts', group: 'advanced', icon: '🔩', name: 'Parts and orders', help: 'Components to buy, with suppliers, costs and order status.' },
   { key: 'finance', group: 'advanced', icon: '💷', name: 'Finance', help: 'Budget lines, spending with receipts, income and a burn-rate forecast. Only roles with the finance permissions see the money.' },
@@ -732,6 +733,36 @@ const LEGACY_FEATURES = { ...NEW_TEAM_FEATURES, parts: true, finance: true };
 export function cleanFeatures(f) {
   if (!f || typeof f !== 'object' || Array.isArray(f)) return { ...LEGACY_FEATURES };
   return Object.fromEntries(FEATURE_KEYS.map(k => [k, typeof f[k] === 'boolean' ? f[k] : NEW_TEAM_FEATURES[k]]));
+}
+
+// ── Whiteboards ───────────────────────────────────────────────────────────────
+// A board (whiteboards/{id}) and its items (wbItems/{id}, one document each, so people can edit
+// the same board at once): sticky notes, text, headings, task cards and arrows between items.
+export const WB_KINDS = ['note', 'text', 'title', 'task', 'link'];
+export const WB_COLORS = ['#fef08a', '#bbf7d0', '#bfdbfe', '#fbcfe8', '#fed7aa', '#e9d5ff', '#e5e7eb'];
+export const WB_MAX_ITEMS = 500;
+const wbNum = (v, lo, hi, dflt) => { const n = Number(v); return Number.isFinite(n) ? Math.round(Math.min(hi, Math.max(lo, n))) : dflt; };
+export function cleanWhiteboard(b, id) {
+  b = b || {};
+  return { id: safeKey(id || b.id), name: str(b.name, 80).trim() || 'Untitled board', createdBy: str(b.createdBy, 64), createdByName: str(b.createdByName, 80), createdAt: Number(b.createdAt) || 0, updatedAt: Number(b.updatedAt) || 0 };
+}
+export function cleanWbItem(d, id) {
+  d = d || {}; const kind = WB_KINDS.includes(d.kind) ? d.kind : 'note';
+  const dflt = { note: [220, 140], text: [260, 44], title: [420, 56], task: [300, 104], link: [0, 0] }[kind];
+  const key = (v) => (v ? safeKey(v) : '');
+  return { id: safeKey(id || d.id), boardId: key(d.boardId), kind, x: wbNum(d.x, -50000, 50000, 0), y: wbNum(d.y, -50000, 50000, 0),
+    w: kind === 'link' ? 0 : wbNum(d.w, 40, 2400, dflt[0]), h: kind === 'link' ? 0 : wbNum(d.h, 24, 2400, dflt[1]),
+    text: str(d.text, 2000), color: WB_COLORS.includes(d.color) ? d.color : (kind === 'note' ? WB_COLORS[0] : ''),
+    taskId: kind === 'task' ? key(d.taskId) : '', from: kind === 'link' ? key(d.from) : '', to: kind === 'link' ? key(d.to) : '',
+    z: wbNum(d.z, -1e6, 1e6, 0), createdBy: str(d.createdBy, 64), updatedAt: Number(d.updatedAt) || 0 };
+}
+/** "Design ability icons\n- Active abilities\n- UI states" → { title, subtasks: ['Active abilities', 'UI states'] } */
+export function noteToTask(text) {
+  const lines = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
+  const isItem = (l) => /^([-*•]|\d+[.)]|\[ ?\])\s+/.test(l);
+  const title = (lines.find(l => !isItem(l)) || (lines[0] || '').replace(/^([-*•]|\d+[.)]|\[ ?\])\s+/, '') || 'New task').slice(0, 200);
+  const subtasks = lines.filter(isItem).map(l => l.replace(/^([-*•]|\d+[.)]|\[ ?\])\s+/, '').slice(0, 300)).filter(Boolean).slice(0, 30);
+  return { title, subtasks };
 }
 
 // ── People and capacity ──────────────────────────────────────────────────────

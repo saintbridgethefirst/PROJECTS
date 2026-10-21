@@ -6,7 +6,7 @@
 import { normEmail, scrubPerson, FORMER_MEMBER } from './lib.js';
 
 /** Everything inside a team, besides members/profiles. */
-export const TEAM_COLLECTIONS = ['tasks', 'categories', 'comments', 'notebook', 'meetings', 'parts', 'papers', 'risks', 'requirements', 'templates', 'expenses', 'financeLog', 'finance', 'invites', 'requests'];
+export const TEAM_COLLECTIONS = ['tasks', 'categories', 'comments', 'notebook', 'meetings', 'parts', 'papers', 'risks', 'requirements', 'whiteboards', 'wbItems', 'templates', 'expenses', 'financeLog', 'finance', 'invites', 'requests'];
 /** Fields that say a record was made by, or belongs to, a person. */
 const BY_FIELDS = ['createdBy', 'authorUid', 'ownerUid', 'by', 'invitedBy', 'uid', 'supportPersonId', 'supportPersonId2'];
 
