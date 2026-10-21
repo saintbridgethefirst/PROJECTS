@@ -29,6 +29,9 @@ try {
   ok((await p.evaluate(() => TT.workflow.map(s => s.name).join(','))) === 'Design,Review,Build,Test,Done', 'Engineering workflow');
   await p.evaluate(() => boardSetView('kanban')); await p.waitForSelector('.kb-board');
   ok((await p.locator('.kb-col-head').count()) === 5 && (await p.locator('.kb-col-head[data-stage="build"] .kb-count').textContent()).includes('/ 4'), 'Kanban: five stage columns, Build limit 4');
+  await p.evaluate(() => boardSetView('gantt')); await p.waitForSelector('.gt2-bar');
+  ok(await p.locator('.gt2-bar').count() >= 20 && await p.locator('.gt2-link').count() >= 6, 'Gantt: bars with planned dates and “waits on” arrows (' + await p.locator('.gt2-bar').count() + ' bars, ' + await p.locator('.gt2-link').count() + ' links)');
+  ok(await p.locator('.gt2-bar.soft-start').count() < await p.locator('.gt2-bar').count() / 2, 'most bars have real start dates');
   await p.evaluate(() => boardSetView('board')); await sleep(200);
   ok(await p.evaluate(() => TT.feature('subteams') && TT.feature('parts') && TT.feature('finance') && TT.feature('notebook') && TT.feature('risks')), 'tools switched on');
   await p.click('#share-btn'); await p.waitForSelector('#share-text');

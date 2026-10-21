@@ -23,12 +23,13 @@ try {
   await p.fill('#demo-name', 'Sam'); await p.click('#demo-go');
   await p.waitForSelector('.task-card'); await p.waitForSelector('.tour-card', { timeout: 8000 });
   ok((await p.locator('#team-switch').textContent()).includes('Skyhawk UAV'), 'opens the sample team');
-  ok((await p.locator('.tour-card .tour-step').textContent()) === '1 of 11', 'tour starts at 1 of 11');
+  ok((await p.locator('.tour-card .tour-step').textContent()) === '1 of 12', 'tour starts at 1 of 12');
   const seen = [];
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 11; i++) {
     seen.push((await p.locator('.tour-card h3').textContent()) + (await p.locator('.tour-ring').isVisible() ? ' [ring]' : ''));
     if (i === 5) ok(await p.locator('.kb-board').isVisible(), 'the Kanban step switches to Kanban');
-    await p.click('#tour-next'); await sleep(i === 4 ? 600 : 250);
+    if (i === 6) ok(await p.locator('.gt2-scroll').isVisible(), 'the Gantt step switches to the Gantt');
+    await p.click('#tour-next'); await sleep(i === 4 || i === 5 ? 600 : 250);
   }
   seen.push(await p.locator('.tour-card h3').textContent());
   ok(seen.filter(s => s.includes('[ring]')).length >= 8, 'most steps ring a real element: ' + seen.join(' | '));

@@ -102,6 +102,9 @@ const patches = [
   ["const startOf = r => { const ws = r.week.startDate;", "const startOf = r => { const ws = (r.startWeek || r.week).startDate;"],
   ["<span class=\"gt-name\">' + PRIO_ICON[r.t.priority] + ' ' + esc(r.t.name) + '</span></div><div class=\"gt-track\"",
    "<span class=\"gt-name\">' + PRIO_ICON[r.t.priority] + ' ' + esc(r.t.name) + (r.carryCount > 1 ? ' <span class=\"gt-carry\" title=\"Carried forward across ' + r.carryCount + ' weeks\">↪ ' + r.carryCount + ' wks</span>' : '') + '</span></div><div class=\"gt-track\""],
+  // Sub-task rows in the editor: a button to turn one into a task of its own
+  ['<button class="btn-danger" style="padding:4px 8px; width:auto; border:none; background:transparent; cursor:pointer;" onclick="deleteSubtask(event, \'${nodeData.id}\', \'${st.id}\')" title="Delete Subtask">❌</button>',
+   '<button type="button" class="st-promote" onclick="promoteSubtask(event, \'${nodeData.id}\', \'${st.id}\')" title="Make this sub-task a task of its own" aria-label="Make “${esc(st.title)}” a task of its own">↥ Task</button><button class="btn-danger" style="padding:4px 8px; width:auto; border:none; background:transparent; cursor:pointer;" onclick="deleteSubtask(event, \'${nodeData.id}\', \'${st.id}\')" title="Delete Subtask">❌</button>'],
 ];
 // Speed (stress test): the side-panel search read every card's laid-out text on every redraw.
 patches.push(["            const query = document.getElementById('search-tasks').value.toLowerCase();\n            document.querySelectorAll('.task-card').forEach(card => {\n                const text = card.innerText.toLowerCase();",

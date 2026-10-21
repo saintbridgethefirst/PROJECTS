@@ -501,7 +501,7 @@
                                 <div style="display:flex; align-items:center; gap:8px; background:var(--bg-main); padding:8px; border-radius:6px; border:1px solid var(--border-color);">
                                     <input type="checkbox" style="width:16px; height:16px; margin:0;" ${st.completed ? 'checked' : ''} onchange="toggleSubtask(event, '${nodeData.id}', '${st.id}')">
                                     <input type="text" style="margin:0; padding:4px 8px;" value="${esc(st.title)}" onchange="updateSubtaskTitle(event, '${nodeData.id}', '${st.id}', this.value)">
-                                    <button class="btn-danger" style="padding:4px 8px; width:auto; border:none; background:transparent; cursor:pointer;" onclick="deleteSubtask(event, '${nodeData.id}', '${st.id}')" title="Delete Subtask">❌</button>
+                                    <button type="button" class="st-promote" onclick="promoteSubtask(event, '${nodeData.id}', '${st.id}')" title="Make this sub-task a task of its own" aria-label="Make “${esc(st.title)}” a task of its own">↥ Task</button><button class="btn-danger" style="padding:4px 8px; width:auto; border:none; background:transparent; cursor:pointer;" onclick="deleteSubtask(event, '${nodeData.id}', '${st.id}')" title="Delete Subtask">❌</button>
                                 </div>
                             `).join('')}
                         </div>
@@ -1877,6 +1877,7 @@
             items.splice(at + 1, 0, { icon: '💾', label: 'Save as template…', action: () => saveAsTemplate(loc) });
             if (TT.feature('planning')) items.splice(at + 1, 0, { icon: '⛓', label: 'Waits on another task…', action: () => pickPrereq(loc.task) });
             items.splice(at + 1, 0, stageMenuItem(loc));
+            items.splice(at + 2, 0, demoteMenuItem(loc));
             // Move to another week (drag and drop isn't available on touch screens)
             const others = weeksData.filter(w => w.key !== loc.weekKey);
             if (others.length) {
@@ -2768,6 +2769,98 @@
             saveDatabase(); render(); if (activeNode && activeNode.id === task.id) openEditor(task);
         }
 
+        // ---------- Sub-task ⇄ task ----------
+        // A sub-task that grew into real work becomes a task of its own (same person, row and week),
+        // and a task can fold into another as its sub-task. Each keeps what it can and says what moved.
+        function promoteSubtask(e, taskId, subId) {
+            if (e) { e.stopPropagation(); e.preventDefault(); }
+            const loc = locateTask(taskId); if (!loc) return;
+            if (!TT.canEditOwner(loc.person.id)) { toast('Your role can’t change this task.'); return; }
+            const parent = loc.task; const i = (parent.subtasks || []).findIndex(s => s.id === subId); if (i < 0) return;
+            const st = parent.subtasks[i]; const done = !!st.completed;
+            const t = { id: generateId(), type: 'task', name: (st.title || 'Untitled task').slice(0, 500), priority: parent.priority || 'Minor', status: '', jiraId: '',
+                supportPersonId: null, supportPersonId2: null, flag: done ? 'completed' : 'none', completedDate: done ? todayISO() : '',
+                dueDate: parent.dueDate || '', startDate: parent.startDate || '', phaseId: parent.phaseId || '', stage: '', effort: null, dependsOn: [],
+                subtasks: [], history: [], custom: {}, icon: '', attachments: [] };
+            logHistory(t, 'Created', '', 'From a sub-task of “' + (parent.name || 'a task') + '”');
+            parent.subtasks.splice(i, 1);
+            logHistory(parent, 'Sub-task → task', st.title, 'Now a task of its own');
+            // The parent wasn't finished without this piece, so (with planning on) it now waits on it.
+            let linked = false;
+            if (!done && parent.flag !== 'completed' && TT.feature('planning') && (parent.dependsOn || []).length < TT.MAX_DEPS) { parent.dependsOn = (parent.dependsOn || []).concat(t.id); linked = true; }
+            loc.cat[loc.weekKey].splice(loc.index + 1, 0, t);
+            saveDatabase(); render();
+            if (activeNode && activeNode.id === parent.id) openEditor(parent);
+            toast('“' + t.name + '” is now a task' + (linked ? '; “' + (parent.name || 'its parent') + '” waits on it' : '') + '.', 6000, 'Undo', undo);
+        }
+        function demoteMenuItem(loc) { return { icon: '↧', label: 'Make it a sub-task of…', action: () => pickDemoteTarget(loc) }; }
+        function pickDemoteTarget(loc) {
+            const t = loc.task;
+            const ch = carryChain(t); if (ch && ch.length > 1) { toast('This task is carried across ' + ch.length + ' weeks, so it can’t become a sub-task. Finish or delete the older copies first.', 6000); return; }
+            if (!TT.canEditOwner(loc.person.id)) { toast('Your role can’t change this task.'); return; }
+            const items = latestOfChains(allTaskLocs()).filter(l => l.task.id !== t.id && !l.task.isGhost && TT.canEditOwner(l.person.id)).map(l => ({
+                group: l.person.name, icon: STAGE_ICON[TT.stageOf(l.task)], title: l.task.name || 'Untitled task',
+                sub: [weekTitle(l.weekKey), (l.task.subtasks || []).length ? (l.task.subtasks || []).length + ' sub-tasks' : '', l.task.dueDate && 'due ' + fmtShort(l.task.dueDate)].filter(Boolean).join(' · '),
+                fields: [[l.task.name, 3], [l.person.name, 1], [weekTitle(l.weekKey), 1]], suggest: l.weekKey === loc.weekKey || l.person.id === loc.person.id,
+                run: () => demoteInto(t.id, l.task.id) }));
+            TT.pickFrom(items, 'Make “' + (t.name || 'this task') + '” a sub-task of…', 'No other task you can edit.');
+        }
+        /** What folding task X into P does, in words (shown before it happens). */
+        function demotePlan(x, p) {
+            const subs = (x.subtasks || []).length; const cm = TT.commentCount(x.id); const files = (x.attachments || []).length;
+            const lines = ['“' + (x.name || 'This task') + '” becomes a sub-task of “' + (p.name || 'that task') + '”' + (x.flag === 'completed' ? ' (ticked, as it’s done)' : '') + '.'];
+            if (subs) lines.push('Its ' + subs + ' sub-task' + (subs === 1 ? '' : 's') + ' move too, named “' + (x.name || 'task') + ': …”.');
+            if (files) lines.push('Its ' + files + ' file' + (files === 1 ? '' : 's') + ' and links move to “' + (p.name || 'that task') + '”.');
+            if ((x.dependsOn || []).length || dependents(x).length) lines.push('Tasks it waited on, and tasks waiting on it, link to “' + (p.name || 'that task') + '” instead.');
+            if (x.effort) lines.push('Its estimate (' + fmtHours(x.effort) + ') is added to “' + (p.name || 'that task') + '”.');
+            if (cm) lines.push('⚠ Its ' + cm + ' comment' + (cm === 1 ? '' : 's') + ' will no longer show (they stay in the team’s data).');
+            return lines;
+        }
+        function demoteInto(xId, pId) {
+            const lx = locateTask(xId), lp = locateTask(pId); if (!lx || !lp) return;
+            const x = lx.task, p = lp.task;
+            if (!TT.canEditOwner(lx.person.id) || !TT.canEditOwner(lp.person.id)) { toast('Your role can’t change one of these tasks.'); return; }
+            const add = [{ id: generateId(), title: (x.name || 'Untitled task').slice(0, 300), completed: x.flag === 'completed' }]
+                .concat((x.subtasks || []).map(s => ({ id: generateId(), title: ((x.name || 'Task') + ': ' + s.title).slice(0, 300), completed: x.flag === 'completed' || !!s.completed })));
+            if ((p.subtasks || []).length + add.length > 100) { toast('“' + p.name + '” can have up to 100 sub-tasks.'); return; }
+            if (!confirm(demotePlan(x, p).join('\n\n') + '\n\nGo ahead?')) return;
+            p.subtasks = (p.subtasks || []).concat(add);
+            // Links: P takes over what X waited on; whoever waited on X now waits on P.
+            const roots = carryRootMap(allTaskLocs()); const rootOf = (id) => roots.get(id) || id;
+            const pDeps = (p.dependsOn || []).slice();
+            (x.dependsOn || []).forEach(id => { if (rootOf(id) !== rootOf(p.id) && !pDeps.some(d => rootOf(d) === rootOf(id)) && pDeps.length < TT.MAX_DEPS && !makesLoop(p, id)) pDeps.push(id); });
+            p.dependsOn = pDeps.filter(id => rootOf(id) !== rootOf(x.id));
+            allTaskLocs().forEach(l => {
+                if (l.task === x || l.task === p || !(l.task.dependsOn || []).some(id => rootOf(id) === rootOf(x.id)) || !TT.canEditOwner(l.person.id)) return;
+                const d = l.task.dependsOn.filter(id => rootOf(id) !== rootOf(x.id));
+                if (!d.some(id => rootOf(id) === rootOf(p.id)) && d.length < TT.MAX_DEPS) d.push(p.id);
+                l.task.dependsOn = d;
+            });
+            if ((x.attachments || []).length) { const have = new Set((p.attachments || []).map(a => a.url)); p.attachments = (p.attachments || []).concat(x.attachments.filter(a => !have.has(a.url))).slice(0, 30); }
+            if (x.effort) p.effort = Math.min(999, (Number(p.effort) || 0) + Number(x.effort));
+            if ((x.timeLog || []).length) p.timeLog = (p.timeLog || []).concat(x.timeLog).slice(-200);
+            logHistory(p, 'Task → sub-task', '', x.name || 'Untitled task');
+            const list = lx.cat[lx.weekKey]; const at = list.indexOf(x); if (at > -1) list.splice(at, 1);
+            if (activeNode && activeNode.id === x.id) activeNode = p;
+            saveDatabase(); render();
+            if (activeNode === p) openEditor(p);
+            toast('“' + (x.name || 'Task') + '” is now a sub-task of “' + (p.name || 'that task') + '”.', 6000, 'Undo', undo);
+        }
+        // Editor: when the task starts (its bar on the Gantt runs from here to the deadline).
+        function startDateRow(task, editable) {
+            const row = document.createElement('div'); row.className = 'plan-row';
+            const l = document.createElement('label'); l.className = 'plan-l'; l.textContent = 'Starts'; l.htmlFor = 'edit-start';
+            const inp = document.createElement('input'); inp.type = 'date'; inp.id = 'edit-start'; inp.className = 'start-input'; inp.value = task.startDate || ''; inp.disabled = !editable;
+            if (task.dueDate) inp.max = task.dueDate;
+            inp.addEventListener('change', () => {
+                const v = inp.value || '';
+                if (v && task.dueDate && v > task.dueDate) { toast('A task can’t start after its deadline (' + fmtShort(task.dueDate) + ').'); inp.value = task.startDate || ''; return; }
+                logHistory(task, 'Start date', task.startDate || '', v); task.startDate = v; saveDatabase(); render();
+            });
+            const u = document.createElement('span'); u.className = 'hint'; u.textContent = 'planned start (Gantt)';
+            row.append(l, inp, u); return row;
+        }
+
         // ---------- Editor: stage, effort, waits on / blocks ----------
         function planningSection(task, editable) {
             const s = section(TT.feature('planning') ? 'Planning' : 'Stage');
@@ -2789,7 +2882,7 @@
             inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
             const u = document.createElement('span'); u.className = 'hint'; u.textContent = 'hours (estimate)';
             row2.append(l2, inp, u);
-            s.append(row1);
+            s.append(row1, startDateRow(task, editable));
             if (!TT.feature('planning')) return s;
             s.append(row2);
 
@@ -2829,14 +2922,16 @@
         }
 
         // ---------- Board ⇄ Kanban view ----------
-        let boardView = (() => { try { return localStorage.getItem('tt_view') === 'kanban' ? 'kanban' : 'board'; } catch (e) { return 'board'; } })();
+        let boardView = (() => { try { const v = localStorage.getItem('tt_view'); return v === 'kanban' || v === 'gantt' ? v : 'board'; } catch (e) { return 'board'; } })();
         let kbScope = (() => { try { return localStorage.getItem('tt_kb_scope') || 'visible'; } catch (e) { return 'visible'; } })();
         let kbLanes = (() => { try { return localStorage.getItem('tt_kb_lanes') || 'none'; } catch (e) { return 'none'; } })();
         let kbMine = false;
         function savePref(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* */ } }
         function boardSetView(v) {
-            boardView = v === 'kanban' ? 'kanban' : 'board'; savePref('tt_view', boardView);
+            boardView = v === 'kanban' || v === 'gantt' ? v : 'board'; savePref('tt_view', boardView);
             document.body.classList.toggle('view-kanban', boardView === 'kanban');
+            document.body.classList.toggle('view-gantt', boardView === 'gantt');
+            if (boardView !== 'gantt') { const g = document.getElementById('gantt-view'); if (g) g.innerHTML = ''; }
             document.querySelectorAll('[data-view]').forEach(b => { const on = b.dataset.view === boardView; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
             if (boardView === 'kanban') renderKanban(); else { const k = document.getElementById('kanban-view'); if (k) k.innerHTML = ''; render(); }
         }
@@ -2849,6 +2944,7 @@
             fitCategoryLabels();
             renderSubteamBar();
             if (boardView === 'kanban') renderKanban();
+            if (boardView === 'gantt') renderGantt();
         }); }
         // Category names: shrink a label's text only as much as needed for its longest word to fit
         // the column (so words wrap between words, not in the middle), never below a readable size.
@@ -2996,8 +3092,257 @@
         }
         // boardOpenTask/openOriginalTask while the Kanban is showing: highlight the Kanban card
         function openOriginalTask(taskId) { _openOriginalTaskBase(taskId); if (boardView === 'kanban') { const n = document.getElementById('kb-' + taskId); if (n) { try { n.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* */ } } flashKb(taskId); } }
+        // ═════════════════════════════════════════════════════════════════════
+        //  Gantt: planned dates on a timeline (people × days), with "waits on"
+        //  links. Drag a bar to move it, drag its ends to change its dates;
+        //  tasks that wait on it move along when they would start too early.
+        //  A task's bar runs from its start date (or its week's Monday) to its
+        //  deadline (or that week's Friday).
+        // ═════════════════════════════════════════════════════════════════════
+        const GT_SCALES = { week: { days: 7, step: 7, minW: 96, label: 'Week' }, month: { days: 35, step: 28, minW: 30, label: 'Month' }, quarter: { days: 91, step: 91, minW: 11, label: 'Quarter' } };
+        const GT_LANE = 38, GT_PAD = 6;
+        let gtScale = (() => { try { const v = localStorage.getItem('tt_gt_scale'); return GT_SCALES[v] ? v : 'month'; } catch (e) { return 'month'; } })();
+        let gtRows = (() => { try { return localStorage.getItem('tt_gt_rows') === 'task' ? 'task' : 'person'; } catch (e) { return 'person'; } })();
+        let gtHideDone = false;
+        let gtFrom = null;   // first day shown
+        function gtMonday(iso) { const d = parseISO(iso); const dow = (d.getDay() + 6) % 7; return addDaysISO(iso, -dow); }
+        function gtDefaultFrom() { const m = gtMonday(todayISO()); return gtScale === 'week' ? m : addDaysISO(m, gtScale === 'month' ? -7 : -14); }
+        /** The planned span of a task: { s, e, impliedStart, impliedEnd } or null when it has no dates at all. */
+        function ganttSpan(l) {
+            const t = l.task; const w = weeksData.find(x => x.key === l.weekKey); const ws = w && w.startDate ? w.startDate : '';
+            let s = t.startDate || ''; let e = t.dueDate || '';
+            if (!s) s = ws && (!e || ws <= e) ? ws : e;
+            if (!e) e = s ? (ws && s === ws ? addDaysISO(ws, 4) : s) : '';
+            if (!s || !e) return null;
+            if (e < s) e = s;
+            return { s, e, impliedStart: !t.startDate, impliedEnd: !t.dueDate };
+        }
+        function gtTasks() {
+            const q = ((document.getElementById('search-tasks') || {}).value || '').trim().toLowerCase();
+            return latestOfChains(allTaskLocs()).filter(l => !l.task.isGhost && !hiddenPersons.has(l.person.id) && !phaseHidden(l.task)
+                && (!gtHideDone || l.task.flag !== 'completed')
+                && (!q || [l.task.name, l.task.jiraId, l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
+        }
+        function gtColor(t) { const st = stageById(TT.stageId(t)); return st && st.color ? st.color : (TT.stageOf(t) === 'done' ? '#48bb78' : TT.stageOf(t) === 'doing' ? '#4299e1' : '#718096'); }
+        function gtFmt(iso) { const d = parseISO(iso); return d ? d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : ''; }
+        /** Latest copy of each chain, by chain root: to follow "waits on" links. */
+        function gtByRoot() { const roots = carryRootMap(allTaskLocs()); const m = new Map(); latestOfChains(allTaskLocs()).forEach(l => m.set(roots.get(l.task.id) || l.task.id, l)); return { roots, m }; }
+
+        /** Move/resize a task by `d` days. mode: 'move' | 'start' | 'end'. Pushes later tasks that wait on it. */
+        function gtShift(taskId, mode, d) {
+            const l = locateTask(taskId); if (!l || !d) return;
+            if (!TT.canEditOwner(l.person.id)) { toast('Your role can’t change this task.'); return; }
+            const sp = ganttSpan(l); if (!sp) return;
+            let s = sp.s, e = sp.e;
+            if (mode !== 'end') s = addDaysISO(s, d);
+            if (mode !== 'start') e = addDaysISO(e, d);
+            if (s > e) { if (mode === 'start') s = e; else e = s; }
+            gtSetDates(l.task, s, e);
+            const pushed = gtPushDependents(l.task, e, new Set([l.task.id]));
+            saveDatabase(); render();
+            setTimeout(() => { const b = document.querySelector('.gt2-bar[data-id="' + taskId + '"]'); if (b && document.activeElement !== b && gtKeyFocus) b.focus({ preventScroll: true }); }, 0);
+            toast((l.task.name || 'Task') + ': ' + gtFmt(s) + ' → ' + gtFmt(e) + (pushed ? '. Moved ' + pushed + ' task' + (pushed === 1 ? '' : 's') + ' that wait on it.' : ''), pushed ? 6000 : 3000, 'Undo', undo);
+        }
+        function gtSetDates(t, s, e) {
+            const before = (t.startDate || '…') + ' → ' + (t.dueDate || '…');
+            t.startDate = s; t.dueDate = e;
+            logHistory(t, 'Planned dates', before, s + ' → ' + e);
+        }
+        /** Tasks waiting on `task` that would start on or before its end move later, keeping their length. */
+        function gtPushDependents(task, end, seen) {
+            const { roots, m } = gtByRoot(); const mine = roots.get(task.id) || task.id; let n = 0;
+            m.forEach(l => {
+                if (seen.has(l.task.id) || l.task.flag === 'completed' || !(l.task.dependsOn || []).some(id => (roots.get(id) || id) === mine)) return;
+                const sp = ganttSpan(l); if (!sp || sp.s > end || !TT.canEditOwner(l.person.id)) return;
+                const by = daysBetweenISO(sp.s, addDaysISO(end, 1)); const s = addDaysISO(sp.s, by), e = addDaysISO(sp.e, by);
+                seen.add(l.task.id); gtSetDates(l.task, s, e); n += 1 + gtPushDependents(l.task, e, seen);
+            });
+            return n;
+        }
+        let gtKeyFocus = false;
+        function renderGantt() { return withFrameCache(_renderGantt); }
+        function _renderGantt() {
+            let view = document.getElementById('gantt-view');
+            if (!view) { const mv = document.getElementById('main-view'); if (!mv) return; view = document.createElement('div'); view.id = 'gantt-view'; view.setAttribute('aria-label', 'Gantt timeline'); mv.appendChild(view); }
+            const old = view.querySelector('.gt2-scroll'); const keep = old ? { x: old.scrollLeft, y: old.scrollTop } : null;
+            if (!gtFrom) gtFrom = gtDefaultFrom();
+            const sc = GT_SCALES[gtScale]; const days = sc.days; const from = gtFrom; const to = addDaysISO(from, days - 1); const today = todayISO();
+            const narrow = window.matchMedia('(max-width: 700px)').matches; const LABEL = narrow ? 128 : 220;
+            const avail = Math.max(300, (view.clientWidth || (document.getElementById('main-view') || document.body).clientWidth || 1000) - LABEL - 40);
+            const dw = Math.max(sc.minW, Math.floor(avail / days)); const W = days * dw;
+            const all = gtTasks(); const spans = new Map(); const unscheduled = [];
+            all.forEach(l => { const sp = ganttSpan(l); if (sp) spans.set(l.task.id, sp); else unscheduled.push(l); });
+            const shown = all.filter(l => { const sp = spans.get(l.task.id); return sp && sp.e >= from && sp.s <= to; });
+            const x = (iso) => daysBetweenISO(from, iso) * dw;
+            const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined) n.textContent = txt; return n; };
+
+            // Toolbar
+            const bar = el('div', 'kb-toolbar gt2-toolbar');
+            const btn = (txt, label, fn, id) => { const b = el('button', 'top-btn gt2-btn', txt); b.type = 'button'; if (label) b.setAttribute('aria-label', label); if (id) b.id = id; b.onclick = fn; return b; };
+            bar.append(btn('Today', 'Go to today', () => { gtFrom = gtDefaultFrom(); renderGantt(); }, 'gt-today'),
+                btn('←', 'Earlier', () => { gtFrom = addDaysISO(gtFrom, -sc.step); renderGantt(); }, 'gt-prev'),
+                btn('→', 'Later', () => { gtFrom = addDaysISO(gtFrom, sc.step); renderGantt(); }, 'gt-next'));
+            const range = el('span', 'kb-sum gt2-range', fmtShort(from) + ' – ' + fmtShort(to) + ' ' + parseISO(to).getFullYear()); range.id = 'gt-range'; bar.appendChild(range);
+            const seg = el('div', 'seg-toggle gt2-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Zoom');
+            Object.entries(GT_SCALES).forEach(([k, v]) => { const b = el('button', k === gtScale ? 'on' : '', v.label); b.type = 'button'; b.dataset.scale = k; b.setAttribute('aria-pressed', String(k === gtScale)); b.onclick = () => { gtScale = k; savePref('tt_gt_scale', k); gtFrom = gtDefaultFrom(); renderGantt(); }; seg.appendChild(b); });
+            bar.appendChild(seg);
+            const rowsSel = el('label', 'kb-ctl'); rowsSel.append('Rows '); const rs = el('select'); rs.id = 'gt-rows';
+            [['person', 'One per person'], ['task', 'One per task']].forEach(([v, t]) => { const o = el('option', '', t); o.value = v; o.selected = v === gtRows; rs.appendChild(o); });
+            rs.onchange = () => { gtRows = rs.value; savePref('tt_gt_rows', gtRows); renderGantt(); }; rowsSel.appendChild(rs); bar.appendChild(rowsSel);
+            const hd = el('label', 'kb-ctl kb-check'); const cb = el('input'); cb.type = 'checkbox'; cb.id = 'gt-hide-done'; cb.checked = gtHideDone; cb.onchange = () => { gtHideDone = cb.checked; renderGantt(); }; hd.append(cb, ' Hide done'); bar.appendChild(hd);
+            const sum = el('span', 'kb-hint', shown.length + ' task' + (shown.length === 1 ? '' : 's') + ' in view' + (unscheduled.length ? ' · ' + unscheduled.length + ' without dates' : '') + ' · drag bars to plan');
+            if (unscheduled.length) sum.title = 'No deadline and no week dates:\n' + unscheduled.slice(0, 12).map(l => '• ' + l.task.name).join('\n');
+            bar.appendChild(sum);
+
+            // Rows: people (bars packed into lanes so they don't overlap), or one per task.
+            const rows = [];
+            if (gtRows === 'person') {
+                db.filter(p => !hiddenPersons.has(p.id) && (!p.former || shown.some(l => l.person.id === p.id))).forEach(p => {
+                    const mine = shown.filter(l => l.person.id === p.id).sort((a, b) => spans.get(a.task.id).s.localeCompare(spans.get(b.task.id).s) || spans.get(b.task.id).e.localeCompare(spans.get(a.task.id).e));
+                    const laneEnd = []; const lanes = new Map();
+                    mine.forEach(l => { const sp = spans.get(l.task.id); let k = laneEnd.findIndex(e => e < sp.s); if (k < 0) { k = laneEnd.length; laneEnd.push(''); } laneEnd[k] = sp.e; lanes.set(l.task.id, k); });
+                    rows.push({ person: p, items: mine, lanes, n: Math.max(1, laneEnd.length) });
+                });
+            } else shown.slice().sort((a, b) => spans.get(a.task.id).s.localeCompare(spans.get(b.task.id).s) || a.task.name.localeCompare(b.task.name)).forEach(l => rows.push({ task: l, items: [l], lanes: new Map([[l.task.id, 0]]), n: 1 }));
+
+            const grid = el('div', 'gt2-grid'); grid.style.width = (LABEL + W) + 'px'; grid.style.setProperty('--gt-label', LABEL + 'px'); grid.style.setProperty('--gt-dw', dw + 'px');
+            // Header: days (or weeks when zoomed out), with month names
+            const head = el('div', 'gt2-head'); const corner = el('div', 'gt2-corner', gtRows === 'person' ? 'Person' : 'Task'); head.appendChild(corner);
+            const scale = el('div', 'gt2-days'); scale.style.width = W + 'px';
+            for (let i = 0; i < days; i++) {
+                const iso = addDaysISO(from, i); const d = parseISO(iso); const dow = (d.getDay() + 6) % 7;
+                if (gtScale === 'quarter' && dow !== 0 && i !== 0) continue;
+                const span = gtScale === 'quarter' ? Math.min(7 - dow, days - i) : 1;
+                const c = el('div', 'gt2-day' + (iso === today ? ' today' : '') + (dow >= 5 && gtScale !== 'quarter' ? ' weekend' : '') + (d.getDate() === 1 || i === 0 ? ' month-start' : ''));
+                c.style.left = (i * dw) + 'px'; c.style.width = (span * dw) + 'px';
+                const top = (d.getDate() <= span || i === 0) ? d.toLocaleDateString('en-GB', { month: 'short' }) : '';
+                c.append(el('small', '', gtScale === 'week' ? d.toLocaleDateString('en-GB', { weekday: 'long' }) : gtScale === 'month' ? (d.getDate() === 1 || i === 0 ? d.toLocaleDateString('en-GB', { month: 'short' }) : 'MTWTFSS'[dow]) : top), el('b', '', gtScale === 'quarter' ? fmtShort(iso) : String(d.getDate())));
+                scale.appendChild(c);
+            }
+            head.appendChild(scale); grid.appendChild(head);
+            const body = el('div', 'gt2-body'); grid.appendChild(body);
+            // Background: weekends and today
+            const bg = el('div', 'gt2-bg'); bg.style.left = LABEL + 'px'; bg.style.width = W + 'px';
+            for (let i = 0; i < days; i++) { const iso = addDaysISO(from, i); const dow = (parseISO(iso).getDay() + 6) % 7; if (iso === today || (dow >= 5 && gtScale !== 'quarter')) { const s = el('div', iso === today ? 'gt2-todaycol' : 'gt2-wkend'); s.style.left = (i * dw) + 'px'; s.style.width = dw + 'px'; bg.appendChild(s); } }
+            body.appendChild(bg);
+            const pos = new Map(); let y = 0;
+            if (!rows.length) { const e2 = el('div', 'kb-empty gt2-empty', all.length ? 'No tasks are planned in these dates. Use ← → or Today, or zoom out.' : 'No tasks yet. Add some on the board, then plan them here.'); body.appendChild(e2); }
+            rows.forEach(r => {
+                const h = r.n * GT_LANE + GT_PAD * 2; const row = el('div', 'gt2-row'); row.style.height = h + 'px';
+                const lab = el('div', 'gt2-label');
+                if (r.person) {
+                    const av = el('span', 'avatar-circle gt2-av'); av.innerHTML = personPhotoHtml(r.person) || esc((r.person.name || '?').trim().charAt(0).toUpperCase()); lab.append(av, el('span', 'gt2-name', r.person.name));
+                    if (r.items.length) lab.append(el('span', 'kb-count', String(r.items.length)));
+                } else { const l = r.task; lab.append(el('span', 'gt2-name', l.task.name || 'Untitled task'), el('small', 'gt2-sub', l.person.name)); lab.title = l.task.name; }
+                const track = el('div', 'gt2-track'); track.style.width = W + 'px';
+                if (r.person && TT.canEditOwner(r.person.id) && !r.person.former) {
+                    track.classList.add('can-add'); track.title = 'Click an empty day to add a task for ' + r.person.name;
+                    track.addEventListener('click', (ev) => { if (ev.target !== track) return; const rect = track.getBoundingClientRect(); const day = addDaysISO(from, Math.floor((ev.clientX - rect.left) / dw)); gtQuickAdd(track, r.person, day, Math.floor((ev.clientX - rect.left) / dw) * dw); });
+                }
+                r.items.forEach(l => {
+                    const t = l.task; const sp = spans.get(t.id); const lane = r.lanes.get(t.id) || 0; const editable = TT.canEditOwner(l.person.id);
+                    const left = Math.max(0, x(sp.s)); const right = Math.min(W, x(addDaysISO(sp.e, 1)));
+                    const b = el('div', 'gt2-bar' + (t.flag === 'completed' ? ' done' : '') + (!t.flag || t.flag !== 'completed' ? (t.dueDate && t.dueDate < today ? ' late' : '') : '') + (sp.impliedStart ? ' soft-start' : '') + (sp.impliedEnd ? ' soft-end' : '') + (x(sp.s) < 0 ? ' cut-l' : '') + (x(addDaysISO(sp.e, 1)) > W ? ' cut-r' : '') + (editable ? ' editable' : ''));
+                    b.dataset.id = t.id; b.tabIndex = 0; b.setAttribute('role', 'button');
+                    b.style.left = (left + 2) + 'px'; b.style.width = Math.max(10, right - left - 4) + 'px'; b.style.top = (GT_PAD + lane * GT_LANE + 4) + 'px'; b.style.setProperty('--bar', gtColor(t));
+                    const subs = t.subtasks || []; const pct = t.flag === 'completed' ? 100 : subs.length ? Math.round(100 * subs.filter(s => s.completed).length / subs.length) : 0;
+                    const fill = el('span', 'gt2-fill'); fill.style.width = pct + '%'; b.appendChild(fill);
+                    const label = el('span', 'gt2-text'); if (t.icon && !t.icon.startsWith('data:')) label.append(t.icon + ' '); label.append((t.flag === 'completed' ? '✓ ' : '') + (t.name || 'Untitled task')); b.appendChild(label);
+                    const tip = (t.name || 'Untitled task') + '\n' + l.person.name + ' · ' + stageNameOf(t) + '\n' + gtFmt(sp.s) + (sp.impliedStart ? ' (week start)' : '') + ' → ' + gtFmt(sp.e) + (sp.impliedEnd ? ' (no deadline yet)' : '') + (subs.length ? '\nSub-tasks ' + subs.filter(s => s.completed).length + '/' + subs.length : '');
+                    b.title = tip; b.setAttribute('aria-label', tip.replace(/\n/g, '. ') + (editable ? '. Arrow keys move it a day; Shift + arrows change its end; Enter opens it.' : '. Enter opens it.'));
+                    if (editable) { const hl = el('span', 'gt2-h l'); const hr = el('span', 'gt2-h r'); hl.title = 'Drag to change the start'; hr.title = 'Drag to change the deadline'; b.append(hl, hr); }
+                    gtWireBar(b, l, sp, dw, editable);
+                    if (activeNode && activeNode.id === t.id) b.classList.add('selected');
+                    track.appendChild(b);
+                    pos.set(t.id, { x1: x(sp.s), x2: x(addDaysISO(sp.e, 1)), y: y + GT_PAD + lane * GT_LANE + GT_LANE / 2, s: sp.s, e: sp.e });
+                });
+                row.append(lab, track); body.appendChild(row); y += h;
+            });
+            // "Waits on" links: from the end of the task it waits on to the start of the task.
+            if (pos.size) {
+                const NS = 'http://www.w3.org/2000/svg'; const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('class', 'gt2-links'); svg.setAttribute('width', W); svg.setAttribute('height', y); svg.style.left = LABEL + 'px';
+                const defs = document.createElementNS(NS, 'defs'); ['ok', 'bad'].forEach(k => { const m = document.createElementNS(NS, 'marker'); m.setAttribute('id', 'gt-arrow-' + k); m.setAttribute('viewBox', '0 0 10 10'); m.setAttribute('refX', '9'); m.setAttribute('refY', '5'); m.setAttribute('markerWidth', '7'); m.setAttribute('markerHeight', '7'); m.setAttribute('orient', 'auto-start-reverse'); const pth = document.createElementNS(NS, 'path'); pth.setAttribute('d', 'M0,0 L10,5 L0,10 z'); pth.setAttribute('class', 'gt2-arrow ' + k); m.appendChild(pth); defs.appendChild(m); }); svg.appendChild(defs);
+                const { roots, m } = gtByRoot(); let bad = 0;
+                shown.forEach(l => (l.task.dependsOn || []).forEach(id => {
+                    const pre = m.get(roots.get(id) || id); if (!pre) return; const a = pos.get(pre.task.id), b2 = pos.get(l.task.id); if (!a || !b2) return;
+                    const conflict = b2.s <= a.e && l.task.flag !== 'completed';
+                    const x1 = a.x2 - 2, y1 = a.y, x2 = b2.x1 + 2, y2 = b2.y; const dx = Math.max(24, Math.abs(x2 - x1) / 2);
+                    const pth = document.createElementNS(NS, 'path'); pth.setAttribute('d', 'M' + x1 + ',' + y1 + ' C' + (x1 + dx) + ',' + y1 + ' ' + (x2 - dx) + ',' + y2 + ' ' + x2 + ',' + y2);
+                    pth.setAttribute('class', 'gt2-link' + (conflict ? ' bad' : '')); pth.setAttribute('marker-end', 'url(#gt-arrow-' + (conflict ? 'bad' : 'ok') + ')');
+                    pth.dataset.from = pre.task.id; pth.dataset.to = l.task.id;
+                    const tt = document.createElementNS(NS, 'title'); tt.textContent = '“' + l.task.name + '” waits on “' + pre.task.name + '”' + (conflict ? ': it starts before that one ends' : ''); pth.appendChild(tt);
+                    svg.appendChild(pth); if (conflict) bad++;
+                }));
+                body.appendChild(svg);
+                if (bad) { const w2 = el('span', 'gt2-conflicts', '⚠ ' + bad + ' task' + (bad === 1 ? ' starts' : 's start') + ' before what it waits on is done'); w2.id = 'gt-conflicts'; bar.insertBefore(w2, sum); }
+            }
+            body.style.height = Math.max(y, 120) + 'px';
+            const scroll = el('div', 'gt2-scroll'); scroll.appendChild(grid);
+            view.replaceChildren(bar, scroll);
+            if (keep) { scroll.scrollLeft = keep.x; scroll.scrollTop = keep.y; }
+        }
+        function gtWireBar(b, l, sp, dw, editable) {
+            const id = l.task.id;
+            const open = () => { const loc = locateTask(id); if (!loc) return; activeNode = loc.task; openEditorForNode(loc.task); if (isCompact()) setPanel(true); document.querySelectorAll('.gt2-bar.selected').forEach(n => n.classList.remove('selected')); b.classList.add('selected'); };
+            b.addEventListener('contextmenu', (e) => { e.preventDefault(); const loc = locateTask(id); if (loc) showMenu(e.clientX, e.clientY, taskMenuItems(loc)); });
+            b.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); return; }
+                if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && editable) { e.preventDefault(); gtKeyFocus = true; gtShift(id, e.shiftKey ? 'end' : 'move', e.key === 'ArrowRight' ? 1 : -1); }
+            });
+            b.addEventListener('pointerdown', (ev) => {
+                if (ev.button !== 0) return;
+                const mode = ev.target.classList.contains('gt2-h') ? (ev.target.classList.contains('l') ? 'start' : 'end') : 'move';
+                const x0 = ev.clientX; const L0 = parseFloat(b.style.left), W0 = parseFloat(b.style.width); let d = 0; let moved = false;
+                try { b.setPointerCapture(ev.pointerId); } catch (e) { /* */ }
+                const tip = document.createElement('div'); tip.className = 'gt2-tip';
+                const onMove = (e) => {
+                    if (Math.abs(e.clientX - x0) > 4) moved = true;
+                    if (!editable || !moved) return;
+                    b.classList.add('dragging');
+                    d = Math.round((e.clientX - x0) / dw);
+                    let s = sp.s, en = sp.e; if (mode !== 'end') s = addDaysISO(s, d); if (mode !== 'start') en = addDaysISO(en, d);
+                    if (s > en) { if (mode === 'start') { d = daysBetweenISO(sp.s, sp.e); s = en; } else { d = -daysBetweenISO(sp.s, sp.e); en = s; } }
+                    if (mode === 'move') b.style.left = (L0 + d * dw) + 'px';
+                    else if (mode === 'start') { b.style.left = (L0 + d * dw) + 'px'; b.style.width = Math.max(10, W0 - d * dw) + 'px'; }
+                    else b.style.width = Math.max(10, W0 + d * dw) + 'px';
+                    tip.textContent = gtFmt(s) + ' → ' + gtFmt(en); if (!tip.isConnected) b.appendChild(tip);
+                };
+                const onUp = () => {
+                    b.removeEventListener('pointermove', onMove); b.removeEventListener('pointerup', onUp); b.removeEventListener('pointercancel', onUp);
+                    tip.remove(); b.classList.remove('dragging');
+                    if (!moved) { open(); return; }
+                    if (!editable) { toast('Your role can’t change this task.'); return; }
+                    gtKeyFocus = false;
+                    if (d) gtShift(id, mode, d); else renderGantt();
+                };
+                b.addEventListener('pointermove', onMove); b.addEventListener('pointerup', onUp); b.addEventListener('pointercancel', onUp);
+            });
+        }
+        /** Click an empty day in someone's row: a small box to add a task that starts and ends that day. */
+        function gtQuickAdd(track, person, day, left) {
+            document.querySelectorAll('.gt2-add').forEach(n => n.remove());
+            const box = document.createElement('form'); box.className = 'gt2-add'; box.style.left = Math.max(0, left - 4) + 'px';
+            const inp = document.createElement('input'); inp.type = 'text'; inp.id = 'gt-add-input'; inp.maxLength = 500; inp.placeholder = 'New task, ' + gtFmt(day); inp.setAttribute('aria-label', 'New task for ' + person.name + ' on ' + gtFmt(day));
+            box.appendChild(inp);
+            let done = false;
+            const close = () => { done = true; box.remove(); };
+            box.addEventListener('submit', (e) => {
+                e.preventDefault(); const name = inp.value.trim(); if (!name) { close(); return; }
+                done = true;
+                const res = window.boardAddTask({ ownerUid: person.id, name, dueDate: day });
+                if (res.error) { toast(res.error); close(); return; }
+                const l = locateTask(res.id); if (l) { l.task.startDate = day; saveDatabase(); }
+                close(); render(); toast('Added “' + name + '” to ' + person.name + '’s ' + res.week + '.');
+            });
+            inp.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+            inp.addEventListener('blur', () => setTimeout(() => { if (!done) close(); }, 150));
+            track.appendChild(box); inp.focus();
+        }
+        (function () { let t = null; window.addEventListener('resize', () => { if (boardView !== 'gantt') return; clearTimeout(t); t = setTimeout(renderGantt, 150); }); })();
         (function () { const q = document.getElementById('search-tasks'); if (q) q.addEventListener('input', () => { if (boardView === 'kanban') renderKanban(); }); })();
         document.body.classList.toggle('view-kanban', boardView === 'kanban');
+        document.body.classList.toggle('view-gantt', boardView === 'gantt');
+        (function () { const q = document.getElementById('search-tasks'); if (q) q.addEventListener('input', () => { if (boardView === 'gantt') renderGantt(); }); })();
         document.querySelectorAll('[data-view]').forEach(b => { const on = b.dataset.view === boardView; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
 
         // ---------- Analytics: Planning tab (workload, burndown, dependencies at risk) ----------
@@ -3116,8 +3461,8 @@
         //  backwards, and never the done/not-done state or history), and views
         //  that count tasks show the chain once.
         // ═════════════════════════════════════════════════════════════════════
-        const CARRY_FIELDS = ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'dueDate', 'phaseId', 'subtasks', 'custom', 'icon', 'attachments', 'effort', 'skill', 'dependsOn'];
-        const CARRY_LABEL = { name: 'title', priority: 'priority', status: 'status', jiraId: 'reference', supportPersonId: 'support', supportPersonId2: 'support', dueDate: 'deadline', phaseId: 'phase', subtasks: 'sub-tasks', custom: 'fields', icon: 'icon', attachments: 'files', effort: 'effort', skill: 'skill needed', dependsOn: 'waits on' };
+        const CARRY_FIELDS = ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'dueDate', 'phaseId', 'subtasks', 'custom', 'icon', 'attachments', 'effort', 'skill', 'dependsOn', 'startDate'];
+        const CARRY_LABEL = { name: 'title', priority: 'priority', status: 'status', jiraId: 'reference', supportPersonId: 'support', supportPersonId2: 'support', dueDate: 'deadline', phaseId: 'phase', subtasks: 'sub-tasks', custom: 'fields', icon: 'icon', attachments: 'files', effort: 'effort', skill: 'skill needed', dependsOn: 'waits on', startDate: 'start date' };
         let carrySnap = new Map();
         function snapOf(t) { const o = {}; CARRY_FIELDS.forEach(f => { o[f] = JSON.stringify(t[f] ?? null); }); return o; }
         function takeCarrySnapshot() { carrySnap = new Map(allTaskLocs().map(l => [l.task.id, snapOf(l.task)])); }

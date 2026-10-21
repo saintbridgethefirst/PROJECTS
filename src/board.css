@@ -804,3 +804,72 @@
         .kb-col-head.wf { border-top: 3px solid var(--stage-color); }
         .kb-count.full { color: var(--warn, #ecc94b); }
         .kb-count.over { color: var(--bad, #f56565); font-weight: 800; }
+
+        /* Gantt: planned dates on a timeline (board-overrides.js ▸ renderGantt) */
+        #gantt-view { display: none; }
+        body.view-gantt #canvas-container { display: none; }
+        body.view-gantt #gantt-view { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 12px 18px 16px; gap: 12px; }
+        .gt2-toolbar .gt2-btn { min-height: 34px; padding: 6px 12px; }
+        .gt2-range { min-width: 150px; }
+        .gt2-seg button { padding: 6px 12px; }
+        .gt2-conflicts { color: var(--blocker); font-weight: 700; font-size: 12.5px; }
+        .gt2-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-panel); }
+        .gt2-grid { position: relative; min-width: 100%; }
+        .gt2-head { position: sticky; top: 0; z-index: 4; display: flex; height: 50px; background: var(--bg-header); border-bottom: 1px solid var(--border-color); }
+        .gt2-corner { position: sticky; left: 0; z-index: 5; flex: none; width: var(--gt-label); display: flex; align-items: center; padding: 0 14px; font-weight: 800; font-size: 13px; background: var(--bg-header); border-right: 1px solid var(--border-color); box-sizing: border-box; }
+        .gt2-days { position: relative; flex: none; height: 100%; }
+        .gt2-day { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border-left: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent); font-size: 11px; color: var(--text-muted); overflow: hidden; white-space: nowrap; box-sizing: border-box; }
+        .gt2-day b { font-size: 13px; color: var(--text-main); }
+        .gt2-day small { font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; }
+        .gt2-day.weekend { background: color-mix(in srgb, var(--text-main) 4%, transparent); }
+        .gt2-day.month-start { border-left-color: var(--text-muted); }
+        .gt2-day.month-start small { color: var(--text-main); font-weight: 800; }
+        .gt2-day.today { background: color-mix(in srgb, #ecc94b 22%, transparent); box-shadow: inset 0 -3px 0 #d69e2e; }
+        .gt2-day.today b { color: #b7791f; }
+        :root:not([data-theme="light"]) .gt2-day.today b { color: #f6e05e; }
+        .gt2-body { position: relative; }
+        .gt2-bg { position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 0; background-image: linear-gradient(to right, color-mix(in srgb, var(--border-color) 55%, transparent) 1px, transparent 1px); background-size: var(--gt-dw) 100%; }
+        .gt2-wkend { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--text-main) 4%, transparent); }
+        .gt2-todaycol { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, #ecc94b 13%, transparent); border-left: 1px solid color-mix(in srgb, #d69e2e 55%, transparent); border-right: 1px solid color-mix(in srgb, #d69e2e 55%, transparent); }
+        .gt2-row { display: flex; border-bottom: 1px solid var(--border-color); position: relative; }
+        .gt2-label { position: sticky; left: 0; z-index: 3; flex: none; width: var(--gt-label); display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--bg-panel); border-right: 1px solid var(--border-color); box-sizing: border-box; min-width: 0; }
+        .gt2-label .gt2-name { font-weight: 700; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }
+        .gt2-label .gt2-sub { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+        .gt2-av { width: 28px; height: 28px; min-width: 28px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; overflow: hidden; background: color-mix(in srgb, var(--line-color) 25%, var(--bg-main)); color: var(--text-main); font-weight: 800; }
+        .gt2-av img { width: 100%; height: 100%; object-fit: cover; }
+        .gt2-track { position: relative; flex: none; z-index: 1; }
+        .gt2-track.can-add { cursor: cell; }
+        .gt2-bar { --bar: #718096; position: absolute; height: 30px; display: flex; align-items: center; border-radius: 7px; background: color-mix(in srgb, var(--bar) 30%, var(--bg-panel)); border: 1px solid color-mix(in srgb, var(--bar) 75%, transparent); color: var(--text-main); font-size: 12.5px; font-weight: 650; overflow: hidden; cursor: pointer; box-sizing: border-box; z-index: 2; user-select: none; touch-action: pan-y; outline: none; transition: box-shadow .12s; }
+        .gt2-bar.editable { cursor: grab; }
+        .gt2-bar.dragging { cursor: grabbing; overflow: visible; z-index: 6; box-shadow: 0 8px 22px rgba(0, 0, 0, .3); }
+        .gt2-bar:hover, .gt2-bar:focus-visible, .gt2-bar.selected { box-shadow: 0 0 0 2px var(--line-color); z-index: 5; }
+        .gt2-bar.soft-start { border-left-style: dashed; }
+        .gt2-bar.soft-end { border-right-style: dashed; }
+        .gt2-bar.cut-l { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-width: 0; }
+        .gt2-bar.cut-r { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right-width: 0; }
+        .gt2-bar.done { opacity: .62; }
+        .gt2-bar.done .gt2-text { text-decoration: line-through; text-decoration-thickness: 1px; }
+        .gt2-bar.late { border-color: var(--blocker); box-shadow: inset 0 0 0 1px var(--blocker); }
+        .gt2-fill { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--bar) 45%, transparent); pointer-events: none; }
+        .gt2-text { position: relative; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+        .gt2-h { position: absolute; top: 0; bottom: 0; width: 9px; cursor: ew-resize; z-index: 2; }
+        .gt2-h.l { left: 0; } .gt2-h.r { right: 0; }
+        .gt2-bar.editable:hover .gt2-h::after, .gt2-bar.editable:focus-visible .gt2-h::after { content: ''; position: absolute; top: 8px; bottom: 8px; left: 3px; width: 3px; border-radius: 2px; background: color-mix(in srgb, var(--text-main) 55%, transparent); }
+        .gt2-tip { position: absolute; bottom: calc(100% + 6px); left: 0; padding: 4px 8px; border-radius: 6px; background: var(--text-main); color: var(--bg-main); font-size: 11.5px; white-space: nowrap; pointer-events: none; }
+        .gt2-links { position: absolute; top: 0; z-index: 2; pointer-events: none; overflow: visible; }
+        .gt2-link { fill: none; stroke: color-mix(in srgb, var(--text-muted) 85%, transparent); stroke-width: 1.6; pointer-events: stroke; }
+        .gt2-link.bad { stroke: var(--blocker); stroke-dasharray: 5 4; stroke-width: 2; }
+        .gt2-arrow.ok { fill: var(--text-muted); } .gt2-arrow.bad { fill: var(--blocker); }
+        .gt2-add { position: absolute; top: 6px; z-index: 7; }
+        .gt2-add input { width: 220px; margin: 0 !important; padding: 6px 9px !important; font-size: 13px; border-radius: 8px; border: 1px solid var(--line-color); background: var(--bg-main); color: var(--text-main); box-shadow: var(--shadow-base); }
+        .gt2-empty { padding: 40px 10px; text-align: center; position: relative; z-index: 1; }
+        .st-promote { border: 1px solid var(--border-color); background: transparent; color: var(--text-muted); border-radius: 6px; padding: 3px 7px; font-size: 11.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .st-promote:hover, .st-promote:focus-visible { color: var(--text-main); border-color: var(--line-color); }
+        .start-input { width: auto !important; margin: 0 !important; padding: 5px 8px !important; }
+        @media (max-width: 700px) {
+            body.view-gantt #gantt-view { padding: 8px 8px 10px; }
+            .gt2-toolbar .kb-hint { display: none; }
+            .gt2-range { min-width: 0; }
+            .gt2-label .kb-count { display: none; }
+            .gt2-label { padding: 0 8px; gap: 6px; }
+        }

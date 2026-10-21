@@ -38,6 +38,17 @@ export async function buildSample(user, now = Date.now()) {
     t.stage = named || open[i % open.length]; if (named) t.status = '';
   });
   Object.keys(team.doc.features || {}).forEach(k => { team.doc.features[k] = true; });
+  // The Gantt: open tasks get a planned start a few days before their deadline, and more
+  // "waits on" links, so the timeline shows real bars and arrows.
+  const weekStart = new Map((team.doc.weeks || []).map(w => [w.key, w.startDate]));
+  const back = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() - n); return d.toLocaleDateString('en-CA'); };
+  Object.values(team.tasks).forEach((t, i) => {
+    const ws = weekStart.get(t.weekId); if (!t.dueDate || !ws) return;
+    const s = back(t.dueDate, t.flag === 'completed' ? 2 : 1 + (i % 4)); t.startDate = s < ws ? ws : s;
+  });
+  const link = (id, on) => { const t = team.tasks[id]; if (t && team.tasks[on] && !(t.dependsOn || []).includes(on)) t.dependsOn = (t.dependsOn || []).concat(on); };
+  link('t_fuselageas_112', 't_tailboomji_108'); link('t_rangetestk_67', 't_telemetryl_56'); link('t_flighttest_42', 't_criticalde_33');
+  link('t_dropaccura_82', 't_payloadint_81'); link('t_autonomous_102', 't_targetdete_96'); link('t_batterymou_66', 't_wiringharn_60');
   const users = {};
   Object.values(raw.users).forEach(u => { if (u.uid !== ownerUid) users[u.uid] = u; });
   return { teamId: 't_sample_' + newId('x').slice(-10), team, users };

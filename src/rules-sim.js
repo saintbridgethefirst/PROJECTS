@@ -26,7 +26,7 @@ const ALLOWED = {
   risk: ['title', 'detail', 'likelihood', 'impact', 'ownerUid', 'status', 'mitigation', 'taskIds', 'reviewDate', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'],
   requirement: ['ref', 'title', 'detail', 'priority', 'status', 'taskIds', 'verification', 'verified', 'verifiedBy', 'verifiedDate', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'],
   paper: ['title', 'authors', 'year', 'venue', 'doi', 'url', 'notes', 'tags', 'status', 'taskIds', 'addedBy', 'addedByName', 'createdAt', 'updatedAt'],
-  task: ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag', 'dueDate', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments', 'categoryId', 'ownerUid', 'weekId', 'order', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt'],
+  task: ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag', 'dueDate', 'startDate', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments', 'categoryId', 'ownerUid', 'weekId', 'order', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt'],
 };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -107,6 +107,7 @@ function validTask(d) {
     (d.effort === undefined || d.effort === null || (typeof d.effort === 'number' && d.effort >= 0 && d.effort <= 999)) &&
     (d.dependsOn === undefined || (Array.isArray(d.dependsOn) && d.dependsOn.length <= 10 && d.dependsOn.every(x => typeof x === 'string'))) &&
     (d.carryOf === undefined || (typeof d.carryOf === 'string' && d.carryOf.length <= 64)) &&
+    (d.startDate === undefined || (typeof d.startDate === 'string' && d.startDate.length <= 10)) &&
     (d.skill === undefined || (typeof d.skill === 'string' && d.skill.length <= 40)) &&
     (d.timeLog === undefined || (Array.isArray(d.timeLog) && d.timeLog.length <= 200));
 }

@@ -153,7 +153,7 @@ service cloud.firestore {
     }
     function validTask(d) {
       return d.keys().hasOnly(['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag',
-          'dueDate', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments',
+          'dueDate', 'startDate', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments',
           'categoryId', 'ownerUid', 'weekId', 'order', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt'])
         && d.name is string && d.name.size() <= 500
         && d.priority in ['Minor', 'Major', 'Critical', 'Blocker']
@@ -169,6 +169,7 @@ service cloud.firestore {
         && (d.get('effort', null) == null || (d.get('effort', null) is number && d.get('effort', 0) >= 0 && d.get('effort', 0) <= 999))
         && d.get('dependsOn', []) is list && d.get('dependsOn', []).size() <= 10
         && d.get('carryOf', '') is string && d.get('carryOf', '').size() <= 64
+        && d.get('startDate', '') is string && d.get('startDate', '').size() <= 10
         && d.get('skill', '') is string && d.get('skill', '').size() <= 40
         && d.get('timeLog', []) is list && d.get('timeLog', []).size() <= 200;
     }

@@ -218,6 +218,7 @@ export function cleanTask(t, id, fields = []) {
     supportPersonId: sup(t.supportPersonId), supportPersonId2: sup(t.supportPersonId2),
     flag: FLAGS.includes(t.flag) ? t.flag : 'none',
     dueDate: isoOrEmpty(t.dueDate),
+    startDate: isoOrEmpty(t.startDate),
     phaseId: t.phaseId ? safeKey(t.phaseId) : '',
     repeat: cleanRepeat(t.repeat),
     stage: cleanStageId(t.stage),
@@ -410,7 +411,7 @@ export function findMentions(text, members) {
   return out.slice(0, LIMITS.mentionsPerComment);
 }
 
-export const TASK_CONTENT_FIELDS = ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag', 'dueDate', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments'];
+export const TASK_CONTENT_FIELDS = ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag', 'dueDate', 'startDate', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments'];
 export const TASK_LOCATION_FIELDS = ['categoryId', 'ownerUid', 'weekId', 'order'];
 
 /** ISO 8601 week number of a 'YYYY-MM-DD' date (or today). */

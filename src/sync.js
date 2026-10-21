@@ -21,7 +21,7 @@ const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)
 // Value used when the board leaves a task field unset (matches cleanTask's output).
 const TASK_DEFAULTS = {
   name: '', priority: 'Minor', status: '', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'none',
-  dueDate: '', phaseId: '', repeat: null, stage: '', effort: null, dependsOn: [], carryOf: '', skill: '', timeLog: [], completedDate: '', subtasks: [], history: [], custom: {}, icon: '', attachments: [],
+  dueDate: '', startDate: '', phaseId: '', repeat: null, stage: '', effort: null, dependsOn: [], carryOf: '', skill: '', timeLog: [], completedDate: '', subtasks: [], history: [], custom: {}, icon: '', attachments: [],
 };
 
 /**
