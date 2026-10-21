@@ -233,6 +233,18 @@ function renderHome() {
   homeUnsubs.push(() => window.removeEventListener('resize', sizeTaskPanel));
   homeMentionsRender = drawTiles;
   homeUnsubs.push(() => { homeMentionsRender = null; mentionUnsub && mentionUnsub(); });
+  // Demo: one click loads a made-up team with every feature in use (src/sample.js).
+  const sampleSec = $('#sample-section');
+  if (sampleSec) {
+    sampleSec.hidden = !(DEMO_MODE && backend.data.loadSample);
+    const sb = $('#demo-sample');
+    if (sb) sb.onclick = async () => {
+      sb.disabled = true;
+      try { const { buildSample } = await import('./sample.js'); const s = await buildSample(user); await backend.data.loadSample(s); toast('Sample team loaded: it’s yours to play with in this browser.', 5000); goTeam(s.teamId); }
+      catch (e) { console.error(e); toast('Couldn’t load the sample team: ' + (e.message || e), 6000); }
+      sb.disabled = false;
+    };
+  }
   homeUnsubs.push(backend.data.watchMyTeams(user.uid, (teams) => {
     teamList = teams.sort((a, b) => a.name.localeCompare(b.name)); homeSearchData.teams = teamList; myTeamsCache = teamList;
     const cw = $('#crossteam-btn'); if (cw) cw.hidden = teamList.length < 2;

@@ -288,6 +288,13 @@ export const data = {
     applyBatch(id, [{ type: 'set', path: 'team', data: teamDoc }, { type: 'set', path: 'members/' + ownerMember.uid, data: ownerMember }]);
     return id;
   },
+  /** Demo only: put a prepared sample team (src/sample.js) into this browser, its owner = me. */
+  async loadSample({ teamId, team, users }) {
+    const me = authCtx(); if (!me) throw Object.assign(new Error('Sign in first.'), { code: 'unauthenticated' });
+    store.teams[teamId] = clone(team);
+    Object.entries(users || {}).forEach(([uid, u]) => { if (!store.users[uid]) store.users[uid] = clone(u); });
+    persist(); return teamId;
+  },
   async acceptInvite(teamId, member, email) {
     applyBatch(teamId, [{ type: 'set', path: 'members/' + member.uid, data: member }, { type: 'delete', path: 'invites/' + normEmail(email) }]);
   },

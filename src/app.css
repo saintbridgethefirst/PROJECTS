@@ -734,3 +734,5 @@ button.tx-part:hover { border-color: var(--line-color); }
 .wf-limit { width: 64px; }
 .wf-acts { display: inline-flex; gap: 2px; }
 .tbl-scroll { overflow-x: auto; }
+
+.sample-card { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; margin-bottom: 12px; }
