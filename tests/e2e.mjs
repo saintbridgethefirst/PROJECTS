@@ -234,7 +234,7 @@ try {
     return XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
   });
   fs.writeFileSync('/tmp/tt-import.xlsx', Buffer.from(xlsxB64, 'base64'));
-  const [chooser] = await Promise.all([A.waitForEvent('filechooser'), A.click('#team-data-actions button:has-text("Import tasks")')]);
+  const [chooser] = await Promise.all([A.waitForEvent('filechooser'), A.click('#team-data-actions button:has-text("Import tasks")').then(() => A.click('#imp-choose'))]);
   await chooser.setFiles('/tmp/tt-import.xlsx');
   await A.waitForSelector('.modal:has-text("Import from")');
   const preview = await A.textContent('.modal');

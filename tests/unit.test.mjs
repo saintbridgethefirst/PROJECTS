@@ -768,3 +768,37 @@ test('tasksync: a week becoming old is read once; too many live weeks → listen
     assert.equal(f3.listeners[0].q.weekIds, null, 'over 30 live weeks: one listener for all tasks');
   } finally { Date.now = realNow; }
 });
+
+// ── Share this week (src/share.js) ──────────────────────────────────────────
+import { buildWeekShare, shareWeek, whatsappLink, MAX_ITEMS } from '../src/share.js';
+const SW = [{ key: 'w1', title: 'WEEK 1', startDate: '2026-10-12' }, { key: 'w2', title: 'WEEK 2', startDate: '2026-10-19' }];
+const row = (task, over = {}) => ({ task, person: 'Tom Reed', personId: 'u1', flag: 'none', stage: 'To do', completedOn: '', deadline: '', daysToDeadline: null, overdue: false, waitsOn: [], waitIssues: [], carryCount: 1, subtasks: [], ...over });
+test('share: the team week containing today, else the last 7 days', () => {
+  assert.equal(shareWeek(SW, '2026-10-21').label, 'WEEK 2 (19–25 Oct)');
+  assert.equal(shareWeek(SW, '2026-12-01').label, 'Last 7 days (25 Nov – 1 Dec)');
+});
+test('share: done, in progress, due, overdue, waiting and carried, WhatsApp-formatted', () => {
+  const rows = [
+    row('Landing gear CAD', { flag: 'completed', completedOn: '2026-10-20' }),
+    row('Old thing', { flag: 'completed', completedOn: '2026-10-01' }),
+    row('Payload mount', { stage: 'Doing', subtasks: [{ done: true }, { done: false }] }),
+    row('Order ESCs', { deadline: '2026-10-23', daysToDeadline: 2 }),
+    row('Wiring loom', { deadline: '2026-10-18', daysToDeadline: -3, overdue: true, stage: 'Doing' }),
+    row('Flight test', { waitsOn: ['Wiring loom'], waitIssues: ['Wiring loom is late'], carryCount: 2 }),
+  ];
+  const t = buildWeekShare({ team: { name: 'Drone Soc', weeks: SW }, rows, today: '2026-10-21', url: 'https://x.app/#/t/T' });
+  assert.ok(t.startsWith('*Drone Soc · WEEK 2 (19–25 Oct)*'));
+  assert.ok(t.includes('✅ *Done* (1)\n• Landing gear CAD — Tom Reed') && !t.includes('Old thing'), 'only this week’s completions');
+  assert.ok(t.includes('• Payload mount — Tom Reed (1/2 steps)'));
+  assert.ok(t.includes('• Order ESCs — Tom Reed (23 Oct)'));
+  assert.ok(t.includes('⚠️ *Overdue* (1)\n• Wiring loom — Tom Reed (3 days late)') && !t.match(/In progress[^]*Wiring loom[^]*Due/), 'overdue shown once, not also as in progress');
+  assert.ok(t.includes('(waits on Wiring loom)') && t.includes('↪ 1 task carried over'));
+  assert.ok(t.includes('📈 2 of 6 tasks done (33%)') && t.endsWith('👉 https://x.app/#/t/T'));
+  assert.ok(!buildWeekShare({ team: { name: 'D', weeks: SW }, rows, today: '2026-10-21' }, { names: false }).includes('Tom Reed'), 'names can be left out');
+});
+test('share: long lists are cut; a quiet week says so; the WhatsApp link carries the text', () => {
+  const many = Array.from({ length: MAX_ITEMS + 3 }, (_, i) => row('T' + i, { flag: 'completed', completedOn: '2026-10-20' }));
+  assert.ok(buildWeekShare({ team: { name: 'D', weeks: SW }, rows: many, today: '2026-10-21' }).includes('…and 3 more'));
+  assert.ok(buildWeekShare({ team: { name: 'D', weeks: SW }, rows: [row('Idle')], today: '2026-10-21' }).includes('A quiet week'));
+  assert.equal(whatsappLink('a & b'), 'https://wa.me/?text=a%20%26%20b');
+});

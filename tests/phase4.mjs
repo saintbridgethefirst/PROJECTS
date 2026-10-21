@@ -36,7 +36,7 @@ try {
   await p.waitForSelector('.node-cat'); await sleep(300);
   const tasks = () => p.evaluate(() => Object.values(Object.values(JSON.parse(localStorage.getItem('tt_demo_store_v1')).teams)[0].tasks));
   const importFile = async (name, mimeType, text) => {
-    const [chooser] = await Promise.all([p.waitForEvent('filechooser'), p.click('#team-data-actions button:has-text("Import tasks")')]);
+    const [chooser] = await Promise.all([p.waitForEvent('filechooser'), p.click('#team-data-actions button:has-text("Import tasks")').then(() => p.click('#imp-choose'))]);
     await chooser.setFiles({ name, mimeType, buffer: Buffer.from(text) });
     await p.waitForSelector('.modal .btn.primary:has-text("Import")');
   };

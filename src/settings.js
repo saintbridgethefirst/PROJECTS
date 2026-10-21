@@ -2,6 +2,7 @@
 //  Team settings: general (name, logo), members & invitations, roles &
 //  permissions, custom fields, integrations, and deleting the team.
 // ─────────────────────────────────────────────────────────────────────────────
+import { startFlag } from './start.js';
 import { APP_NAME, GOOGLE_CLIENT_ID, MS_CLIENT_ID, DEMO_MODE, LIMITS, STUDENT_EMAIL_CHECK, SERVER_EMAILS } from './config.js';
 import { PERMISSIONS, can, roleList, normEmail, isValidEmail } from './permissions.js';
 import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro } from './model.js';
@@ -47,6 +48,7 @@ const readOnlyNote = (txt) => el('div.read-only-note', {}, txt || 'View only —
 
 // ── Features: what this team uses ───────────────────────────────────────────
 function features(pane, ctx, { rerender } = {}) {
+  startFlag(ctx.session.teamId, ctx.user.uid, 'tools');
   const T = ctx.session.team; const editable = can(T, ctx.session.me, 'team.settings'); const on = cleanFeatures(T.features);
   const card = (f) => el('label.feature-card' + (on[f.key] ? '.on' : ''), { dataset: { feature: f.key } },
     el('span.feature-icon', { 'aria-hidden': 'true' }, f.icon),
@@ -406,6 +408,7 @@ function members(pane, ctx, { invites, getInvites, focusUid, rerender }) {
             el('details', { style: { marginTop: '8px' } }, el('summary', {}, 'Send it yourself as well'), shareBox(ctx, todo, T.name, role.value)))
         : shareBox(ctx, todo, T.name, role.value);
       lastInviteNotice = { teamId: s.teamId, node: notice, at: Date.now() };
+      startFlag(s.teamId, ctx.user.uid, 'invited');
       result.replaceChildren(notice);
       if (already.length) toast('Skipped (already members): ' + already.join(', '), 6000);
     });

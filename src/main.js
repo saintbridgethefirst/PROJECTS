@@ -33,6 +33,8 @@ import { startMonitor, report } from './monitor.js';
 import { yourDataField } from './yourdata.js';
 import * as saving from './saving.js';
 import { openFeedback } from './feedback.js';
+import { openShareWeek } from './share.js';
+import { renderStart } from './start.js';
 
 let backend = null;
 /** Shared state for the feature modules (yourdata.js, feedback.js…). */
@@ -544,8 +546,21 @@ async function openTeam(teamId) {
   s.onOnline = () => setSyncStatus(); window.addEventListener('online', s.onOnline); window.addEventListener('offline', s.onOnline);
 }
 
+// "Start here" checklist on a new team's board (start.js)
+function drawStart() {
+  if (!session || !session.team || !session.me) return;
+  try { renderStart(session, user.uid, {
+    tasks: () => import('./importer.js').then(m => m.importFromFile(window.TT)),
+    invite: () => window.TT.openSettings('members'),
+    tools: () => window.TT.openSettings('features'),
+    share: () => openShareWeek(ctx()),
+  }); } catch (e) { console.warn('start card', e); report('error', e); }   // never let the checklist break the board
+}
+window.TTStartRefresh = () => drawStart();
+
 function closeTeam() {
   if (!session) return;
+  document.getElementById('start-card')?.remove();
   session.unsub && session.unsub();
   session.unsubComments && session.unsubComments();
   session.unsubTemplates && session.unsubTemplates();
@@ -619,7 +634,7 @@ function refresh() {
   // own edit), don't redraw the whole board again.
   const sig = boardSignature(s, s.base);
   if (sig !== s.shownSig) { s.shownSig = sig; window.boardApplyModel(model); }
-  updateChrome(); updateActivityBadge();
+  updateChrome(); updateActivityBadge(); drawStart();
   if (pendingOpen && pendingOpen.teamId === s.teamId) { const id = pendingOpen.taskId; pendingOpen = null; setTimeout(() => window.boardOpenTask && window.boardOpenTask(id), 50); }
   syncMoney(s); syncResearch(s);
   refreshResearch(ctx());
@@ -943,6 +958,7 @@ window.TT = {
   refreshTeamStats: () => backend.data.callFunction('refreshTeamStats', {}),
   watchFeedback: (cb, onError) => (backend.data.watchFeedback ? backend.data.watchFeedback(cb, onError) : () => {}),
   openFeedback: (kind) => openFeedback(app, kind),
+  openShare: () => { if (session && session.booted) openShareWeek(ctx()); },
   watchClientErrors: (cb, onError) => backend.data.watchClientErrors ? backend.data.watchClientErrors(cb, onError) : () => {},
   watchEduTeams: (cb, onError) => backend.data.watchEduTeams ? backend.data.watchEduTeams(cb, onError) : () => {},
   async decideRequest(teamId, status) {

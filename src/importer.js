@@ -213,8 +213,40 @@ export function applyRows(model, rows, TT, { weekOrder } = {}) {
 }
 
 // ── UI ──────────────────────────────────────────────────────────────────────
-export async function importFromFile(TT) {
-  const file = await pickFile('.xlsx,.xls,.csv,.json'); if (file) await importFile(TT, file);
+/** Import window: what files work, a ready-made template, then pick or drop a file. */
+export function importFromFile(TT) {
+  const m = modal('📥 Import tasks', { narrow: true });
+  const go = async (file) => { if (!file) return; m.close(); await importFile(TT, file); };
+  const choose = el('button.btn.primary', { type: 'button', id: 'imp-choose', onclick: async () => go(await pickFile('.xlsx,.xls,.csv,.json')) }, 'Choose a file…');
+  const drop = el('div.imp-drop', { id: 'imp-drop' }, el('div', {}, el('b', {}, 'Drop a file here'), ' or ', choose), el('div.hint', {}, 'Excel (.xlsx), CSV or JSON. You see a preview first; nothing changes until you confirm, and Ctrl+Z undoes it.'));
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); go(e.dataTransfer.files && e.dataTransfer.files[0]); });
+  m.body.append(drop,
+    el('h4', {}, 'What you can bring in'),
+    el('ul.imp-list', {},
+      el('li', {}, el('b', {}, 'A spreadsheet'), ' (Excel or CSV): one row per task. Columns it understands: Task, Owner (email or name), Category, Week, Deadline, Priority, Status. Other column names like “Assignee”, “Due date” or “Summary” work too. ',
+        el('button.link-btn', { type: 'button', id: 'imp-template', onclick: () => downloadTemplate(TT) }, 'Download a template')),
+      el('li', {}, el('b', {}, 'Trello'), ': open the board ▸ Menu ▸ Print, export and share ▸ Export as JSON. Lists become categories.'),
+      el('li', {}, el('b', {}, 'Jira'), ': Filters ▸ Export ▸ CSV (all fields).'),
+      el('li', {}, el('b', {}, 'A TeamTrack backup'), ' (.json) or the old single-user tracker’s Excel file.')));
+  m.foot.append(el('button.btn.ghost', { type: 'button', onclick: m.close }, 'Cancel'));
+}
+
+/** An Excel file with the columns the importer reads, and two example rows from this team. */
+function downloadTemplate(TT) {
+  const X = window.XLSX; if (!X) return toast('The spreadsheet tools are still loading — try again in a second.');
+  const people = (TT.members || []).slice(0, 2).map(m => m.email || m.name);
+  const today = new Date(); const iso = (d) => d.toLocaleDateString('en-CA'); const inDays = (n) => iso(new Date(today.getTime() + n * 864e5));
+  const rows = [
+    ['Task', 'Owner (email or name)', 'Category', 'Week', 'Deadline (YYYY-MM-DD)', 'Priority', 'Status'],
+    ['Design the landing gear mount', people[0] || 'name@uni.ac.uk', 'Design', '', inDays(5), 'Major', 'In progress'],
+    ['Order four ESCs', people[1] || people[0] || 'name@uni.ac.uk', 'Parts', '', inDays(10), 'Minor', ''],
+  ];
+  const ws = X.utils.aoa_to_sheet(rows); ws['!cols'] = [{ wch: 34 }, { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 22 }, { wch: 10 }, { wch: 14 }];
+  const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Tasks');
+  X.writeFile(wb, 'TeamTrack-import-template.xlsx');
+  toast('Template downloaded: fill it in, then drop it here. Leave Week empty and each task goes into the week of its deadline (or this week).', 7000);
 }
 
 export async function importFile(TT, file) {
