@@ -140,7 +140,8 @@
             if (logged) { const e = document.createElement('span'); e.className = 'effort-chip time-chip' + (task.effort && logged > task.effort ? ' over' : ''); e.textContent = '🕒 ' + fmtHours(logged).replace('h', '') + (TT.feature('planning') && task.effort ? ' / ' + fmtHours(task.effort) : 'h'); e.title = 'Hours logged' + (task.effort ? ' against the ' + fmtHours(task.effort) + ' estimate' : ''); plan.appendChild(e); }
             else if (TT.feature('planning') && task.effort !== null && task.effort !== undefined) { const e = document.createElement('span'); e.className = 'effort-chip'; e.textContent = '⏱ ' + fmtHours(task.effort); e.title = 'Estimated effort'; plan.appendChild(e); }
             if (TT.feature('people') && task.skill && task.flag !== 'completed') { const e = document.createElement('span'); e.className = 'effort-chip skill-chip'; e.textContent = '🎯 ' + task.skill; e.title = 'Needs: ' + task.skill; plan.appendChild(e); }
-            if (task.flag !== 'completed' && TT.stageOf(task) === 'doing') { const d = document.createElement('span'); d.className = 'stage-chip'; d.textContent = '🔵 Doing'; plan.appendChild(d); }
+            if (task.flag !== 'completed' && TT.customWorkflow) plan.appendChild(stageBar(task));
+            else if (task.flag !== 'completed' && TT.stageOf(task) === 'doing') { const d = document.createElement('span'); d.className = 'stage-chip'; d.textContent = '🔵 Doing'; plan.appendChild(d); }
             const dc = TT.feature('planning') ? depChip(task) : null; if (dc) plan.appendChild(dc);
             const cc = carryChip(task); if (cc) plan.appendChild(cc);
             const nb = TT.feature('notebook') ? TT.notebookCount(task.id) : 0; if (nb) { const n = document.createElement('span'); n.className = 'effort-chip nb-chip'; n.textContent = '📓 ' + nb; n.title = nb + ' lab notebook entr' + (nb === 1 ? 'y' : 'ies'); plan.appendChild(n); }
@@ -443,7 +444,7 @@
                     person: r.person.name, personId: r.person.id, category: r.cat.name, week: r.week.title, weekStart: r.week.startDate || '',
                     task: r.t.name, priority: r.t.priority, status: r.t.status, ref: r.t.jiraId || '', flag: r.status,
                     deadline: r.due, daysToDeadline: r.days, overdue: r.overdue, completedOn: r.t.completedDate || '', phase: (phaseOf(r.t) || {}).name || '',
-                    stage: STAGE_LABEL[TT.stageOf(r.t)], effort: r.t.effort ?? null, waitsOn: prereqs(r.t).map(l => l.task.name),
+                    stage: STAGE_LABEL[TT.stageOf(r.t)], stageName: stageNameOf(r.t), effort: r.t.effort ?? null, waitsOn: prereqs(r.t).map(l => l.task.name),
                     subtasks: (r.t.subtasks || []).map(s => ({ title: s.title, done: !!s.completed })),
                     supporting: r.sup, files: (r.t.attachments || []).map(a => ({ name: a.name, url: a.url, provider: a.provider })),
                     custom: Object.fromEntries(fields.map(f => [f.name, displayCustom(f, r.t.custom && r.t.custom[f.id])]).filter(([, v]) => v !== '')),
@@ -1168,7 +1169,21 @@
         // ═════════════════════════════════════════════════════════════════════
         const STAGE_LABEL = { todo: 'To do', doing: 'Doing', done: 'Done' };
         const STAGE_ICON = { todo: '⚪', doing: '🔵', done: '✅' };
-        const STAGE_ORDER = ['todo', 'doing', 'done'];
+        // The team's stages (Settings ▸ Workflow): [{ id, name, kind, color, limit }]. Without a
+        // workflow these are To do / Doing / Done with ids equal to their kinds.
+        function wfStages() { return TT.workflow; }
+        function stageById(id) { return wfStages().find(s => s.id === id) || null; }
+        function stageNameOf(t) { const s = stageById(TT.stageId(t)); return s ? s.name : STAGE_LABEL[TT.stageOf(t)]; }
+        function stageIcon(s) { return TT.customWorkflow ? '' : STAGE_ICON[s.kind] + ' '; }
+        /** The thin bar on a card: one segment per stage, filled as far as the task has got. */
+        function stageBar(task) {
+            const stages = wfStages(); const i = stages.findIndex(s => s.id === TT.stageId(task)); const cur = stages[i] || stages[0];
+            const w = document.createElement('span'); w.className = 'stage-bar'; w.title = 'Stage: ' + cur.name + ' (' + (i + 1) + ' of ' + stages.length + ')';
+            const segs = document.createElement('span'); segs.className = 'stage-segs'; segs.setAttribute('aria-hidden', 'true');
+            stages.forEach((s, j) => { const g = document.createElement('i'); if (j <= i) g.style.background = s.color; segs.appendChild(g); });
+            const name = document.createElement('span'); name.className = 'stage-name'; name.textContent = cur.name; name.style.color = cur.color;
+            w.append(segs, name); return w;
+        }
         function fmtHours(h) { return h === null || h === undefined ? '' : String(+Number(h).toFixed(2)) + 'h'; }
         function weekIdx(key) { return weeksData.findIndex(w => w.key === key); }
         // A drawing pass (board, Kanban, analytics) reads the same task list and carry chains
@@ -1188,10 +1203,14 @@
         function weekTitle(key) { const w = weeksData.find(x => x.key === key); return w ? w.title : ''; }
 
         function setTaskStage(task, stage) {
-            const before = TT.stageOf(task); if (before === stage) return false;
-            if (stage === 'done') { task.flag = 'completed'; stampCompletion(task); }
-            else { if (task.flag === 'completed') { task.flag = 'none'; stampCompletion(task); } task.stage = stage; }
-            logHistory(task, 'Stage', STAGE_LABEL[before], STAGE_LABEL[stage]);
+            // stage = one of the team's stage ids (or a kind: 'todo' / 'doing' / 'done' → its first stage of that kind)
+            const to = stageById(stage) || wfStages().find(s => s.kind === stage); if (!to) return false;
+            if (TT.stageId(task) === to.id) return false;
+            const fromName = stageNameOf(task);
+            if (to.kind === 'done') { task.flag = 'completed'; stampCompletion(task); }
+            else { if (task.flag === 'completed') { task.flag = 'none'; stampCompletion(task); } task.stage = to.id; }
+            logHistory(task, 'Stage', fromName, to.name);
+            if (to.limit) { const n = kbRows().filter(l => TT.stageId(l.task) === to.id).length; if (n > to.limit) toast(to.name + ' now has ' + n + ' tasks; its limit is ' + to.limit + '. Finish one before starting another?', 5000); }
             saveDatabase(); render();
             if (activeNode && activeNode.id === task.id) openEditor(task);
             return true;
@@ -1263,7 +1282,7 @@
             const items = latestOfChains(locs).filter(l => rootOf(l.task.id) !== rootOf(task.id) && !have.has(rootOf(l.task.id)) && !makesLoop(task, l.task.id)).map(l => {
                 const st = TT.stageOf(l.task);
                 return { group: l.person.name, icon: STAGE_ICON[st], title: l.task.name || 'Untitled task',
-                    sub: [weekTitle(l.weekKey), STAGE_LABEL[st], l.task.dueDate && 'due ' + fmtShort(l.task.dueDate), l.task.jiraId].filter(Boolean).join(' · '),
+                    sub: [weekTitle(l.weekKey), stageNameOf(l.task), l.task.dueDate && 'due ' + fmtShort(l.task.dueDate), l.task.jiraId].filter(Boolean).join(' · '),
                     fields: [[l.task.name, 3], [l.task.jiraId, 2], [l.person.name, 1], [weekTitle(l.weekKey), 1]], suggest: true,
                     run: () => addPrereq(task, l.task.id) };
             });
@@ -1286,12 +1305,13 @@
         // ---------- Editor: stage, effort, waits on / blocks ----------
         function planningSection(task, editable) {
             const s = section(TT.feature('planning') ? 'Planning' : 'Stage');
-            const st = TT.stageOf(task);
-            const seg = document.createElement('div'); seg.className = 'seg-toggle stage-toggle'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Stage');
-            STAGE_ORDER.forEach(k => {
-                const b = document.createElement('button'); b.type = 'button'; b.dataset.stage = k; b.className = k === st ? 'on' : '';
-                b.setAttribute('aria-pressed', String(k === st)); b.textContent = STAGE_ICON[k] + ' ' + STAGE_LABEL[k];
-                b.onclick = () => setTaskStage(task, k); seg.appendChild(b);
+            const st = TT.stageId(task);
+            const seg = document.createElement('div'); seg.className = 'seg-toggle stage-toggle' + (TT.customWorkflow ? ' wf' : ''); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Stage');
+            wfStages().forEach(s2 => {
+                const b = document.createElement('button'); b.type = 'button'; b.dataset.stage = s2.id; b.className = s2.id === st ? 'on' : '';
+                b.setAttribute('aria-pressed', String(s2.id === st));
+                if (TT.customWorkflow) { const d = document.createElement('i'); d.className = 'stage-dot'; d.style.background = s2.color; b.append(d, s2.name); } else b.textContent = stageIcon(s2) + s2.name;
+                b.onclick = () => setTaskStage(task, s2.id); seg.appendChild(b);
             });
             const row1 = document.createElement('div'); row1.className = 'plan-row';
             const l1 = document.createElement('span'); l1.className = 'plan-l'; l1.textContent = 'Stage'; row1.append(l1, seg);
@@ -1338,8 +1358,8 @@
             return s;
         }
         function stageMenuItem(loc) {
-            const cur = TT.stageOf(loc.task);
-            return { icon: '🗂️', label: 'Stage', submenu: STAGE_ORDER.map(k => ({ icon: k === cur ? '✓' : STAGE_ICON[k], label: STAGE_LABEL[k], action: () => setTaskStage(loc.task, k) })) };
+            const cur = TT.stageId(loc.task);
+            return { icon: '🗂️', label: 'Stage', submenu: wfStages().map(s2 => ({ icon: s2.id === cur ? '✓' : (TT.customWorkflow ? '●' : STAGE_ICON[s2.kind]), label: s2.name, action: () => setTaskStage(loc.task, s2.id) })) };
         }
 
         // ---------- Board ⇄ Kanban view ----------
@@ -1407,7 +1427,7 @@
         function kbCard(l, showOwner) {
             const t = l.task; const editable = TT.canEditOwner(l.person.id);
             const c = document.createElement('div'); c.className = 'kb-card prio-' + String(t.priority).toLowerCase(); c.id = 'kb-' + t.id; c.dataset.id = t.id; c.tabIndex = 0;
-            c.setAttribute('role', 'button'); c.setAttribute('aria-label', t.name + ', ' + STAGE_LABEL[TT.stageOf(t)] + (editable ? '. Alt + arrow keys move it between columns.' : ''));
+            c.setAttribute('role', 'button'); c.setAttribute('aria-label', t.name + ', ' + stageNameOf(t) + (editable ? '. Alt + arrow keys move it between columns.' : ''));
             if (activeNode && activeNode.id === t.id) c.classList.add('selected');
             const title = document.createElement('div'); title.className = 'kb-title';
             if (t.icon && !t.icon.startsWith('data:')) { const ic = document.createElement('span'); ic.className = 'task-icon'; ic.textContent = t.icon; title.appendChild(ic); }
@@ -1435,8 +1455,8 @@
             c.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); return; }
                 if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && editable) {
-                    e.preventDefault(); const i = STAGE_ORDER.indexOf(TT.stageOf(t)); const j = i + (e.key === 'ArrowRight' ? 1 : -1);
-                    if (j >= 0 && j < STAGE_ORDER.length && setTaskStage(t, STAGE_ORDER[j])) { const n2 = document.getElementById('kb-' + t.id); if (n2) n2.focus(); toast('Moved to ' + STAGE_LABEL[STAGE_ORDER[j]] + '.', 2000); }
+                    e.preventDefault(); const stages = wfStages(); const i = stages.findIndex(s2 => s2.id === TT.stageId(t)); const j = i + (e.key === 'ArrowRight' ? 1 : -1);
+                    if (j >= 0 && j < stages.length && setTaskStage(t, stages[j].id)) { const n2 = document.getElementById('kb-' + t.id); if (n2) n2.focus(); toast('Moved to ' + stages[j].name + '.', 2000); }
                 }
             });
             if (editable) {
@@ -1475,11 +1495,15 @@
             const sum = document.createElement('span'); sum.className = 'kb-sum'; sum.textContent = rows.length + (rows.length === 1 ? ' task' : ' tasks') + (hours ? ' · ' + fmtHours(hours) + ' estimated' : ''); bar.appendChild(sum);
             const hint = document.createElement('span'); hint.className = 'kb-hint'; hint.textContent = 'Drag cards between columns · Alt + ← → with the keyboard'; bar.appendChild(hint);
 
-            const board = document.createElement('div'); board.className = 'kb-board' + (kbLanes === 'person' ? ' with-lanes' : '');
+            const stages = wfStages();
+            const board = document.createElement('div'); board.className = 'kb-board' + (kbLanes === 'person' ? ' with-lanes' : ''); board.style.setProperty('--kb-cols', stages.length);
             const head = document.createElement('div'); head.className = 'kb-head';
-            STAGE_ORDER.forEach(st => {
-                const items = rows.filter(l => TT.stageOf(l.task) === st); const h = items.filter(l => l.task.effort).reduce((a, l) => a + l.task.effort, 0);
-                const d = document.createElement('div'); d.className = 'kb-col-head kb-' + st; d.innerHTML = '<span class="kb-col-name">' + STAGE_ICON[st] + ' ' + STAGE_LABEL[st] + '</span><span class="kb-count">' + items.length + '</span>' + (h ? '<span class="kb-hours">' + esc(fmtHours(h)) + '</span>' : '');
+            stages.forEach(s2 => {
+                const items = rows.filter(l => TT.stageId(l.task) === s2.id); const h = items.filter(l => l.task.effort).reduce((a, l) => a + l.task.effort, 0);
+                const d = document.createElement('div'); d.className = 'kb-col-head kb-' + s2.kind + (TT.customWorkflow ? ' wf' : ''); d.dataset.stage = s2.id; d.style.setProperty('--stage-color', s2.color);
+                const over = s2.limit && items.length > s2.limit, full = s2.limit && items.length === s2.limit;
+                d.innerHTML = '<span class="kb-col-name">' + (TT.customWorkflow ? '<i class="stage-dot" style="background:' + esc(s2.color) + '"></i>' : esc(STAGE_ICON[s2.kind]) + ' ') + esc(s2.name) + '</span>'
+                    + '<span class="kb-count' + (over ? ' over' : full ? ' full' : '') + '"' + (s2.limit ? ' title="At most ' + s2.limit + ' at a time"' : '') + '>' + items.length + (s2.limit ? ' / ' + s2.limit : '') + '</span>' + (h ? '<span class="kb-hours">' + esc(fmtHours(h)) + '</span>' : '');
                 head.appendChild(d);
             });
             board.appendChild(head);
@@ -1488,14 +1512,15 @@
             lanes.forEach(lane => {
                 if (kbLanes === 'person') { const lh = document.createElement('div'); lh.className = 'kb-lane-head'; lh.textContent = '👤 ' + lane.name + ' · ' + lane.rows.length; board.appendChild(lh); }
                 const laneEl = document.createElement('div'); laneEl.className = 'kb-lane';
-                STAGE_ORDER.forEach(st => {
-                    const col = document.createElement('div'); col.className = 'kb-list kb-' + st; col.setAttribute('aria-label', STAGE_LABEL[st] + (lane.name ? ' – ' + lane.name : ''));
-                    const items = lane.rows.filter(l => TT.stageOf(l.task) === st).sort(kbSort(st));
+                stages.forEach(s2 => {
+                    const st = s2.kind;
+                    const col = document.createElement('div'); col.className = 'kb-list kb-' + st; col.dataset.stage = s2.id; col.setAttribute('aria-label', s2.name + (lane.name ? ' – ' + lane.name : ''));
+                    const items = lane.rows.filter(l => TT.stageId(l.task) === s2.id).sort(kbSort(st));
                     const CAP = st === 'done' ? 40 : 400;
                     items.slice(0, CAP).forEach(l => col.appendChild(kbCard(l, kbLanes !== 'person')));
                     if (items.length > CAP) { const m = document.createElement('div'); m.className = 'kb-more'; m.textContent = '+ ' + (items.length - CAP) + ' more completed (narrow the weeks to see them)'; col.appendChild(m); }
                     if (!items.length) { const m = document.createElement('div'); m.className = 'kb-placeholder'; m.textContent = st === 'doing' ? 'Drag a task here when you start it' : st === 'done' ? 'Finished tasks land here' : 'Nothing waiting'; col.appendChild(m); }
-                    kbDropZone(col, st, lane.id); laneEl.appendChild(col);
+                    kbDropZone(col, s2.id, lane.id); laneEl.appendChild(col);
                 });
                 board.appendChild(laneEl);
             });

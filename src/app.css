@@ -721,3 +721,16 @@ button.tx-part:hover { border-color: var(--line-color); }
 .imp-drop.over { border-color: var(--line-color); background: color-mix(in srgb, var(--line-color) 8%, transparent); }
 .imp-list { padding-left: 18px; font-size: 13px; line-height: 1.55; }
 .imp-list li { margin-bottom: 6px; }
+
+/* Settings ▸ Workflow */
+.wf-templates { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+.wf-templates .hint { font-weight: 400; }
+.wf-table td { vertical-align: middle; white-space: nowrap; }
+.wf-table input, .wf-table select { background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 13px; }
+.wf-table input:focus, .wf-table select:focus { outline: 2px solid var(--line-color); outline-offset: 1px; }
+.wf-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+.wf-templates .btn.primary .hint { color: inherit; opacity: .85; }
+.wf-name { width: 150px; }
+.wf-limit { width: 64px; }
+.wf-acts { display: inline-flex; gap: 2px; }
+.tbl-scroll { overflow-x: auto; }

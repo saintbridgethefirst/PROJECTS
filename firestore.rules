@@ -50,8 +50,9 @@ service cloud.firestore {
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
     function validTeam(d) {
-      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev'])
+      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow'])
         && d.get('archiveRev', 0) is int
+        && (d.get('workflow', null) == null || (d.workflow is map && d.workflow.keys().hasOnly(['stages', 'moved']) && d.workflow.stages is list && d.workflow.stages.size() >= 2 && d.workflow.stages.size() <= 10))
         && d.name is string && d.name.size() > 0 && d.name.size() <= 80
         && d.logo is string && d.logo.size() <= 220000
         && d.fields is list && d.fields.size() <= 30
@@ -164,7 +165,7 @@ service cloud.firestore {
         && d.icon is string && d.icon.size() <= 40000
         && d.get('phaseId', '') is string && d.get('phaseId', '').size() <= 64
         && (d.get('repeat', null) == null || d.get('repeat', null) is map)
-        && d.get('stage', '') in ['', 'todo', 'doing']
+        && d.get('stage', '') is string && d.get('stage', '').matches('^[A-Za-z0-9_-]{0,40}$')
         && (d.get('effort', null) == null || (d.get('effort', null) is number && d.get('effort', 0) >= 0 && d.get('effort', 0) <= 999))
         && d.get('dependsOn', []) is list && d.get('dependsOn', []).size() <= 10
         && d.get('carryOf', '') is string && d.get('carryOf', '').size() <= 64
@@ -269,12 +270,12 @@ service cloud.firestore {
       allow update: if isMember(t) && validTeam(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.createdAt == resource.data.createdAt
-        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev'])
+        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow'])
         // archiveRev: changed by any save to an old week, so other devices re-read old weeks (backend/tasksync.js)
         && (!changed().hasAny(['archiveRev']) || can(t, 'tasks.editOwn') || can(t, 'tasks.editAll'))
         && (!changed().hasAny(['subteams']) || can(t, 'team.settings') || can(t, 'members.manage'))
         && (!changed().hasAny(['weeks']) || can(t, 'weeks.manage'))
-        && (!changed().hasAny(['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features']) || can(t, 'team.settings'))
+        && (!changed().hasAny(['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features', 'workflow']) || can(t, 'team.settings'))
         && (!changed().hasAny(['roles']) || can(t, 'roles.manage'));
       allow delete: if isMember(t) && myRole(t) == 'owner';
 

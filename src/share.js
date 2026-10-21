@@ -52,7 +52,7 @@ export function buildWeekShare(data, opts = {}) {
   const parts = [
     '*' + team.name + (opts.scopeLabel ? ' · ' + opts.scopeLabel : '') + ' · ' + wk.label + '*',
     list('✅ *Done*', done, r => line(r)),
-    list('🔄 *In progress*', doing, r => { const st = r.subtasks || []; return line(r, st.length ? st.filter(x => x.done).length + '/' + st.length + ' steps' : ''); }),
+    list('🔄 *In progress*', doing, r => { const st = r.subtasks || []; return line(r, [r.stageName && r.stageName !== 'Doing' ? r.stageName : '', st.length ? st.filter(x => x.done).length + '/' + st.length + ' steps' : ''].filter(Boolean).join(', ')); }),
     list('⏰ *Due in the next 7 days*', soon, r => line(r, when(r))),
     list('⚠️ *Overdue*', overdue, r => line(r, -r.daysToDeadline + ' day' + (r.daysToDeadline === -1 ? '' : 's') + ' late')),
     list('⛔ *Waiting on other tasks*', waiting, r => line(r, 'waits on ' + r.waitsOn.slice(0, 2).join(', '))),

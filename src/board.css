@@ -691,7 +691,7 @@
         .kb-check input { width: 16px; height: 16px; margin: 0 !important; accent-color: var(--line-color); }
         .kb-sum { font-weight: 700; color: var(--text-main); }
         .kb-hint { margin-left: auto; font-size: 12px; }
-        .kb-board { flex: 1 1 auto; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); grid-auto-rows: max-content; gap: 0 14px; align-content: start; }
+        .kb-board { flex: 1 1 auto; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(var(--kb-cols, 3), minmax(240px, 1fr)); grid-auto-rows: max-content; gap: 0 14px; align-content: start; }
         .kb-board:not(.with-lanes) { grid-template-rows: max-content 1fr; }
         .kb-head, .kb-lane { display: contents; }
         .kb-col-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 8px; border-radius: 10px; background: var(--bg-header); border: 1px solid var(--border-color); font-weight: 800; font-size: 13.5px; }
@@ -720,7 +720,7 @@
         .kb-empty { grid-column: 1 / -1; padding: 40px 10px; }
         @media (max-width: 1100px) {
             body.view-kanban #kanban-view { padding: 10px 10px 12px; }
-            .kb-board { grid-template-columns: repeat(3, minmax(250px, 82vw)); scroll-snap-type: x mandatory; }
+            .kb-board { grid-template-columns: repeat(var(--kb-cols, 3), minmax(250px, 82vw)); scroll-snap-type: x mandatory; }
             .kb-col-head, .kb-list { scroll-snap-align: start; }
             .kb-hint { display: none; }
         }
@@ -792,3 +792,15 @@
    (a 100-person board is ~70,000 elements). Rows render normally as they scroll into view. */
 #nodes-container > .row-person { content-visibility: auto; contain-intrinsic-size: auto 320px; }
 @media print { #nodes-container > .row-person { content-visibility: visible; } }
+
+        /* Workflow stages (Settings ▸ Workflow) */
+        .stage-bar { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; }
+        .stage-segs { display: inline-flex; gap: 2px; }
+        .stage-segs i { width: 12px; height: 5px; border-radius: 3px; background: var(--border-color); }
+        .stage-name { white-space: nowrap; }
+        .stage-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; flex: none; }
+        .stage-toggle.wf { flex-wrap: wrap; }
+        .stage-toggle.wf button { display: inline-flex; align-items: center; }
+        .kb-col-head.wf { border-top: 3px solid var(--stage-color); }
+        .kb-count.full { color: var(--warn, #ecc94b); }
+        .kb-count.over { color: var(--bad, #f56565); font-weight: 800; }

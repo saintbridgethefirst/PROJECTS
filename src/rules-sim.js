@@ -7,7 +7,7 @@ import { isAcademicEmail, EDU_TEAMS_PER_YEAR } from './model.js';
 import { PRIORITIES, FLAGS } from './model.js';
 
 const ALLOWED = {
-  team: ['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev'],
+  team: ['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow'],
   user: ['photo', 'theme', 'menuStyle', 'notify', 'updatedAt'],
   member: ['uid', 'email', 'name', 'photo', 'roleId', 'joinedAt'],
   invite: ['email', 'roleId', 'teamName', 'invitedBy', 'invitedByName', 'createdAt'],
@@ -44,7 +44,8 @@ function validTeam(d) {
     (d.capacity === undefined || (typeof d.capacity === 'number' && d.capacity >= 0 && d.capacity <= 80)) &&
     (d.features === undefined || (d.features && typeof d.features === 'object' && !Array.isArray(d.features) && Object.keys(d.features).length <= 30 && Object.values(d.features).every(v => typeof v === 'boolean'))) &&
     (d.subteams === undefined || (Array.isArray(d.subteams) && d.subteams.length <= 20)) &&
-    (d.plan === undefined || validPlan(d.plan)) && (d.archiveRev === undefined || Number.isInteger(d.archiveRev));
+    (d.plan === undefined || validPlan(d.plan)) && (d.archiveRev === undefined || Number.isInteger(d.archiveRev)) &&
+    (d.workflow === undefined || d.workflow === null || (d.workflow && typeof d.workflow === 'object' && hasOnly(d.workflow, ['stages', 'moved']) && Array.isArray(d.workflow.stages) && d.workflow.stages.length >= 2 && d.workflow.stages.length <= 10));
 }
 function validPhoto(d) { const p = d.photo === undefined ? '' : d.photo; return typeof p === 'string' && p.length <= 60000; }
 function validComment(d) {
@@ -102,7 +103,7 @@ function validTask(d) {
     typeof d.icon === 'string' && d.icon.length <= 40000 &&
     (d.phaseId === undefined || (typeof d.phaseId === 'string' && d.phaseId.length <= 64)) &&
     (d.repeat === undefined || d.repeat === null || (typeof d.repeat === 'object' && !Array.isArray(d.repeat))) &&
-    (d.stage === undefined || ['', 'todo', 'doing'].includes(d.stage)) &&
+    (d.stage === undefined || (typeof d.stage === 'string' && /^[A-Za-z0-9_-]{0,40}$/.test(d.stage))) &&
     (d.effort === undefined || d.effort === null || (typeof d.effort === 'number' && d.effort >= 0 && d.effort <= 999)) &&
     (d.dependsOn === undefined || (Array.isArray(d.dependsOn) && d.dependsOn.length <= 10 && d.dependsOn.every(x => typeof x === 'string'))) &&
     (d.carryOf === undefined || (typeof d.carryOf === 'string' && d.carryOf.length <= 64)) &&
@@ -190,11 +191,11 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (!meMember) deny('not a member');
       if (!validTeam(after) || after.ownerUid !== before.ownerUid || after.createdAt !== before.createdAt) deny('invalid team update');
       const ch = changedKeys(before, after);
-      if (!ch.every(k => ['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev'].includes(k))) deny('field not editable');
+      if (!ch.every(k => ['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow'].includes(k))) deny('field not editable');
       if (ch.includes('archiveRev') && !(can('tasks.editOwn') || can('tasks.editAll'))) deny('archiveRev');
       if (ch.includes('subteams') && !(can('team.settings') || can('members.manage'))) deny('sub-teams');
       if (ch.includes('weeks') && !can('weeks.manage')) deny('weeks');
-      if (ch.some(k => ['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features'].includes(k)) && !can('team.settings')) deny('settings');
+      if (ch.some(k => ['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features', 'workflow'].includes(k)) && !can('team.settings')) deny('settings');
       if (ch.includes('roles') && !can('roles.manage')) deny('roles');
       return;
     }

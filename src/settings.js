@@ -5,12 +5,12 @@
 import { startFlag } from './start.js';
 import { APP_NAME, GOOGLE_CLIENT_ID, MS_CLIENT_ID, DEMO_MODE, LIMITS, STUDENT_EMAIL_CHECK, SERVER_EMAILS } from './config.js';
 import { PERMISSIONS, can, roleList, normEmail, isValidEmail } from './permissions.js';
-import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro } from './model.js';
+import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro } from './model.js';
 import { el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 
 const TABS = [
   ['general', 'General'], ['members', 'Members'], ['roles', 'Roles & permissions'],
-  ['plan', 'Plan'], ['features', 'Features'], ['subteams', 'Sub-teams'], ['phases', 'Phases'], ['templates', 'Templates'], ['fields', 'Fields'], ['integrations', 'Integrations'], ['danger', 'Delete team'],
+  ['plan', 'Plan'], ['features', 'Features'], ['workflow', 'Workflow'], ['subteams', 'Sub-teams'], ['phases', 'Phases'], ['templates', 'Templates'], ['fields', 'Fields'], ['integrations', 'Integrations'], ['danger', 'Delete team'],
 ];
 const FIELD_TYPE_LABEL = { text: 'Text', number: 'Number', date: 'Date', select: 'Dropdown', checkbox: 'Checkbox', url: 'Link', person: 'Team member' };
 
@@ -35,7 +35,7 @@ export function openSettings(ctx, tab = 'general', focusUid = null) {
     nav.replaceChildren(...TABS.filter(([k]) => (k !== 'danger' || me().roleId === 'owner') && (k !== 'subteams' || cleanFeatures(T().features).subteams))
       .map(([k, label]) => el('button' + (k === current ? '.on' : ''), { type: 'button', onclick: () => { current = k; render(); } }, label)));
     pane.replaceChildren();
-    const fn = { general, members, roles, plan, features, subteams, phases, templates, fields, integrations, danger }[current];
+    const fn = { general, members, roles, plan, features, workflow, subteams, phases, templates, fields, integrations, danger }[current];
     fn(pane, ctx, { invites, getInvites: () => invites, focusUid, rerender: render });
     focusUid = null;
   }
@@ -269,6 +269,59 @@ function adminPlans(ctx, rerender) {
 
 // ── Sub-teams ───────────────────────────────────────────────────────────────
 const SUBTEAM_IDEAS = ['Fuselage', 'Payload', 'Landing gear', 'Electronics', 'Software', 'Propulsion', 'Design', 'Testing'];
+// ── Workflow: the team's own stages ─────────────────────────────────────────
+const COLOR_NAMES = { '#63b3ed': 'Blue', '#f6ad55': 'Orange', '#b794f4': 'Purple', '#4fd1c5': 'Teal', '#f687b3': 'Pink', '#fc8181': 'Red', '#a0aec0': 'Grey', '#68d391': 'Green' };
+function workflow(pane, ctx, { rerender } = {}) {
+  const s = ctx.session, T = s.team; const editable = can(T, s.me, 'team.settings');
+  const wf = workflowOf(T);
+  let draft = JSON.parse(JSON.stringify(wf.stages));
+  // How many open tasks are in each current stage (shown, and used to say where they'll go).
+  const counts = {}; (s.tasks || []).filter(t => t.flag !== 'completed').forEach(t => { const id = stageIdOf(t, wf.stages, wf.moved); counts[id] = (counts[id] || 0) + 1; });
+  const box = el('div.wf-edit'); const note = el('p.hint', { id: 'wf-note' });
+  const saveBtn = el('button.btn.primary', { type: 'button', id: 'wf-save', disabled: true, onclick: async () => {
+    const stages = draft.map((x, i) => ({ ...x, name: (x.name || '').trim() || 'Stage ' + (i + 1) }));
+    const lower = stages.map(x => x.name.toLowerCase()); const dup = lower.find((n, i) => lower.indexOf(n) !== i);
+    if (dup) return toast('Two stages are called “' + stages[lower.indexOf(dup)].name + '”. Give each its own name.', 5000);
+    const moved = workflowMoves(wf.stages, stages, wf.moved);
+    const custom = isCustomWorkflow(stages);
+    const value = custom || Object.keys(moved).length ? { stages, moved } : null;
+    if (await save(ctx, [{ type: 'update', path: 'team', data: { workflow: value } }], 'Workflow saved.')) { if (rerender) rerender(); }
+  } }, 'Save workflow');
+  const touch = () => { saveBtn.disabled = false; build(); };
+  const newId = (name) => { const base = String(name || 'stage').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 20) || 'stage'; let id = base, n = 2; while (draft.some(x => x.id === id) || id === 'done') id = base + n++; return id; };
+  function build() {
+    const gone = wf.stages.filter(x => !draft.some(d => d.id === x.id) && counts[x.id]);
+    const moves = workflowMoves(wf.stages, draft, {});
+    note.replaceChildren(...(gone.length ? gone.map(g => el('div', {}, '↪ The ' + counts[g.id] + ' task' + (counts[g.id] === 1 ? '' : 's') + ' in “' + g.name + '” will move to “' + ((draft.find(d => d.id === moves[g.id]) || {}).name || draft[0].name) + '”.')) : []));
+    const rows = draft.map((st, i) => {
+      const last = i === draft.length - 1;
+      const color = el('select.wf-color', { 'aria-label': 'Colour of ' + st.name, disabled: !editable, onchange: (e) => { st.color = e.target.value; touch(); } }, STAGE_COLORS.map(c => el('option', { value: c, selected: c === st.color }, COLOR_NAMES[c] || c)));
+      const name = el('input.wf-name', { value: st.name, maxlength: 30, 'aria-label': 'Stage name', disabled: !editable, oninput: (e) => { st.name = e.target.value; saveBtn.disabled = false; } });
+      const kind = last ? el('span.hint', {}, 'Done (finished)') : el('select', { 'aria-label': 'Counts as', disabled: !editable, onchange: (e) => { st.kind = e.target.value; touch(); } },
+        el('option', { value: 'todo', selected: st.kind === 'todo' }, 'To do'), el('option', { value: 'doing', selected: st.kind === 'doing' }, 'Doing'));
+      const limit = last ? el('span.hint', {}, '—') : el('input.wf-limit', { type: 'number', min: 0, max: 99, value: st.limit || '', placeholder: 'none', 'aria-label': 'Most tasks at once in ' + st.name, disabled: !editable, oninput: (e) => { st.limit = Math.max(0, Math.min(99, Math.round(Number(e.target.value) || 0))); saveBtn.disabled = false; } });
+      const move = (d) => { const j = i + d; if (j < 0 || j >= draft.length - 1) return; [draft[i], draft[j]] = [draft[j], draft[i]]; touch(); };
+      const acts = editable ? el('span.wf-acts', {},
+        last ? '' : el('button.btn.small.ghost', { type: 'button', 'aria-label': 'Move ' + st.name + ' earlier', disabled: i === 0, onclick: () => move(-1) }, '↑'),
+        last ? '' : el('button.btn.small.ghost', { type: 'button', 'aria-label': 'Move ' + st.name + ' later', disabled: i >= draft.length - 2, onclick: () => move(1) }, '↓'),
+        last || draft.length <= 2 ? '' : el('button.btn.small.ghost', { type: 'button', 'aria-label': 'Remove ' + st.name, onclick: () => { draft.splice(i, 1); touch(); } }, '✕')) : '';
+      return el('tr', { dataset: { stage: st.id } },
+        el('td', {}, el('span.wf-dot', { style: { background: st.color } }), color), el('td', {}, name), el('td', {}, kind), el('td', {}, limit),
+        el('td.hint', {}, counts[st.id] ? counts[st.id] + ' open' : ''), el('td', {}, acts));
+    });
+    box.replaceChildren(el('div.tbl-scroll', {}, el('table.tbl.wf-table', {},
+      el('tr', {}, el('th', {}, 'Colour'), el('th', {}, 'Stage'), el('th', {}, 'Counts as'), el('th', {}, 'Limit'), el('th', {}, ''), el('th', {}, '')), ...rows)),
+      editable && draft.length < MAX_STAGES ? el('button.btn.small', { type: 'button', id: 'wf-add', onclick: () => { const name = 'New stage'; draft.splice(draft.length - 1, 0, { id: newId(name + draft.length), name, kind: 'doing', color: STAGE_COLORS[draft.length % STAGE_COLORS.length], limit: 0 }); touch(); setTimeout(() => { const ins = box.querySelectorAll('.wf-name'); const n = ins[ins.length - 2]; if (n) { n.focus(); n.select(); } }, 30); } }, '+ Add a stage') : '');
+  }
+  const tpl = el('div.wf-templates', { role: 'group', 'aria-label': 'Start from a template' }, WORKFLOW_TEMPLATES.map(t => el('button.btn.small' + (JSON.stringify(t.stages.map(x => x.id)) === JSON.stringify(wf.stages.map(x => x.id)) ? '.primary' : '.ghost'), { type: 'button', dataset: { template: t.id }, disabled: !editable, title: t.help,
+    onclick: () => { draft = JSON.parse(JSON.stringify(t.stages)); tpl.querySelectorAll('button').forEach(b => b.className = 'btn small ' + (b.dataset.template === t.id ? 'primary' : 'ghost')); touch(); } }, el('b', {}, t.name), el('span.hint', {}, ' ' + t.help))));
+  build();
+  pane.append(el('section', {}, el('h4', {}, 'Stages'),
+    el('p.hint', {}, 'The steps every task goes through, on cards and as Kanban columns. Each stage counts as To do or Doing, so analytics, reports and the weekly share keep working; the last one is always Done. Set a limit to warn when too many tasks pile up in a stage.'),
+    tpl, box, note,
+    editable ? el('div.row', { style: { marginTop: '12px' } }, el('span.spacer'), saveBtn) : el('p.hint', {}, 'Only roles that can change team settings can edit the workflow.')));
+}
+
 function subteams(pane, ctx, { rerender } = {}) {
   const s = ctx.session, T = s.team; const editable = can(T, s.me, 'team.settings') || can(T, s.me, 'members.manage');
   const people = s.members.slice().sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));

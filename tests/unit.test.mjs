@@ -320,7 +320,7 @@ test('planning: stage, effort, dependencies and capacity are cleaned', () => {
   assert.deepEqual(cleanDeps(['a', 'a', 'me', 'b c', null], 'me'), ['a', 'b_c'], 'no duplicates, no self, safe ids');
   assert.equal(cleanDeps(Array.from({ length: 20 }, (_, i) => 'x' + i)).length, 10);
   assert.equal(cleanCapacity('12.4'), 12); assert.equal(cleanCapacity(0), 0); assert.equal(cleanCapacity(500), 0);
-  const t = cleanTask({ name: 'x', stage: 'nope', effort: 'abc', dependsOn: 'x' }, 't');
+  const t = cleanTask({ name: 'x', stage: 'not a stage!', effort: 'abc', dependsOn: 'x' }, 't');
   assert.equal(t.stage, ''); assert.equal(t.effort, null); assert.deepEqual(t.dependsOn, []);
   assert.equal(cleanTeam({ name: 'T', capacity: 10 }).capacity, 10);
   assert.equal(cleanTemplate({ name: 'n', task: { name: 'x', effort: 3 } }, 'id').task.effort, 3);
@@ -801,4 +801,26 @@ test('share: long lists are cut; a quiet week says so; the WhatsApp link carries
   assert.ok(buildWeekShare({ team: { name: 'D', weeks: SW }, rows: many, today: '2026-10-21' }).includes('…and 3 more'));
   assert.ok(buildWeekShare({ team: { name: 'D', weeks: SW }, rows: [row('Idle')], today: '2026-10-21' }).includes('A quiet week'));
   assert.equal(whatsappLink('a & b'), 'https://wa.me/?text=a%20%26%20b');
+});
+
+// ── Workflow: a team's own stages ───────────────────────────────────────────
+import { cleanWorkflow, workflowStages, stageIdOf, stageKindOf, WORKFLOW_TEMPLATES, DEFAULT_STAGES } from '../src/model.js';
+const ENG = WORKFLOW_TEMPLATES.find(t => t.id === 'engineering').stages;
+test('workflow: cleaned; the last stage is always Done; 2–10 stages', () => {
+  const w = cleanWorkflow({ stages: [{ id: 'a', name: '  Design  ', kind: 'done', color: 'red', limit: 500 }, { id: 'a', name: 'dup' }, { id: 'bad id!', name: 'B', kind: 'doing', limit: 4 }, { id: 'z', name: 'Z', kind: 'todo', limit: 3 }] });
+  assert.deepEqual(w.stages.map(s => [s.id, s.name, s.kind, s.limit]), [['a', 'Design', 'todo', 0], ['s2', 'B', 'doing', 4], ['z', 'Z', 'done', 0]]);
+  assert.ok(w.stages.every(s => s.color.startsWith('#')));
+  assert.equal(cleanWorkflow({ stages: [{ id: 'only' }] }), null, 'one stage is not a workflow');
+  assert.equal(cleanWorkflow({ stages: Array.from({ length: 15 }, (_, i) => ({ id: 's' + i })) }).stages.length, 10);
+  assert.equal(workflowStages({}), DEFAULT_STAGES); assert.equal(workflowStages({ workflow: { stages: ENG } }).length, 5);
+});
+test('workflow: which stage a task is in; old tasks map onto the new stages', () => {
+  assert.equal(stageIdOf({ flag: 'completed', stage: 'review' }, ENG), 'done', 'completed = the last stage');
+  assert.equal(stageIdOf({ flag: 'none', stage: 'build' }, ENG), 'build');
+  assert.equal(stageIdOf({ flag: 'none', stage: 'doing' }, ENG), 'review', 'classic Doing → the first Doing-kind stage');
+  assert.equal(stageIdOf({ flag: 'none', stage: '' }, ENG), 'design', 'nothing set → the first To do stage');
+  assert.equal(stageIdOf({ flag: 'none', stage: 'gone' }, ENG), 'design', 'a deleted stage falls back');
+  assert.equal(stageIdOf({ flag: 'none', stage: 'done' }, ENG), 'design', 'never Done without being completed');
+  assert.equal(stageKindOf({ flag: 'none', stage: 'test' }, ENG), 'doing', 'analytics still see Doing');
+  assert.equal(stageIdOf({ flag: 'none', stage: 'doing' }), 'doing', 'no workflow: classic behaviour');
 });

@@ -116,6 +116,7 @@ export function cleanTeam(t) {
     fields: (Array.isArray(t.fields) ? t.fields : []).slice(0, LIMITS.fieldsPerTeam).map(cleanField),
     phases: (Array.isArray(t.phases) ? t.phases : []).slice(0, LIMITS.phasesPerTeam).map(cleanPhase),
     capacity: cleanCapacity(t.capacity),
+    workflow: cleanWorkflow(t.workflow),
     features: cleanFeatures(t.features),
     subteams: cleanSubteams(t.subteams),
     plan: cleanPlan(t.plan),
@@ -219,7 +220,7 @@ export function cleanTask(t, id, fields = []) {
     dueDate: isoOrEmpty(t.dueDate),
     phaseId: t.phaseId ? safeKey(t.phaseId) : '',
     repeat: cleanRepeat(t.repeat),
-    stage: STAGES.includes(t.stage) ? t.stage : '',
+    stage: cleanStageId(t.stage),
     effort: cleanEffort(t.effort),
     dependsOn: cleanDeps(t.dependsOn, id || t.id),
     carryOf: t.carryOf && safeKey(t.carryOf) !== safeKey(id || t.id) ? safeKey(t.carryOf) : '',
@@ -266,6 +267,83 @@ export function cleanDeps(list, selfId) {
 }
 /** Hours a person can give the project in a week (0 = not set). */
 export function cleanCapacity(v) { const n = Math.round(Number(v)); return Number.isFinite(n) && n > 0 && n <= 80 ? n : 0; }
+// ── Workflow: a team's own stages ───────────────────────────────────────────
+// A team can replace To do / Doing / Done with its own stages (Design, Review, Build,
+// Test, Done…). Each stage counts as one of the three kinds, so analytics, reports,
+// the weekly share and carry-forward keep working; the last stage is always "done".
+// team.workflow absent = the classic three. task.stage holds a stage id ('' = guess).
+export const STAGE_KINDS = ['todo', 'doing', 'done'];
+export const STAGE_COLORS = ['#63b3ed', '#f6ad55', '#b794f4', '#4fd1c5', '#f687b3', '#fc8181', '#a0aec0', '#68d391'];
+export const MAX_STAGES = 10;
+export const DEFAULT_STAGES = [
+  { id: 'todo', name: 'To do', kind: 'todo', color: '#a0aec0', limit: 0 },
+  { id: 'doing', name: 'Doing', kind: 'doing', color: '#63b3ed', limit: 0 },
+  { id: 'done', name: 'Done', kind: 'done', color: '#68d391', limit: 0 },
+];
+const st = (id, name, kind, color, limit = 0) => ({ id, name, kind, color, limit });
+export const WORKFLOW_TEMPLATES = [
+  { id: 'simple', name: 'Simple', help: 'To do · Doing · Done', stages: DEFAULT_STAGES },
+  { id: 'engineering', name: 'Engineering build', help: 'Design · Review · Build · Test · Done', stages: [st('design', 'Design', 'todo', '#63b3ed'), st('review', 'Review', 'doing', '#f6ad55'), st('build', 'Build', 'doing', '#b794f4'), st('test', 'Test', 'doing', '#4fd1c5'), st('done', 'Done', 'done', '#68d391')] },
+  { id: 'research', name: 'Lab research', help: 'Plan · Experiment · Analyse · Write-up · Done', stages: [st('plan', 'Plan', 'todo', '#63b3ed'), st('experiment', 'Experiment', 'doing', '#b794f4'), st('analyse', 'Analyse', 'doing', '#4fd1c5'), st('writeup', 'Write-up', 'doing', '#f6ad55'), st('done', 'Done', 'done', '#68d391')] },
+  { id: 'software', name: 'Software', help: 'Backlog · In progress · Code review · Done', stages: [st('backlog', 'Backlog', 'todo', '#a0aec0'), st('progress', 'In progress', 'doing', '#63b3ed'), st('codereview', 'Code review', 'doing', '#f6ad55'), st('done', 'Done', 'done', '#68d391')] },
+];
+export function cleanStageId(v) { return typeof v === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(v) ? v : ''; }
+/** A team's workflow as stored ({ stages }), or null for the classic three. */
+export function cleanWorkflow(w) {
+  if (!w || typeof w !== 'object' || !Array.isArray(w.stages)) return null;
+  const seen = new Set(); const stages = [];
+  w.stages.slice(0, MAX_STAGES).forEach((x, i) => {
+    if (!x || typeof x !== 'object') return;
+    const id = cleanStageId(x.id) || 's' + i; if (seen.has(id)) return; seen.add(id);
+    const name = String(x.name || '').replace(/\s+/g, ' ').trim().slice(0, 30) || 'Stage ' + (i + 1);
+    const limit = Math.round(Number(x.limit)); 
+    stages.push({ id, name, kind: x.kind === 'doing' ? 'doing' : 'todo', color: STAGE_COLORS.includes(x.color) ? x.color : STAGE_COLORS[i % STAGE_COLORS.length], limit: Number.isFinite(limit) && limit > 0 && limit <= 99 ? limit : 0 });
+  });
+  if (stages.length < 2) return null;
+  stages[stages.length - 1].kind = 'done'; stages[stages.length - 1].limit = 0;
+  // moved: where tasks of removed stages now are { oldId: newId } (so a change never scrambles tasks)
+  const moved = {}; const ids = new Set(stages.map(x => x.id));
+  Object.entries(w.moved && typeof w.moved === 'object' ? w.moved : {}).slice(0, 60).forEach(([a, b]) => { const k = cleanStageId(a), v = cleanStageId(b); if (k && v && ids.has(v) && !ids.has(k)) moved[k] = v; });
+  return { stages, moved };
+}
+/** Saving a new set of stages: where each stage that's gone sends its tasks (same kind, same place). */
+export function workflowMoves(oldStages, newStages, oldMoved = {}) {
+  const ids = new Set(newStages.map(s => s.id)); const moved = {};
+  const target = (old) => {
+    const same = oldStages.filter(s => s.kind === old.kind); const pos = same.findIndex(s => s.id === old.id);
+    const cands = newStages.filter(s => s.kind === old.kind);
+    return (cands[Math.min(Math.max(pos, 0), cands.length - 1)] || newStages.find(s => s.kind !== 'done') || newStages[0]).id;
+  };
+  oldStages.forEach(s => { if (!ids.has(s.id)) moved[s.id] = target(s); });
+  Object.entries(oldMoved || {}).forEach(([a, b]) => { if (ids.has(a)) return; moved[a] = ids.has(b) ? b : (moved[b] || newStages[0].id); });
+  return moved;
+}
+/** The stages a team uses (its own, or the classic three). */
+const wfCache = new WeakMap();
+const NO_WF = { stages: DEFAULT_STAGES, moved: {} };
+/** The team's workflow { stages, moved }, cached per team object. */
+export function workflowOf(team) {
+  if (!team || typeof team !== 'object') return NO_WF;
+  const hit = wfCache.get(team); if (hit && hit.src === team.workflow) return hit.wf;
+  const wf = cleanWorkflow(team.workflow) || NO_WF;
+  wfCache.set(team, { src: team.workflow, wf }); return wf;
+}
+export const workflowStages = (team) => workflowOf(team).stages;
+/** Are these stages anything other than the classic To do / Doing / Done? */
+export const isCustomWorkflow = (stages) => stages.length !== 3 || stages.some((s, i) => s.id !== DEFAULT_STAGES[i].id || s.name !== DEFAULT_STAGES[i].name || s.limit);
+/** Which of the team's stages a task is in. */
+export function stageIdOf(t, stages = DEFAULT_STAGES, moved = {}) {
+  if (t && t.flag === 'completed') return stages[stages.length - 1].id;
+  let id = t && t.stage; if (id && moved[id]) id = moved[id];
+  if (id && stages.some(s => s.id === id && s.kind !== 'done')) return id;
+  const kind = stageOf(t);   // classic value or a guess from the status text
+  return (stages.find(s => s.kind === kind) || stages[0]).id;
+}
+/** The kind ('todo' | 'doing' | 'done') of a task in the team's workflow. */
+export function stageKindOf(t, stages = DEFAULT_STAGES, moved = {}) {
+  const id = stageIdOf(t, stages, moved); return (stages.find(s => s.id === id) || stages[0]).kind;
+}
+
 /** Kanban column of a task: 'done', 'doing' or 'todo'. */
 export function stageOf(t) {
   if (!t) return 'todo';

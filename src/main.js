@@ -15,7 +15,7 @@ import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mer
 import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
-import { cleanComment, cleanTemplate, cleanEffort, cleanCapacity, stageOf, MAX_DEPS, cleanMeeting, cleanNotebookEntry, cleanPart, cleanExpense, cleanBudget, cleanPaper, cleanLogEntry } from './model.js';
+import { cleanComment, cleanTemplate, cleanEffort, cleanCapacity, MAX_DEPS, workflowOf, stageIdOf, stageKindOf, isCustomWorkflow, cleanMeeting, cleanNotebookEntry, cleanPart, cleanExpense, cleanBudget, cleanPaper, cleanLogEntry } from './model.js';
 import { openResearch, refreshResearch, seesMoney } from './research.js';
 import { notebookSection, notebookCount, linkedSection } from './notebook.js';
 import { openReport } from './report.js';
@@ -895,7 +895,12 @@ window.TT = {
   /** A searchable list to pick one item from: items = [{ group, icon, title, sub, fields, run }]. */
   pickFrom: (items, placeholder, empty) => openSearch(() => ({ items, placeholder, empty })),
   // Planning (Phase 6)
-  stageOf, cleanEffort, MAX_DEPS, carryRoots,
+  // Stages: the team's workflow (Settings ▸ Workflow) or the classic To do / Doing / Done.
+  get workflow() { return workflowOf(session && session.team).stages; },
+  get customWorkflow() { return isCustomWorkflow(workflowOf(session && session.team).stages); },
+  stageOf: (t) => { const w = workflowOf(session && session.team); return stageKindOf(t, w.stages, w.moved); },
+  stageId: (t) => { const w = workflowOf(session && session.team); return stageIdOf(t, w.stages, w.moved); },
+  cleanEffort, MAX_DEPS, carryRoots,
   get capacity() { return session && session.team ? cleanCapacity(session.team.capacity) : 0; },
   canSetCapacity: () => !!session && can(session.team, session.me, 'team.settings'),
   async setCapacity(n) {
