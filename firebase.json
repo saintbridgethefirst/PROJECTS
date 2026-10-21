@@ -93,6 +93,22 @@
             "value": "no-cache"
           }
         ]
+      },
+      {
+        "source": "/demo",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ],
+    "redirects": [
+      {
+        "source": "/demo/",
+        "destination": "/demo",
+        "type": 301
       }
     ]
   },

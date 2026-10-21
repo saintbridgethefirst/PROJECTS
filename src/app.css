@@ -736,3 +736,23 @@ button.tx-part:hover { border-color: var(--line-color); }
 .tbl-scroll { overflow-x: auto; }
 
 .sample-card { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; margin-bottom: 12px; }
+
+/* Public demo (/demo) */
+.demo-welcome { font-size: 13.5px; line-height: 1.5; margin-bottom: 4px; }
+.demo-many { font-size: 13px; margin-top: 4px; }
+.demo-many summary { cursor: pointer; color: var(--text-muted); }
+.demo-ribbon { position: fixed; right: 12px; bottom: 12px; z-index: 880; background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 999px; padding: 6px 14px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.2); display: flex; align-items: center; gap: 2px; }
+.demo-ribbon b { color: var(--line-color); }
+@media print { .demo-ribbon { display: none !important; } }
+/* Guided tour */
+.tour-ring { position: fixed; z-index: 1990; border-radius: 12px; border: 2px solid var(--line-color); box-shadow: 0 0 0 9999px rgba(5, 8, 15, .55); pointer-events: none; transition: all .2s ease; }
+.tour-card { position: fixed; z-index: 2000; width: min(340px, calc(100vw - 24px)); background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.35); padding: 14px 16px; font-size: 13.5px; line-height: 1.5; }
+.tour-card.centre { left: 50% !important; top: 50% !important; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 24px)); }
+.tour-card.centre ~ .tour-ring, .tour-card.centre + .tour-ring { display: none; }
+.tour-card.docked { left: 12px !important; right: 12px; bottom: 12px; top: auto !important; width: auto; }
+.tour-card h3 { margin: 4px 0 6px; font-size: 15px; }
+.tour-card p { margin: 0; }
+.tour-step { font-size: 11px; color: var(--text-muted); font-weight: 700; letter-spacing: .3px; }
+.tour-btns { display: flex; gap: 6px; align-items: center; margin-top: 12px; }
+.tour-btns .spacer { flex: 1; }
+.tour-extra { margin-top: 12px; }

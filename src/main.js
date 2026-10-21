@@ -8,7 +8,7 @@ import './board.css';
 import './app.css';
 import './themes.css';
 import { THEMES, SWATCH, applyTheme, currentTheme, savedTheme, themeName, isTheme } from './themes.js';
-import { APP_NAME, APP_TAGLINE, DEMO_MODE, GOOGLE_CLIENT_ID, MS_CLIENT_ID, LIMITS } from './config.js';
+import { APP_NAME, APP_TAGLINE, DEMO_MODE, PUBLIC_DEMO, GOOGLE_CLIENT_ID, MS_CLIENT_ID, LIMITS } from './config.js';
 import { can, canEditOwnedBy, DEFAULT_ROLES, normEmail, isValidEmail } from './permissions.js';
 import { cleanTeam, cleanMember, cleanCategory, cleanTask, DEFAULT_LABELS, newId, nextWeekTitle, cascadeWeekDates, carryIndexOf } from './model.js';
 import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mergeChanges, invert } from './sync.js';
@@ -35,6 +35,7 @@ import * as saving from './saving.js';
 import { openFeedback } from './feedback.js';
 import { openShareWeek } from './share.js';
 import { renderStart } from './start.js';
+import { startTour, endTour, tourRunning } from './tour.js';
 
 let backend = null;
 /** Shared state for the feature modules (yourdata.js, feedback.js…). */
@@ -60,6 +61,7 @@ function show(screen) {
   catch (e) { console.error(e); show('auth-screen'); $('#auth-note').textContent = 'Could not start: ' + e.message; return; }
   // Crashes are reported (signed-in users only, no personal data) for the platform admin to see.
   startMonitor((d) => (user && backend.data.reportError ? backend.data.reportError(d) : null), () => (user ? user.uid : ''));
+  demoRibbon();
   backend.auth.onChange(async (u) => {
     // Google Drive/Sheets/Calendar access is remembered per person on this device.
     if (GOOGLE_CLIENT_ID) import('./integrations/google.js').then(m => m.setGoogleUser(u ? { uid: u.uid, email: u.email } : null)).catch(() => {});
@@ -109,6 +111,7 @@ function renderAuth() {
     });
     box.append(form);
   }
+  if (P.demo && PUBLIC_DEMO) { demoWelcome(box, note, wrap); return; }
   if (P.demo) {
     box.append(el('div.banner.info', {}, 'Demo mode: no server is connected, so everything is stored in this browser only. Sign in as any email to try it. Open a second tab to sign in as a teammate and test invites and roles.'));
     const users = backend.auth.demoUsers();
@@ -124,6 +127,67 @@ function renderAuth() {
     box.append(el('div.auth-or', {}, users.length ? 'or a new demo account' : 'demo account'), form);
   }
 }
+// ── Public demo (/demo): no sign-up, a sample team and a guided tour ────────
+const DEMO_NEXT = 'tt_demo_next', DEMO_TOUR = 'tt_demo_tour';
+const sget = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
+const sset = (k, v) => { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch { /* */ } };
+function demoWelcome(box, note, wrap) {
+  const title = document.querySelector('#auth-screen .auth-title'); if (title) title.textContent = 'Try TeamTrack: no sign-up, nothing to install.';
+  // On the demo itself, the "try the demo" links point to the guide instead.
+  const tourLink = document.querySelector('#auth-screen .auth-tour'); if (tourLink) tourLink.hidden = true;
+  const tryBtn = document.getElementById('try-demo'); if (tryBtn) { tryBtn.href = 'guide.html'; tryBtn.textContent = 'Read the illustrated guide →'; }
+  const name = el('input.inp', { id: 'demo-name', placeholder: 'Your name (optional)', maxlength: 60, autocomplete: 'given-name', 'aria-label': 'Your name' });
+  const go = (next) => wrap(async () => { sset(DEMO_NEXT, next); await backend.auth.signInDemo('visitor@demo.teamtrack', name.value.trim() || 'Demo visitor'); });
+  const many = el('details.demo-many', {}, el('summary', {}, 'Try it as several people (invites, comments, roles)'));
+  const users = backend.auth.demoUsers().filter(u => u.email !== 'visitor@demo.teamtrack');
+  if (users.length) { const list = el('div.demo-users'); users.forEach(u => list.append(el('button.demo-user', { type: 'button', onclick: wrap(() => backend.auth.signInDemo(u.email, u.name)) }, avatar(u), el('span', {}, el('b', {}, u.name), el('br'), el('span.muted', {}, u.email))))); many.append(el('div.hint', {}, 'Continue as:'), list); }
+  const n2 = el('input.inp', { placeholder: 'Name', 'aria-label': 'Name', maxlength: 80 }); const e2 = el('input.inp', { type: 'email', placeholder: 'Any email, e.g. tom@example.com', 'aria-label': 'Email' });
+  const f2 = el('form', { style: { display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' } }, n2, e2, el('button.btn', { type: 'submit' }, 'Sign in as this person'));
+  f2.addEventListener('submit', (e) => { e.preventDefault(); if (!isValidEmail(e2.value)) { note.textContent = 'Enter an email address (it can be made up).'; return; } wrap(() => backend.auth.signInDemo(e2.value, n2.value.trim()))(); });
+  many.append(el('p.hint', {}, 'Open a second tab and sign in as a teammate to see invitations, comments and live updates between people.'), f2);
+  box.append(
+    el('div.demo-welcome', {}, el('b', {}, 'This is the real app with a made-up drone team.'), el('span.hint', {}, ' Everything you do stays in this browser; nothing is sent anywhere.')),
+    name,
+    el('button.btn.primary.block', { type: 'button', id: 'demo-go', onclick: go('sample') }, '▶ Open the sample team, with a 2-minute tour'),
+    el('button.btn.block', { type: 'button', id: 'demo-empty', onclick: go('empty') }, 'Start with an empty team'),
+    many,
+    el('p.hint', {}, 'Ready for real? ', el('a', { href: '/' }, 'Sign in to TeamTrack →')));
+}
+/** The sample team (src/sample.js): opens your existing copy, or loads one. tour = start the guided tour once it's open. */
+async function openSampleTeam(tour) {
+  const existing = backend.data.findSample ? backend.data.findSample(user.uid) : null;
+  let id = existing;
+  if (!id) { const { buildSample } = await import('./sample.js'); const s = await buildSample(user); id = await backend.data.loadSample(s); toast('Sample team loaded: it’s yours to play with in this browser.', 5000); }
+  if (tour) sset(DEMO_TOUR, '1');
+  goTeam(id);
+}
+function demoTourSteps() {
+  const thisWeek = () => document.querySelector('.header-week.current-week') || document.querySelector('.header-week');
+  return [
+    { title: 'Welcome to Skyhawk UAV', text: 'A made-up student drone team of 6 people, set to this week. It’s yours: click, drag and change anything. This tour points out the main parts in about two minutes.' },
+    { target: thisWeek, title: 'One column per week', text: 'The board runs week by week. This week is outlined. Unfinished work carries forward to next week, keeping its history, so you can see what slipped.' },
+    { target: '#nodes-container .row-person', title: 'One row per person', text: 'Each person has a row, split into their own categories. Their tasks sit under the week they’re planned for; drag a card to move it to another week.' },
+    { target: () => document.querySelector('.task-card .stage-bar') && document.querySelector('.task-card .stage-bar').closest('.task-card'), title: 'A task', text: 'Priority, deadline, sub-tasks, hours and comments. The coloured bar shows its stage in this team’s workflow: Design → Review → Build → Test → Done. Click any card to open it.' },
+    { target: '#subteam-bar', title: 'Sub-teams', text: 'Show just Payload, Electronics or another sub-team, with their leads. Handy when 30 people share one board.' },
+    { target: '.kb-board', before: () => window.boardSetView && window.boardSetView('kanban'), after: () => window.boardSetView && window.boardSetView('board'), title: 'Kanban: one column per stage', text: 'The same tasks by stage. Build is limited to 4 at a time so the workshop isn’t flooded with half-built parts. Drag cards between columns.' },
+    { target: '#share-btn', title: 'Share this week', text: 'One click turns the week into a message for your WhatsApp group: what’s done, due, late and stuck, with a link back to the board.' },
+    { target: '#research-btn', title: 'Tools', text: 'Parts and orders, budget and spending, lab notebook, meetings, papers, risks and requirements. Each team switches on only what it needs.' },
+    { target: '#top-actions [onclick="openAnalytics(\'overview\')"]', title: 'Analytics', text: 'Progress, workload per person, burndown, a Gantt timeline and a printable progress report for a supervisor or sponsor.' },
+    { target: '#top-actions [onclick="TT.openSettings()"]', title: 'Make it yours', text: 'Settings: invite people by email, set roles and permissions, and under Workflow choose or design your own stages.' },
+    { title: 'That’s the tour', text: 'Keep exploring: nothing here can break, and it all stays in this browser. When your team is ready, set up the real thing in a couple of minutes; it’s free for students.',
+      action: () => el('div.row', { style: { gap: '8px', flexWrap: 'wrap' } }, el('a.btn.primary.small', { href: '/' }, 'Create your real team →'), el('a.btn.small', { href: 'guide.html' }, 'Read the full guide')) },
+  ];
+}
+function startDemoTour() { if (!tourRunning()) startTour(demoTourSteps()); }
+/** A small ribbon on every demo screen: it's a sandbox, the tour, the real app. */
+function demoRibbon() {
+  if (!PUBLIC_DEMO || document.getElementById('demo-ribbon')) return;
+  document.body.append(el('div.demo-ribbon', { id: 'demo-ribbon', role: 'note' },
+    el('b', {}, 'Demo'), el('span.hint', {}, ' · stays in this browser · '),
+    el('button.link-btn', { type: 'button', id: 'demo-ribbon-tour', onclick: () => { if (session && session.booted) startDemoTour(); else if (user) openSampleTeam(true); } }, 'Tour'),
+    el('span.hint', {}, ' · '), el('a', { href: '/' }, 'Get TeamTrack →')));
+}
+
 /** Email + password: "Sign in" and "Create account" in one form, plus "Forgot password?". */
 function passwordForm(note) {
   let mode = 'signin';
@@ -233,6 +297,11 @@ function renderHome() {
   homeUnsubs.push(() => window.removeEventListener('resize', sizeTaskPanel));
   homeMentionsRender = drawTiles;
   homeUnsubs.push(() => { homeMentionsRender = null; mentionUnsub && mentionUnsub(); });
+  if (PUBLIC_DEMO) {
+    const next = sget(DEMO_NEXT); sset(DEMO_NEXT, null);
+    if (next === 'sample') { openSampleTeam(true).catch(e => toast(String(e.message || e))); }
+    else if (next === 'empty') setTimeout(() => { const i = document.querySelector('#create-team-form input[name=name]'); if (i) i.focus(); }, 100);
+  }
   // Demo: one click loads a made-up team with every feature in use (src/sample.js).
   const sampleSec = $('#sample-section');
   if (sampleSec) {
@@ -240,7 +309,7 @@ function renderHome() {
     const sb = $('#demo-sample');
     if (sb) sb.onclick = async () => {
       sb.disabled = true;
-      try { const { buildSample } = await import('./sample.js'); const s = await buildSample(user); await backend.data.loadSample(s); toast('Sample team loaded: it’s yours to play with in this browser.', 5000); goTeam(s.teamId); }
+      try { await openSampleTeam(PUBLIC_DEMO); }
       catch (e) { console.error(e); toast('Couldn’t load the sample team: ' + (e.message || e), 6000); }
       sb.disabled = false;
     };
@@ -572,6 +641,7 @@ window.TTStartRefresh = () => drawStart();
 
 function closeTeam() {
   if (!session) return;
+  endTour();
   document.getElementById('start-card')?.remove();
   session.unsub && session.unsub();
   session.unsubComments && session.unsubComments();
@@ -650,7 +720,7 @@ function refresh() {
   if (pendingOpen && pendingOpen.teamId === s.teamId) { const id = pendingOpen.taskId; pendingOpen = null; setTimeout(() => window.boardOpenTask && window.boardOpenTask(id), 50); }
   syncMoney(s); syncResearch(s);
   refreshResearch(ctx());
-  if (!s.booted) { s.booted = true; onFirstLoad(); }
+  if (!s.booted) { s.booted = true; onFirstLoad(); if (PUBLIC_DEMO && sget(DEMO_TOUR)) { sset(DEMO_TOUR, null); setTimeout(startDemoTour, 1200); } }
   if (window.TTSettingsRefresh) window.TTSettingsRefresh();
 }
 

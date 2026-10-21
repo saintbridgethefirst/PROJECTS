@@ -288,6 +288,8 @@ export const data = {
     applyBatch(id, [{ type: 'set', path: 'team', data: teamDoc }, { type: 'set', path: 'members/' + ownerMember.uid, data: ownerMember }]);
     return id;
   },
+  /** The sample team I already have in this browser, if any. */
+  findSample(uid) { return Object.keys(store.teams).find(id => id.startsWith('t_sample_') && store.teams[id].members && store.teams[id].members[uid]) || null; },
   /** Demo only: put a prepared sample team (src/sample.js) into this browser, its owner = me. */
   async loadSample({ teamId, team, users }) {
     const me = authCtx(); if (!me) throw Object.assign(new Error('Sign in first.'), { code: 'unauthenticated' });
