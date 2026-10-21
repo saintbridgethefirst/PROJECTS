@@ -31,12 +31,12 @@ try {
   ok(!(await A.locator('.stage-bar').count()) && (await card(A, 'Wiring loom').textContent()).includes('Doing'), 'no stage bars; the old “Doing” chip');
 
   step('Settings ▸ Workflow: pick the Engineering template');
-  await A.evaluate(() => TT.openSettings('workflow')); await A.waitForSelector('.wf-table');
-  ok((await A.locator('.wf-table tr[data-stage]').count()) === 3, 'starts with To do / Doing / Done');
+  await A.evaluate(() => TT.openSettings('workflow')); await A.waitForSelector('.wf-list');
+  ok((await A.locator('.wf-list .wf-stage[data-stage]').count()) === 3, 'starts with To do / Doing / Done');
   await A.click('.wf-templates button[data-template="engineering"]'); await sleep(150);
-  ok((await A.locator('.wf-table tr[data-stage]').count()) === 5, 'Design · Review · Build · Test · Done');
+  ok((await A.locator('.wf-list .wf-stage[data-stage]').count()) === 5, 'Design · Review · Build · Test · Done');
   ok((await A.locator('#wf-note').textContent()).includes('will move to “Review”'), 'says where the Doing task goes: ' + (await A.locator('#wf-note').textContent()));
-  await A.locator('.wf-table tr[data-stage="build"] .wf-limit').fill('1');
+  await A.locator('.wf-list .wf-stage[data-stage="build"] .wf-limit').fill('1');
   await A.click('#wf-save'); await sleep(400);
   const T = await team(A);
   ok(T.doc.workflow && T.doc.workflow.stages.map(s => s.id).join(',') === 'design,review,build,test,done' && T.doc.workflow.stages[2].limit === 1, 'saved with the Build limit');
@@ -70,8 +70,8 @@ try {
   await A.evaluate(() => boardSetView('board')); await sleep(200);
 
   step('Changing the stages later keeps tasks in sensible places');
-  await A.evaluate(() => TT.openSettings('workflow')); await A.waitForSelector('.wf-table');
-  await A.locator('.wf-table tr[data-stage="build"] button[aria-label^="Remove"]').click(); await sleep(100);
+  await A.evaluate(() => TT.openSettings('workflow')); await A.waitForSelector('.wf-list');
+  await A.locator('.wf-list .wf-stage[data-stage="build"] button[aria-label^="Remove"]').click(); await sleep(100);
   ok((await A.locator('#wf-note').textContent()).includes('“Build” will move to “Test”'), 'removing Build: its tasks go to Test');
   await A.click('#wf-save'); await sleep(400); await A.keyboard.press('Escape'); await sleep(300);
   ok((await card(A, 'Payload mount').locator('.stage-name').textContent()) === 'Test', 'Payload mount (was Build) is now in Test');

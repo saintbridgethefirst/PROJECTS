@@ -319,12 +319,14 @@ function workflow(pane, ctx, { rerender } = {}) {
         last ? '' : el('button.btn.small.ghost', { type: 'button', 'aria-label': 'Move ' + st.name + ' earlier', disabled: i === 0, onclick: () => move(-1) }, '↑'),
         last ? '' : el('button.btn.small.ghost', { type: 'button', 'aria-label': 'Move ' + st.name + ' later', disabled: i >= draft.length - 2, onclick: () => move(1) }, '↓'),
         last || draft.length <= 2 ? '' : el('button.btn.small.ghost', { type: 'button', 'aria-label': 'Remove ' + st.name, onclick: () => { draft.splice(i, 1); touch(); } }, '✕')) : '';
-      return el('tr', { dataset: { stage: st.id } },
-        el('td', {}, el('span.wf-dot', { style: { background: st.color } }), color), el('td', {}, name), el('td', {}, kind), el('td', {}, so), el('td', {}, cl), el('td', {}, limit),
-        el('td.hint', {}, counts[st.id] ? counts[st.id] + ' open' : ''), el('td', {}, acts));
+      // One card per stage: name and type on top; sign-off, checklist and limit underneath.
+      const bit = (label, ctl) => el('label.wf-bit', {}, el('span.wf-bit-l', {}, label), ctl);
+      return el('div.wf-stage' + (last ? '.wf-last' : ''), { dataset: { stage: st.id }, style: { '--wf': st.color } },
+        el('div.wf-top', {}, el('span.wf-num', {}, String(i + 1)), el('span.wf-dot', { style: { background: st.color } }), name, color, kind,
+          el('span.wf-open.hint', {}, counts[st.id] ? counts[st.id] + ' open' : ''), acts),
+        last ? '' : el('div.wf-more', {}, bit('To move on', so), el('div.wf-bit', {}, el('span.wf-bit-l', {}, 'Checklist'), cl), bit('Limit', limit)));
     });
-    box.replaceChildren(el('div.tbl-scroll', {}, el('table.tbl.wf-table', {},
-      el('tr', {}, el('th', {}, 'Colour'), el('th', {}, 'Stage'), el('th', {}, 'Counts as'), el('th', {}, 'To move on'), el('th', {}, 'Checklist'), el('th', {}, 'Limit'), el('th', {}, ''), el('th', {}, '')), ...rows)),
+    box.replaceChildren(el('div.wf-list', {}, ...rows),
       editable && draft.length < MAX_STAGES ? el('button.btn.small', { type: 'button', id: 'wf-add', onclick: () => { const name = 'New stage'; draft.splice(draft.length - 1, 0, { id: newId(name + draft.length), name, kind: 'doing', color: STAGE_COLORS[draft.length % STAGE_COLORS.length], limit: 0 }); touch(); setTimeout(() => { const ins = box.querySelectorAll('.wf-name'); const n = ins[ins.length - 2]; if (n) { n.focus(); n.select(); } }, 30); } }, '+ Add a stage') : '');
   }
   const tpl = el('div.wf-templates', { role: 'group', 'aria-label': 'Start from a template' }, WORKFLOW_TEMPLATES.map(t => el('button.btn.small' + (JSON.stringify(t.stages.map(x => x.id)) === JSON.stringify(wf.stages.map(x => x.id)) ? '.primary' : '.ghost'), { type: 'button', dataset: { template: t.id }, disabled: !editable, title: t.help,

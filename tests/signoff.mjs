@@ -122,12 +122,12 @@ try {
   ok(t.flag === 'completed' && t.signoff.stage === 'test' && t.signoff.status === 'approved' && t.signoff.approver === (await A.evaluate(() => TT.me.uid)), 'Aisha (owner) moves it to Done: that counts as her sign-off');
 
   step('Settings: who signs off, and checklists');
-  await A.evaluate(() => TT.openSettings('workflow')); await A.waitForSelector('.wf-table');
-  const row = A.locator('.wf-table tr[data-stage="design"]');
+  await A.evaluate(() => TT.openSettings('workflow')); await A.waitForSelector('.wf-list');
+  const row = A.locator('.wf-list .wf-stage[data-stage="design"]');
   await row.locator('.wf-signoff').selectOption('person'); await sleep(200);
-  await A.locator('.wf-table tr[data-stage="design"] .wf-signer').selectOption('u_lea');
-  await A.locator('.wf-table tr[data-stage="design"] .wf-cl summary').click();
-  await A.fill('.wf-table tr[data-stage="design"] .wf-cl-text', 'Sketch done\nSizes checked\n\n');
+  await A.locator('.wf-list .wf-stage[data-stage="design"] .wf-signer').selectOption('u_lea');
+  await A.locator('.wf-list .wf-stage[data-stage="design"] .wf-cl summary').click();
+  await A.fill('.wf-list .wf-stage[data-stage="design"] .wf-cl-text', 'Sketch done\nSizes checked\n\n');
   await A.click('#wf-save'); await sleep(500);
   const st = (await teamOf(A)).doc.workflow.stages[0];
   ok(st.signoff === 'person' && st.signer === 'u_lea' && st.checklist.map(c => c.text).join('|') === 'Sketch done|Sizes checked', 'Design: signed off by Lea, with a 2-item checklist');
