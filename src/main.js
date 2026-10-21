@@ -16,7 +16,7 @@ import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
 import { runAutos, afterCommit } from './autos.js';
-import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue } from './github-ui.js';
+import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending } from './github-ui.js';
 import { refIdOf } from '../functions/ghsync.js';
 import { waitingPurchases, decidePurchase, declineDialog, purchaseOn, purchaseLine } from './purchases.js';
 import { signersFor, canSignStage, gateOnTheWay, checklistOf, cleanWhiteboard, cleanWbItem, cleanWorkflow, storedWorkflow, leadsIndex } from './model.js';
@@ -990,6 +990,12 @@ window.TT = {
   canComment: () => !!session && (can(session.team, session.me, 'tasks.editOwn') || can(session.team, session.me, 'tasks.editAll')),
   // GitHub sync
   githubRepo: () => (session ? githubOf(session).repo : ''),
+  githubWrite: () => !!session && githubOf(session).write,
+  createIssue: (task) => (session ? createIssue(ctx(), task) : null),
+  linkIssue: (task) => { if (session) linkIssueDialog(ctx(), task); },
+  closeIssue: (task, n) => { if (session) closeIssueDialog(ctx(), task, n); },
+  reopenIssue: (task, n) => (session ? reopenIssue(ctx(), task, n) : null),
+  ghPending: (taskId) => ghPending(taskId) && !(((session && session.tasks) || []).find(t => t.id === taskId) || { attachments: [] }).attachments.some(a => /github\.com\/[^/]+\/[^/]+\/issues\//.test(a.url)),
   taskRef: (task) => refOf(task),
   branchName: (task) => branchName(refIdOf(task), task.name),
   newIssueUrl: (task) => newIssueUrl(githubOf(session).repo, { title: task.name, body: '', ref: refOf(task) }),

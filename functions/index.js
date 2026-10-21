@@ -16,7 +16,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { refreshAll } from './stats.js';
-import { connectGithub, disconnectGithub, handleWebhook } from './github.js';
+import { connectGithub, disconnectGithub, handleWebhook, setGithubToken, issueAction } from './github.js';
 import { exportUserData, deleteUserData, transferOwnership as transferOwnershipImpl, teamsToHandOver } from './privacy.js';
 import { normEmail, isAcademicEmail, newCode, hashCode, emailKey, checkSend, checkConfirm, codeEmail, CODE_MINUTES, VERIFIED_DAYS,
   proActive, wants, mentionEmail, digestItems, digestEmail, inviteChanged, inviteEmail, MAX_INVITE_EMAILS_PER_DAY,
@@ -211,7 +211,7 @@ async function accountOf(uid) {
 }
 const asHttps = (e) => {
   if (e instanceof HttpsError) return e;
-  const map = { 'owns-teams': 'failed-precondition', 'permission-denied': 'permission-denied', 'not-found': 'not-found', 'invalid-argument': 'invalid-argument' };
+  const map = { 'failed-precondition': 'failed-precondition', 'owns-teams': 'failed-precondition', 'permission-denied': 'permission-denied', 'not-found': 'not-found', 'invalid-argument': 'invalid-argument' };
   if (map[e && e.code]) return new HttpsError(map[e.code], e.message, e.teams ? { teams: e.teams } : undefined);
   return e;
 };
@@ -264,6 +264,7 @@ export const githubConnect = onCall({ region: REGION, invoker: 'public', maxInst
   const teamId = String((req.data && req.data.teamId) || '');
   try {
     if (req.data && req.data.disconnect) return await disconnectGithub(db, req.auth.uid, teamId);
+    if (req.data && 'token' in req.data) return await setGithubToken(db, req.auth.uid, teamId, String(req.data.token || ''));
     const r = await connectGithub(db, req.auth.uid, teamId, String((req.data && req.data.repo) || ''));
     const project = process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId;
     return { ...r, url: 'https://' + REGION + '-' + project + '.cloudfunctions.net/githubWebhook?team=' + encodeURIComponent(teamId) };
@@ -277,3 +278,9 @@ export const githubWebhook = onRequest({ region: REGION, invoker: 'public', maxI
     res.status(r.status).json(typeof r.body === 'string' ? { message: r.body } : r.body);
   } catch (e) { console.error('githubWebhook', e); res.status(500).json({ message: 'Something went wrong; GitHub will show this delivery as failed.' }); }
 });
+/** Create, close or reopen a task's GitHub issue (needs the team's token, set in Settings ▸ Integrations). */
+export const githubIssue = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('githubIssue', async () => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  try { return await issueAction(db, req.auth.uid, String((req.data && req.data.teamId) || ''), req.data || {}); }
+  catch (e) { throw asHttps(e); }
+}));

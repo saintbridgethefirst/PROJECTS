@@ -165,8 +165,12 @@
             const ghLinks = (task.attachments || []).filter(a => TT.parseGithub(a.url));
             if (ghLinks.length) {
                 const row = document.createElement('div'); row.className = 'gh-chips';
-                ghLinks.slice(0, 3).forEach(a => { const g = TT.parseGithub(a.url); const c = ghChip(a.url, '#' + g.number); row.appendChild(c); });
+                ghLinks.slice(0, 3).forEach(a => { const g = TT.parseGithub(a.url); const c = ghChip(a.url, (g.kind === 'pull' ? '🐙 PR #' : '🐙 #') + g.number); row.appendChild(c); });
                 card.insertBefore(row, anchor);
+            } else if (TT.ghPending && TT.ghPending(task.id)) {
+                const row = document.createElement('div'); row.className = 'gh-chips';
+                const c = document.createElement('span'); c.className = 'gh-chip gh-loading'; c.textContent = '🐙 issue being created…'; c.title = 'Waiting for GitHub to link the new issue';
+                row.appendChild(c); card.insertBefore(row, anchor);
             }
             if (task.attachments && task.attachments.length) {
                 const a = document.createElement('div'); a.className = 'att-chip'; a.textContent = '📎 ' + task.attachments.length + (task.attachments.length === 1 ? ' file' : ' files');
@@ -290,7 +294,15 @@
                 const ic = document.createElement('span'); ic.textContent = icons[a.provider] || '🔗';
                 const link = document.createElement('a'); link.href = a.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = a.name || a.url; link.title = (a.addedBy ? 'Added by ' + a.addedBy + ' · ' : '') + a.url;
                 row.append(ic, link);
-                if (TT.parseGithub(a.url)) { ic.textContent = '🐙'; row.appendChild(ghChip(a.url, '', true)); }
+                if (TT.parseGithub(a.url)) {
+                    ic.textContent = '🐙'; row.appendChild(ghChip(a.url, '', true));
+                    const pg = TT.parseGithub(a.url);
+                    if (editable && pg.kind === 'issue' && TT.githubWrite() && TT.githubRepo() && pg.label.toLowerCase().startsWith(TT.githubRepo().toLowerCase() + '#')) {
+                        const cl = document.createElement('button'); cl.type = 'button'; cl.className = 'btn small gh-close-btn'; cl.textContent = 'Close…'; cl.title = 'Close this issue on GitHub';
+                        cl.onclick = () => TT.closeIssue(task, pg.number); row.appendChild(cl);
+                        TT.githubStatus(a.url).then(st => { if (st && st.state === 'closed' && cl.isConnected) { cl.textContent = 'Reopen'; cl.title = 'Reopen this issue on GitHub'; cl.onclick = () => TT.reopenIssue(task, pg.number); } });
+                    }
+                }
                 if (editable) {
                     const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'btn small ghost'; rm.textContent = 'Remove'; rm.dataset.editOnly = '1';
                     rm.onclick = () => { if (!confirm('Remove "' + (a.name || 'this link') + '" from the task? The file itself stays where it is.')) return; logHistory(task, 'Attachment removed', a.name, ''); task.attachments = task.attachments.filter(x => x.id !== a.id); saveDatabase(); render(); openEditor(task); };
@@ -306,8 +318,15 @@
                 const ref = document.createElement('code'); ref.className = 'gh-ref'; ref.textContent = TT.taskRef(task); ref.title = 'Put this in a pull request’s title or branch name and GitHub links it here';
                 const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'btn small ghost gh-branch'; cp.textContent = '⎇ Copy branch name';
                 cp.onclick = async () => { const b = TT.branchName(task); try { await navigator.clipboard.writeText(b); toast('Copied: ' + b); } catch { toast(b, 8000); } };
-                const ni = document.createElement('a'); ni.className = 'btn small ghost gh-new-issue'; ni.href = TT.newIssueUrl(task); ni.target = '_blank'; ni.rel = 'noopener noreferrer'; ni.textContent = '＋ GitHub issue';
-                g.append(document.createTextNode('🐙 '), ref, cp, ni); s.appendChild(g);
+                const ni = document.createElement('button'); ni.type = 'button'; ni.className = 'btn small ghost gh-new-issue'; ni.textContent = '＋ GitHub issue'; ni.title = TT.githubWrite() ? 'Create the issue now and link it' : 'Open GitHub with the issue filled in';
+                ni.onclick = async () => { ni.disabled = true; await TT.createIssue(task); ni.disabled = false; };
+                const li = document.createElement('button'); li.type = 'button'; li.className = 'btn small ghost gh-link-issue'; li.textContent = '🔗 Link existing'; li.onclick = () => TT.linkIssue(task);
+                g.append(document.createTextNode('🐙 '), ref, cp, ni, li); s.appendChild(g);
+                if (TT.ghPending(task.id)) {
+                    const w = document.createElement('div'); w.className = 'gh-pending';
+                    w.textContent = '⏳ Waiting for GitHub: once you submit the issue there, it links here by itself. Not showing up? Use “Link existing” and paste its address.';
+                    s.appendChild(w);
+                }
             }
             // Every linked GitHub issue / pull request is closed or merged → offer to complete the task
             const gh = (task.attachments || []).filter(a => TT.parseGithub(a.url));
@@ -416,6 +435,15 @@
             }
             const at = items.findIndex(it => it && it.label === 'Duplicate');
             items.splice(at + 1, 0, { icon: '📎', label: 'Attach file or link…', action: () => TT.openAttach(loc.task.id) });
+            if (TT.githubRepo && TT.githubRepo()) {
+                const t = loc.task; const issues = (t.attachments || []).map(a => TT.parseGithub(a.url)).filter(g => g && g.kind === 'issue');
+                items.splice(at + 1, 0, { icon: '🐙', label: 'GitHub', submenu: [
+                    { icon: '＋', label: 'Create GitHub issue', action: () => TT.createIssue(t) },
+                    { icon: '🔗', label: 'Link an existing issue or PR…', action: () => TT.linkIssue(t) },
+                    { icon: '⎇', label: 'Copy branch name', action: async () => { const b = TT.branchName(t); try { await navigator.clipboard.writeText(b); toast('Copied: ' + b); } catch { toast(b, 8000); } } },
+                    ...(TT.githubWrite() ? issues.slice(0, 3).map(g => ({ icon: '✓', label: 'Close issue #' + g.number + '…', action: () => TT.closeIssue(t, g.number) })) : []),
+                ] });
+            }
             const phaseItem = phaseMenuItem(loc); if (phaseItem) items.splice(at + 1, 0, phaseItem);
             if (loc.task.dueDate) items.splice(at + 1, 0, { icon: '📅', label: 'Add deadline to my calendar', action: () => TT.taskIcs(loc.task.id) });
             items.splice(at + 1, 0, { icon: '💾', label: 'Save as template…', action: () => saveAsTemplate(loc) });
@@ -864,7 +892,7 @@
             TT.githubStatus(url).then(st => {
                 if (!st) return;
                 c.classList.remove('gh-loading'); c.classList.add('gh-' + st.state);
-                const word = GH_TEXT[st.state] || (st.note ? '🔒' : '?');
+                const word = GH_TEXT[st.state] || (st.note ? 'linked' : '?');
                 c.textContent = (prefix ? prefix + ' · ' : '') + word + (st.state === 'closed' && st.reason === 'not_planned' ? ' (not planned)' : '') + (withTitle && st.title ? ' — ' + st.title : '');
                 c.title = st.label + (st.title ? ': ' + st.title : '') + (st.note ? ' — ' + st.note : '');
             });

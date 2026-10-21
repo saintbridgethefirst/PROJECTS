@@ -48,7 +48,7 @@ function validTeam(d) {
     (d.workflow === undefined || d.workflow === null || (d.workflow && typeof d.workflow === 'object' && hasOnly(d.workflow, ['stages', 'moved', 'order', 'gates', 'next', 'done']) && Array.isArray(d.workflow.stages) && d.workflow.stages.length >= 2 && d.workflow.stages.length <= 10)) &&
     (d.purchase === undefined || d.purchase === null || (typeof d.purchase === 'object' && hasOnly(d.purchase, ['on', 'over']) && (d.purchase.on === undefined || typeof d.purchase.on === 'boolean') && (d.purchase.over === undefined || isNum(d.purchase.over, 0, 1e8)))) &&
     (d.currency === undefined || ['GBP', 'EUR', 'USD', 'INR', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD'].includes(d.currency)) &&
-    (d.github === undefined || d.github === null || (typeof d.github === 'object' && hasOnly(d.github, ['repo', 'issues', 'done', 'owner', 'connectedAt']) && (d.github.repo === undefined || isStr(d.github.repo, 140)))) &&
+    (d.github === undefined || d.github === null || (typeof d.github === 'object' && hasOnly(d.github, ['repo', 'issues', 'done', 'owner', 'connectedAt', 'write']) && (d.github.repo === undefined || isStr(d.github.repo, 140)))) &&
     (d.autos === undefined || d.autos === null || (typeof d.autos === 'object' && hasOnly(d.autos, ['partsTo', 'tellWaiting', 'remindDays']) && (d.autos.partsTo === undefined || isStr(d.autos.partsTo, 40)) &&
       (d.autos.tellWaiting === undefined || typeof d.autos.tellWaiting === 'boolean') && (d.autos.remindDays === undefined || (Number.isInteger(d.autos.remindDays) && d.autos.remindDays >= 0 && d.autos.remindDays <= 60))));
 }
@@ -276,7 +276,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (ch.some(k => ['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features', 'workflow'].includes(k)) && !can('team.settings')) deny('settings');
       if (ch.includes('roles') && !can('roles.manage')) deny('roles');
       if ((ch.includes('autos') || ch.includes('github')) && !can('team.settings')) deny('automatic steps');
-      if (ch.includes('github') && after.github && (after.github.repo || '') !== ((before.github || {}).repo || '')) deny('github repo is set by the server');
+      if (ch.includes('github') && after.github && ((after.github.repo || '') !== ((before.github || {}).repo || '') || !!after.github.write !== !!(before.github || {}).write)) deny('github repo and token are set by the server');
       if ((ch.includes('purchase') || ch.includes('currency')) && !(can('team.settings') || can('finance.edit'))) deny('purchase approvals / currency');
       return;
     }

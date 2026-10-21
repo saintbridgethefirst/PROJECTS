@@ -211,7 +211,7 @@ export const data = {
           return { teamId: id, teamName: T.doc.name, yourMembership: clone(T.members[me.uid]), yourProfileInTeam: clone((T.profiles || {})[me.uid] || null), yours }; }) };
     }
     // ── GitHub sync (the server's github.js, on the demo store) ──
-    if (name === 'githubConnect' || name === 'githubSimulate') {
+    if (name === 'githubConnect' || name === 'githubSimulate' || name === 'githubIssue') {
       const teamId = payload && payload.teamId; const T = store.teams[teamId];
       if (!T || !T.members[me.uid]) fail('permission-denied', 'You’re not in this team.');
       const role = T.members[me.uid].roleId; const ok = role === 'owner' || !!(T.doc.roles && T.doc.roles[role] && T.doc.roles[role].perms && T.doc.roles[role].perms['team.settings']);
@@ -219,12 +219,49 @@ export const data = {
       if (name === 'githubConnect') {
         if (!ok) fail('permission-denied', 'Only people who manage team settings can connect GitHub.');
         if (payload.disconnect) { T.doc.github = null; if (T.private) delete T.private.github; persist(); return { ok: true }; }
+        if ('token' in payload) {
+          if (!T.private || !T.private.github) fail('failed-precondition', 'Connect a repository first.');
+          const t = String(payload.token || '').trim();
+          if (t && !/^(github_pat_|ghp_)[A-Za-z0-9_]{20,255}$/.test(t)) fail('invalid-argument', 'That doesn’t look like a GitHub token (they start with github_pat_ or ghp_).');
+          T.private.github.token = t || null; T.doc.github = { ...gh.cleanGithub(T.doc.github), write: !!t }; persist();
+          return { write: !!t };
+        }
         const repo = gh.cleanRepo(payload.repo); if (!repo) fail('invalid-argument', 'Give the repository as owner/name, e.g. uni-robotics/rover.');
         const old = gh.cleanGithub(T.doc.github); const secret = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
         T.private = { ...(T.private || {}), github: { secret, repo, by: me.uid, at: Date.now(), last: null } };
         T.doc.github = { repo, issues: old.repo ? old.issues : true, done: old.repo ? old.done : true, owner: old.owner || me.uid, connectedAt: Date.now() };
         persist();
         return { repo, secret, url: 'https://europe-west2-uni-teamtrack.cloudfunctions.net/githubWebhook?team=' + encodeURIComponent(teamId) + ' (demo: nothing is sent)' };
+      }
+      if (name === 'githubIssue') {   // the server's issueAction, on the demo store (nothing reaches GitHub)
+        const g = gh.cleanGithub(T.doc.github); const P = T.private && T.private.github;
+        if (!g.repo || !P || !P.token) fail('failed-precondition', 'TeamTrack can’t change GitHub issues for this team yet (Settings ▸ Integrations ▸ GitHub ▸ token).');
+        const t = T.tasks[payload.taskId]; if (!t) fail('not-found', 'That task doesn’t exist any more.');
+        const perms = ((T.doc.roles || {})[role] || {}).perms || {};
+        if (!(role === 'owner' || perms['tasks.editAll'] || (perms['tasks.editOwn'] && t.ownerUid === me.uid))) fail('permission-denied', 'You can only do this on tasks you can edit.');
+        const d = new Date(); let hh = d.getHours(); const ap = hh >= 12 ? 'PM' : 'AM'; hh = hh % 12 || 12;
+        const time = String(d.getDate()).padStart(2, '0') + '/' + d.toLocaleString('en-GB', { month: 'short' }) + '/' + String(d.getFullYear()).slice(-2) + ' ' + hh + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + ap;
+        const who = (T.members[me.uid] && T.members[me.uid].name) || me.name || 'Someone';
+        const hist = (u) => { t.history = [{ time, user: who, field: 'Attachment', original: '', updated: u }, ...(t.history || [])].slice(0, 100); };
+        if (payload.action === 'create') {
+          P.n = (P.n || 100) + 1; const url = 'https://github.com/' + g.repo + '/issues/' + P.n;
+          t.attachments = [...(t.attachments || []), { id: 'gh_issues_' + P.n, provider: 'github', name: 'Issue #' + P.n + ': ' + String(payload.title || t.name).slice(0, 160), url, size: 0, addedBy: who, addedAt: Date.now() }];
+          hist('Created GitHub issue #' + P.n); t.updatedAt = Date.now(); persist();
+          return { number: P.n, url, state: 'open' };
+        }
+        const n = Math.round(Number(payload.number));
+        if (!(t.attachments || []).some(a => a.url.endsWith('/' + g.repo + '/issues/' + n))) fail('permission-denied', 'That issue isn’t linked to this task.');
+        if (payload.action === 'reopen') { hist('Reopened GitHub issue #' + n); persist(); return { number: n, state: 'open' }; }
+        const reason = ['completed', 'not_planned', 'duplicate'].includes(payload.reason) ? payload.reason : 'completed';
+        if (reason === 'duplicate' && !(Number(payload.duplicateOf) > 0)) fail('invalid-argument', 'Duplicate of which issue number?');
+        hist('Closed GitHub issue #' + n + ' as ' + ({ completed: 'completed', not_planned: 'not planned', duplicate: 'a duplicate of #' + payload.duplicateOf })[reason]);
+        let finished = false;
+        if (payload.finish && reason === 'completed' && t.flag !== 'completed' && !gh.gateBlocks(t, (T.doc.workflow && T.doc.workflow.stages) || [])) {
+          t.history = [{ time, user: who, field: 'Task Status Flag', original: t.flag || 'none', updated: 'completed (GitHub issue #' + n + ' closed)' }, ...t.history].slice(0, 100);
+          t.flag = 'completed'; t.completedDate = new Date().toLocaleDateString('en-CA'); finished = true;
+        }
+        t.updatedAt = Date.now(); persist();
+        return { number: n, state: 'closed', reason, finished };
       }
       // Demo only: pretend GitHub sent an event, and apply it as the webhook would.
       if (!T.private || !T.private.github) fail('failed-precondition', 'Connect a repository first.');

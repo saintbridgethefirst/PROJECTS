@@ -911,3 +911,8 @@ button.tx-part:hover { border-color: var(--line-color); }
   .wf-stage .wf-more > .wf-bit:has(details[open]) { grid-column: 3 / -1; grid-row: 2; }
 }
 .wf-stage input, .wf-stage select { margin: 0; align-self: center; } .wf-stage { padding: 8px 12px 8px 14px; }
+.gh-pending { margin: 6px 0; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; background: color-mix(in srgb, #d69e2e 14%, transparent); border: 1px solid color-mix(in srgb, #d69e2e 40%, transparent); }
+.gh-close-btn { margin-left: auto; }
+.gh-close-opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; cursor: pointer; }
+.gh-close-opt input { margin-top: 3px; }
+.gh-token-steps { margin: 6px 0 10px; padding-left: 20px; display: grid; gap: 4px; }

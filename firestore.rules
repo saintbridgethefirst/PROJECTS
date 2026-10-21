@@ -53,7 +53,7 @@ service cloud.firestore {
       return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency'])
         && d.get('archiveRev', 0) is int
         && d.get('currency', 'GBP') in ['GBP', 'EUR', 'USD', 'INR', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD']
-        && (d.get('github', null) == null || (d.github is map && d.github.keys().hasOnly(['repo', 'issues', 'done', 'owner', 'connectedAt']) && d.github.get('repo', '') is string && d.github.get('repo', '').size() <= 140))
+        && (d.get('github', null) == null || (d.github is map && d.github.keys().hasOnly(['repo', 'issues', 'done', 'owner', 'connectedAt', 'write']) && d.github.get('repo', '') is string && d.github.get('repo', '').size() <= 140))
         && (d.get('purchase', null) == null || (d.purchase is map && d.purchase.keys().hasOnly(['on', 'over']) && d.purchase.get('on', false) is bool
           && d.purchase.get('over', 0) is number && d.purchase.get('over', 0) >= 0 && d.purchase.get('over', 0) <= 100000000))
         && (d.get('autos', null) == null || (d.autos is map && d.autos.keys().hasOnly(['partsTo', 'tellWaiting', 'remindDays']) && d.autos.get('partsTo', '') is string
@@ -420,7 +420,8 @@ service cloud.firestore {
         && (!changed().hasAny(['roles']) || can(t, 'roles.manage'))
         && (!changed().hasAny(['autos', 'github']) || can(t, 'team.settings'))
         // The repository itself is set by the server (githubConnect), which also keeps its secret.
-        && (!changed().hasAny(['github']) || (request.resource.data.get('github', null) == null || request.resource.data.github.get('repo', '') == resource.data.get('github', {}).get('repo', '')))
+        && (!changed().hasAny(['github']) || (request.resource.data.get('github', null) == null || (request.resource.data.github.get('repo', '') == resource.data.get('github', {}).get('repo', '')
+          && request.resource.data.github.get('write', false) == resource.data.get('github', {}).get('write', false))))
         && (!changed().hasAny(['purchase', 'currency']) || can(t, 'team.settings') || can(t, 'finance.edit'));
       allow delete: if isMember(t) && myRole(t) == 'owner';
 

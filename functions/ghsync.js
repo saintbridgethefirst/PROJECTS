@@ -40,7 +40,7 @@ export function cleanRepo(v) {
 export function cleanGithub(g) {
   g = g && typeof g === 'object' ? g : {};
   const repo = cleanRepo(g.repo);
-  return { repo, issues: g.issues !== false, done: g.done !== false, owner: typeof g.owner === 'string' ? g.owner.slice(0, 128) : '', connectedAt: Number(g.connectedAt) || 0 };
+  return { repo, issues: g.issues !== false, done: g.done !== false, owner: typeof g.owner === 'string' ? g.owner.slice(0, 128) : '', connectedAt: Number(g.connectedAt) || 0, write: g.write === true };
 }
 /** A link to GitHub's own "new issue" page, filled in, naming the task so the webhook links them. */
 export function newIssueUrl(repo, { title = '', body = '', ref = '' } = {}) {

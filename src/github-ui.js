@@ -55,7 +55,7 @@ export function githubSection(ctx, { rerender } = {}) {
   const v = { ...g };
   const people = (s.members || []).slice().sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
   const save = el('button.btn.small.primary', { type: 'button', id: 'gh-save', disabled: true, onclick: async () => {
-    if (await ctx.writeOps([{ type: 'update', path: 'team', data: { github: { repo: g.repo, issues: v.issues, done: v.done, owner: v.owner, connectedAt: g.connectedAt } } }])) { toast('GitHub settings saved.'); if (rerender) rerender(); }
+    if (await ctx.writeOps([{ type: 'update', path: 'team', data: { github: { repo: g.repo, issues: v.issues, done: v.done, owner: v.owner, connectedAt: g.connectedAt, write: g.write } } }])) { toast('GitHub settings saved.'); if (rerender) rerender(); }
   } }, 'Save');
   const touch = () => { save.disabled = false; };
   box.append(
@@ -70,12 +70,100 @@ export function githubSection(ctx, { rerender } = {}) {
         try { await ctx.backend.data.callFunction('githubConnect', { teamId: s.teamId, disconnect: true }); toast('Disconnected.'); if (rerender) rerender(); } catch (e) { toast(serverError(e), 9000); }
       } }, 'Disconnect'), el('span.spacer'), save) : '',
     setup,
+    tokenBox(ctx, g, edit, rerender),
     el('h4', { style: { marginTop: '18px' } }, 'Raise an issue'),
     el('p.hint', {}, 'Share this link in your team chat. It opens a short form that adds a task here and opens GitHub with the issue filled in, so the two are linked from the start.'),
     el('div.row', { style: { gap: '8px', flexWrap: 'wrap' } }, el('input.inp.gh-copy', { readonly: true, value: raiseLink(s.teamId), id: 'gh-raise-link', 'aria-label': 'Raise-an-issue link' }), copyBtn('gh-raise-copy', raiseLink(s.teamId)),
       el('button.btn.small', { type: 'button', id: 'gh-raise-open', onclick: () => openRaiseIssue(ctx) }, 'Open the form')));
   if (ctx.backend.isDemo) box.append(simulateBox(ctx));
   return box;
+}
+
+/** Optional: a token so TeamTrack creates issues straight away and closes them from a task. */
+function tokenBox(ctx, g, edit, rerender) {
+  const s = ctx.session;
+  const save = async (token) => {
+    try { const r = await ctx.backend.data.callFunction('githubConnect', { teamId: s.teamId, token }); toast(r.write ? 'TeamTrack can now create and close issues in ' + g.repo + '.' : 'Token removed.', 5000); if (rerender) rerender(); }
+    catch (e) { toast(serverError(e), 9000); }
+  };
+  const box = el('div.gh-token', { id: 'gh-token' }, el('h4', { style: { marginTop: '18px' } }, 'Create and close issues from tasks'));
+  if (g.write) {
+    box.append(el('p', {}, '✓ On. “+ GitHub issue” makes the issue straight away and links it, and a task’s linked issues can be closed from the task.'),
+      edit ? el('button.btn.small', { type: 'button', id: 'gh-token-remove', onclick: () => { if (confirm('Remove the token? Issues can still be raised, through GitHub’s own page.')) save(''); } }, 'Remove the token') : '');
+    return box;
+  }
+  const input = el('input.inp', { id: 'gh-token-input', type: 'password', autocomplete: 'off', placeholder: 'github_pat_…', 'aria-label': 'GitHub token', disabled: !edit });
+  box.append(el('p.hint', {}, 'Optional. Without it, “+ GitHub issue” opens GitHub’s page filled in and the issue links back when it’s submitted. With it, TeamTrack makes the issue itself, links it at once, and can close it (completed, not planned or duplicate) from the task.'),
+    el('ol.hint.gh-token-steps', {},
+      el('li', {}, 'On GitHub: ', el('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener noreferrer' }, 'Settings ▸ Developer settings ▸ Fine-grained tokens ▸ Generate'), '.'),
+      el('li', {}, 'Repository access: only ', el('b', {}, g.repo), '. Permissions: ', el('b', {}, 'Issues: Read and write'), '. Nothing else.'),
+      el('li', {}, 'Paste it here. It’s kept on the server with the webhook secret; nobody can read it back, you included.')),
+    el('div.row', { style: { gap: '8px', flexWrap: 'wrap' } }, input, el('button.btn.small.primary', { type: 'button', id: 'gh-token-save', disabled: !edit, onclick: () => { const t = input.value.trim(); if (!t) { toast('Paste the token first.'); return; } input.value = ''; save(t); } }, 'Save token')));
+  return box;
+}
+
+// ── On a task: create, link and close issues ─────────────────────────────────
+const PENDING = 'tt_gh_pending';
+const pendingAll = () => { try { return JSON.parse(localStorage.getItem(PENDING) || '{}'); } catch { return {}; } };
+/** This browser opened GitHub's new-issue page for the task and is waiting for the issue to link back. */
+export function ghPending(taskId) { const p = pendingAll()[taskId]; return p && Date.now() - p < 864e5 ? p : 0; }
+function setPending(taskId, on) { const all = pendingAll(); if (on) all[taskId] = Date.now(); else delete all[taskId]; try { localStorage.setItem(PENDING, JSON.stringify(all)); } catch { /* */ } }
+/** "+ GitHub issue": made straight away with the team's token, else GitHub's page, filled in. */
+export async function createIssue(ctx, task) {
+  const g = githubOf(ctx.session); if (!g.repo) return;
+  if (g.write) {
+    try {
+      const r = await ctx.backend.data.callFunction('githubIssue', { teamId: ctx.session.teamId, taskId: task.id, action: 'create', title: task.name });
+      toast('Created GitHub issue #' + r.number + ' and linked it.', 5000, 'Open', () => window.open(r.url, '_blank', 'noopener'));
+      return r;
+    } catch (e) { toast(serverError(e), 9000); return null; }
+  }
+  window.open(newIssueUrl(g.repo, { title: task.name, body: '', ref: refOf(task) }), '_blank', 'noopener');
+  setPending(task.id, true);
+  toast('GitHub opened with the issue filled in. Press “Submit new issue” there; it links to this task by itself.', 7000);
+  if (window.boardRender) window.boardRender();
+  if (window.boardRefreshEditor) window.boardRefreshEditor();
+  return null;
+}
+/** Link an issue or pull request by pasting its address. */
+export function linkIssueDialog(ctx, task) {
+  const g = githubOf(ctx.session);
+  const m = modal('Link a GitHub issue or pull request', { narrow: true }); m.box.id = 'gh-link';
+  const url = el('input.inp', { id: 'gh-link-url', placeholder: 'https://github.com/' + (g.repo || 'owner/repo') + '/issues/12  or just 12', 'aria-label': 'Issue or pull request' });
+  m.body.append(el('p.hint', {}, 'Paste its address from GitHub, or type its number (#12).'), url);
+  m.foot.append(el('span.spacer'), el('button.btn.primary', { type: 'button', id: 'gh-link-save', onclick: async () => {
+    let v = url.value.trim().replace(/^#/, '');
+    if (/^\d+$/.test(v) && g.repo) v = 'https://github.com/' + g.repo + '/issues/' + v;
+    const mm = /^https?:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/(issues|pull)\/(\d+)/i.exec(v);
+    if (!mm) { toast('That isn’t a GitHub issue or pull request address.'); return; }
+    const clean = 'https://github.com/' + mm[1] + '/' + mm[2].toLowerCase() + '/' + mm[3];
+    setPending(task.id, false);
+    const ok = window.boardAddAttachment ? window.boardAddAttachment(task.id, { id: 'gh_' + mm[2].toLowerCase() + '_' + mm[3], provider: 'github', name: (mm[2].toLowerCase() === 'pull' ? 'PR' : 'Issue') + ' #' + mm[3], url: clean, size: 0, addedBy: ctx.user.name || '', addedAt: Date.now() }) : false;
+    if (ok) { m.close(); toast('Linked #' + mm[3] + '.'); }
+  } }, 'Link'));
+  setTimeout(() => url.focus(), 30);
+}
+/** Close (completed / not planned / duplicate) or reopen a linked issue from the task. */
+export function closeIssueDialog(ctx, task, number) {
+  const m = modal('Close issue #' + number, { narrow: true }); m.box.id = 'gh-close';
+  let reason = 'completed';
+  const dup = el('input.inp', { id: 'gh-close-dup', placeholder: 'Duplicate of # (number)', inputmode: 'numeric', style: { display: 'none', marginTop: '8px' } });
+  const finish = el('input', { type: 'checkbox', id: 'gh-close-finish', checked: task.flag !== 'completed' });
+  const opt = (v, title, sub) => el('label.gh-close-opt', {}, el('input', { type: 'radio', name: 'gh-close-reason', value: v, checked: v === 'completed', onchange: () => { reason = v; dup.style.display = v === 'duplicate' ? '' : 'none'; finishRow.style.display = v === 'completed' && task.flag !== 'completed' ? '' : 'none'; } }), el('span', {}, el('b', {}, title), el('span.hint', {}, ' ' + sub)));
+  const finishRow = el('label.chk', { style: { marginTop: '10px', display: task.flag !== 'completed' ? '' : 'none' } }, finish, ' Also mark this task done');
+  m.body.append(opt('completed', 'Close as completed', 'Done, fixed, resolved'), opt('not_planned', 'Close as not planned', 'Won’t fix, can’t reproduce, stale'), opt('duplicate', 'Close as duplicate', 'Of another issue'), dup, finishRow);
+  m.foot.append(el('span.spacer'), el('button.btn.primary', { type: 'button', id: 'gh-close-save', onclick: async () => {
+    const d = Number(String(dup.value).replace('#', '').trim());
+    if (reason === 'duplicate' && !(d > 0)) { toast('Which issue is it a duplicate of?'); dup.focus(); return; }
+    try {
+      const r = await ctx.backend.data.callFunction('githubIssue', { teamId: ctx.session.teamId, taskId: task.id, action: 'close', number, reason, duplicateOf: d || 0, finish: reason === 'completed' && finish.checked });
+      m.close(); toast('Closed #' + number + (r.finished ? ', and the task is done.' : '.'), 4000);
+    } catch (e) { toast(serverError(e), 9000); }
+  } }, 'Close issue'));
+}
+export async function reopenIssue(ctx, task, number) {
+  try { await ctx.backend.data.callFunction('githubIssue', { teamId: ctx.session.teamId, taskId: task.id, action: 'reopen', number }); toast('Reopened #' + number + '.'); }
+  catch (e) { toast(serverError(e), 9000); }
 }
 
 /** Demo only: pretend GitHub sent an event. */

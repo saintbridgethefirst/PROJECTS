@@ -24,7 +24,7 @@ test('branch names, repos and the new-issue link', () => {
   assert.equal(cleanRepo('https://github.com/Uni/rover.git'), 'Uni/rover');
   assert.equal(cleanRepo('uni/rover'), 'uni/rover');
   assert.equal(cleanRepo('not a repo'), '');
-  assert.deepEqual(cleanGithub({ repo: 'uni/rover' }), { repo: 'uni/rover', issues: true, done: true, owner: '', connectedAt: 0 });
+  assert.deepEqual(cleanGithub({ repo: 'uni/rover' }), { repo: 'uni/rover', issues: true, done: true, owner: '', connectedAt: 0, write: false });
   const u = newIssueUrl('uni/rover', { title: 'Motor stalls', body: 'At 50% throttle', ref: 'TT-ABC123' });
   assert.ok(u.startsWith('https://github.com/uni/rover/issues/new?title=Motor%20stalls&body=') && decodeURIComponent(u).includes('TeamTrack: TT-ABC123'));
 });
