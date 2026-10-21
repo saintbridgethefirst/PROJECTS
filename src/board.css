@@ -873,3 +873,36 @@
             .gt2-label .kb-count { display: none; }
             .gt2-label { padding: 0 8px; gap: 6px; }
         }
+
+        /* Sign-offs and checklists (board-overrides.js ▸ signoffSection, soChips, openApprovals) */
+        .so-chip { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border-color); color: var(--text-muted); white-space: nowrap; }
+        .kb-meta .so-chip { margin-left: 0; }
+        .so-chip.so-cl.ok { color: #38a169; border-color: color-mix(in srgb, #38a169 55%, transparent); }
+        .so-chip.so-wait { color: #b7791f; border-color: color-mix(in srgb, #d69e2e 60%, transparent); background: color-mix(in srgb, #ecc94b 14%, transparent); }
+        :root:not([data-theme="light"]) .so-chip.so-wait { color: #f6e05e; }
+        .so-chip.so-changes { color: var(--blocker); border-color: color-mix(in srgb, var(--blocker) 55%, transparent); }
+        .signoff-section .so-checks { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+        .so-check { display: flex !important; align-items: center; gap: 9px; margin: 0 !important; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-main); text-transform: none !important; letter-spacing: normal !important; font-size: 13.5px !important; font-weight: 600 !important; color: var(--text-main) !important; cursor: pointer; }
+        .so-check input { width: 18px !important; height: 18px; margin: 0 !important; accent-color: #38a169; flex: none; }
+        .so-check.done span { color: var(--text-muted); text-decoration: line-through; }
+        .so-box { margin-top: 10px; padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-main); display: flex; flex-direction: column; gap: 8px; }
+        .so-box.waiting { border-color: color-mix(in srgb, #d69e2e 60%, transparent); }
+        .so-box.changes { border-color: color-mix(in srgb, var(--blocker) 55%, transparent); }
+        .so-box.approved { border-color: color-mix(in srgb, #38a169 55%, transparent); }
+        .so-status { font-size: 13.5px; line-height: 1.45; }
+        .so-warn { font-size: 12.5px; font-weight: 700; color: #b7791f; }
+        :root:not([data-theme="light"]) .so-warn { color: #f6e05e; }
+        .so-note { width: 100%; box-sizing: border-box; margin: 0 !important; font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-panel); color: var(--text-main); resize: vertical; }
+        .so-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+        .so-btns button { flex: 1 1 140px; width: auto; padding: 10px; }
+        .so-modal { max-width: 640px; }
+        .so-h { margin: 16px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+        .so-h:first-child { margin-top: 0; }
+        .so-card { border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; background: var(--bg-main); }
+        .so-card-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .so-badge { font-size: 10px; font-weight: 800; letter-spacing: .05em; padding: 3px 7px; border-radius: 6px; background: #f6ad55; color: #1a1100; }
+        .so-name { font-size: 15px; font-weight: 800; text-align: left; padding: 0; }
+        .so-cl-list { list-style: none; margin: 2px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; }
+        .so-cl-list .ok { color: #38a169; } .so-cl-list .no { color: var(--blocker); }
+        .so-others, .so-recent { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-muted); }
+        .so-ok { color: #38a169; font-weight: 700; } .so-ch { color: var(--blocker); font-weight: 700; }

@@ -26,7 +26,7 @@ const ALLOWED = {
   risk: ['title', 'detail', 'likelihood', 'impact', 'ownerUid', 'status', 'mitigation', 'taskIds', 'reviewDate', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'],
   requirement: ['ref', 'title', 'detail', 'priority', 'status', 'taskIds', 'verification', 'verified', 'verifiedBy', 'verifiedDate', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'],
   paper: ['title', 'authors', 'year', 'venue', 'doi', 'url', 'notes', 'tags', 'status', 'taskIds', 'addedBy', 'addedByName', 'createdAt', 'updatedAt'],
-  task: ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag', 'dueDate', 'startDate', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments', 'categoryId', 'ownerUid', 'weekId', 'order', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt'],
+  task: ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag', 'dueDate', 'startDate', 'checks', 'signoff', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments', 'categoryId', 'ownerUid', 'weekId', 'order', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt'],
 };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -108,6 +108,7 @@ function validTask(d) {
     (d.dependsOn === undefined || (Array.isArray(d.dependsOn) && d.dependsOn.length <= 10 && d.dependsOn.every(x => typeof x === 'string'))) &&
     (d.carryOf === undefined || (typeof d.carryOf === 'string' && d.carryOf.length <= 64)) &&
     (d.startDate === undefined || (typeof d.startDate === 'string' && d.startDate.length <= 10)) &&
+    (d.checks === undefined || (!!d.checks && typeof d.checks === 'object' && !Array.isArray(d.checks) && Object.keys(d.checks).length <= 50)) &&
     (d.skill === undefined || (typeof d.skill === 'string' && d.skill.length <= 40)) &&
     (d.timeLog === undefined || (Array.isArray(d.timeLog) && d.timeLog.length <= 200));
 }
@@ -136,6 +137,14 @@ export const validSelf = (d, uid) => !!d && hasOnly(d, SELF_KEYS) && d.uid === u
   optNum(d, 'goal') && optNum(d, 'mood') && optNum(d, 'order') &&
   (d.log === undefined || (Array.isArray(d.log) && d.log.length <= 800)) && (d.areas === undefined || (Array.isArray(d.areas) && d.areas.length <= 12)) &&
   (d.sync === undefined || (!!d.sync && typeof d.sync === 'object' && !Array.isArray(d.sync) && Object.keys(d.sync).length <= 50));
+
+/** A task's sign-off (firestore.rules ▸ validSignoff): shape, and a decision only by the approver it names. */
+function validSignoff(after, before, auth) {
+  const v = after.signoff; if (v === undefined || v === null) return true;
+  if (!(typeof v === 'object' && hasOnly(v, ['stage', 'status', 'by', 'byName', 'at', 'approver', 'approverName', 'note', 'decidedAt']) && ['waiting', 'approved', 'changes'].includes(v.status)
+    && (v.note === undefined || isStr(v.note, 500)) && (v.stage === undefined || isStr(v.stage, 40)))) return false;
+  return v.status === 'waiting' || (before && JSON.stringify(before.signoff) === JSON.stringify(v)) || v.approver === auth.uid;
+}
 
 /** A verified university email on the account, or one proved by code (verifiedStudents, server-written). */
 function academicOf(store, auth) {
@@ -256,9 +265,13 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (isDelete) { if (!canEditOwned(before.ownerUid)) deny('delete task'); return; }
       const catAfter = T1 && T1.categories[after.categoryId];
       if (!catAfter || catAfter.ownerUid !== after.ownerUid) deny('task row mismatch');
-      if (isCreate) { if (!(canEditOwned(after.ownerUid) && validTask(after))) deny('create task'); return; }
-      if (!(canEditOwned(before.ownerUid) && canEditOwned(after.ownerUid) && validTask(after))) deny('edit task');
-      return;
+      if (isCreate) { if (!(canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, null, auth))) deny('create task'); return; }
+      if (canEditOwned(before.ownerUid) && canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, before, auth)) return;
+      // Recording a sign-off decision (firestore.rules ▸ signoffDecision)
+      const ch = changedKeys(before, after);
+      if (meMember && before.signoff && before.signoff.status === 'waiting' && ch.every(k => ['signoff', 'stage', 'flag', 'completedDate', 'history', 'updatedBy', 'updatedAt'].includes(k))
+        && after.signoff && ['approved', 'changes'].includes(after.signoff.status) && after.signoff.approver === auth.uid && validTask(after) && validSignoff(after, before, auth)) return;
+      deny('edit task');
     }
     case 'comments': {
       if (!meMember) deny('not a member');

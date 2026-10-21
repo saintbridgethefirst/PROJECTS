@@ -203,6 +203,7 @@
             }
             extra.appendChild(phaseSection(nodeData, editable));
             extra.appendChild(planningSection(nodeData, editable));
+            const soSec = signoffSection(nodeData, editable); if (soSec) extra.appendChild(soSec);
             extra.appendChild(repeatSection(nodeData, editable));
             extra.appendChild(iconSection(nodeData, editable));
             if (teamFields().length) extra.appendChild(customFieldSection(nodeData, editable));
@@ -220,7 +221,7 @@
         }
         function makeReadOnly(form) {
             // Comments stay open: people can discuss a task they're not allowed to edit.
-            form.querySelectorAll('input, textarea, select, button').forEach(n => { if (!n.closest('.comments-section, .nb-section, .linked-section, .carry-note') && !n.classList.contains('cal-link')) n.disabled = true; });
+            form.querySelectorAll('input, textarea, select, button').forEach(n => { if (!n.closest('.comments-section, .nb-section, .linked-section, .carry-note, .so-box') && !n.classList.contains('cal-link')) n.disabled = true; });
             form.querySelectorAll('.due-quick, [data-edit-only], .btn-danger').forEach(n => { n.style.display = 'none'; });
             const note = document.createElement('div'); note.className = 'read-only-note';
             note.textContent = 'View only — your role can’t edit this.';
@@ -445,7 +446,7 @@
                     person: r.person.name, personId: r.person.id, category: r.cat.name, week: r.week.title, weekStart: r.week.startDate || '',
                     task: r.t.name, priority: r.t.priority, status: r.t.status, ref: r.t.jiraId || '', flag: r.status,
                     deadline: r.due, daysToDeadline: r.days, overdue: r.overdue, completedOn: r.t.completedDate || '', phase: (phaseOf(r.t) || {}).name || '',
-                    stage: STAGE_LABEL[TT.stageOf(r.t)], stageName: stageNameOf(r.t), effort: r.t.effort ?? null, waitsOn: prereqs(r.t).map(l => l.task.name),
+                    stage: STAGE_LABEL[TT.stageOf(r.t)], stageName: stageNameOf(r.t), signoffWaiting: (() => { const so = r.t.signoff; const st = so && so.status === 'waiting' && r.t.flag !== 'completed' ? stageById(so.stage) : null; return st && st.signoff && TT.stageId(r.t) === st.id ? TT.signersFor(st, r.person.id).label : ''; })(), effort: r.t.effort ?? null, waitsOn: prereqs(r.t).map(l => l.task.name),
                     subtasks: (r.t.subtasks || []).map(s => ({ title: s.title, done: !!s.completed })),
                     supporting: r.sup, files: (r.t.attachments || []).map(a => ({ name: a.name, url: a.url, provider: a.provider })),
                     custom: Object.fromEntries(fields.map(f => [f.name, displayCustom(f, r.t.custom && r.t.custom[f.id])]).filter(([, v]) => v !== '')),
@@ -1183,7 +1184,7 @@
             const segs = document.createElement('span'); segs.className = 'stage-segs'; segs.setAttribute('aria-hidden', 'true');
             stages.forEach((s, j) => { const g = document.createElement('i'); if (j <= i) g.style.background = s.color; segs.appendChild(g); });
             const name = document.createElement('span'); name.className = 'stage-name'; name.textContent = cur.name; name.style.color = cur.color;
-            w.append(segs, name); return w;
+            w.append(segs, name, ...soChips(task)); return w;
         }
         function fmtHours(h) { return h === null || h === undefined ? '' : String(+Number(h).toFixed(2)) + 'h'; }
         function weekIdx(key) { return weeksData.findIndex(w => w.key === key); }
@@ -1207,7 +1208,15 @@
             // stage = one of the team's stage ids (or a kind: 'todo' / 'doing' / 'done' → its first stage of that kind)
             const to = stageById(stage) || wfStages().find(s => s.kind === stage); if (!to) return false;
             if (TT.stageId(task) === to.id) return false;
-            const fromName = stageNameOf(task);
+            const fromName = stageNameOf(task); const fromId = TT.stageId(task); const owner = taskOwner(task);
+            // Sign-offs: moving forward past a stage that needs one.
+            const gate = TT.gateOnTheWay(task, fromId, to.id);
+            if (gate) {
+                if (!TT.canSign(gate, owner)) { toast('“' + gate.name + '” needs a sign-off from ' + TT.signersFor(gate, owner).label + ' first. Open the task to send it for sign-off.', 6000, 'Open', () => openOriginalTask(task.id)); return false; }
+                soRecord(task, gate, 'approved', '');   // you may sign it off, so moving it on counts as your approval
+            }
+            // Moving back to (or before) a stage: its old sign-off no longer counts; a pending request is withdrawn.
+            if (task.signoff && !gate) { const st = wfStages(); const iTo = st.findIndex(s => s.id === to.id), iSo = st.findIndex(s => s.id === task.signoff.stage); if (iSo < 0 || iTo <= iSo) task.signoff = null; }
             if (to.kind === 'done') { task.flag = 'completed'; stampCompletion(task); }
             else { if (task.flag === 'completed') { task.flag = 'none'; stampCompletion(task); } task.stage = to.id; }
             logHistory(task, 'Stage', fromName, to.name);
@@ -1216,6 +1225,139 @@
             if (activeNode && activeNode.id === task.id) openEditor(task);
             return true;
         }
+        // ═════════════════════════════════════════════════════════════════════
+        //  Sign-offs and checklists (workflow step 2). A stage can need a sign-off
+        //  before a task moves on from it, and can have a checklist. The owner sends
+        //  the task for sign-off; the sub-team lead / an admin / a named person
+        //  approves (moving it on) or asks for changes with a note. The save check
+        //  in sync.js (deniedChanges) stops anyone else moving it past the stage.
+        // ═════════════════════════════════════════════════════════════════════
+        function stageOfTask(task) { return stageById(TT.stageId(task)) || wfStages()[0]; }
+        function nextStage(stage) { const st = wfStages(); const i = st.findIndex(s => s.id === stage.id); return st[i + 1] || null; }
+        function soAgo(ms) { if (!ms) return ''; const m = Math.round((Date.now() - ms) / 60000); if (m < 60) return m <= 1 ? 'just now' : m + ' min ago'; const h = Math.round(m / 60); if (h < 24) return h + (h === 1 ? ' hour' : ' hours') + ' ago'; const d = Math.round(h / 24); return d === 1 ? 'yesterday' : d + ' days ago'; }
+        function soFirst(name) { return String(name || '').split(' ')[0] || 'them'; }
+        function soRecord(task, stage, status, note) {
+            const prev = task.signoff && task.signoff.stage === stage.id ? task.signoff : null; const me = TT.me || {};
+            task.signoff = { stage: stage.id, status, by: prev ? prev.by : (me.uid || ''), byName: prev ? prev.byName : (me.name || ''), at: prev ? prev.at : Date.now(), approver: me.uid || '', approverName: me.name || '', note: String(note || '').slice(0, 500), decidedAt: Date.now() };
+            logHistory(task, 'Sign-off', stage.name, (status === 'approved' ? 'Approved by ' : 'Changes requested by ') + (me.name || 'someone') + (note ? ': ' + note : ''));
+        }
+        function soAfter(task) { saveDatabase(); render(); if (activeNode && activeNode.id === task.id) openEditor(task); updateApprovals(); const m = document.getElementById('approvals-modal'); if (m && m.__draw) m.__draw(); }
+        /** Approve the sign-off for the task's current stage and move it to the next stage. */
+        function soApprove(task, note) {
+            const stage = stageOfTask(task); const next = nextStage(stage); if (!stage.signoff || !next) return;
+            if (!TT.canSign(stage, taskOwner(task))) { toast('Only ' + TT.signersFor(stage, taskOwner(task)).label + ' can sign this off.'); return; }
+            soRecord(task, stage, 'approved', note);
+            if (next.kind === 'done') { task.flag = 'completed'; stampCompletion(task); } else task.stage = next.id;
+            logHistory(task, 'Stage', stage.name, next.name);
+            soAfter(task); toast('Signed off. “' + (task.name || 'Task') + '” moved to ' + next.name + '.');
+        }
+        function soChanges(task, note) {
+            const stage = stageOfTask(task); if (!TT.canSign(stage, taskOwner(task))) return;
+            if (!String(note || '').trim()) { toast('Write what needs changing, so they know what to fix.'); const n = document.querySelector('#so-note, .so-note:focus'); if (n) n.focus(); return; }
+            soRecord(task, stage, 'changes', note);
+            soAfter(task); toast('Sent back with your note.');
+        }
+        function soRequest(task) {
+            const stage = stageOfTask(task); const me = TT.me || {};
+            task.signoff = { stage: stage.id, status: 'waiting', by: me.uid || '', byName: me.name || '', at: Date.now(), approver: '', approverName: '', note: '', decidedAt: 0 };
+            logHistory(task, 'Sign-off', stage.name, 'Sent to ' + TT.signersFor(stage, taskOwner(task)).label);
+            soAfter(task); toast('Sent for sign-off to ' + TT.signersFor(stage, taskOwner(task)).label + '.');
+        }
+        function soCancel(task) { const stage = stageOfTask(task); task.signoff = null; logHistory(task, 'Sign-off', stage.name, 'Request withdrawn'); soAfter(task); }
+        function toggleCheck(task, id, on) { const c = { ...(task.checks || {}) }; if (on) c[id] = true; else delete c[id]; task.checks = c; saveDatabase(); render(); updateApprovals(); }
+        /** Little chips for a card: checklist progress and sign-off state. */
+        function soChips(task) {
+            if (task.flag === 'completed') return [];
+            const stage = stageOfTask(task); const out = []; const mk = (cls, text, tip) => { const s = document.createElement('span'); s.className = 'so-chip ' + cls; s.textContent = text; if (tip) s.title = tip; out.push(s); };
+            const cl = TT.checklistOf(task); if (cl.total) mk('so-cl' + (cl.done === cl.total ? ' ok' : ''), '☑ ' + cl.done + '/' + cl.total, 'Checklist for ' + stage.name);
+            if (stage.signoff) {
+                const so = task.signoff && task.signoff.stage === stage.id ? task.signoff : null; const who = TT.signersFor(stage, taskOwner(task));
+                if (so && so.status === 'waiting') mk('so-wait', /^an? /.test(who.label) ? '⏳ Waiting for sign-off' : '⏳ Waiting for ' + soFirst(who.label), 'Waiting for ' + who.label + ' to sign off');
+                else if (so && so.status === 'changes') mk('so-changes', '✋ Changes asked', so.approverName + ': ' + so.note);
+                else if (!so || so.status !== 'approved') mk('so-lock', '🔒 Sign-off', 'Moving on from ' + stage.name + ' needs ' + who.label + '’s sign-off');
+            }
+            return out;
+        }
+        /** Editor: the current stage's checklist and sign-off. */
+        function signoffSection(task, editable) {
+            const stage = stageOfTask(task); const cl = TT.checklistOf(task);
+            if (!stage || (!stage.signoff && !cl.total) || task.flag === 'completed') return null;
+            const s = section(stage.name + (stage.signoff ? (cl.total ? ': checklist and sign-off' : ': sign-off') : ': checklist')); s.classList.add('signoff-section');
+            if (cl.total) {
+                const list = document.createElement('div'); list.className = 'so-checks';
+                cl.items.forEach(c => { const l = document.createElement('label'); l.className = 'so-check' + (c.done ? ' done' : ''); const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = c.done; cb.disabled = !editable; cb.dataset.check = c.id; cb.onchange = () => toggleCheck(task, c.id, cb.checked); const t = document.createElement('span'); t.textContent = c.text; l.append(cb, t); list.appendChild(l); });
+                const p = document.createElement('div'); p.className = 'hint'; p.textContent = cl.done + ' of ' + cl.total + ' done' + (editable ? '' : ' (ticked by ' + (locateTask(task.id) || { person: { name: 'the owner' } }).person.name + ')');
+                s.append(list, p);
+            }
+            if (stage.signoff) {
+                const owner = taskOwner(task); const who = TT.signersFor(stage, owner); const iCan = TT.canSign(stage, owner); const next = nextStage(stage);
+                const so = task.signoff && task.signoff.stage === stage.id ? task.signoff : null;
+                const box = document.createElement('div'); box.className = 'so-box' + (so ? ' ' + so.status : '');
+                const line = document.createElement('div'); line.className = 'so-status'; line.id = 'so-status';
+                if (!so) line.textContent = '🔒 Moving on from ' + stage.name + ' needs a sign-off from ' + who.label + '.';
+                else if (so.status === 'waiting') line.textContent = '⏳ Sent for sign-off by ' + so.byName + ', ' + soAgo(so.at) + '. Waiting for ' + who.label + '.';
+                else if (so.status === 'changes') line.textContent = '✋ ' + so.approverName + ' asked for changes' + (so.note ? ': “' + so.note + '”' : '') + ' (' + soAgo(so.decidedAt) + ').';
+                else line.textContent = '✅ Signed off by ' + so.approverName + ', ' + soAgo(so.decidedAt) + '.';
+                box.appendChild(line);
+                const btns = document.createElement('div'); btns.className = 'so-btns';
+                const b = (txt, id, cls, fn) => { const x = document.createElement('button'); x.type = 'button'; x.className = cls; x.id = id; x.textContent = txt; x.onclick = fn; btns.appendChild(x); return x; };
+                if (iCan && next && (!so || so.status !== 'approved')) {
+                    if (cl.total && cl.done < cl.total) { const w = document.createElement('div'); w.className = 'so-warn'; w.textContent = '⚠ ' + (cl.total - cl.done) + ' checklist item' + (cl.total - cl.done === 1 ? ' isn’t' : 's aren’t') + ' ticked yet.'; box.appendChild(w); }
+                    const note = document.createElement('textarea'); note.id = 'so-note'; note.className = 'so-note'; note.rows = 2; note.maxLength = 500; note.placeholder = 'Note for ' + (so ? soFirst(so.byName) : 'them') + (so && so.status === 'waiting' ? ' (needed to ask for changes)' : ' (optional)'); box.appendChild(note);
+                    b('Approve → ' + next.name, 'so-approve', 'btn-primary', () => soApprove(task, note.value.trim()));
+                    if (so && so.status === 'waiting') b('Request changes', 'so-changes', 'btn-secondary', () => soChanges(task, note.value.trim()));
+                    if (so && so.status === 'waiting' && editable && so.by === (TT.me || {}).uid) b('Withdraw request', 'so-cancel', 'btn-secondary', () => soCancel(task));
+                } else if (editable && (!so || so.status === 'changes')) b(so ? 'Send again for sign-off' : 'Send for sign-off', 'so-send', 'btn-primary', () => soRequest(task));
+                else if (editable && so && so.status === 'waiting') b('Withdraw request', 'so-cancel', 'btn-secondary', () => soCancel(task));
+                if (btns.children.length) box.appendChild(btns);
+                s.appendChild(box);
+            }
+            return s;
+        }
+        /** Tasks waiting for a sign-off: [{ l, st, who, mine }]. */
+        function waitingSignoffs() {
+            return latestOfChains(allTaskLocs()).map(l => {
+                const so = l.task.signoff; if (l.task.flag === 'completed' || !so || so.status !== 'waiting') return null;
+                const st = stageById(so.stage); if (!st || !st.signoff || TT.stageId(l.task) !== st.id) return null;
+                return { l, st, who: TT.signersFor(st, l.person.id), mine: TT.canSign(st, l.person.id) };
+            }).filter(Boolean).sort((a, b) => a.l.task.signoff.at - b.l.task.signoff.at);
+        }
+        function updateApprovals() {
+            const b = document.getElementById('approvals-btn'); if (!b) return;
+            b.hidden = !wfStages().some(s => s.signoff);
+            const n = b.hidden ? 0 : waitingSignoffs().filter(x => x.mine).length;
+            const badge = document.getElementById('approvals-badge'); if (badge) { badge.hidden = !n; badge.textContent = n > 9 ? '9+' : String(n); }
+            b.setAttribute('aria-label', 'Sign-offs' + (n ? ', ' + n + ' waiting for you' : ''));
+        }
+        function openApprovals() {
+            const m = TT.modal('Sign-offs'); m.box.id = 'approvals-modal'; m.box.classList.add('so-modal');
+            const draw = () => {
+                const all = waitingSignoffs(); const mine = all.filter(x => x.mine); const others = all.filter(x => !x.mine);
+                const recent = latestOfChains(allTaskLocs()).filter(l => l.task.signoff && l.task.signoff.status !== 'waiting' && l.task.signoff.decidedAt > Date.now() - 14 * 864e5).sort((a, b) => b.task.signoff.decidedAt - a.task.signoff.decidedAt).slice(0, 8);
+                const h = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+                const out = [h('h4', 'so-h', 'Waiting for you (' + mine.length + ')')];
+                if (!mine.length) out.push(h('p', 'hint', 'Nothing to sign off right now.'));
+                mine.forEach(({ l, st }) => {
+                    const t = l.task; const so = t.signoff; const next = nextStage(st); const cl = TT.checklistOf(t);
+                    const card = h('article', 'so-card'); card.dataset.id = t.id;
+                    const top = h('div', 'so-card-top'); top.append(h('span', 'so-badge', st.name.toUpperCase()), h('span', 'hint', l.person.name + ' · sent ' + soAgo(so.at)));
+                    const name = h('button', 'link-btn so-name', t.name || 'Untitled task'); name.type = 'button'; name.onclick = () => { m.close(); openOriginalTask(t.id); };
+                    const meta = h('div', 'hint', st.name + ' → ' + (next ? next.name : '') + (t.dueDate ? ' · due ' + fmtShort(t.dueDate) : '') + (cl.total ? ' · checklist ' + cl.done + '/' + cl.total : ''));
+                    card.append(top, name, meta);
+                    if (cl.total) { const ul = h('ul', 'so-cl-list'); cl.items.forEach(c => ul.appendChild(h('li', c.done ? 'ok' : 'no', (c.done ? '✓ ' : '✗ ') + c.text))); card.appendChild(ul); }
+                    const note = h('textarea', 'so-note'); note.rows = 2; note.maxLength = 500; note.placeholder = 'Note for ' + soFirst(so.byName) + ' (needed to ask for changes)'; note.setAttribute('aria-label', 'Note for ' + so.byName);
+                    const btns = h('div', 'so-btns');
+                    const ap = h('button', 'btn-primary so-approve', 'Approve → ' + (next ? next.name : '')); ap.type = 'button'; ap.onclick = () => soApprove(t, note.value.trim());
+                    const ch = h('button', 'btn-secondary so-changes', 'Request changes'); ch.type = 'button'; ch.onclick = () => soChanges(t, note.value.trim());
+                    btns.append(ap, ch); card.append(note, btns); out.push(card);
+                });
+                if (others.length) { out.push(h('h4', 'so-h', 'Waiting for someone else (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(({ l, who }) => ul.appendChild(h('li', '', (l.task.name || 'Untitled task') + ' · ' + l.person.name + ' · waiting for ' + who.label))); out.push(ul); }
+                if (recent.length) { out.push(h('h4', 'so-h', 'Recently decided')); const ul = h('ul', 'so-recent'); recent.forEach(l => { const so = l.task.signoff; const li = h('li'); li.append(h('span', so.status === 'approved' ? 'so-ok' : 'so-ch', so.status === 'approved' ? 'Approved' : 'Changes requested'), ' · ' + (l.task.name || 'Untitled task') + ' (' + l.person.name + ')' + (so.note ? ': “' + so.note + '”' : '') + ' · ' + so.approverName + ', ' + soAgo(so.decidedAt)); ul.appendChild(li); }); out.push(ul); }
+                m.body.replaceChildren(...out);
+            };
+            m.box.__draw = draw; draw();
+        }
+        window.openApprovals = openApprovals;
         function setTaskEffort(task, raw) {
             const v = TT.cleanEffort(raw);
             if ((task.effort ?? null) === v) return;
@@ -1479,6 +1621,7 @@
             renderSubteamBar();
             if (boardView === 'kanban') renderKanban();
             if (boardView === 'gantt') renderGantt();
+            updateApprovals();
         }); }
         // Category names: shrink a label's text only as much as needed for its longest word to fit
         // the column (so words wrap between words, not in the middle), never below a readable size.
@@ -1540,6 +1683,7 @@
             const subs = t.subtasks || []; if (subs.length) add('kb-subs', '☑ ' + subs.filter(x => x.completed).length + '/' + subs.length, 'Sub-tasks done');
             const n = TT.commentCount(t.id); if (n) add('kb-cm', '💬 ' + n);
             const ch = carryChain(t); if (ch && ch.length > 1) add('kb-carry', '↪ ' + ch.length + ' wks', 'Carried forward since ' + weekTitle(ch[0].weekKey));
+            soChips(t).forEach(x => meta.appendChild(x));
             c.appendChild(meta);
             const ph = phaseOf(t); if (ph) c.appendChild(phaseTagEl(ph));
             const dc = TT.feature('planning') ? depChip(t) : null; if (dc) c.appendChild(dc);

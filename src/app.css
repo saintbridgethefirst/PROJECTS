@@ -757,3 +757,9 @@ button.tx-part:hover { border-color: var(--line-color); }
 .tour-btns { display: flex; gap: 6px; align-items: center; margin-top: 12px; }
 .tour-btns .spacer { flex: 1; }
 .tour-extra { margin-top: 12px; }
+/* Workflow settings: sign-off and checklist per stage */
+.wf-so { display: flex; flex-direction: column; gap: 4px; }
+.wf-cl summary { cursor: pointer; color: var(--text-muted); font-weight: 600; font-size: 13px; }
+.wf-cl[open] { min-width: 220px; }
+.wf-table .wf-cl-text { display: block; width: 100%; min-width: 220px; margin: 6px 0 2px; white-space: pre; resize: vertical; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 13px; box-sizing: border-box; }
+.wf-table .wf-signoff, .wf-table .wf-signer { min-width: 190px; }

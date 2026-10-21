@@ -15,6 +15,7 @@ import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mer
 import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
+import { signersFor, canSignStage, gateOnTheWay, checklistOf } from './model.js';
 import { cleanComment, cleanTemplate, cleanEffort, cleanCapacity, MAX_DEPS, workflowOf, stageIdOf, stageKindOf, isCustomWorkflow, cleanMeeting, cleanNotebookEntry, cleanPart, cleanExpense, cleanBudget, cleanPaper, cleanLogEntry } from './model.js';
 import { openResearch, refreshResearch, seesMoney } from './research.js';
 import { notebookSection, notebookCount, linkedSection } from './notebook.js';
@@ -179,6 +180,7 @@ function demoTourSteps() {
     { target: () => document.querySelector('.task-card .stage-bar') && document.querySelector('.task-card .stage-bar').closest('.task-card'), title: 'A task', text: 'Priority, deadline, sub-tasks, hours and comments. The coloured bar shows its stage in this team’s workflow: Design → Review → Build → Test → Done. Click any card to open it.' },
     { target: '#subteam-bar', title: 'Sub-teams', text: 'Show just Payload, Electronics or another sub-team, with their leads. Handy when 30 people share one board.' },
     { target: '.kb-board', before: () => window.boardSetView && window.boardSetView('kanban'), after: () => window.boardSetView && window.boardSetView('board'), title: 'Kanban: one column per stage', text: 'The same tasks by stage. Build is limited to 4 at a time so the workshop isn’t flooded with half-built parts. Drag cards between columns.' },
+    { target: '#approvals-btn', title: 'Sign-offs and checklists', text: 'Review needs the sub-team lead’s sign-off before a task can move on to Build, with a short checklist. Tasks waiting for you are counted here; approve them or send them back with a note.' },
     { target: '.gt2-scroll', before: () => window.boardSetView && window.boardSetView('gantt'), after: () => window.boardSetView && window.boardSetView('board'), title: 'Gantt: plan on a timeline', text: 'Each task is a bar from its start to its deadline, with arrows for what waits on what. Drag a bar or its ends to re-plan; tasks that wait on it move along.' },
     { target: '#share-btn', title: 'Share this week', text: 'One click turns the week into a message for your WhatsApp group: what’s done, due, late and stuck, with a link back to the board.' },
     { target: '#research-btn', title: 'Tools', text: 'Parts and orders, budget and spending, lab notebook, meetings, papers, risks and requirements. Each team switches on only what it needs.' },
@@ -867,6 +869,12 @@ window.TT = {
   get me() { return session && session.me ? { uid: user.uid, name: user.name, email: user.email, roleId: session.me.roleId } : null; },
   get team() { return session && session.team; },
   get members() { return (session && session.members) || []; },
+  /** Sign-offs and checklists (model.js): who signs off a stage for a task's owner, and can I. */
+  signersFor: (stage, ownerUid) => signersFor(stage, session && session.team, (session && session.members) || [], ownerUid),
+  canSign: (stage, ownerUid) => !!session && !!user && canSignStage(stage, session.team, { uid: user.uid, roleId: session.me && session.me.roleId }, ownerUid),
+  gateOnTheWay: (task, from, to) => { const w = workflowOf(session && session.team); return gateOnTheWay(task, w.stages, from, to); },
+  checklistOf: (task) => { const w = workflowOf(session && session.team); return checklistOf(task, w.stages.find(s => s.id === stageIdOf(task, w.stages, w.moved))); },
+  modal: (title, opts) => modal(title, opts),
   get teamId() { return session && session.teamId; },
   get user() { return user; },
   get isDemo() { return DEMO_MODE; },

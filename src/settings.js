@@ -5,7 +5,7 @@
 import { startFlag } from './start.js';
 import { APP_NAME, GOOGLE_CLIENT_ID, MS_CLIENT_ID, DEMO_MODE, LIMITS, STUDENT_EMAIL_CHECK, SERVER_EMAILS } from './config.js';
 import { PERMISSIONS, can, roleList, normEmail, isValidEmail } from './permissions.js';
-import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro } from './model.js';
+import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS } from './model.js';
 import { el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 
 const TABS = [
@@ -300,24 +300,36 @@ function workflow(pane, ctx, { rerender } = {}) {
       const kind = last ? el('span.hint', {}, 'Done (finished)') : el('select', { 'aria-label': 'Counts as', disabled: !editable, onchange: (e) => { st.kind = e.target.value; touch(); } },
         el('option', { value: 'todo', selected: st.kind === 'todo' }, 'To do'), el('option', { value: 'doing', selected: st.kind === 'doing' }, 'Doing'));
       const limit = last ? el('span.hint', {}, '—') : el('input.wf-limit', { type: 'number', min: 0, max: 99, value: st.limit || '', placeholder: 'none', 'aria-label': 'Most tasks at once in ' + st.name, disabled: !editable, oninput: (e) => { st.limit = Math.max(0, Math.min(99, Math.round(Number(e.target.value) || 0))); saveBtn.disabled = false; } });
+      // Who signs off before a task moves on from this stage, and its checklist (workflow step 2).
+      const people = (s.members || []).slice().sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''));
+      const so = last ? el('span.hint', {}, '—') : el('div.wf-so', {},
+        el('select.wf-signoff', { 'aria-label': 'Who signs off ' + st.name, disabled: !editable, onchange: (e) => { st.signoff = e.target.value; if (st.signoff !== 'person') st.signer = ''; touch(); } },
+          [['', 'Anyone on the task'], ['lead', 'Sign-off: sub-team lead'], ['admin', 'Sign-off: an admin'], ['person', 'Sign-off: a named person']].map(([v, t]) => el('option', { value: v, selected: (st.signoff || '') === v }, t))),
+        st.signoff === 'person' ? el('select.wf-signer', { 'aria-label': 'Who signs off ' + st.name, disabled: !editable, onchange: (e) => { st.signer = e.target.value; saveBtn.disabled = false; } },
+          el('option', { value: '' }, 'Choose who…'), people.map(m => el('option', { value: m.uid, selected: m.uid === st.signer }, m.name || m.email))) : '');
+      const items = st.checklist || [];
+      const clText = el('textarea.wf-cl-text', { rows: 4, 'aria-label': 'Checklist for ' + st.name + ', one item per line', placeholder: 'One item per line, e.g.\nCAD shared\nMass budget updated', disabled: !editable,
+        oninput: (e) => { const lines = e.target.value.split('\n').map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, MAX_CHECKS); const stamp = Date.now().toString(36); st.checklist = lines.map((text, k) => ({ id: (items[k] && items[k].id) || (st.id.slice(0, 20) + '_c' + stamp + k).slice(0, 40), text: text.slice(0, 80) })); saveBtn.disabled = false; } });
+      clText.value = items.map(c => c.text).join('\n');
+      const cl = last ? el('span.hint', {}, '—') : el('details.wf-cl', {}, el('summary', {}, items.length ? items.length + ' item' + (items.length === 1 ? '' : 's') : 'None'), clText, el('span.hint', {}, 'Up to ' + MAX_CHECKS + ', ticked on each task.'));
       const move = (d) => { const j = i + d; if (j < 0 || j >= draft.length - 1) return; [draft[i], draft[j]] = [draft[j], draft[i]]; touch(); };
       const acts = editable ? el('span.wf-acts', {},
         last ? '' : el('button.btn.small.ghost', { type: 'button', 'aria-label': 'Move ' + st.name + ' earlier', disabled: i === 0, onclick: () => move(-1) }, '↑'),
         last ? '' : el('button.btn.small.ghost', { type: 'button', 'aria-label': 'Move ' + st.name + ' later', disabled: i >= draft.length - 2, onclick: () => move(1) }, '↓'),
         last || draft.length <= 2 ? '' : el('button.btn.small.ghost', { type: 'button', 'aria-label': 'Remove ' + st.name, onclick: () => { draft.splice(i, 1); touch(); } }, '✕')) : '';
       return el('tr', { dataset: { stage: st.id } },
-        el('td', {}, el('span.wf-dot', { style: { background: st.color } }), color), el('td', {}, name), el('td', {}, kind), el('td', {}, limit),
+        el('td', {}, el('span.wf-dot', { style: { background: st.color } }), color), el('td', {}, name), el('td', {}, kind), el('td', {}, so), el('td', {}, cl), el('td', {}, limit),
         el('td.hint', {}, counts[st.id] ? counts[st.id] + ' open' : ''), el('td', {}, acts));
     });
     box.replaceChildren(el('div.tbl-scroll', {}, el('table.tbl.wf-table', {},
-      el('tr', {}, el('th', {}, 'Colour'), el('th', {}, 'Stage'), el('th', {}, 'Counts as'), el('th', {}, 'Limit'), el('th', {}, ''), el('th', {}, '')), ...rows)),
+      el('tr', {}, el('th', {}, 'Colour'), el('th', {}, 'Stage'), el('th', {}, 'Counts as'), el('th', {}, 'To move on'), el('th', {}, 'Checklist'), el('th', {}, 'Limit'), el('th', {}, ''), el('th', {}, '')), ...rows)),
       editable && draft.length < MAX_STAGES ? el('button.btn.small', { type: 'button', id: 'wf-add', onclick: () => { const name = 'New stage'; draft.splice(draft.length - 1, 0, { id: newId(name + draft.length), name, kind: 'doing', color: STAGE_COLORS[draft.length % STAGE_COLORS.length], limit: 0 }); touch(); setTimeout(() => { const ins = box.querySelectorAll('.wf-name'); const n = ins[ins.length - 2]; if (n) { n.focus(); n.select(); } }, 30); } }, '+ Add a stage') : '');
   }
   const tpl = el('div.wf-templates', { role: 'group', 'aria-label': 'Start from a template' }, WORKFLOW_TEMPLATES.map(t => el('button.btn.small' + (JSON.stringify(t.stages.map(x => x.id)) === JSON.stringify(wf.stages.map(x => x.id)) ? '.primary' : '.ghost'), { type: 'button', dataset: { template: t.id }, disabled: !editable, title: t.help,
     onclick: () => { draft = JSON.parse(JSON.stringify(t.stages)); tpl.querySelectorAll('button').forEach(b => b.className = 'btn small ' + (b.dataset.template === t.id ? 'primary' : 'ghost')); touch(); } }, el('b', {}, t.name), el('span.hint', {}, ' ' + t.help))));
   build();
   pane.append(el('section', {}, el('h4', {}, 'Stages'),
-    el('p.hint', {}, 'The steps every task goes through, on cards and as Kanban columns. Each stage counts as To do or Doing, so analytics, reports and the weekly share keep working; the last one is always Done. Set a limit to warn when too many tasks pile up in a stage.'),
+    el('p.hint', {}, 'The steps every task goes through, on cards and as Kanban columns. Each stage counts as To do or Doing, so analytics, reports and the weekly share keep working; the last one is always Done. Set a limit to warn when too many tasks pile up in a stage. A stage can need a sign-off before tasks move on from it (the sub-team lead, an admin, or a named person; the team owner can always sign off), and can have a checklist that is ticked on each task.'),
     tpl, box, note,
     editable ? el('div.row', { style: { marginTop: '12px' } }, el('span.spacer'), saveBtn) : el('p.hint', {}, 'Only roles that can change team settings can edit the workflow.')));
 }

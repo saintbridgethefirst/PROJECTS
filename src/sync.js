@@ -9,7 +9,7 @@
 //  own edit never reverts a teammate's.
 // ─────────────────────────────────────────────────────────────────────────────
 import { can, canEditOwnedBy } from './permissions.js';
-import { cleanTask, TASK_CONTENT_FIELDS } from './model.js';
+import { cleanTask, TASK_CONTENT_FIELDS, workflowOf, stageIdOf, gateOnTheWay, canSignStage } from './model.js';
 import { LIMITS } from './config.js';
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -21,7 +21,7 @@ const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)
 // Value used when the board leaves a task field unset (matches cleanTask's output).
 const TASK_DEFAULTS = {
   name: '', priority: 'Minor', status: '', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'none',
-  dueDate: '', startDate: '', phaseId: '', repeat: null, stage: '', effort: null, dependsOn: [], carryOf: '', skill: '', timeLog: [], completedDate: '', subtasks: [], history: [], custom: {}, icon: '', attachments: [],
+  dueDate: '', startDate: '', checks: {}, signoff: null, phaseId: '', repeat: null, stage: '', effort: null, dependsOn: [], carryOf: '', skill: '', timeLog: [], completedDate: '', subtasks: [], history: [], custom: {}, icon: '', attachments: [],
 };
 
 /**
@@ -98,12 +98,26 @@ export function diff(a, b) {
 }
 
 /** Which changes is this member NOT allowed to make? Returns human-readable reasons. */
+const DECISION_FIELDS = ['signoff', 'stage', 'flag', 'completedDate', 'history', 'updatedBy', 'updatedAt'];
+/** Someone asked to sign off a task records their decision (firestore.rules ▸ signoffDecision). */
+function isSignoffDecision(c, member) {
+  if (c.kind !== 'task' || !c.before || !c.after || !member) return false;
+  const b = c.before.signoff, a = c.after.signoff;
+  if (!b || b.status !== 'waiting' || !a || !['approved', 'changes'].includes(a.status) || a.approver !== member.uid) return false;
+  return Object.keys({ ...c.before, ...c.after }).every(k => DECISION_FIELDS.includes(k) || same(c.before[k], c.after[k]));
+}
 export function deniedChanges(changes, team, member) {
   const reasons = [];
   changes.forEach(c => {
     if (c.kind === 'weeks') { if (!can(team, member, 'weeks.manage')) reasons.push('change weeks'); return; }
     const owners = [c.before?.ownerUid, c.after?.ownerUid].filter(Boolean);
-    if (!owners.every(o => canEditOwnedBy(team, member, o))) reasons.push(c.kind === 'cat' ? 'edit this category' : 'edit this task');
+    if (!owners.every(o => canEditOwnedBy(team, member, o)) && !isSignoffDecision(c, member)) reasons.push(c.kind === 'cat' ? 'edit this category' : 'edit this task');
+    // Sign-offs: a task can't move forward past a stage that needs one, unless you're allowed to give it.
+    if (c.kind === 'task' && c.before && c.after) {
+      const wf = workflowOf(team);
+      const gate = gateOnTheWay(c.after, wf.stages, stageIdOf(c.before, wf.stages, wf.moved), stageIdOf(c.after, wf.stages, wf.moved));
+      if (gate && !canSignStage(gate, team, member, c.after.ownerUid)) reasons.push('move a task past “' + gate.name + '” without its sign-off');
+    }
   });
   return [...new Set(reasons)];
 }

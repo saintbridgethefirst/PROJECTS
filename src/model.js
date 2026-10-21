@@ -219,6 +219,8 @@ export function cleanTask(t, id, fields = []) {
     flag: FLAGS.includes(t.flag) ? t.flag : 'none',
     dueDate: isoOrEmpty(t.dueDate),
     startDate: isoOrEmpty(t.startDate),
+    checks: cleanChecks(t.checks),
+    signoff: cleanSignoff(t.signoff),
     phaseId: t.phaseId ? safeKey(t.phaseId) : '',
     repeat: cleanRepeat(t.repeat),
     stage: cleanStageId(t.stage),
@@ -288,6 +290,71 @@ export const WORKFLOW_TEMPLATES = [
   { id: 'research', name: 'Lab research', help: 'Plan · Experiment · Analyse · Write-up · Done', stages: [st('plan', 'Plan', 'todo', '#63b3ed'), st('experiment', 'Experiment', 'doing', '#b794f4'), st('analyse', 'Analyse', 'doing', '#4fd1c5'), st('writeup', 'Write-up', 'doing', '#f6ad55'), st('done', 'Done', 'done', '#68d391')] },
   { id: 'software', name: 'Software', help: 'Backlog · In progress · Code review · Done', stages: [st('backlog', 'Backlog', 'todo', '#a0aec0'), st('progress', 'In progress', 'doing', '#63b3ed'), st('codereview', 'Code review', 'doing', '#f6ad55'), st('done', 'Done', 'done', '#68d391')] },
 ];
+// ── Sign-offs and checklists (workflow step 2) ─────────────────────────────
+// A stage can need a sign-off before a task leaves it (forwards), and can have a checklist.
+export const SIGNOFF_KINDS = ['lead', 'admin', 'person'];
+export const MAX_CHECKS = 8;
+export const SIGNOFF_LABEL = { lead: 'the sub-team lead', admin: 'an admin', person: 'a named person' };
+/** Who may sign off `stage` for a task owned by ownerUid: { uids, label, fallback }.
+ *  Nobody signs off their own task. 'lead': the leads of the owner's sub-teams (else the admins).
+ *  'person': that member (else the admins). The team owner can always sign off, so nothing gets stuck. */
+export function signersFor(stage, team, members, ownerUid) {
+  const list = members || []; const nameOf = (u) => ((list.find(m => m.uid === u) || {}).name || 'someone');
+  const owner = team && team.ownerUid;
+  const out = (uids, label, fallback = false) => ({ uids: [...new Set(uids.concat(owner ? [owner] : []))], label, fallback });
+  const admins = list.filter(m => (m.roleId === 'owner' || m.roleId === 'admin') && m.uid !== ownerUid).map(m => m.uid);
+  const adminLabel = (why) => (admins.length === 1 ? nameOf(admins[0]) + (why ? ' (' + why + ')' : '') : 'an admin' + (why ? ' (' + why + ')' : ''));
+  if (!stage || !stage.signoff) return out([], '');
+  if (stage.signoff === 'person') {
+    if (stage.signer && stage.signer !== ownerUid && list.some(m => m.uid === stage.signer)) return out([stage.signer].concat(admins), nameOf(stage.signer));
+    return out(admins, adminLabel(stage.signer === ownerUid ? 'it’s their own task' : ''), true);
+  }
+  if (stage.signoff === 'lead') {
+    const subs = ((team && team.subteams) || []).filter(s => (s.members || []).includes(ownerUid));
+    const leads = [...new Set(subs.flatMap(s => s.leads || []))].filter(u => u !== ownerUid && list.some(m => m.uid === u));
+    if (leads.length) return out(leads, leads.map(nameOf).join(' or ') + ' (' + subs.filter(s => (s.leads || []).some(u => leads.includes(u))).map(s => s.name).join(', ') + ' lead)');
+    return out(admins, adminLabel(subs.some(s => (s.leads || []).includes(ownerUid)) ? 'they lead their own sub-team' : 'no sub-team lead set'), true);
+  }
+  return out(admins, adminLabel(''));
+}
+/** Can this member (uid + roleId) sign off this stage for this owner? (Used by the save check; no member list needed.)
+ *  Not on your own task, unless you're the team owner. */
+export function canSignStage(stage, team, me, ownerUid) {
+  if (!stage || !stage.signoff || !me) return true;
+  if (team && team.ownerUid === me.uid) return true;
+  if (me.uid === ownerUid) return false;
+  const admin = me.roleId === 'owner' || me.roleId === 'admin';
+  if (stage.signoff === 'admin') return admin;
+  if (stage.signoff === 'person') return me.uid === stage.signer || admin;   // admins can step in (e.g. the person left)
+  const subs = ((team && team.subteams) || []).filter(s => (s.members || []).includes(ownerUid));
+  const leads = subs.flatMap(s => s.leads || []).filter(u => u !== ownerUid);
+  return leads.length ? leads.includes(me.uid) : admin;
+}
+/** Is this task's sign-off for `stageId` approved? */
+export const signedOff = (task, stageId) => !!(task && task.signoff && task.signoff.stage === stageId && task.signoff.status === 'approved');
+/** Moving a task from stage `from` to stage `to` (ids): the first stage on the way that needs a
+ *  sign-off it doesn't have, or null. Moving back never needs one. */
+export function gateOnTheWay(task, stages, from, to) {
+  const i = stages.findIndex(s => s.id === from), j = stages.findIndex(s => s.id === to);
+  if (i < 0 || j <= i) return null;
+  for (let k = i; k < j; k++) { const s = stages[k]; if (s.signoff && !signedOff(task, s.id)) return s; }
+  return null;
+}
+/** Checklist progress for the task's current stage: { done, total, items: [{ id, text, done }] }. */
+export function checklistOf(task, stage) {
+  const items = ((stage && stage.checklist) || []).map(c => ({ ...c, done: !!(task && task.checks && task.checks[c.id]) }));
+  return { done: items.filter(c => c.done).length, total: items.length, items };
+}
+export function cleanSignoff(v) {
+  if (!v || typeof v !== 'object' || !['waiting', 'approved', 'changes'].includes(v.status)) return null;
+  const s = (x, n) => String(x == null ? '' : x).slice(0, n);
+  return { stage: cleanStageId(v.stage), status: v.status, by: s(v.by, 64), byName: s(v.byName, 80), at: Number(v.at) || 0,
+    approver: s(v.approver, 64), approverName: s(v.approverName, 80), note: s(v.note, 500), decidedAt: Number(v.decidedAt) || 0 };
+}
+export function cleanChecks(v) {
+  const out = {}; Object.entries(v && typeof v === 'object' && !Array.isArray(v) ? v : {}).slice(0, 50).forEach(([k, on]) => { if (on === true && cleanStageId(k)) out[k] = true; });
+  return out;
+}
 export function cleanStageId(v) { return typeof v === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(v) ? v : ''; }
 /** A team's workflow as stored ({ stages }), or null for the classic three. */
 export function cleanWorkflow(w) {
@@ -298,10 +365,13 @@ export function cleanWorkflow(w) {
     const id = cleanStageId(x.id) || 's' + i; if (seen.has(id)) return; seen.add(id);
     const name = String(x.name || '').replace(/\s+/g, ' ').trim().slice(0, 30) || 'Stage ' + (i + 1);
     const limit = Math.round(Number(x.limit)); 
-    stages.push({ id, name, kind: x.kind === 'doing' ? 'doing' : 'todo', color: STAGE_COLORS.includes(x.color) ? x.color : STAGE_COLORS[i % STAGE_COLORS.length], limit: Number.isFinite(limit) && limit > 0 && limit <= 99 ? limit : 0 });
+    const signoff = SIGNOFF_KINDS.includes(x.signoff) ? x.signoff : '';
+    const checklist = (Array.isArray(x.checklist) ? x.checklist : []).slice(0, MAX_CHECKS).map((c, k) => ({ id: cleanStageId(c && c.id) || id + '_c' + k, text: String((c && c.text) || '').replace(/\s+/g, ' ').trim().slice(0, 80) })).filter(c => c.text);
+    stages.push({ id, name, kind: x.kind === 'doing' ? 'doing' : 'todo', color: STAGE_COLORS.includes(x.color) ? x.color : STAGE_COLORS[i % STAGE_COLORS.length], limit: Number.isFinite(limit) && limit > 0 && limit <= 99 ? limit : 0,
+      signoff, signer: signoff === 'person' && typeof x.signer === 'string' ? safeKey(x.signer) : '', checklist });
   });
   if (stages.length < 2) return null;
-  stages[stages.length - 1].kind = 'done'; stages[stages.length - 1].limit = 0;
+  Object.assign(stages[stages.length - 1], { kind: 'done', limit: 0, signoff: '', signer: '', checklist: [] });
   // moved: where tasks of removed stages now are { oldId: newId } (so a change never scrambles tasks)
   const moved = {}; const ids = new Set(stages.map(x => x.id));
   Object.entries(w.moved && typeof w.moved === 'object' ? w.moved : {}).slice(0, 60).forEach(([a, b]) => { const k = cleanStageId(a), v = cleanStageId(b); if (k && v && ids.has(v) && !ids.has(k)) moved[k] = v; });
@@ -331,7 +401,7 @@ export function workflowOf(team) {
 }
 export const workflowStages = (team) => workflowOf(team).stages;
 /** Are these stages anything other than the classic To do / Doing / Done? */
-export const isCustomWorkflow = (stages) => stages.length !== 3 || stages.some((s, i) => s.id !== DEFAULT_STAGES[i].id || s.name !== DEFAULT_STAGES[i].name || s.limit);
+export const isCustomWorkflow = (stages) => stages.length !== 3 || stages.some((s, i) => s.id !== DEFAULT_STAGES[i].id || s.name !== DEFAULT_STAGES[i].name || s.limit || s.signoff || (s.checklist && s.checklist.length));
 /** Which of the team's stages a task is in. */
 export function stageIdOf(t, stages = DEFAULT_STAGES, moved = {}) {
   if (t && t.flag === 'completed') return stages[stages.length - 1].id;
@@ -411,7 +481,7 @@ export function findMentions(text, members) {
   return out.slice(0, LIMITS.mentionsPerComment);
 }
 
-export const TASK_CONTENT_FIELDS = ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag', 'dueDate', 'startDate', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments'];
+export const TASK_CONTENT_FIELDS = ['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag', 'dueDate', 'startDate', 'checks', 'signoff', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments'];
 export const TASK_LOCATION_FIELDS = ['categoryId', 'ownerUid', 'weekId', 'order'];
 
 /** ISO 8601 week number of a 'YYYY-MM-DD' date (or today). */

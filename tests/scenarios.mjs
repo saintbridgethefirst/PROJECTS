@@ -51,6 +51,8 @@ export const requirement = (createdBy, over = {}) => ({ ref: 'REQ-001', title: '
 
 export const selfTask = (uid, over = {}) => ({ uid, kind: 'task', title: 'Read chapter 3', area: 'uni', scope: 'day', date: '2026-10-21', done: false, doneOn: '', order: 0, createdAt: 1, updatedAt: 1, ...over });
 
+export const signoff = (status, over = {}) => ({ stage: 'review', status, by: 'mem1', byName: 'mem1', at: 1, approver: '', approverName: '', note: '', decidedAt: 0, ...over });
+
 export function fixture() {
   return {
     users: {}, admins: { plat: true },
@@ -61,7 +63,7 @@ export function fixture() {
         members: { owner: member('owner', 'owner'), admin1: member('admin1', 'admin'), mem1: member('mem1', 'member'), view1: member('view1', 'viewer') },
         invites: { 'new@x.com': { email: 'new@x.com', roleId: 'member', teamName: 'Robotics', invitedBy: 'owner', invitedByName: 'O', createdAt: 1 } },
         categories: { c_owner: { name: 'GEN', ownerUid: 'owner', order: 0 }, c_mem1: { name: 'GEN', ownerUid: 'mem1', order: 0 }, c_admin1: { name: 'GEN', ownerUid: 'admin1', order: 0 } },
-        tasks: { t_mem1: task('mem1', 'c_mem1'), t_owner: task('owner', 'c_owner') },
+        tasks: { t_mem1: task('mem1', 'c_mem1'), t_owner: task('owner', 'c_owner'), t_wait: task('mem1', 'c_mem1', { stage: 'review', signoff: signoff('waiting') }) },
         comments: { cm_owner: comment('owner', 't_mem1', ['mem1']), cm_mem1: comment('mem1', 't_owner') },
         templates: { tpl_mem1: template('mem1'), tpl_owner: template('owner') },
         meetings: { mt_owner: meeting('owner') }, notebook: { nb_mem1: note('mem1', 't_mem1') }, parts: { pt_mem1: part('mem1') },
@@ -267,6 +269,16 @@ export const writeScenarios = [
   ['a member sets their own uploaded photo', 'mem1', TEAM, [upd('members/mem1', { photo: 'data:image/png;base64,' + 'A'.repeat(2000) })], 'allow'],
   ['a member cannot set someone else’s photo', 'mem1', TEAM, [upd('members/owner', { photo: 'data:image/png;base64,' + 'A'.repeat(2000) })], 'deny'],
   ['an oversized photo is refused', 'mem1', TEAM, [upd('members/mem1', { photo: 'data:image/png;base64,' + 'A'.repeat(70000) })], 'deny'],
+  // Sign-offs and checklists (workflow step 2)
+  ['a member ticks checklist items on their task', 'mem1', TEAM, [upd('tasks/t_mem1', { checks: { review_c0: true } })], 'allow'],
+  ['a member sends their task for sign-off', 'mem1', TEAM, [upd('tasks/t_mem1', { stage: 'review', signoff: signoff('waiting') })], 'allow'],
+  ['nobody records an approval in someone else’s name', 'mem1', TEAM, [upd('tasks/t_wait', { signoff: signoff('approved', { approver: 'owner', approverName: 'owner', decidedAt: 2 }) })], 'deny'],
+  ['the sign-off person approves a task they can’t otherwise edit, moving it on', 'view1', TEAM, [upd('tasks/t_wait', { stage: 'build', signoff: signoff('approved', { approver: 'view1', approverName: 'view1', decidedAt: 2 }) })], 'allow'],
+  ['…or asks for changes, with a note', 'view1', TEAM, [upd('tasks/t_wait', { signoff: signoff('changes', { approver: 'view1', approverName: 'view1', note: 'Add the mass budget', decidedAt: 2 }) })], 'allow'],
+  ['…but can’t change anything else at the same time', 'view1', TEAM, [upd('tasks/t_wait', { name: 'Renamed', signoff: signoff('approved', { approver: 'view1', approverName: 'view1', decidedAt: 2 }) })], 'deny'],
+  ['a decision needs a waiting request', 'view1', TEAM, [upd('tasks/t_mem1', { signoff: signoff('approved', { approver: 'view1', approverName: 'view1', decidedAt: 2 }) })], 'deny'],
+  ['a stranger can’t record a decision', 'evil', TEAM, [upd('tasks/t_wait', { signoff: signoff('approved', { approver: 'evil', approverName: 'evil', decidedAt: 2 }) })], 'deny'],
+  ['a sign-off note is at most 500 characters', 'view1', TEAM, [upd('tasks/t_wait', { signoff: signoff('changes', { approver: 'view1', note: 'x'.repeat(501), decidedAt: 2 }) })], 'deny'],
   // SelfTrack: private to its owner
   ['I save a SelfTrack task of my own', 'mem1', TEAM, [set('/selfItems/s_new', selfTask('mem1'))], 'allow'],
   ['I save a habit with its check-ins', 'mem1', TEAM, [set('/selfItems/s_h', { uid: 'mem1', kind: 'habit', title: 'Gym', area: '', goal: 3, color: '', archived: false, log: ['2026-10-20', '2026-10-21'], createdAt: 1, updatedAt: 1 })], 'allow'],

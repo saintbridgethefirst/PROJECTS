@@ -46,6 +46,7 @@ export function buildWeekShare(data, opts = {}) {
   const soonTo = addDays(today, 7);
   const soon = open.filter(r => !r.overdue && r.deadline && r.deadline >= today && r.deadline <= soonTo).sort((a, b) => a.deadline.localeCompare(b.deadline));
   const waiting = open.filter(r => (r.waitsOn || []).length && (r.waitIssues || []).length);
+  const signoff = open.filter(r => r.signoffWaiting);
   const carried = open.filter(r => r.carryCount > 1);
   const total = rows.length, finished = rows.filter(r => r.flag === 'completed').length;
   const when = (r) => r.daysToDeadline === 0 ? 'today' : r.daysToDeadline === 1 ? 'tomorrow' : short(r.deadline);
@@ -56,6 +57,7 @@ export function buildWeekShare(data, opts = {}) {
     list('⏰ *Due in the next 7 days*', soon, r => line(r, when(r))),
     list('⚠️ *Overdue*', overdue, r => line(r, -r.daysToDeadline + ' day' + (r.daysToDeadline === -1 ? '' : 's') + ' late')),
     list('⛔ *Waiting on other tasks*', waiting, r => line(r, 'waits on ' + r.waitsOn.slice(0, 2).join(', '))),
+    list('⏳ *Waiting for sign-off*', signoff, r => line(r, r.signoffWaiting)),
     carried.length ? '↪ ' + carried.length + ' task' + (carried.length === 1 ? '' : 's') + ' carried over from earlier weeks' : '',
   ].filter(Boolean);
   if (parts.length === 1) parts.push('A quiet week: nothing finished, due or late yet.');

@@ -7,7 +7,7 @@
     "build:board": "node tools/build-board.mjs && node tools/check-board.mjs",
     "build": "npm run build:board && vite build",
     "preview": "vite preview",
-    "test": "node --test tests/unit.test.mjs tests/self.test.mjs",
+    "test": "node --test tests/unit.test.mjs tests/self.test.mjs tests/signoff.test.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "test:rules": "firebase emulators:exec --only firestore --project demo-teamtrack \"node --test tests/rules.test.mjs\"",
     "emulators": "firebase emulators:start --only auth,firestore --project demo-teamtrack",

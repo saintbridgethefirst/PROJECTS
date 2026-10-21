@@ -30,7 +30,10 @@ export async function buildSample(user, now = Date.now()) {
   team.doc.name = 'Skyhawk UAV (sample team)';
   team.doc.createdAt = now - 40 * DAY;   // old enough not to show the "Start here" card
   // Newer features: the Engineering workflow, with open tasks spread over its stages.
-  const eng = WORKFLOW_TEMPLATES.find(t => t.id === 'engineering').stages.map(s => ({ ...s, limit: s.id === 'build' ? 4 : 0 }));
+  // Step 2 of workflows: Review needs the sub-team lead's sign-off, Test an admin's; both have checklists.
+  const CHECKS = { review: ['CAD shared', 'Load calculations attached', 'Mass budget updated'], test: ['Risk assessment done', 'Flying field booked'] };
+  const eng = WORKFLOW_TEMPLATES.find(t => t.id === 'engineering').stages.map(s => ({ ...s, limit: s.id === 'build' ? 4 : 0,
+    signoff: s.id === 'review' ? 'lead' : s.id === 'test' ? 'admin' : '', signer: '', checklist: (CHECKS[s.id] || []).map((text, k) => ({ id: s.id + '_c' + k, text })) }));
   team.doc.workflow = { stages: eng, moved: {} };
   const open = ['design', 'review', 'build', 'test'];
   Object.values(team.tasks).filter(t => t.flag !== 'completed').forEach((t, i) => {
@@ -38,6 +41,18 @@ export async function buildSample(user, now = Date.now()) {
     t.stage = named || open[i % open.length]; if (named) t.status = '';
   });
   Object.keys(team.doc.features || {}).forEach(k => { team.doc.features[k] = true; });
+  // Sign-offs in progress: two tasks waiting in Review, one sent back with a note, one already approved.
+  const nameOf = (uid) => (uid === user.uid ? (user.name || 'You') : ((raw.users[uid] || {}).name || 'Someone'));
+  const leadOf = (uid) => { const st = (team.doc.subteams || []).find(x => (x.members || []).includes(uid) && (x.leads || []).length); return st ? st.leads[0] : user.uid; };
+  const HOUR = 36e5;
+  Object.values(team.tasks).filter(t => t.flag !== 'completed' && t.stage === 'review').forEach((t, i) => {
+    t.checks = i === 0 ? { review_c0: true, review_c1: true } : i === 1 ? { review_c0: true, review_c1: true, review_c2: true } : { review_c0: true };
+    const by = t.ownerUid; const base = { stage: 'review', by, byName: nameOf(by), at: now - (i + 2) * HOUR, approver: '', approverName: '', note: '', decidedAt: 0 };
+    if (i < 2) t.signoff = { ...base, status: 'waiting' };
+    else if (i === 2) { const a = leadOf(by) === by ? user.uid : leadOf(by); t.signoff = { ...base, status: 'changes', at: now - 30 * HOUR, approver: a, approverName: nameOf(a), note: 'Use PETG: PLA softens in the sun.', decidedAt: now - 20 * HOUR }; }
+  });
+  const signed = Object.values(team.tasks).filter(t => t.flag === 'completed').sort((a, b) => String(b.completedDate).localeCompare(String(a.completedDate)))[0];
+  if (signed) { const a = leadOf(signed.ownerUid) === signed.ownerUid ? user.uid : leadOf(signed.ownerUid); signed.signoff = { stage: 'review', status: 'approved', by: signed.ownerUid, byName: nameOf(signed.ownerUid), at: now - 4 * 864e5, approver: a, approverName: nameOf(a), note: '', decidedAt: now - 3 * 864e5 }; }
   // The Gantt: open tasks get a planned start a few days before their deadline, and more
   // "waits on" links, so the timeline shows real bars and arrows.
   const weekStart = new Map((team.doc.weeks || []).map(w => [w.key, w.startDate]));
