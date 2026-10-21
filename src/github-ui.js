@@ -13,6 +13,13 @@ export { branchName, newIssueUrl };
 const copyBtn = (id, value, label = 'Copy') => el('button.btn.small', { type: 'button', id, onclick: async () => {
   try { await navigator.clipboard.writeText(value); toast('Copied.'); } catch { toast('Select it and copy (Ctrl+C / ⌘C).'); }
 } }, label);
+/** A callable that isn't deployed yet answers "internal" with no message: say what to do. */
+function serverError(e) {
+  const code = String((e && e.code) || '');
+  if (/internal|not-found|unimplemented/.test(code) && !/[a-z]{4,} [a-z]{4,}/i.test(String((e && e.message) || '').replace(/^internal$/i, '')))
+    return 'GitHub sync isn’t switched on on the server yet. Whoever runs the site deploys the functions once: firebase deploy --only functions (SETUP.md, section 6.5).';
+  return friendlyError(e);
+}
 const field = (label, input) => el('label.field', {}, el('span', {}, label), input);
 export const raiseLink = (teamId) => location.origin + location.pathname + '#/t/' + teamId + '/raise';
 
@@ -25,7 +32,7 @@ export function githubSection(ctx, { rerender } = {}) {
     try {
       const r = await ctx.backend.data.callFunction('githubConnect', { teamId: s.teamId, repo });
       showSetup(r); toast('Connected to ' + r.repo + '. Now add the webhook on GitHub.', 5000);
-    } catch (e) { toast(friendlyError(e), 6000); }
+    } catch (e) { toast(serverError(e), 9000); }
   }
   function showSetup(r) {
     setup.replaceChildren(el('div.banner.info.gh-steps', {},
@@ -60,7 +67,7 @@ export function githubSection(ctx, { rerender } = {}) {
       el('button.btn.small', { type: 'button', id: 'gh-reconnect', onclick: () => connect(g.repo) }, 'New secret'),
       el('button.btn.small.danger', { type: 'button', id: 'gh-disconnect', onclick: async () => {
         if (!confirm('Disconnect ' + g.repo + '? GitHub events stop arriving; links already on tasks stay.')) return;
-        try { await ctx.backend.data.callFunction('githubConnect', { teamId: s.teamId, disconnect: true }); toast('Disconnected.'); if (rerender) rerender(); } catch (e) { toast(friendlyError(e), 6000); }
+        try { await ctx.backend.data.callFunction('githubConnect', { teamId: s.teamId, disconnect: true }); toast('Disconnected.'); if (rerender) rerender(); } catch (e) { toast(serverError(e), 9000); }
       } }, 'Disconnect'), el('span.spacer'), save) : '',
     setup,
     el('h4', { style: { marginTop: '18px' } }, 'Raise an issue'),
