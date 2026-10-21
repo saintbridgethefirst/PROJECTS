@@ -54,6 +54,14 @@ test('rules (read): nobody can list invitations for another address', async () =
   await assertFails(getDocs(query(collectionGroup(dbFor('evil'), 'invites'), where('email', '==', 'new@x.com'))));
 });
 
+test('rules (read): I can list my own SelfTrack items', async () => {
+  await assertSucceeds(getDocs(query(collection(dbFor('owner'), 'selfItems'), where('uid', '==', 'owner'))));
+});
+test('rules (read): nobody can list or read someone else’s SelfTrack items', async () => {
+  await assertFails(getDocs(query(collection(dbFor('evil'), 'selfItems'), where('uid', '==', 'owner'))));
+  await assertFails(getDoc(doc(dbFor('evil'), 'selfItems', 's_owner')));
+  await assertFails(getDocs(collection(dbFor('evil'), 'selfItems')));
+});
 test('rules: I can save my own profile photo', async () => {
   await assertSucceeds(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { photo: 'data:image/png;base64,AAAA', updatedAt: 1 }));
 });

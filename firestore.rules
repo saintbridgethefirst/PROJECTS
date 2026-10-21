@@ -194,6 +194,35 @@ service cloud.firestore {
         && request.resource.data.get('theme', '') is string && request.resource.data.get('theme', '').size() <= 40;
     }
 
+    // SelfTrack: one person's own tasks, habits, skills, learnings and reflections (src/self-model.js).
+    // Only that person can ever read or write them; no team, admin or other account can.
+    function validSelf(d) {
+      return d.keys().hasOnly(['uid', 'kind', 'title', 'area', 'scope', 'date', 'done', 'doneOn', 'order', 'createdAt', 'updatedAt',
+          'note', 'log', 'goal', 'skillId', 'mood', 'well', 'hard', 'areas', 'sync', 'archived', 'color'])
+        && d.uid == request.auth.uid
+        && d.kind in ['task', 'habit', 'skill', 'learning', 'reflect', 'settings']
+        && d.get('title', '') is string && d.get('title', '').size() <= 300
+        && d.get('area', '') is string && d.get('area', '').size() <= 40
+        && d.get('note', '') is string && d.get('note', '').size() <= 2000
+        && d.get('well', '') is string && d.get('well', '').size() <= 2000
+        && d.get('hard', '') is string && d.get('hard', '').size() <= 2000
+        && d.get('date', '') is string && d.get('date', '').size() <= 10
+        && d.get('doneOn', '') is string && d.get('doneOn', '').size() <= 10
+        && d.get('skillId', '') is string && d.get('skillId', '').size() <= 64
+        && d.get('color', '') is string && d.get('color', '').size() <= 20
+        && d.get('scope', 'day') in ['day', 'week']
+        && d.get('done', false) is bool && d.get('archived', false) is bool
+        && d.get('goal', 0) is number && d.get('mood', 0) is number && d.get('order', 0) is number
+        && d.get('log', []) is list && d.get('log', []).size() <= 800
+        && d.get('areas', []) is list && d.get('areas', []).size() <= 12
+        && d.get('sync', {}) is map && d.get('sync', {}).size() <= 50;
+    }
+    match /selfItems/{id} {
+      allow read, delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if signedIn() && validSelf(request.resource.data);
+      allow update: if signedIn() && resource.data.uid == request.auth.uid && validSelf(request.resource.data);
+    }
+
     // Pro Education claims: the teams each person switched it on for this year. Only ever added to within a year.
     match /eduClaims/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;

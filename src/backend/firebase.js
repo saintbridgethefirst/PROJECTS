@@ -241,6 +241,10 @@ export const data = {
     return { teamId, team: t.exists() ? t.data() : { name: '' }, members: m.docs.map(d => ({ ...d.data(), uid: d.id })), tasks: rows(tk), profiles: p.docs.map(d => ({ ...d.data(), uid: d.id })) };
   },
   commit: runOps,
+  /** My SelfTrack items (selfItems where uid == me), live. */
+  watchSelf(uid, cb, onError) {
+    return onSnapshot(query(collection(db, 'selfItems'), where('uid', '==', uid)), (s) => cb(rows(s)), onError);
+  },
   /** Call one of the Cloud Functions in functions/ (loaded only when needed). */
   async callFunction(name, payload) {
     const { getFunctions, httpsCallable } = await import('firebase/functions');

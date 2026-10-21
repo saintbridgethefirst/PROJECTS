@@ -12,10 +12,10 @@ const put = (p, d) => db.doc(p).set(d);
 const exists = async (p) => (await db.doc(p).get()).exists;
 const tom = { uid: 'uTom', email: 'tom@uni.ac.uk', displayName: 'Tom Reed' };
 
-const wipe = async () => { for (const c of ['teams', 'users', 'verifiedStudents', 'eduClaims', 'feedback', 'clientErrors', 'studentEmails', 'inviteQuota']) await db.recursiveDelete(db.collection(c)); };
+const wipe = async () => { for (const c of ['teams', 'users', 'verifiedStudents', 'eduClaims', 'feedback', 'clientErrors', 'studentEmails', 'inviteQuota', 'selfItems']) await db.recursiveDelete(db.collection(c)); };
 after(wipe);
 beforeEach(async () => {
-  for (const c of ['teams', 'users', 'verifiedStudents', 'eduClaims', 'feedback', 'clientErrors', 'studentEmails', 'inviteQuota']) await db.recursiveDelete(db.collection(c));
+  for (const c of ['teams', 'users', 'verifiedStudents', 'eduClaims', 'feedback', 'clientErrors', 'studentEmails', 'inviteQuota', 'selfItems']) await db.recursiveDelete(db.collection(c));
   // Aisha's team, Tom is a member
   await put('teams/PV1', { name: 'Skyhawk', ownerUid: 'uAisha', roles: { owner: {}, admin: {}, member: {} } });
   await put('teams/PV1/members/uAisha', { uid: 'uAisha', email: 'aisha@uni.ac.uk', name: 'Aisha Khan', roleId: 'owner' });
@@ -39,6 +39,8 @@ beforeEach(async () => {
   await put('clientErrors/e1', { uid: 'uTom', msg: 'x' });
   await put('inviteQuota/uTom_2026-10-20', { n: 1 });
   await put('feedback/f2', { uid: 'uAisha', text: 'Hers' });
+  await put('selfItems/s1', { uid: 'uTom', kind: 'habit', title: 'Gym' });
+  await put('selfItems/s2', { uid: 'uAisha', kind: 'task', title: 'Hers' });
 });
 
 test('download my data: profile, private records, invitations and what is mine in each team', async () => {
@@ -46,6 +48,7 @@ test('download my data: profile, private records, invitations and what is mine i
   assert.equal(d.profile.theme, 'mint');
   assert.equal(d.studentVerification.email, 'tr123@bristol.ac.uk');
   assert.equal(d.feedbackYouSent.length, 1); assert.equal(d.errorReportsFromYourBrowser.length, 1);
+  assert.deepEqual(d.selfTrack.map(x => x.title), ['Gym'], 'only my SelfTrack items');
   assert.equal(d.invitationsToYou[0].teamId, 'PV3');
   const sky = d.teams.find(t => t.teamId === 'PV1');
   assert.equal(sky.yourMembership.roleId, 'member'); assert.equal(sky.yourProfileInTeam.capacity, 10);
@@ -65,7 +68,8 @@ test('delete my account: everything about me goes; shared work stays, without my
   const s = await deleteUserData(db, tom);
   assert.equal(s.teamsDeleted, 1); assert.equal(s.teamsLeft, 1);
   assert.ok(!(await exists('teams/PV2')) && !(await exists('teams/PV2/tasks/x')), 'my solo team is gone');
-  for (const p of ['teams/PV1/members/uTom', 'teams/PV1/profiles/uTom', 'users/uTom', 'verifiedStudents/uTom', 'studentEmails/key1', 'feedback/f1', 'clientErrors/e1', 'inviteQuota/uTom_2026-10-20', 'teams/PV3/invites/tom@uni.ac.uk']) assert.ok(!(await exists(p)), p + ' deleted');
+  for (const p of ['teams/PV1/members/uTom', 'teams/PV1/profiles/uTom', 'users/uTom', 'verifiedStudents/uTom', 'studentEmails/key1', 'feedback/f1', 'clientErrors/e1', 'inviteQuota/uTom_2026-10-20', 'teams/PV3/invites/tom@uni.ac.uk', 'selfItems/s1']) assert.ok(!(await exists(p)), p + ' deleted');
+  assert.ok(await exists('selfItems/s2'), 'someone else’s SelfTrack stays');
   const t1 = (await db.doc('teams/PV1/tasks/t1').get()).data();
   assert.equal(t1.updatedBy, 'Former member'); assert.deepEqual(t1.history.map(h => h.user), ['Former member', 'Aisha Khan']);
   const c1 = (await db.doc('teams/PV1/comments/c1').get()).data();

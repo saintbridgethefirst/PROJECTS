@@ -49,10 +49,12 @@ export const paper = (addedBy, over = {}) => ({ title: 'Robot grasping', authors
 export const risk = (createdBy, over = {}) => ({ title: 'Servos late', detail: '', likelihood: 3, impact: 4, ownerUid: createdBy, status: 'open', mitigation: '', taskIds: [], reviewDate: '', createdBy, createdByName: createdBy, createdAt: 1, updatedAt: 1, ...over });
 export const requirement = (createdBy, over = {}) => ({ ref: 'REQ-001', title: 'Lift 500 g', detail: '', priority: 'must', status: 'draft', taskIds: [], verification: '', verified: false, verifiedBy: '', verifiedDate: '', createdBy, createdByName: createdBy, createdAt: 1, updatedAt: 1, ...over });
 
+export const selfTask = (uid, over = {}) => ({ uid, kind: 'task', title: 'Read chapter 3', area: 'uni', scope: 'day', date: '2026-10-21', done: false, doneOn: '', order: 0, createdAt: 1, updatedAt: 1, ...over });
+
 export function fixture() {
   return {
     users: {}, admins: { plat: true },
-    root: { verifiedStudents: { admin1: { email: 'admin1@bristol.ac.uk', verifiedAt: 1, until: Date.now() + 200 * 864e5 } }, eduClaims: { view1: { year: new Date().getUTCFullYear(), teams: ['a', 'b'] } } },
+    root: { verifiedStudents: { admin1: { email: 'admin1@bristol.ac.uk', verifiedAt: 1, until: Date.now() + 200 * 864e5 } }, eduClaims: { view1: { year: new Date().getUTCFullYear(), teams: ['a', 'b'] } }, selfItems: { s_owner: selfTask('owner') } },
     teams: {
       [TEAM]: {
         doc: teamDoc(),
@@ -265,6 +267,16 @@ export const writeScenarios = [
   ['a member sets their own uploaded photo', 'mem1', TEAM, [upd('members/mem1', { photo: 'data:image/png;base64,' + 'A'.repeat(2000) })], 'allow'],
   ['a member cannot set someone else’s photo', 'mem1', TEAM, [upd('members/owner', { photo: 'data:image/png;base64,' + 'A'.repeat(2000) })], 'deny'],
   ['an oversized photo is refused', 'mem1', TEAM, [upd('members/mem1', { photo: 'data:image/png;base64,' + 'A'.repeat(70000) })], 'deny'],
+  // SelfTrack: private to its owner
+  ['I save a SelfTrack task of my own', 'mem1', TEAM, [set('/selfItems/s_new', selfTask('mem1'))], 'allow'],
+  ['I save a habit with its check-ins', 'mem1', TEAM, [set('/selfItems/s_h', { uid: 'mem1', kind: 'habit', title: 'Gym', area: '', goal: 3, color: '', archived: false, log: ['2026-10-20', '2026-10-21'], createdAt: 1, updatedAt: 1 })], 'allow'],
+  ['nobody saves a SelfTrack item for someone else', 'evil', TEAM, [set('/selfItems/s_x', selfTask('owner'))], 'deny'],
+  ['nobody overwrites someone else’s SelfTrack item', 'evil', TEAM, [set('/selfItems/s_owner', selfTask('evil'))], 'deny'],
+  ['nobody deletes someone else’s SelfTrack item', 'evil', TEAM, [del('/selfItems/s_owner')], 'deny'],
+  ['I delete my own SelfTrack item', 'owner', TEAM, [del('/selfItems/s_owner')], 'allow'],
+  ['SelfTrack items cannot carry unexpected fields', 'mem1', TEAM, [set('/selfItems/s_new', { ...selfTask('mem1'), hack: true })], 'deny'],
+  ['a SelfTrack title is at most 300 characters', 'mem1', TEAM, [set('/selfItems/s_new', selfTask('mem1', { title: 'x'.repeat(301) }))], 'deny'],
+  ['a SelfTrack item has a known kind', 'mem1', TEAM, [set('/selfItems/s_new', selfTask('mem1', { kind: 'secret' }))], 'deny'],
 ];
 
 // [name, user, what, expected] — what: 'team' | 'tasks' (read of the team doc / tasks)

@@ -123,6 +123,19 @@ const validPlanRequest = (d, uid) => hasOnly(d, ALLOWED.planRequest) && ['pro', 
 const validLog = (d) => hasOnly(d, ALLOWED.log) && typeof d.at === 'number' && typeof d.by === 'string' && isStr(d.byName, 80) &&
   ['budget', 'spending', 'income', 'parts'].includes(d.kind) && typeof d.text === 'string' && d.text.length > 0 && d.text.length <= 600;
 
+/** SelfTrack items (firestore.rules ▸ validSelf). */
+const SELF_KEYS = ['uid', 'kind', 'title', 'area', 'scope', 'date', 'done', 'doneOn', 'order', 'createdAt', 'updatedAt', 'note', 'log', 'goal', 'skillId', 'mood', 'well', 'hard', 'areas', 'sync', 'archived', 'color'];
+const optStr = (d, k, n) => d[k] === undefined || isStr(d[k], n);
+const optNum = (d, k) => d[k] === undefined || typeof d[k] === 'number';
+const optBool = (d, k) => d[k] === undefined || typeof d[k] === 'boolean';
+export const validSelf = (d, uid) => !!d && hasOnly(d, SELF_KEYS) && d.uid === uid && ['task', 'habit', 'skill', 'learning', 'reflect', 'settings'].includes(d.kind) &&
+  optStr(d, 'title', 300) && optStr(d, 'area', 40) && optStr(d, 'note', 2000) && optStr(d, 'well', 2000) && optStr(d, 'hard', 2000) &&
+  optStr(d, 'date', 10) && optStr(d, 'doneOn', 10) && optStr(d, 'skillId', 64) && optStr(d, 'color', 20) &&
+  (d.scope === undefined || ['day', 'week'].includes(d.scope)) && optBool(d, 'done') && optBool(d, 'archived') &&
+  optNum(d, 'goal') && optNum(d, 'mood') && optNum(d, 'order') &&
+  (d.log === undefined || (Array.isArray(d.log) && d.log.length <= 800)) && (d.areas === undefined || (Array.isArray(d.areas) && d.areas.length <= 12)) &&
+  (d.sync === undefined || (!!d.sync && typeof d.sync === 'object' && !Array.isArray(d.sync) && Object.keys(d.sync).length <= 50));
+
 /** A verified university email on the account, or one proved by code (verifiedStudents, server-written). */
 function academicOf(store, auth) {
   if (auth.emailVerified && isAcademicEmail(auth.email)) return true;
@@ -145,6 +158,12 @@ function checkRootWrite(pre, post, auth, op) {
       ['bug', 'idea', 'question', 'other'].includes(after.kind) && typeof after.text === 'string' && after.text.length >= 1 && after.text.length <= 2000 &&
       isStr(after.where, 100) && isStr(after.teamId, 64) && isStr(after.ua, 200) && isStr(after.build, 40) && isStr(after.name, 80) &&
       (after.email === '' || after.email === auth.email) && Array.isArray(after.errors) && after.errors.length <= 5 && after.expireAt !== undefined)) deny('feedback');
+    return;
+  }
+  if (coll === 'selfItems') {
+    if (before && before.uid !== auth.uid) deny('not your SelfTrack item');
+    if (!after) return;
+    if (!validSelf(after, auth.uid)) deny('SelfTrack item');
     return;
   }
   if (coll === 'eduClaims') {

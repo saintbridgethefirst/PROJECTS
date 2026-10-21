@@ -26,6 +26,7 @@ export async function exportUserData(db, account) {
     account, profile: await getData(db, 'users/' + uid),
     studentVerification: await getData(db, 'verifiedStudents/' + uid), proEducationClaims: await getData(db, 'eduClaims/' + uid),
     feedbackYouSent: rows(await db.collection('feedback').where('uid', '==', uid).get()),
+    selfTrack: rows(await db.collection('selfItems').where('uid', '==', uid).get()),
     errorReportsFromYourBrowser: rows(await db.collection('clientErrors').where('uid', '==', uid).get()),
     invitationsToYou: email ? (await db.collectionGroup('invites').where('email', '==', email).get()).docs.map(d => ({ teamId: d.ref.parent.parent.id, ...plain(d.data()) })) : [],
     teams: [],
@@ -61,7 +62,7 @@ async function writeAll(db, ops) {
  *  • Teams they own alone: deleted completely. Teams they own with others: refused (hand over first).
  *  • Other teams: their membership and team profile go; their name in shared records (comments,
  *    history, notebook, meetings…) becomes "Former member". What they wrote stays with the team.
- *  • Their profile, student verification, Pro Education claims, feedback, error reports and
+ *  • Their SelfTrack items, profile, student verification, Pro Education claims, feedback, error reports and
  *    invitations to their email are deleted.
  */
 export async function deleteUserData(db, account) {
@@ -88,7 +89,7 @@ export async function deleteUserData(db, account) {
   }
   const del = [];
   for (const p of ['users/', 'verifiedStudents/', 'eduClaims/', 'studentCodes/']) del.push(db.doc(p + uid));
-  for (const q of [db.collection('feedback').where('uid', '==', uid), db.collection('clientErrors').where('uid', '==', uid), db.collection('studentEmails').where('uid', '==', uid)]) (await q.get()).docs.forEach(d => del.push(d.ref));
+  for (const q of [db.collection('feedback').where('uid', '==', uid), db.collection('clientErrors').where('uid', '==', uid), db.collection('studentEmails').where('uid', '==', uid), db.collection('selfItems').where('uid', '==', uid)]) (await q.get()).docs.forEach(d => del.push(d.ref));
   if (email) (await db.collectionGroup('invites').where('email', '==', email).get()).docs.forEach(d => del.push(d.ref));
   (await db.collection('inviteQuota').where('__name__', '>=', db.doc('inviteQuota/' + uid + '_')).where('__name__', '<', db.doc('inviteQuota/' + uid + '_~')).get()).docs.forEach(d => del.push(d.ref));
   await writeAll(db, del.map(ref => ({ ref, del: true })));

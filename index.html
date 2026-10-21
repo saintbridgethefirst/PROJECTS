@@ -72,6 +72,7 @@
   </main>
 
   <!-- ── Team list ───────────────────────────────────────────────────────── -->
+  <div id="self-screen" class="screen" hidden></div>
   <div id="home-screen" class="screen" hidden>
     <header class="app-header">
       <div class="brand"><img class="brand-mark" src="/icons/logo-96.png" alt="" width="38" height="38"><span class="brand-name" data-app-name>TeamTrack</span></div>
@@ -92,6 +93,14 @@
           <section id="invites-section" hidden>
             <h2>Invitations</h2>
             <div id="invites-list" class="row" style="flex-direction:column;align-items:stretch"></div>
+          </section>
+          <section id="self-section">
+            <h2>Just for you</h2>
+            <a class="self-tile" id="open-self" href="#/me">
+              <span id="self-tile-orb" aria-hidden="true"></span>
+              <span><b class="sf-logo">SelfTrack</b><span class="hint">Your own days, weekly goals, habits and skills, with the tasks your teams give you. Private: only you can see it.</span></span>
+              <span class="guide-card-go" aria-hidden="true">→</span>
+            </a>
           </section>
           <section>
             <h2>Your teams</h2>

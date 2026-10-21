@@ -161,6 +161,13 @@ export const data = {
     return clone({ teamId, team: T.doc, members: Object.entries(T.members).map(([uid, m]) => ({ ...m, uid })), tasks: Object.entries(T.tasks).map(([id, t]) => ({ ...t, id })), profiles: Object.entries(T.profiles || {}).map(([uid, p]) => ({ ...p, uid })) });
   },
   async commit(teamId, ops) { return applyBatch(teamId, ops); },
+  /** My SelfTrack items (selfItems where uid == me). */
+  watchSelf(uid, cb, onError) {
+    return subscribe(() => {
+      const me = authCtx(); if (!me || me.uid !== uid) throw Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });
+      return Object.entries((store.root && store.root.selfItems) || {}).filter(([, d]) => d.uid === uid).map(([id, d]) => ({ ...d, id }));
+    }, cb, onError);
+  },
   /** Demo stand-in for the Cloud Functions: the code is shown on screen instead of emailed. */
   async callFunction(name, payload) {
     const me = currentUser; if (!me) throw Object.assign(new Error('Sign in first.'), { code: 'unauthenticated' });
@@ -192,7 +199,7 @@ export const data = {
     if (name === 'exportMyData') {
       const email = normEmail(me.email); const list = (o) => Object.entries(o || {}).map(([id, d]) => ({ id, ...clone(d) }));
       return { about: 'Everything TeamTrack stores about you (demo).', account: { uid: me.uid, email: me.email, displayName: me.name, providers: ['demo'] }, profile: clone(store.users[me.uid]),
-        studentVerification: clone(root.verifiedStudents[me.uid] || null), feedbackYouSent: list(root.feedback).filter(f => f.uid === me.uid), errorReportsFromYourBrowser: list(root.clientErrors).filter(f => f.uid === me.uid),
+        studentVerification: clone(root.verifiedStudents[me.uid] || null), selfTrack: Object.entries(root.selfItems || {}).filter(([, d]) => d.uid === me.uid).map(([id, d]) => ({ id, ...clone(d) })), feedbackYouSent: list(root.feedback).filter(f => f.uid === me.uid), errorReportsFromYourBrowser: list(root.clientErrors).filter(f => f.uid === me.uid),
         invitationsToYou: Object.entries(store.teams).filter(([, T]) => T.invites && T.invites[email]).map(([id, T]) => ({ teamId: id, ...clone(T.invites[email]) })),
         teams: myTeams().map(([id, T]) => { const yours = {}; Object.entries(T).forEach(([c, docs]) => { if (['doc', 'members', 'profiles'].includes(c) || !docs || typeof docs !== 'object') return; const mine = list(docs).filter(r => BY.some(f => r[f] === me.uid) || (r.attendees || []).includes(me.uid) || (r.mentions || []).includes(me.uid)); if (mine.length) yours[c] = mine; });
           return { teamId: id, teamName: T.doc.name, yourMembership: clone(T.members[me.uid]), yourProfileInTeam: clone((T.profiles || {})[me.uid] || null), yours }; }) };
@@ -218,7 +225,7 @@ export const data = {
       });
       Object.values(store.teams).forEach(T => { if (T.invites) delete T.invites[email]; });
       ['verifiedStudents', 'studentCodes', 'eduClaims'].forEach(c => { if (root[c]) delete root[c][me.uid]; });
-      ['feedback', 'clientErrors'].forEach(c => Object.entries(root[c] || {}).forEach(([id, d]) => { if (d.uid === me.uid) delete root[c][id]; }));
+      ['feedback', 'clientErrors', 'selfItems'].forEach(c => Object.entries(root[c] || {}).forEach(([id, d]) => { if (d.uid === me.uid) delete root[c][id]; }));
       delete store.users[me.uid]; persist();
       currentUser = null; sessionStorage.removeItem(SESSION_KEY); setTimeout(emitAuth, 0);
       return { deleted: true, ...summary };

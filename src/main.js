@@ -36,6 +36,7 @@ import { openFeedback } from './feedback.js';
 import { openShareWeek } from './share.js';
 import { renderStart } from './start.js';
 import { startTour, endTour, tourRunning } from './tour.js';
+import { openSelf, closeSelf, orb as selfOrb } from './self.js';
 
 let backend = null;
 /** Shared state for the feature modules (yourdata.js, feedback.js…). */
@@ -52,7 +53,7 @@ document.querySelectorAll('[data-app-name]').forEach(n => { n.textContent = APP_
 document.querySelectorAll('[data-app-tagline]').forEach(n => { n.textContent = APP_TAGLINE + '.'; });
 
 function show(screen) {
-  ['loading', 'auth-screen', 'home-screen', 'board-screen'].forEach(id => { document.getElementById(id).hidden = id !== screen; });
+  ['loading', 'auth-screen', 'home-screen', 'board-screen', 'self-screen'].forEach(id => { document.getElementById(id).hidden = id !== screen; });
 }
 
 // ── Boot ────────────────────────────────────────────────────────────────────
@@ -67,7 +68,7 @@ function show(screen) {
     if (GOOGLE_CLIENT_ID) import('./integrations/google.js').then(m => m.setGoogleUser(u ? { uid: u.uid, email: u.email } : null)).catch(() => {});
     user = u;
     platformAdmin = false; studentStatus = null; eduClaim = cleanEduClaim(null);
-    if (!u) { closeTeam(); stopHome(); renderAuth(); return; }
+    if (!u) { closeSelf(); closeTeam(); stopHome(); renderAuth(); return; }
     if (backend.data.isPlatformAdmin) backend.data.isPlatformAdmin(u.uid).then(v => { if (user === u) platformAdmin = !!v; }).catch(() => {});
     loadStudent(u);
     // Your account's theme follows you to every device.
@@ -79,11 +80,19 @@ function show(screen) {
 })();
 
 async function route() {
+  const me = location.hash.match(/^#\/me(?:\/(today|week|growth))?\/?$/);
+  if (me) { closeTeam(); stopHome(); show('self-screen'); openSelf($('#self-screen'), selfCtx, me[1] || 'today'); return; }
+  closeSelf();
   const m = location.hash.match(/^#\/t\/([A-Za-z0-9_-]+)/);
   if (m) { if (!session || session.teamId !== m[1]) await openTeam(m[1]); }
   else { closeTeam(); renderHome(); if (location.hash === '#/account') setTimeout(() => window.TT && window.TT.openAccount && window.TT.openAccount(), 0); }
 }
 const goHome = () => { location.hash = '#/'; };
+/** What SelfTrack (self.js) needs from the app. */
+const selfCtx = {
+  get backend() { return backend; }, get user() { return user; }, appName: APP_NAME, demo: DEMO_MODE,
+  goHome: () => goHome(), openTaskIn: (teamId, taskId) => openTaskIn(teamId, taskId), invalidateWork: () => { myWorkCache = null; },
+};
 const goTeam = (id) => { location.hash = '#/t/' + id; };
 
 // ── Sign-in screen ──────────────────────────────────────────────────────────
@@ -255,6 +264,7 @@ function renderHome() {
   $('#home-search').onclick = () => startSearch();
 
   refreshInstallBanner();
+  const selfOrbBox = $('#self-tile-orb'); if (selfOrbBox) selfOrbBox.replaceChildren(selfOrb({ size: 54, pct: 0.75, palette: 4, ring: false }));
   const demo = $('#demo-banner'); demo.hidden = !DEMO_MODE;
   if (DEMO_MODE) demo.replaceChildren('Demo mode: data is saved in this browser only. ', el('button.btn.small.ghost', { type: 'button', onclick: () => { if (confirm('Delete ALL demo teams and accounts in this browser?')) backend.data.resetDemo(); } }, 'Reset demo data'));
 
