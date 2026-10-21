@@ -5,7 +5,7 @@
 //  workflow (stages), sub-teams, parts and budget, notebook, risks, comments.
 //  Loaded only when someone presses the button.
 // ─────────────────────────────────────────────────────────────────────────────
-import { WORKFLOW_TEMPLATES, newId } from './model.js';
+import { WORKFLOW_TEMPLATES, newId, storedWorkflow, cleanWorkflow, leadsIndex } from './model.js';
 
 const SAMPLE_TODAY_MONDAY = '2026-10-19';   // the sample's "this week" (WEEK 4)
 const DAY = 864e5;
@@ -34,7 +34,8 @@ export async function buildSample(user, now = Date.now()) {
   const CHECKS = { review: ['CAD shared', 'Load calculations attached', 'Mass budget updated'], test: ['Risk assessment done', 'Flying field booked'] };
   const eng = WORKFLOW_TEMPLATES.find(t => t.id === 'engineering').stages.map(s => ({ ...s, limit: s.id === 'build' ? 4 : 0,
     signoff: s.id === 'review' ? 'lead' : s.id === 'test' ? 'admin' : '', signer: '', checklist: (CHECKS[s.id] || []).map((text, k) => ({ id: s.id + '_c' + k, text })) }));
-  team.doc.workflow = { stages: eng, moved: {} };
+  team.doc.workflow = storedWorkflow({ stages: cleanWorkflow({ stages: eng }).stages, moved: {} });
+  team.doc.leads = leadsIndex(team.doc.subteams || []);
   const open = ['design', 'review', 'build', 'test'];
   Object.values(team.tasks).filter(t => t.flag !== 'completed').forEach((t, i) => {
     const named = open.find(id => id === String(t.status || '').trim().toLowerCase());   // a status like "Build" becomes that stage

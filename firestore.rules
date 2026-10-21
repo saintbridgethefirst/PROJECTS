@@ -50,9 +50,10 @@ service cloud.firestore {
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
     function validTeam(d) {
-      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow'])
+      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads'])
         && d.get('archiveRev', 0) is int
-        && (d.get('workflow', null) == null || (d.workflow is map && d.workflow.keys().hasOnly(['stages', 'moved']) && d.workflow.stages is list && d.workflow.stages.size() >= 2 && d.workflow.stages.size() <= 10))
+        && d.get('leads', {}) is map && d.get('leads', {}).size() <= 300
+        && (d.get('workflow', null) == null || (d.workflow is map && d.workflow.keys().hasOnly(['stages', 'moved', 'order', 'gates', 'gateList', 'done']) && d.workflow.stages is list && d.workflow.stages.size() >= 2 && d.workflow.stages.size() <= 10))
         && d.name is string && d.name.size() > 0 && d.name.size() <= 80
         && d.logo is string && d.logo.size() <= 220000
         && d.fields is list && d.fields.size() <= 30
@@ -203,6 +204,39 @@ service cloud.firestore {
         && request.resource.data.signoff.get('approver', '') == request.auth.uid
         && validTask(request.resource.data);
     }
+    // Sign-off gates (src/model.js ▸ workflowIndex): a task can only move forward past a stage that
+    // needs a sign-off when it carries that sign-off, given by someone allowed to give it.
+    function wfOrd(wf, d) {
+      return d.get('flag', 'none') == 'completed' ? wf.done : wf.order.get(d.get('stage', ''), 0);
+    }
+    function approvedOrd(wf, d) {
+      return d.get('signoff', null) != null && d.signoff.get('status', '') == 'approved' ? wf.order.get(d.signoff.get('stage', ''), -1) : -1;
+    }
+    function gateOk(g, from, to, a) { return g < from || g >= to || g == a; }
+    function gatesPassed(wf, from, to, a) {
+      let g = wf.gateList;
+      return to <= from || ((g.size() < 1 || gateOk(g[0], from, to, a)) && (g.size() < 2 || gateOk(g[1], from, to, a))
+        && (g.size() < 3 || gateOk(g[2], from, to, a)) && (g.size() < 4 || gateOk(g[3], from, to, a)) && (g.size() < 5 || gateOk(g[4], from, to, a))
+        && (g.size() < 6 || gateOk(g[5], from, to, a)) && (g.size() < 7 || gateOk(g[6], from, to, a)) && (g.size() < 8 || gateOk(g[7], from, to, a))
+        && (g.size() < 9 || gateOk(g[8], from, to, a)) && (g.size() < 10 || gateOk(g[9], from, to, a)));
+    }
+    // Allowed to sign off this gate for a task owned by `owner`? Never your own task (unless you own
+    // the team); 'lead' = the owner's sub-team leads (else admins); 'person' = them or an admin.
+    function canSign(t, g, owner) {
+      let team = get(teamPath(t)).data;
+      let admin = myRole(t) in ['owner', 'admin'];
+      let leads = team.get('leads', {}).get(owner, []);
+      return g != null && (team.ownerUid == request.auth.uid || (request.auth.uid != owner && (
+        g.k == 'admin' ? admin : (g.k == 'person' ? (request.auth.uid == g.s || admin) : (leads.size() > 0 ? request.auth.uid in leads : admin)))));
+    }
+    function signoffGates(t) {
+      let wf = get(teamPath(t)).data.get('workflow', null);
+      let v = request.resource.data.get('signoff', null);
+      return wf == null || !('gates' in wf) || (
+        gatesPassed(wf, wfOrd(wf, resource.data), wfOrd(wf, request.resource.data), approvedOrd(wf, request.resource.data))
+        && (v == null || v.get('status', '') == 'waiting' || resource.data.get('signoff', null) == v
+          || canSign(t, wf.gates.get(v.get('stage', ''), null), request.resource.data.ownerUid)));
+    }
     function validSignoff(v) {
       return v == null || (v is map
         && v.keys().hasOnly(['stage', 'status', 'by', 'byName', 'at', 'approver', 'approverName', 'note', 'decidedAt'])
@@ -340,10 +374,10 @@ service cloud.firestore {
       allow update: if isMember(t) && validTeam(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.createdAt == resource.data.createdAt
-        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow'])
+        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads'])
         // archiveRev: changed by any save to an old week, so other devices re-read old weeks (backend/tasksync.js)
         && (!changed().hasAny(['archiveRev']) || can(t, 'tasks.editOwn') || can(t, 'tasks.editAll'))
-        && (!changed().hasAny(['subteams']) || can(t, 'team.settings') || can(t, 'members.manage'))
+        && (!changed().hasAny(['subteams', 'leads']) || can(t, 'team.settings') || can(t, 'members.manage'))
         && (!changed().hasAny(['weeks']) || can(t, 'weeks.manage'))
         && (!changed().hasAny(['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features', 'workflow']) || can(t, 'team.settings'))
         && (!changed().hasAny(['roles']) || can(t, 'roles.manage'));
@@ -520,10 +554,10 @@ service cloud.firestore {
         allow read: if isMember(t);
         allow create: if canEditOwned(t, request.resource.data.ownerUid) && validTask(request.resource.data)
           && getAfter(/databases/$(database)/documents/teams/$(t)/categories/$(request.resource.data.categoryId)).data.ownerUid == request.resource.data.ownerUid;
-        allow update: if (canEditOwned(t, resource.data.ownerUid)
+        allow update: if ((canEditOwned(t, resource.data.ownerUid)
           && canEditOwned(t, request.resource.data.ownerUid) && validTask(request.resource.data)
           && getAfter(/databases/$(database)/documents/teams/$(t)/categories/$(request.resource.data.categoryId)).data.ownerUid == request.resource.data.ownerUid)
-          || signoffDecision(t);
+          || signoffDecision(t)) && signoffGates(t);
         allow delete: if canEditOwned(t, resource.data.ownerUid);
       }
     }

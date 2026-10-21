@@ -2,7 +2,7 @@
 // rules copy (src/rules-sim.js); tests/rules.test.mjs runs the SAME list against
 // the real firestore.rules in the Firebase emulator. If both pass, they agree.
 import { DEFAULT_ROLES } from '../src/permissions.js';
-import { DEFAULT_LABELS } from '../src/model.js';
+import { DEFAULT_LABELS, storedWorkflow, leadsIndex, cleanWorkflow } from '../src/model.js';
 
 export const TEAM = 't1';
 export const users = {
@@ -56,6 +56,13 @@ export const signoff = (status, over = {}) => ({ stage: 'review', status, by: 'm
 export const whiteboard = (createdBy, over = {}) => ({ name: 'Planning', createdBy, createdByName: createdBy, createdAt: 1, updatedAt: 1, ...over });
 export const wbItem = (createdBy, over = {}) => ({ boardId: 'wb_owner', kind: 'note', x: 0, y: 0, w: 220, h: 140, text: 'Idea', color: '#fef08a', taskId: '', from: '', to: '', z: 1, createdBy, updatedAt: 1, ...over });
 
+export const GATE = 't_gate';
+const GATE_SUBTEAMS = [{ id: 'gear', name: 'Gear', color: '#3ba3ff', members: ['mem1', 'view1'], leads: ['view1'] }];
+const GATE_WORKFLOW = storedWorkflow(cleanWorkflow({ stages: [
+  { id: 'design', name: 'Design', kind: 'todo' }, { id: 'review', name: 'Review', kind: 'doing', signoff: 'lead' },
+  { id: 'build', name: 'Build', kind: 'doing' }, { id: 'test', name: 'Test', kind: 'doing', signoff: 'admin' }, { id: 'done', name: 'Done' }] }));
+const approved = (stage, by) => signoff('approved', { stage, approver: by, approverName: by, decidedAt: 2 });
+
 export function fixture() {
   return {
     users: {}, admins: { plat: true },
@@ -72,6 +79,17 @@ export function fixture() {
         whiteboards: { wb_owner: whiteboard('owner') }, wbItems: { wi_owner: wbItem('owner') },
         meetings: { mt_owner: meeting('owner') }, notebook: { nb_mem1: note('mem1', 't_mem1') }, parts: { pt_mem1: part('mem1') },
         papers: { pp_owner: paper('owner') }, profiles: { mem1: { capacity: 10, skills: ['CAD'], away: [], updatedAt: 1 } }, risks: { rk_owner: risk('owner') }, requirements: { rq_owner: requirement('owner') }, expenses: { x_admin1: expense('admin1') }, finance: { budget: { currency: 'GBP', lines: [], updatedAt: 1 } }, financeLog: { fl_1: logEntry('admin1') },
+      },
+      // A team whose workflow needs sign-offs: Review by mem1's sub-team lead (view1), Test by an admin.
+      [GATE]: {
+        doc: teamDoc({ subteams: GATE_SUBTEAMS, leads: leadsIndex(GATE_SUBTEAMS), workflow: GATE_WORKFLOW }),
+        members: { owner: member('owner', 'owner'), admin1: member('admin1', 'admin'), mem1: member('mem1', 'member'), view1: member('view1', 'viewer') },
+        invites: {}, categories: { c_mem1: { name: 'GEN', ownerUid: 'mem1', order: 0 } },
+        tasks: {
+          g_review: task('mem1', 'c_mem1', { stage: 'review' }), g_wait: task('mem1', 'c_mem1', { stage: 'review', signoff: signoff('waiting') }),
+          g_built: task('mem1', 'c_mem1', { stage: 'build', signoff: signoff('approved', { approver: 'view1', approverName: 'view1', decidedAt: 2 }) }),
+          g_test: task('mem1', 'c_mem1', { stage: 'test' }),
+        },
       },
     },
   };
@@ -286,6 +304,19 @@ export const writeScenarios = [
   ['a member can’t delete someone else’s board', 'mem1', TEAM, [del('whiteboards/wb_owner')], 'deny'],
   ['the board’s creator deletes it', 'owner', TEAM, [del('whiteboards/wb_owner')], 'allow'],
   ['a stranger can’t draw on the team’s board', 'evil', TEAM, [set('wbItems/wi_new', wbItem('evil'))], 'deny'],
+  // Sign-off gates, enforced by the rules themselves (not just the app)
+  ['gate: a task’s owner can’t move it past a stage that needs a sign-off', 'mem1', GATE, [upd('tasks/g_review', { stage: 'build' })], 'deny'],
+  ['gate: …nor tick it done', 'mem1', GATE, [upd('tasks/g_review', { flag: 'completed', completedDate: '2026-10-21' })], 'deny'],
+  ['gate: …nor approve it themselves', 'mem1', GATE, [upd('tasks/g_wait', { stage: 'build', signoff: approved('review', 'mem1') })], 'deny'],
+  ['gate: …nor forge the lead’s approval', 'mem1', GATE, [upd('tasks/g_wait', { stage: 'build', signoff: approved('review', 'view1') })], 'deny'],
+  ['gate: moving back is fine', 'mem1', GATE, [upd('tasks/g_review', { stage: 'design' })], 'allow'],
+  ['gate: the sub-team lead approves and moves it on', 'view1', GATE, [upd('tasks/g_wait', { stage: 'build', signoff: approved('review', 'view1') })], 'allow'],
+  ['gate: an admin who isn’t the lead can’t give a lead’s sign-off', 'admin1', GATE, [upd('tasks/g_wait', { stage: 'build', signoff: approved('review', 'admin1') })], 'deny'],
+  ['gate: the team owner can always sign off', 'owner', GATE, [upd('tasks/g_review', { stage: 'build', signoff: approved('review', 'owner') })], 'allow'],
+  ['gate: once approved, the owner moves it on to Test', 'mem1', GATE, [upd('tasks/g_built', { stage: 'test' })], 'allow'],
+  ['gate: …but the Review approval doesn’t pass Test', 'mem1', GATE, [upd('tasks/g_built', { flag: 'completed', completedDate: '2026-10-21' })], 'deny'],
+  ['gate: an admin signs off Test', 'admin1', GATE, [upd('tasks/g_test', { flag: 'completed', completedDate: '2026-10-21', signoff: approved('test', 'admin1') })], 'allow'],
+  ['gate: only sign-off leads can change the leads index', 'mem1', GATE, [upd('team', { leads: { mem1: ['mem1'] } })], 'deny'],
   // Sign-offs and checklists (workflow step 2)
   ['a member ticks checklist items on their task', 'mem1', TEAM, [upd('tasks/t_mem1', { checks: { review_c0: true } })], 'allow'],
   ['a member sends their task for sign-off', 'mem1', TEAM, [upd('tasks/t_mem1', { stage: 'review', signoff: signoff('waiting') })], 'allow'],

@@ -15,7 +15,7 @@ import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mer
 import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
-import { signersFor, canSignStage, gateOnTheWay, checklistOf, cleanWhiteboard, cleanWbItem } from './model.js';
+import { signersFor, canSignStage, gateOnTheWay, checklistOf, cleanWhiteboard, cleanWbItem, cleanWorkflow, storedWorkflow, leadsIndex } from './model.js';
 import { cleanComment, cleanTemplate, cleanEffort, cleanCapacity, MAX_DEPS, workflowOf, stageIdOf, stageKindOf, isCustomWorkflow, cleanMeeting, cleanNotebookEntry, cleanPart, cleanExpense, cleanBudget, cleanPaper, cleanLogEntry } from './model.js';
 import { openResearch, refreshResearch, seesMoney } from './research.js';
 import { notebookSection, notebookCount, linkedSection } from './notebook.js';
@@ -787,6 +787,13 @@ async function onFirstLoad() {
     });
     if (changed) { try { await backend.data.commit(s.teamId, [{ type: 'update', path: 'team', data: { roles } }]); } catch (e) { console.warn('role defaults', e); } }
   }
+  // The index the security rules use to enforce sign-offs (stored with the workflow and sub-teams):
+  // teams whose workflow or sub-teams were saved before it existed get it once.
+  const raw = s.rawTeam || {}; const fix = {};
+  const stable = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, key) => { o[key] = x[key]; return o; }, {}) : x));
+  if (raw.workflow && can(s.team, s.me, 'team.settings')) { const w = cleanWorkflow(raw.workflow); if (w && stable(storedWorkflow(w)) !== stable(raw.workflow)) fix.workflow = storedWorkflow(w); }
+  if ((raw.subteams || []).length && (can(s.team, s.me, 'team.settings') || can(s.team, s.me, 'members.manage'))) { const l = leadsIndex(s.team.subteams); if (stable(l) !== stable(raw.leads || {})) fix.leads = l; }
+  if (Object.keys(fix).length) { try { await backend.data.commit(s.teamId, [{ type: 'update', path: 'team', data: fix }]); } catch (e) { console.warn('sign-off index', e); } }
   // A member who can edit their own tasks but has no row yet gets a starter category.
   if (can(s.team, s.me, 'tasks.editOwn') && !s.categories.some(c => c.ownerUid === user.uid)) {
     try { await backend.data.commit(s.teamId, [{ type: 'set', path: 'categories/' + newId('c'), data: { name: 'GENERAL', ownerUid: user.uid, order: 0 } }]); }

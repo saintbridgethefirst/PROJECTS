@@ -14,9 +14,11 @@ after(async () => { await env?.cleanup(); });
 beforeEach(async () => {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
-    const db = ctx.firestore(); const T = fixture().teams[TEAM];
-    await setDoc(doc(db, 'teams', TEAM), T.doc);
-    for (const c of Object.keys(T).filter(k => k !== 'doc')) for (const [id, d] of Object.entries(T[c] || {})) await setDoc(doc(db, 'teams', TEAM, c, id), d);
+    const db = ctx.firestore();
+    for (const [tid, T] of Object.entries(fixture().teams)) {
+      await setDoc(doc(db, 'teams', tid), T.doc);
+      for (const c of Object.keys(T).filter(k => k !== 'doc')) for (const [id, d] of Object.entries(T[c] || {})) await setDoc(doc(db, 'teams', tid, c, id), d);
+    }
     for (const uid of Object.keys(fixture().admins || {})) await setDoc(doc(db, 'admins', uid), { since: 1 });
     for (const [c, docs] of Object.entries(fixture().root || {})) for (const [id, d] of Object.entries(docs)) await setDoc(doc(db, c, id), d);
   });

@@ -330,6 +330,25 @@ export function canSignStage(stage, team, me, ownerUid) {
   const leads = subs.flatMap(s => s.leads || []).filter(u => u !== ownerUid);
   return leads.length ? leads.includes(me.uid) : admin;
 }
+/** What the security rules need to check sign-offs without loops (stored with the workflow):
+ *  order: stage id (and legacy 'todo'/'doing', and moved ids) → position; gates: stage id → { o, k, s };
+ *  gateList: positions of stages that need a sign-off; done: the last position. */
+export function workflowIndex(stages, moved = {}) {
+  const order = {}; stages.forEach((s, i) => { order[s.id] = i; });
+  ['todo', 'doing'].forEach(k => { if (order[k] === undefined) { const i = stages.findIndex(s => s.kind === k); if (i >= 0) order[k] = i; } });
+  Object.entries(moved || {}).forEach(([a, b]) => { if (order[a] === undefined && order[b] !== undefined) order[a] = order[b]; });
+  const gates = {}; const gateList = [];
+  stages.forEach((s, i) => { if (s.signoff) { gates[s.id] = { o: i, k: s.signoff, s: s.signer || '' }; gateList.push(i); } });
+  return { order, gates, gateList, done: stages.length - 1 };
+}
+/** Each member's sub-team leads (not themselves), for the security rules: { uid: [leadUid] }. */
+export function leadsIndex(subteams) {
+  const out = {};
+  (subteams || []).forEach(s => (s.members || []).forEach(u => { const l = (s.leads || []).filter(x => x !== u); if (l.length) out[u] = [...new Set((out[u] || []).concat(l))].slice(0, 20); }));
+  return out;
+}
+/** The workflow as stored: stages, moved, and the index the rules use. */
+export const storedWorkflow = (w) => ({ stages: w.stages, moved: w.moved || {}, ...workflowIndex(w.stages, w.moved || {}) });
 /** Is this task's sign-off for `stageId` approved? */
 export const signedOff = (task, stageId) => !!(task && task.signoff && task.signoff.stage === stageId && task.signoff.status === 'approved');
 /** Moving a task from stage `from` to stage `to` (ids): the first stage on the way that needs a

@@ -5,7 +5,7 @@
 import { startFlag } from './start.js';
 import { APP_NAME, GOOGLE_CLIENT_ID, MS_CLIENT_ID, DEMO_MODE, LIMITS, STUDENT_EMAIL_CHECK, SERVER_EMAILS } from './config.js';
 import { PERMISSIONS, can, roleList, normEmail, isValidEmail } from './permissions.js';
-import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS } from './model.js';
+import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS, storedWorkflow, leadsIndex, cleanWorkflow } from './model.js';
 import { el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 
 const TABS = [
@@ -284,7 +284,8 @@ function workflow(pane, ctx, { rerender } = {}) {
     if (dup) return toast('Two stages are called “' + stages[lower.indexOf(dup)].name + '”. Give each its own name.', 5000);
     const moved = workflowMoves(wf.stages, stages, wf.moved);
     const custom = isCustomWorkflow(stages);
-    const value = custom || Object.keys(moved).length ? { stages, moved } : null;
+    const w = cleanWorkflow({ stages, moved });
+    const value = w && (custom || Object.keys(moved).length) ? storedWorkflow(w) : null;
     if (await save(ctx, [{ type: 'update', path: 'team', data: { workflow: value } }], 'Workflow saved.')) { if (rerender) rerender(); }
   } }, 'Save workflow');
   const touch = () => { saveBtn.disabled = false; build(); };
@@ -344,7 +345,7 @@ function subteams(pane, ctx, { rerender } = {}) {
     const cleaned = cleanSubteams(draft.map((x, i) => ({ ...x, name: (x.name || '').trim() || 'Sub-team ' + (i + 1), members: x.members.filter(u => live.has(u)) })));
     const names = cleaned.map(x => x.name.toLowerCase()); const dup = names.find((n, i) => names.indexOf(n) !== i);
     if (dup) return toast('Two sub-teams are called “' + cleaned[names.indexOf(dup)].name + '”. Give each a different name.', 5000);
-    if (await save(ctx, [{ type: 'update', path: 'team', data: { subteams: cleaned } }], 'Sub-teams saved.')) { if (rerender) rerender(); }
+    if (await save(ctx, [{ type: 'update', path: 'team', data: { subteams: cleaned, leads: leadsIndex(cleaned) } }], 'Sub-teams saved.')) { if (rerender) rerender(); }
   } }, 'Save sub-teams');
   const touch = () => { saveBtn.disabled = false; };
   const add = (name) => {

@@ -7,7 +7,7 @@ import { isAcademicEmail, EDU_TEAMS_PER_YEAR } from './model.js';
 import { PRIORITIES, FLAGS } from './model.js';
 
 const ALLOWED = {
-  team: ['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow'],
+  team: ['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads'],
   user: ['photo', 'theme', 'menuStyle', 'notify', 'updatedAt'],
   member: ['uid', 'email', 'name', 'photo', 'roleId', 'joinedAt'],
   invite: ['email', 'roleId', 'teamName', 'invitedBy', 'invitedByName', 'createdAt'],
@@ -45,7 +45,7 @@ function validTeam(d) {
     (d.features === undefined || (d.features && typeof d.features === 'object' && !Array.isArray(d.features) && Object.keys(d.features).length <= 30 && Object.values(d.features).every(v => typeof v === 'boolean'))) &&
     (d.subteams === undefined || (Array.isArray(d.subteams) && d.subteams.length <= 20)) &&
     (d.plan === undefined || validPlan(d.plan)) && (d.archiveRev === undefined || Number.isInteger(d.archiveRev)) &&
-    (d.workflow === undefined || d.workflow === null || (d.workflow && typeof d.workflow === 'object' && hasOnly(d.workflow, ['stages', 'moved']) && Array.isArray(d.workflow.stages) && d.workflow.stages.length >= 2 && d.workflow.stages.length <= 10));
+    (d.workflow === undefined || d.workflow === null || (d.workflow && typeof d.workflow === 'object' && hasOnly(d.workflow, ['stages', 'moved', 'order', 'gates', 'gateList', 'done']) && Array.isArray(d.workflow.stages) && d.workflow.stages.length >= 2 && d.workflow.stages.length <= 10));
 }
 function validPhoto(d) { const p = d.photo === undefined ? '' : d.photo; return typeof p === 'string' && p.length <= 60000; }
 function validComment(d) {
@@ -143,6 +143,24 @@ export const validSelf = (d, uid) => !!d && hasOnly(d, SELF_KEYS) && d.uid === u
   (d.log === undefined || (Array.isArray(d.log) && d.log.length <= 800)) && (d.areas === undefined || (Array.isArray(d.areas) && d.areas.length <= 12)) &&
   (d.sync === undefined || (!!d.sync && typeof d.sync === 'object' && !Array.isArray(d.sync) && Object.keys(d.sync).length <= 50));
 
+/** Sign-off gates (firestore.rules ▸ signoffGates), using the index stored with the workflow. */
+function signoffGates(T0, auth, meMember, before, after) {
+  const wf = T0 && T0.doc.workflow; if (!wf || !wf.gates) return true;
+  const ord = (d) => (d.flag === 'completed' ? wf.done : (wf.order[d.stage || ''] ?? 0));
+  const v = after.signoff || null;
+  const a = v && v.status === 'approved' ? (wf.order[v.stage || ''] ?? -1) : -1;
+  const from = ord(before), to = ord(after);
+  if (!(to <= from || (wf.gateList || []).slice(0, 10).every(g => g < from || g >= to || g === a))) return false;
+  if (!v || v.status === 'waiting' || JSON.stringify(before.signoff || null) === JSON.stringify(v)) return true;
+  const g = wf.gates[v.stage || '']; if (!g) return false;
+  const owner = after.ownerUid; const admin = !!meMember && ['owner', 'admin'].includes(meMember.roleId);
+  if (T0.doc.ownerUid === auth.uid) return true;
+  if (auth.uid === owner) return false;
+  if (g.k === 'admin') return admin;
+  if (g.k === 'person') return auth.uid === g.s || admin;
+  const leads = (T0.doc.leads || {})[owner] || [];
+  return leads.length ? leads.includes(auth.uid) : admin;
+}
 /** A task's sign-off (firestore.rules ▸ validSignoff): shape, and a decision only by the approver it names. */
 function validSignoff(after, before, auth) {
   const v = after.signoff; if (v === undefined || v === null) return true;
@@ -225,9 +243,9 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (!meMember) deny('not a member');
       if (!validTeam(after) || after.ownerUid !== before.ownerUid || after.createdAt !== before.createdAt) deny('invalid team update');
       const ch = changedKeys(before, after);
-      if (!ch.every(k => ['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow'].includes(k))) deny('field not editable');
+      if (!ch.every(k => ['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads'].includes(k))) deny('field not editable');
       if (ch.includes('archiveRev') && !(can('tasks.editOwn') || can('tasks.editAll'))) deny('archiveRev');
-      if (ch.includes('subteams') && !(can('team.settings') || can('members.manage'))) deny('sub-teams');
+      if ((ch.includes('subteams') || ch.includes('leads')) && !(can('team.settings') || can('members.manage'))) deny('sub-teams');
       if (ch.includes('weeks') && !can('weeks.manage')) deny('weeks');
       if (ch.some(k => ['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features', 'workflow'].includes(k)) && !can('team.settings')) deny('settings');
       if (ch.includes('roles') && !can('roles.manage')) deny('roles');
@@ -271,11 +289,11 @@ export function checkWrite(pre, post, auth, teamId, op) {
       const catAfter = T1 && T1.categories[after.categoryId];
       if (!catAfter || catAfter.ownerUid !== after.ownerUid) deny('task row mismatch');
       if (isCreate) { if (!(canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, null, auth))) deny('create task'); return; }
-      if (canEditOwned(before.ownerUid) && canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, before, auth)) return;
+      if (canEditOwned(before.ownerUid) && canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, before, auth)) { if (!signoffGates(T0, auth, meMember, before, after)) deny('sign-off gate'); return; }
       // Recording a sign-off decision (firestore.rules ▸ signoffDecision)
       const ch = changedKeys(before, after);
       if (meMember && before.signoff && before.signoff.status === 'waiting' && ch.every(k => ['signoff', 'stage', 'flag', 'completedDate', 'history', 'updatedBy', 'updatedAt'].includes(k))
-        && after.signoff && ['approved', 'changes'].includes(after.signoff.status) && after.signoff.approver === auth.uid && validTask(after) && validSignoff(after, before, auth)) return;
+        && after.signoff && ['approved', 'changes'].includes(after.signoff.status) && after.signoff.approver === auth.uid && validTask(after) && validSignoff(after, before, auth)) { if (!signoffGates(T0, auth, meMember, before, after)) deny('sign-off gate'); return; }
       deny('edit task');
     }
     case 'comments': {
