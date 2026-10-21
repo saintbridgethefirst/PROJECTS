@@ -328,6 +328,23 @@ What runs: student codes (15 min, 5 an hour, hashed), an email to each @mentione
 ### 6.4 Error reports
 Crashes in people's browsers appear under **Settings ▸ Plan ▸ Platform admin ▸ Recent errors** (no personal data). To delete reports automatically after 30 days: **Firestore ▸ Time-to-live ▸ Create policy** ▸ collection group `clientErrors`, field `expireAt`.
 
+### 6.5 GitHub sync (Blaze plan)
+
+Two Cloud Functions do this: `githubConnect` (makes a secret for a team) and `githubWebhook` (GitHub calls it). They are deployed with the others:
+
+```
+firebase deploy --only functions
+```
+
+No GitHub token or app is needed. In TeamTrack, someone who manages team settings opens **Settings ▸ Integrations ▸ GitHub**, types the repository (`owner/name`) and presses **Connect**. TeamTrack shows a payload URL and a secret; on GitHub, open the repository's **Settings ▸ Webhooks ▸ Add webhook**, paste both, choose `application/json`, and tick **Issues** and **Pull requests**. The secret is stored in `teams/{team}/private/github`, which no one can read from the app.
+
+After that:
+- a pull request whose title, description or branch name has a task's reference (`TT-XXXXXX`, shown on every task with a **Copy branch name** button) is linked to that task, and finishes it when merged;
+- a new issue becomes a task for the person chosen in the settings, unless it names a task (issues raised from the app's **Raise an issue** form do), and closing it finishes the task;
+- nothing finishes a task past a sign-off that hasn't been given.
+
+GitHub's webhook page shows each delivery and TeamTrack's answer, which is the first place to look if something doesn't link.
+
 ## Moving data from the old single-file tracker
 In a team, open the side panel and click **Import tasks (Excel, CSV or old tracker)**.
 Choose the old tracker's Excel file (the one with the `Database_DO_NOT_EDIT` sheet) or

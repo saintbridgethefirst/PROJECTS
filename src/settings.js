@@ -5,8 +5,9 @@
 import { startFlag } from './start.js';
 import { APP_NAME, GOOGLE_CLIENT_ID, MS_CLIENT_ID, DEMO_MODE, LIMITS, STUDENT_EMAIL_CHECK, SERVER_EMAILS } from './config.js';
 import { PERMISSIONS, can, roleList, normEmail, isValidEmail } from './permissions.js';
-import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS, storedWorkflow, leadsIndex, cleanWorkflow } from './model.js';
+import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS, storedWorkflow, leadsIndex, cleanWorkflow, cleanPurchase, cleanAutos } from './model.js';
 import { el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
+import { githubSection } from './github-ui.js';
 
 const TABS = [
   ['general', 'General'], ['members', 'Members'], ['roles', 'Roles & permissions'],
@@ -333,6 +334,48 @@ function workflow(pane, ctx, { rerender } = {}) {
     el('p.hint', {}, 'The steps every task goes through, on cards and as Kanban columns. Each stage counts as To do or Doing, so analytics, reports and the weekly share keep working; the last one is always Done. Set a limit to warn when too many tasks pile up in a stage. A stage can need a sign-off before tasks move on from it (the sub-team lead, an admin, or a named person; the team owner can always sign off), and can have a checklist that is ticked on each task.'),
     tpl, box, note,
     editable ? el('div.row', { style: { marginTop: '12px' } }, el('span.spacer'), saveBtn) : el('p.hint', {}, 'Only roles that can change team settings can edit the workflow.')));
+  pane.append(purchaseSection(ctx, { rerender }), autosSection(ctx, wf.stages, { rerender }));
+}
+
+// Workflow step 3: purchase approvals.
+function purchaseSection(ctx, { rerender } = {}) {
+  const s = ctx.session, T = s.team; const editable = can(T, s.me, 'team.settings') || can(T, s.me, 'finance.edit');
+  const pc = cleanPurchase(T.purchase); const v = { ...pc };
+  const btn = el('button.btn.small.primary', { type: 'button', id: 'pa-save', disabled: true, onclick: async () => {
+    if (await save(ctx, [{ type: 'update', path: 'team', data: { purchase: cleanPurchase(v) } }], v.on ? 'Purchase approvals on.' : 'Purchase approvals off.')) { if (rerender) rerender(); }
+  } }, 'Save');
+  const touch = () => { btn.disabled = false; };
+  return el('section.wf-extra', { id: 'pa-settings' }, el('h4', {}, 'Purchase approvals'),
+    el('p.hint', {}, 'Parts over a limit can’t be marked Ordered until someone who manages finances (or the team owner) approves them. Approved spending counts against its budget line straight away. Nobody approves their own request.'),
+    el('div.row', {},
+      el('label.chk', {}, el('input', { type: 'checkbox', id: 'pa-on', checked: pc.on, disabled: !editable, onchange: (e) => { v.on = e.target.checked; touch(); } }), 'Orders need approving when they cost more than'),
+      el('input', { type: 'number', id: 'pa-over', min: 0, step: '1', value: pc.over, disabled: !editable, 'aria-label': 'Approval limit', oninput: (e) => { v.over = Number(e.target.value) || 0; touch(); } }),
+      el('span.hint', {}, '(0 = every order)'), el('span.spacer'), editable ? btn : ''),
+    editable ? '' : el('p.hint', {}, 'Only roles that manage finances or team settings change this.'));
+}
+// Workflow step 4: automatic steps, each switched on separately.
+function autosSection(ctx, stages, { rerender } = {}) {
+  const s = ctx.session, T = s.team; const editable = can(T, s.me, 'team.settings');
+  const a = cleanAutos(T.autos); const v = { ...a };
+  const btn = el('button.btn.small.primary', { type: 'button', id: 'auto-save', disabled: true, onclick: async () => {
+    if (await save(ctx, [{ type: 'update', path: 'team', data: { autos: cleanAutos(v) } }], 'Automatic steps saved.')) { if (rerender) rerender(); }
+  } }, 'Save');
+  const touch = () => { btn.disabled = false; };
+  const targets = stages.slice(1, -1);
+  return el('section.wf-extra', { id: 'auto-settings' }, el('h4', {}, 'Automatic steps'),
+    el('p.hint', {}, 'Small jobs TeamTrack does for you. Each one is done by the app of someone who can make that change, and shows in the task’s history.'),
+    el('div.row', {},
+      el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-parts', checked: !!a.partsTo, disabled: !editable || !targets.length, onchange: (e) => { v.partsTo = e.target.checked ? (v.partsTo || (targets.find(x => x.id === 'build') || targets[0] || {}).id || '') : ''; const sel = document.getElementById('auto-parts-to'); if (sel && v.partsTo) sel.value = v.partsTo; touch(); } }),
+        'When all the parts a task needs are received, move it to'),
+      el('select', { id: 'auto-parts-to', disabled: !editable || !targets.length, 'aria-label': 'Stage to move to', onchange: (e) => { if ((document.getElementById('auto-parts') || {}).checked) v.partsTo = e.target.value; touch(); } },
+        targets.map(x => el('option', { value: x.id, selected: (a.partsTo || 'build') === x.id }, x.name)))),
+    el('p.hint', { style: { margin: '2px 0 10px 26px' } }, targets.length ? 'Not past a sign-off that hasn’t been given yet.' : 'Add a stage between the first and Done to use this.'),
+    el('div.row', {}, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-tell', checked: a.tellWaiting, disabled: !editable, onchange: (e) => { v.tellWaiting = e.target.checked; touch(); } }),
+      'When a task is done, tell everyone whose tasks were waiting on it (a comment that @mentions them)')),
+    el('div.row', { style: { marginTop: '10px' } }, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-remind', checked: a.remindDays > 0, disabled: !editable, onchange: (e) => { v.remindDays = e.target.checked ? (Number((document.getElementById('auto-remind-days') || {}).value) || 3) : 0; touch(); } }),
+      'Remind the sign-off person when a task has waited more than'),
+      el('input', { type: 'number', id: 'auto-remind-days', min: 1, max: 60, value: a.remindDays || 3, disabled: !editable, 'aria-label': 'Days', oninput: (e) => { const n = Math.max(1, Math.min(60, Math.round(Number(e.target.value) || 1))); const box = document.getElementById('auto-remind'); if (box && box.checked) v.remindDays = n; touch(); } }), el('span.hint', {}, 'days')),
+    editable ? el('div.row', { style: { marginTop: '12px' } }, el('span.spacer'), btn) : el('p.hint', {}, 'Only roles that can change team settings change these.'));
 }
 
 function subteams(pane, ctx, { rerender } = {}) {
@@ -745,13 +788,14 @@ function templates(pane, ctx) {
 }
 
 // ── Integrations ────────────────────────────────────────────────────────────
-function integrations(pane) {
+function integrations(pane, ctx, { rerender } = {}) {
   const row = (title, ok, text) => el('div.banner' + (ok ? '.info' : ''), { style: { marginBottom: '10px' } }, el('b', {}, title + (ok ? ' — connected' : ' — not set up')), el('div', {}, text));
   pane.append(el('section', {}, el('h4', {}, 'Integrations'),
     el('p.hint', {}, 'Files stay in each person’s own Google Drive or OneDrive; tasks keep a link. Nothing is stored on the tracker’s server except the link.'),
     row('Google Drive & Sheets', !!GOOGLE_CLIENT_ID, GOOGLE_CLIENT_ID ? 'Attach files to tasks, export tasks to Google Sheets, and collect tasks with a shared sheet.' : 'The site administrator adds a Google OAuth client ID (see SETUP.md, step 6).'),
     row('OneDrive', !!MS_CLIENT_ID, MS_CLIENT_ID ? 'Attach files from OneDrive to tasks.' : 'The site administrator registers a Microsoft app (see SETUP.md, step 7).'),
     row('AI summaries', true, 'Copy-for-AI works with any chatbot, free. Each person can also add their own free Gemini API key in ✨ AI summary to get summaries inside the app.')));
+  pane.append(githubSection(ctx, { rerender }));
 }
 
 // ── Delete team (owner only) ────────────────────────────────────────────────

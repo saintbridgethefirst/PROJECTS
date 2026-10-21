@@ -58,6 +58,7 @@ export function buildWeekShare(data, opts = {}) {
     list('⚠️ *Overdue*', overdue, r => line(r, -r.daysToDeadline + ' day' + (r.daysToDeadline === -1 ? '' : 's') + ' late')),
     list('⛔ *Waiting on other tasks*', waiting, r => line(r, 'waits on ' + r.waitsOn.slice(0, 2).join(', '))),
     list('⏳ *Waiting for sign-off*', signoff, r => line(r, r.signoffWaiting)),
+    list('💷 *Waiting for purchase approval*', data.purchases || [], p => '• ' + p.line + (names && p.by ? ' — ' + p.by : '')),
     carried.length ? '↪ ' + carried.length + ' task' + (carried.length === 1 ? '' : 's') + ' carried over from earlier weeks' : '',
   ].filter(Boolean);
   if (parts.length === 1) parts.push('A quiet week: nothing finished, due or late yet.');
@@ -79,7 +80,8 @@ export function openShareWeek(ctx) {
     const sub = opts.scope.startsWith('st:') ? subteams.find(g => 'st:' + g.id === opts.scope) : null;
     const rows = window.boardRows({ scope: 'all', allPhases: true });
     const mine = opts.scope === 'me' ? rows.filter(r => r.personId === ctx.user.uid) : sub ? rows.filter(r => sub.members.includes(r.personId)) : rows;
-    text.value = buildWeekShare({ team: s.team, rows: mine, today: iso(new Date()), url }, { names: opts.names, scopeLabel: sub ? sub.name : opts.scope === 'me' ? (ctx.user.name || 'Me') : '' });
+    const purchases = opts.scope === 'all' && ctx.TT.purchaseOn() ? ctx.TT.purchasesWaiting().all.map(p => ({ line: ctx.TT.purchaseLine(p), by: (p.approval && p.approval.byName) || '' })) : [];
+    text.value = buildWeekShare({ team: s.team, rows: mine, today: iso(new Date()), url, purchases }, { names: opts.names, scopeLabel: sub ? sub.name : opts.scope === 'me' ? (ctx.user.name || 'Me') : '' });
   };
   const scope = el('select', { id: 'share-scope', 'aria-label': 'Whose work', onchange: (e) => { opts.scope = e.target.value; build(); } },
     el('option', { value: 'all' }, 'The whole team'),

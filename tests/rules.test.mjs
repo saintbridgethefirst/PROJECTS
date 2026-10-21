@@ -80,7 +80,16 @@ test('rules: I can save my menu style, list or circle only', async () => {
   await assertSucceeds(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { menuStyle: 'circle', updatedAt: 1 }, { merge: true }));
   await assertFails(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { menuStyle: 'triangle', updatedAt: 1 }));
 });
+test('rules: I can save my navigation, top or side only', async () => {
+  await assertSucceeds(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { nav: 'side', updatedAt: 1 }, { merge: true }));
+  await assertFails(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { nav: 'bottom', updatedAt: 1 }));
+  await assertFails(setDoc(doc(dbFor('mem2'), 'users', 'mem1'), { nav: 'side', updatedAt: 1 }, { merge: true }));
+});
 test('rules: a profile only holds a small photo', async () => {
   await assertFails(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { photo: 'x'.repeat(70000), updatedAt: 1 }));
   await assertFails(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { photo: '', isAdmin: true }));
+});
+test('rules: nobody in the app reads or writes the GitHub webhook secret', async () => {
+  await assertFails(getDoc(doc(dbFor('owner'), 'teams', TEAM, 'private', 'github')));
+  await assertFails(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'private', 'github'), { secret: 'mine' }));
 });

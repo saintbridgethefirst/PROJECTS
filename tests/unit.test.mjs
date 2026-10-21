@@ -288,6 +288,8 @@ test('profile rules: only you can write your profile, with a small photo', () =>
   assert.throws(() => checkProfileWrite(me, 'u1', { photo: '', theme: 7 }), /permission/i);
   assert.doesNotThrow(() => checkProfileWrite(me, 'u1', { photo: '', menuStyle: 'circle', updatedAt: 1 }), 'menu style can be saved');
   assert.throws(() => checkProfileWrite(me, 'u1', { photo: '', menuStyle: 'triangle' }), /permission/i);
+  assert.doesNotThrow(() => checkProfileWrite(me, 'u1', { photo: '', nav: 'side', updatedAt: 1 }), 'navigation can be saved');
+  assert.throws(() => checkProfileWrite(me, 'u1', { photo: '', nav: 'bottom' }), /permission/i);
 });
 
 test('sub-tasks, custom fields and attachments edited in place are detected and saved', () => {

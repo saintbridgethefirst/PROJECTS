@@ -7,7 +7,7 @@
 //    APP_URL        — e.g.  https://uni-teamtrack.web.app
 //  REGION must be your Firestore location's region (Firestore ▸ Settings), e.g. europe-west2 for London.
 // ─────────────────────────────────────────────────────────────────────────────
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2';
@@ -16,6 +16,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { refreshAll } from './stats.js';
+import { connectGithub, disconnectGithub, handleWebhook } from './github.js';
 import { exportUserData, deleteUserData, transferOwnership as transferOwnershipImpl, teamsToHandOver } from './privacy.js';
 import { normEmail, isAcademicEmail, newCode, hashCode, emailKey, checkSend, checkConfirm, codeEmail, CODE_MINUTES, VERIFIED_DAYS,
   proActive, wants, mentionEmail, digestItems, digestEmail, inviteChanged, inviteEmail, MAX_INVITE_EMAILS_PER_DAY,
@@ -255,3 +256,24 @@ export const refreshTeamStats = onCall({ region: REGION, invoker: 'public', maxI
   if (!(await db.doc('admins/' + req.auth.uid).get()).exists) throw new HttpsError('permission-denied', 'Only platform admins can do this.');
   return refreshAll(db);
 }));
+
+// ── GitHub sync (see github.js) ─────────────────────────────────────────────
+/** Connect a repository to a team: returns the webhook address and a new secret to paste into GitHub. */
+export const githubConnect = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('githubConnect', async () => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const teamId = String((req.data && req.data.teamId) || '');
+  try {
+    if (req.data && req.data.disconnect) return await disconnectGithub(db, req.auth.uid, teamId);
+    const r = await connectGithub(db, req.auth.uid, teamId, String((req.data && req.data.repo) || ''));
+    const project = process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId;
+    return { ...r, url: 'https://' + REGION + '-' + project + '.cloudfunctions.net/githubWebhook?team=' + encodeURIComponent(teamId) };
+  } catch (e) { throw asHttps(e); }
+}));
+/** GitHub calls this for every issue and pull-request event in a connected repository. */
+export const githubWebhook = onRequest({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30, cors: false }, async (req, res) => {
+  if (req.method !== 'POST') { res.status(405).send('POST only'); return; }
+  try {
+    const r = await handleWebhook(db, { teamId: req.query.team, kind: req.get('X-GitHub-Event') || '', signature: req.get('X-Hub-Signature-256') || '', rawBody: req.rawBody, delivery: req.get('X-GitHub-Delivery') || '' });
+    res.status(r.status).json(typeof r.body === 'string' ? { message: r.body } : r.body);
+  } catch (e) { console.error('githubWebhook', e); res.status(500).json({ message: 'Something went wrong; GitHub will show this delivery as failed.' }); }
+});

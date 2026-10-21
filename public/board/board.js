@@ -1766,6 +1766,15 @@
             });
             if (!(task.attachments || []).length) { const e = document.createElement('div'); e.className = 'hint'; e.textContent = 'No files yet.'; list.appendChild(e); }
             s.appendChild(list);
+            // GitHub sync: the task's reference, a branch name, and a new issue already naming it.
+            if (TT.githubRepo && TT.githubRepo()) {
+                const g = document.createElement('div'); g.className = 'gh-ref-row';
+                const ref = document.createElement('code'); ref.className = 'gh-ref'; ref.textContent = TT.taskRef(task); ref.title = 'Put this in a pull request’s title or branch name and GitHub links it here';
+                const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'btn small ghost gh-branch'; cp.textContent = '⎇ Copy branch name';
+                cp.onclick = async () => { const b = TT.branchName(task); try { await navigator.clipboard.writeText(b); toast('Copied: ' + b); } catch { toast(b, 8000); } };
+                const ni = document.createElement('a'); ni.className = 'btn small ghost gh-new-issue'; ni.href = TT.newIssueUrl(task); ni.target = '_blank'; ni.rel = 'noopener noreferrer'; ni.textContent = '＋ GitHub issue';
+                g.append(document.createTextNode('🐙 '), ref, cp, ni); s.appendChild(g);
+            }
             // Every linked GitHub issue / pull request is closed or merged → offer to complete the task
             const gh = (task.attachments || []).filter(a => TT.parseGithub(a.url));
             if (editable && gh.length && task.flag !== 'completed') {
@@ -2790,19 +2799,45 @@
         }
         function updateApprovals() {
             const b = document.getElementById('approvals-btn'); if (!b) return;
-            b.hidden = !wfStages().some(s => s.signoff);
-            const n = b.hidden ? 0 : waitingSignoffs().filter(x => x.mine).length;
+            const buy = TT.purchaseOn && TT.purchaseOn();
+            b.hidden = !wfStages().some(s => s.signoff) && !buy;
+            const n = b.hidden ? 0 : waitingSignoffs().filter(x => x.mine).length + (buy ? TT.purchasesWaiting().mine.length : 0);
             const badge = document.getElementById('approvals-badge'); if (badge) { badge.hidden = !n; badge.textContent = n > 9 ? '9+' : String(n); }
-            b.setAttribute('aria-label', 'Sign-offs' + (n ? ', ' + n + ' waiting for you' : ''));
+            b.setAttribute('aria-label', 'Approvals' + (n ? ', ' + n + ' waiting for you' : ''));
+        }
+        // Parts changed (purchase approvals): badge, and the list if open and nobody is typing in it.
+        window.boardUpdateApprovals = function () {
+            updateApprovals();
+            const m = document.getElementById('approvals-modal'); const a = document.activeElement;
+            if (m && m.__draw && !(a && m.contains(a) && a.tagName === 'TEXTAREA')) m.__draw();
+        };
+        // Purchase approvals (workflow step 3), under the sign-offs.
+        function purchaseCards(h) {
+            if (!(TT.purchaseOn && TT.purchaseOn())) return [];
+            const { all, mine } = TT.purchasesWaiting(); const others = all.filter(p => !mine.includes(p));
+            const out = [h('h4', 'so-h', 'Purchases waiting for you (' + mine.length + ')')];
+            if (!mine.length) out.push(h('p', 'hint', 'No purchases to approve right now.'));
+            mine.forEach(p => {
+                const a = p.approval; const card = h('article', 'so-card pa-card'); card.dataset.part = p.id;
+                const top = h('div', 'so-card-top'); top.append(h('span', 'so-badge', 'PURCHASE'), h('span', 'hint', (a.byName || 'Someone') + ' · asked ' + soAgo(a.at)));
+                const name = h('button', 'link-btn so-name', TT.purchaseLine(p)); name.type = 'button'; name.onclick = () => TT.openParts();
+                const btns = h('div', 'so-btns');
+                const ap = h('button', 'btn-primary pa-approve', 'Approve'); ap.type = 'button'; ap.onclick = () => TT.approvePurchase(p);
+                const no = h('button', 'btn-secondary pa-decline', 'Decline…'); no.type = 'button'; no.onclick = () => TT.declinePurchase(p);
+                btns.append(ap, no); card.append(top, name); if (p.notes) card.append(h('div', 'hint', p.notes)); card.append(btns); out.push(card);
+            });
+            if (others.length) { out.push(h('h4', 'so-h', 'Purchases waiting for someone else (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(p => ul.appendChild(h('li', '', TT.purchaseLine(p) + ' · asked by ' + (p.approval.byName || 'someone')))); out.push(ul); }
+            return out;
         }
         function openApprovals() {
-            const m = TT.modal('Sign-offs'); m.box.id = 'approvals-modal'; m.box.classList.add('so-modal');
+            const m = TT.modal('Approvals'); m.box.id = 'approvals-modal'; m.box.classList.add('so-modal');
             const draw = () => {
                 const all = waitingSignoffs(); const mine = all.filter(x => x.mine); const others = all.filter(x => !x.mine);
                 const recent = latestOfChains(allTaskLocs()).filter(l => l.task.signoff && l.task.signoff.status !== 'waiting' && l.task.signoff.decidedAt > Date.now() - 14 * 864e5).sort((a, b) => b.task.signoff.decidedAt - a.task.signoff.decidedAt).slice(0, 8);
                 const h = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
-                const out = [h('h4', 'so-h', 'Waiting for you (' + mine.length + ')')];
-                if (!mine.length) out.push(h('p', 'hint', 'Nothing to sign off right now.'));
+                const gates = wfStages().some(s => s.signoff);
+                const out = gates ? [h('h4', 'so-h', 'Sign-offs waiting for you (' + mine.length + ')')] : [];
+                if (gates && !mine.length) out.push(h('p', 'hint', 'Nothing to sign off right now.'));
                 mine.forEach(({ l, st }) => {
                     const t = l.task; const so = t.signoff; const next = nextStage(st); const cl = TT.checklistOf(t);
                     const card = h('article', 'so-card'); card.dataset.id = t.id;
@@ -2819,7 +2854,7 @@
                 });
                 if (others.length) { out.push(h('h4', 'so-h', 'Waiting for someone else (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(({ l, who }) => ul.appendChild(h('li', '', (l.task.name || 'Untitled task') + ' · ' + l.person.name + ' · waiting for ' + who.label))); out.push(ul); }
                 if (recent.length) { out.push(h('h4', 'so-h', 'Recently decided')); const ul = h('ul', 'so-recent'); recent.forEach(l => { const so = l.task.signoff; const li = h('li'); li.append(h('span', so.status === 'approved' ? 'so-ok' : 'so-ch', so.status === 'approved' ? 'Approved' : 'Changes requested'), ' · ' + (l.task.name || 'Untitled task') + ' (' + l.person.name + ')' + (so.note ? ': “' + so.note + '”' : '') + ' · ' + so.approverName + ', ' + soAgo(so.decidedAt)); ul.appendChild(li); }); out.push(ul); }
-                m.body.replaceChildren(...out);
+                m.body.replaceChildren(...out, ...purchaseCards(h));
             };
             m.box.__draw = draw; draw();
         }
@@ -3588,7 +3623,9 @@
             };
             let busy = false;
             const fit = () => {
-                if (busy) return; busy = true;
+                if (busy) return;
+                if (document.body.classList.contains('nav-side') && window.matchMedia('(min-width: 761px)').matches) { bar.dataset.tight = '0'; return; }
+                busy = true;
                 try { for (let lvl = 0; lvl <= 5; lvl++) { bar.dataset.tight = String(lvl); if (!wraps()) break; } } finally { busy = false; }
             };
             let lastW = 0;

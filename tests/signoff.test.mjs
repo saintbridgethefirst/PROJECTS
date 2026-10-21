@@ -75,3 +75,12 @@ test('the save check: no moving past a sign-off without it; the approver may rec
   assert.match(move(lea, { signoff: waiting }, { name: 'Hacked', signoff: { stage: 'review', status: 'approved', approver: 'lea' } }).join(), /edit this task/, 'but changes nothing else');
   assert.match(move(lea, {}, { stage: 'build', signoff: { stage: 'review', status: 'approved', approver: 'lea' } }).join(), /edit this task/, 'and only when it was sent to her');
 });
+
+test('workflowIndex: next sign-off position for each stage (what the security rules read)', async () => {
+  const { workflowIndex } = await import('../src/model.js');
+  const st = (id, signoff = '') => ({ id, signoff });
+  const w = workflowIndex([st('a'), st('b', 'lead'), st('c'), st('d', 'admin'), st('e')]);
+  assert.deepEqual(w.next, [1, 1, 3, 3, 5, 5]);
+  assert.deepEqual(workflowIndex([st('a'), st('b')]).next, [2, 2, 2]);
+  assert.deepEqual(workflowIndex([st('a', 'person'), st('b', 'lead'), st('c')]).next, [0, 1, 3, 3]);
+});

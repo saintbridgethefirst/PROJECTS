@@ -11,6 +11,8 @@ import { newId, cleanMeeting, cleanPart, cleanExpense, cleanBudget, cleanPaper, 
 import { budgetChanges, expenseChanges, partChanges, removeLinePlan } from './finance-log.js';
 import { people, timesheet, risks, requirements } from './tools-extra.js';
 import { can } from './permissions.js';
+import { purchaseOn, orderBlock, askApproval, decidePurchase, declineDialog } from './purchases.js';
+import { needsApproval, isApproved, canApprovePurchase } from './model.js';
 
 let R = null;   // { ctx, m, tab, sel, partEdit, paperEdit, txEdit, dirty, filters, logAll }
 const today = () => new Date().toLocaleDateString('en-CA');
@@ -224,10 +226,46 @@ async function savePart(id, fields) {
   if (data.status === 'ordered' && !data.orderedDate) data.orderedDate = today();
   if (data.status === 'received' && !data.receivedDate) data.receivedDate = today();
   if (!data.name) { toast('Give the part a name.'); return false; }
+  // Purchase approvals: an approved cost that changes needs approving again (finance managers excepted),
+  // and a part over the limit can't be marked Ordered or Received until it's approved.
+  const costChanged = !isNew && (partTotal(before) !== partTotal(data) || before.qty !== data.qty || before.unitCost !== data.unitCost || JSON.stringify(before.extras || []) !== JSON.stringify(data.extras || []));
+  if (isApproved(before) && costChanged && !editsMoney()) { data.approval = null; toast('The cost changed, so “' + data.name + '” needs approving again.', 5000); }
+  const buying = ['ordered', 'received'].includes(data.status) && !['ordered', 'received'].includes(before.status);
+  if (buying && purchaseOn(S())) {
+    const block = orderBlock(S(), { ...data, status: 'needed' });
+    if (block) {
+      const ask = !data.approval || data.approval.status === 'declined';
+      toast('“' + data.name + '” can’t be marked ' + PART_LABEL[data.status] + ' yet. ' + block, 7000, ask && !isNew ? 'Ask for approval' : null, ask && !isNew ? () => requestApproval({ ...before, ...data, id: pid, status: before.status }) : null);
+      if (!isNew) { render(); return false; }
+      data.status = 'needed'; data.orderedDate = ''; data.receivedDate = '';
+    }
+  }
   const { id: _, ...doc } = data;
   const ok = await write([{ type: 'set', path: 'parts/' + pid, data: doc }], ['parts', partChanges(isNew ? null : before, data, names())]);
   if (ok && data.status === 'received' && before.status !== 'received') offerExpense({ ...data, id: pid });
   return ok && (isNew ? pid : true);
+}
+async function requestApproval(p) {
+  if (await askApproval(R.ctx, p)) toast('Sent for approval. Finance managers see it under ✅ Approvals.', 4500);
+}
+async function decide(p, status, note) {
+  if (await decidePurchase(R.ctx, p, status, note)) toast(status === 'approved' ? 'Approved. It counts against its budget line now.' : 'Declined.', 3000);
+}
+/** The approval state of a part, and its buttons. */
+function approvalCell(p) {
+  const s = S(); const a = p.approval; const on = purchaseOn(s);
+  if (!on && !a) return '';
+  const box = el('div.pt-approval');
+  if (a && a.status === 'approved') box.append(el('span.rs-chip.pa-ok', { title: 'Approved ' + fmtMoney(a.amount) + ' by ' + a.approverName + (a.note ? ': ' + a.note : '') }, '✓ Approved · ' + (a.approverName || '').split(' ')[0]));
+  else if (a && a.status === 'waiting') box.append(el('span.rs-chip.pa-wait', { title: 'Asked by ' + a.byName }, '⏳ Waiting for approval'));
+  else if (a && a.status === 'declined') box.append(el('span.rs-chip.pa-no', { title: a.note || '' }, '✕ Declined' + (a.note ? ': ' + a.note : '')));
+  if (a && a.status === 'waiting' && canApprovePurchase(s.team, s.me, p)) {
+    box.append(el('button.btn.small.primary.pa-approve', { type: 'button', onclick: () => decide(p, 'approved', '') }, 'Approve'),
+      el('button.btn.small.pa-decline', { type: 'button', onclick: () => declineDialog(R.ctx, p).then(ok => { if (ok) toast('Declined.', 2500); }) }, 'Decline'));
+  } else if (on && canEdit() && needsApproval(p, s.team.purchase) && (!a || a.status === 'declined')) {
+    box.append(el('button.btn.small.pa-ask', { type: 'button', onclick: () => requestApproval(p) }, a ? 'Ask again' : 'Ask for approval'));
+  }
+  return box;
 }
 function offerExpense(p) {
   if (!editsMoney() || !financeOn() || !partTotal(p)) return;
@@ -292,7 +330,8 @@ function parts(pane) {
   const late = all.filter(p => p.status === 'needed' && p.neededBy && p.neededBy < today()).length;
   pane.append(el('div.rs-kpis', {}, kpi('Needed', String(all.filter(p => p.status === 'needed').length), late ? 'warn' : ''), kpi('On order', String(all.filter(p => p.status === 'ordered').length)), kpi('Received', String(all.filter(p => p.status === 'received').length)),
     kpi('Total cost', fmtMoney(sum(live))), kpi('Still to buy', fmtMoney(sum(all.filter(p => p.status === 'needed')))),
-    pay ? kpi('Bought, not paid', fmtMoney(sum(all.filter(unpaid))), all.some(unpaid) ? 'warn' : '') : ''));
+    pay ? kpi('Bought, not paid', fmtMoney(sum(all.filter(unpaid))), all.some(unpaid) ? 'warn' : '') : '',
+    purchaseOn(S()) ? kpi('Waiting for approval', String(all.filter(p => p.approval && p.approval.status === 'waiting' && p.status !== 'cancelled').length)) : ''));
   const bar = el('div.rs-bar', {},
     el('input.rs-search', { type: 'search', placeholder: 'Search parts…', value: f.partQ, 'aria-label': 'Search parts', oninput: (e) => { f.partQ = e.target.value; const pos = e.target.selectionStart; render(); const n = R.m.box.querySelector('.rs-search'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } } }),
     el('select', { 'aria-label': 'Status', onchange: (e) => { f.partStatus = e.target.value; render(); } }, [['open', 'Needed or on order'], ['all', 'All'], ...PART_STATUS.map(s => [s, PART_LABEL[s]]), ...(pay ? [['unpaid', 'Bought, not paid']] : [])].map(([v, t]) => el('option', { value: v, selected: f.partStatus === v }, t))),
@@ -315,7 +354,7 @@ function parts(pane) {
       el('td', {}, el('b', {}, p.name), ' ', subteamChip(p.subteamId), p.partNo ? el('div.hint', {}, p.partNo) : '', p.notes ? el('div.hint.pt-notes', {}, p.notes) : ''),
       el('td', {}, p.url ? el('a', { href: p.url, target: '_blank', rel: 'noopener noreferrer' }, p.supplier || 'Link ↗') : p.supplier),
       el('td.num', {}, String(p.qty)), el('td.num', {}, p.unitCost ? fmtMoney(p.unitCost) : '–'), el('td.num', {}, el('b', {}, partTotal(p) ? fmtMoney(partTotal(p)) : '–'), p.extras.length ? el('div.hint.pt-extras', { title: p.extras.map(x => x.label + ' ' + (x.percent ? x.amount + '% = ' : '') + fmtMoney(extraValue(p, x))).join('\n') }, (partExtras(p) < 0 ? 'incl. ' : 'incl. +') + fmtMoney(partExtras(p)) + ' extras') : ''),
-      el('td', {}, edit ? el('select.pt-status', { 'aria-label': 'Status of ' + p.name, onchange: (e) => savePart(p.id, { status: e.target.value }) }, PART_STATUS.map(s => el('option', { value: s, selected: p.status === s }, PART_LABEL[s]))) : el('span.rs-chip', {}, PART_LABEL[p.status])),
+      el('td', {}, edit ? el('select.pt-status', { 'aria-label': 'Status of ' + p.name, onchange: (e) => savePart(p.id, { status: e.target.value }) }, PART_STATUS.map(s => el('option', { value: s, selected: p.status === s }, PART_LABEL[s]))) : el('span.rs-chip', {}, PART_LABEL[p.status]), approvalCell(p)),
       pay ? payCell(p) : '',
       el('td.hint', {}, [p.neededBy && (p.status === 'needed' && p.neededBy < today() ? '⚠ ' : '') + 'needed ' + fmtDate(p.neededBy), p.orderedDate && 'ordered ' + fmtDate(p.orderedDate), p.receivedDate && 'received ' + fmtDate(p.receivedDate)].filter(Boolean).join(' · ')),
       el('td', {}, p.taskId ? taskChip(p.taskId) : ''),
@@ -390,10 +429,10 @@ export function financeSummary(b, expenses, parts) {
   const byId = new Map(lines.map(l => [l.id, l])); const other = { id: '', name: 'Not assigned', amount: 0, spent: 0, committed: 0 };
   let spent = 0, income = 0;
   expenses.forEach(x => { if (x.kind === 'income') { income += x.amount; return; } spent += x.amount; (byId.get(x.budgetId) || other).spent += x.amount; });
-  // Committed: parts ordered or received that no payment covers yet.
+  // Committed: parts ordered or received (or approved to buy) that no payment covers yet.
   const paid = paidParts(expenses);
   let committed = 0;
-  parts.filter(p => (p.status === 'ordered' || p.status === 'received') && !paid.has(p.id)).forEach(p => { const v = partTotal(p); committed += v; (byId.get(p.budgetId) || other).committed += v; });
+  parts.filter(p => (p.status === 'ordered' || p.status === 'received' || (p.status === 'needed' && isApproved(p))) && !paid.has(p.id)).forEach(p => { const v = partTotal(p); committed += v; (byId.get(p.budgetId) || other).committed += v; });
   const total = lines.reduce((a, l) => a + l.amount, 0);
   const r2 = (n) => Math.round(n * 100) / 100;
   return { lines, other, total: r2(total), spent: r2(spent), income: r2(income), committed: r2(committed), remaining: r2(total - spent - committed), balance: r2(income - spent) };

@@ -7,8 +7,8 @@ import { isAcademicEmail, EDU_TEAMS_PER_YEAR } from './model.js';
 import { PRIORITIES, FLAGS } from './model.js';
 
 const ALLOWED = {
-  team: ['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads'],
-  user: ['photo', 'theme', 'menuStyle', 'notify', 'updatedAt'],
+  team: ['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github'],
+  user: ['photo', 'theme', 'menuStyle', 'nav', 'notify', 'updatedAt'],
   member: ['uid', 'email', 'name', 'photo', 'roleId', 'joinedAt'],
   invite: ['email', 'roleId', 'teamName', 'invitedBy', 'invitedByName', 'createdAt'],
   category: ['name', 'ownerUid', 'order'],
@@ -16,7 +16,7 @@ const ALLOWED = {
   template: ['name', 'task', 'createdBy', 'createdByName', 'createdAt'],
   meeting: ['title', 'date', 'attendees', 'notes', 'actions', 'createdBy', 'createdByName', 'createdAt', 'updatedAt', 'updatedByName'],
   note: ['taskId', 'authorUid', 'authorName', 'date', 'text', 'images', 'createdAt', 'editedAt'],
-  part: ['name', 'partNo', 'supplier', 'url', 'qty', 'unitCost', 'status', 'neededBy', 'orderedDate', 'receivedDate', 'taskId', 'budgetId', 'notes', 'extras', 'subteamId', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'],
+  part: ['name', 'partNo', 'supplier', 'url', 'qty', 'unitCost', 'status', 'neededBy', 'orderedDate', 'receivedDate', 'taskId', 'budgetId', 'notes', 'extras', 'subteamId', 'createdBy', 'createdByName', 'createdAt', 'updatedAt', 'approval'],
   expense: ['kind', 'amount', 'date', 'description', 'budgetId', 'payer', 'receiptUrl', 'receiptImage', 'taskId', 'partId', 'partIds', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'],
   budget: ['currency', 'lines', 'updatedAt'],
   log: ['at', 'by', 'byName', 'kind', 'text'],
@@ -45,7 +45,11 @@ function validTeam(d) {
     (d.features === undefined || (d.features && typeof d.features === 'object' && !Array.isArray(d.features) && Object.keys(d.features).length <= 30 && Object.values(d.features).every(v => typeof v === 'boolean'))) &&
     (d.subteams === undefined || (Array.isArray(d.subteams) && d.subteams.length <= 20)) &&
     (d.plan === undefined || validPlan(d.plan)) && (d.archiveRev === undefined || Number.isInteger(d.archiveRev)) &&
-    (d.workflow === undefined || d.workflow === null || (d.workflow && typeof d.workflow === 'object' && hasOnly(d.workflow, ['stages', 'moved', 'order', 'gates', 'gateList', 'done']) && Array.isArray(d.workflow.stages) && d.workflow.stages.length >= 2 && d.workflow.stages.length <= 10));
+    (d.workflow === undefined || d.workflow === null || (d.workflow && typeof d.workflow === 'object' && hasOnly(d.workflow, ['stages', 'moved', 'order', 'gates', 'next', 'done']) && Array.isArray(d.workflow.stages) && d.workflow.stages.length >= 2 && d.workflow.stages.length <= 10)) &&
+    (d.purchase === undefined || d.purchase === null || (typeof d.purchase === 'object' && hasOnly(d.purchase, ['on', 'over']) && (d.purchase.on === undefined || typeof d.purchase.on === 'boolean') && (d.purchase.over === undefined || isNum(d.purchase.over, 0, 1e8)))) &&
+    (d.github === undefined || d.github === null || (typeof d.github === 'object' && hasOnly(d.github, ['repo', 'issues', 'done', 'owner', 'connectedAt']) && (d.github.repo === undefined || isStr(d.github.repo, 140)))) &&
+    (d.autos === undefined || d.autos === null || (typeof d.autos === 'object' && hasOnly(d.autos, ['partsTo', 'tellWaiting', 'remindDays']) && (d.autos.partsTo === undefined || isStr(d.autos.partsTo, 40)) &&
+      (d.autos.tellWaiting === undefined || typeof d.autos.tellWaiting === 'boolean') && (d.autos.remindDays === undefined || (Number.isInteger(d.autos.remindDays) && d.autos.remindDays >= 0 && d.autos.remindDays <= 60))));
 }
 function validPhoto(d) { const p = d.photo === undefined ? '' : d.photo; return typeof p === 'string' && p.length <= 60000; }
 function validComment(d) {
@@ -65,7 +69,27 @@ function validNote(d) {
 }
 function validPart(d) {
   return hasOnly(d, ALLOWED.part) && isStr(d.name, 200) && d.name.length > 0 && isNum(d.qty, 0, 100000) && isNum(d.unitCost, 0, 1e8) &&
-    ['needed', 'ordered', 'received', 'cancelled'].includes(d.status) && isStr(d.notes, 2000) && (d.extras === undefined || (Array.isArray(d.extras) && d.extras.length <= 10)) && typeof d.createdBy === 'string' && typeof d.createdAt === 'number';
+    ['needed', 'ordered', 'received', 'cancelled'].includes(d.status) && isStr(d.notes, 2000) && validApproval(d.approval) && (d.extras === undefined || (Array.isArray(d.extras) && d.extras.length <= 10)) && typeof d.createdBy === 'string' && typeof d.createdAt === 'number';
+}
+/** Purchase approvals (firestore.rules ▸ validApproval / partApproval / purchaseOk / costKept). */
+function validApproval(v) {
+  return v === undefined || v === null || (typeof v === 'object' && hasOnly(v, ['status', 'by', 'byName', 'at', 'amount', 'approver', 'approverName', 'note', 'decidedAt']) &&
+    ['waiting', 'approved', 'declined'].includes(v.status) && (v.amount === undefined || typeof v.amount === 'number') && (v.note === undefined || isStr(v.note, 500)) && (v.by === undefined || typeof v.by === 'string'));
+}
+function partApproval(T0, auth, can, before, after) {
+  const v = after.approval || null; const old = (before && before.approval) || null;
+  if (v === null || JSON.stringify(v) === JSON.stringify(old)) return true;
+  if (v.status === 'waiting') return v.by === auth.uid;
+  return v.approver === auth.uid && (T0.doc.ownerUid === auth.uid || (can('finance.edit') && v.by !== auth.uid));
+}
+function purchaseOk(T0, before, after) {
+  const pc = T0.doc.purchase; const out = ['ordered', 'received'].includes(after.status) && !(before && ['ordered', 'received'].includes(before.status));
+  return !pc || pc.on !== true || !out || after.qty * after.unitCost <= (pc.over || 0) || !!(after.approval && after.approval.status === 'approved');
+}
+function costKept(can, before, after) {
+  const old = before.approval || null;
+  if (!old || old.status !== 'approved' || JSON.stringify(after.approval || null) !== JSON.stringify(old) || can('finance.edit')) return true;
+  return after.qty === before.qty && after.unitCost === before.unitCost && JSON.stringify(after.extras || []) === JSON.stringify(before.extras || []);
 }
 function validExpense(d) {
   return hasOnly(d, ALLOWED.expense) && ['expense', 'income'].includes(d.kind) && isNum(d.amount, 0, 1e8) && isStr(d.date, 10) && isStr(d.description, 300) &&
@@ -145,12 +169,13 @@ export const validSelf = (d, uid) => !!d && hasOnly(d, SELF_KEYS) && d.uid === u
 
 /** Sign-off gates (firestore.rules ▸ signoffGates), using the index stored with the workflow. */
 function signoffGates(T0, auth, meMember, before, after) {
-  const wf = T0 && T0.doc.workflow; if (!wf || !wf.gates) return true;
+  const wf = T0 && T0.doc.workflow; if (!wf || !wf.next) return true;
   const ord = (d) => (d.flag === 'completed' ? wf.done : (wf.order[d.stage || ''] ?? 0));
   const v = after.signoff || null;
   const a = v && v.status === 'approved' ? (wf.order[v.stage || ''] ?? -1) : -1;
   const from = ord(before), to = ord(after);
-  if (!(to <= from || (wf.gateList || []).slice(0, 10).every(g => g < from || g >= to || g === a))) return false;
+  const nx = (i) => (wf.next[i] ?? Infinity);
+  if (!(to <= from || nx(from) >= to || (a >= 0 && nx(from) === a && nx(a + 1) >= to))) return false;
   if (!v || v.status === 'waiting' || JSON.stringify(before.signoff || null) === JSON.stringify(v)) return true;
   const g = wf.gates[v.stage || '']; if (!g) return false;
   const owner = after.ownerUid; const admin = !!meMember && ['owner', 'admin'].includes(meMember.roleId);
@@ -164,7 +189,7 @@ function signoffGates(T0, auth, meMember, before, after) {
 /** A task's sign-off (firestore.rules ▸ validSignoff): shape, and a decision only by the approver it names. */
 function validSignoff(after, before, auth) {
   const v = after.signoff; if (v === undefined || v === null) return true;
-  if (!(typeof v === 'object' && hasOnly(v, ['stage', 'status', 'by', 'byName', 'at', 'approver', 'approverName', 'note', 'decidedAt']) && ['waiting', 'approved', 'changes'].includes(v.status)
+  if (!(typeof v === 'object' && hasOnly(v, ['stage', 'status', 'by', 'byName', 'at', 'approver', 'approverName', 'note', 'decidedAt', 'remindedAt']) && ['waiting', 'approved', 'changes'].includes(v.status)
     && (v.note === undefined || isStr(v.note, 500)) && (v.stage === undefined || isStr(v.stage, 40)))) return false;
   return v.status === 'waiting' || (before && JSON.stringify(before.signoff) === JSON.stringify(v)) || v.approver === auth.uid;
 }
@@ -243,12 +268,15 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (!meMember) deny('not a member');
       if (!validTeam(after) || after.ownerUid !== before.ownerUid || after.createdAt !== before.createdAt) deny('invalid team update');
       const ch = changedKeys(before, after);
-      if (!ch.every(k => ['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads'].includes(k))) deny('field not editable');
+      if (!ch.every(k => ['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github'].includes(k))) deny('field not editable');
       if (ch.includes('archiveRev') && !(can('tasks.editOwn') || can('tasks.editAll'))) deny('archiveRev');
       if ((ch.includes('subteams') || ch.includes('leads')) && !(can('team.settings') || can('members.manage'))) deny('sub-teams');
       if (ch.includes('weeks') && !can('weeks.manage')) deny('weeks');
       if (ch.some(k => ['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features', 'workflow'].includes(k)) && !can('team.settings')) deny('settings');
       if (ch.includes('roles') && !can('roles.manage')) deny('roles');
+      if ((ch.includes('autos') || ch.includes('github')) && !can('team.settings')) deny('automatic steps');
+      if (ch.includes('github') && after.github && (after.github.repo || '') !== ((before.github || {}).repo || '')) deny('github repo is set by the server');
+      if (ch.includes('purchase') && !(can('team.settings') || can('finance.edit'))) deny('purchase approvals');
       return;
     }
     case 'members': {
@@ -331,10 +359,13 @@ export function checkWrite(pre, post, auth, teamId, op) {
     case 'parts': {
       if (!meMember) deny('not a member');
       const editor = can('tasks.editOwn') || can('tasks.editAll');
-      if (isCreate) { if (!(editor && after.createdBy === auth.uid && validPart(after))) deny('part'); return; }
+      if (isCreate) { if (!(editor && after.createdBy === auth.uid && validPart(after) && partApproval(T0, auth, can, null, after) && purchaseOk(T0, null, after))) deny('part'); return; }
       if (isDelete) { if (!(before.createdBy === auth.uid || can('team.settings'))) deny('delete part'); return; }
       const money = can('finance.view') || can('finance.edit');
-      if (!(editor && after.createdBy === before.createdBy && validPart(after) && ((after.budgetId || '') === (before.budgetId || '') || money))) deny('edit part');
+      if (!((editor || can('finance.edit')) && after.createdBy === before.createdBy && validPart(after) && ((after.budgetId || '') === (before.budgetId || '') || money))) deny('edit part');
+      if (!partApproval(T0, auth, can, before, after)) deny('purchase approval');
+      if (!purchaseOk(T0, before, after)) deny('needs purchase approval');
+      if (!costKept(can, before, after)) deny('approved cost');
       return;
     }
     case 'profiles': {
@@ -410,7 +441,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
 /** users/{uid}: only the owner may read or write their profile (mirrors firestore.rules). */
 export function checkProfileWrite(auth, uid, data) {
   if (!auth || auth.uid !== uid) deny('profile');
-  if (data !== null && !(hasOnly(data, ALLOWED.user) && validPhoto(data) && (data.theme === undefined || (typeof data.theme === 'string' && data.theme.length <= 40)) && (data.menuStyle === undefined || ['list', 'circle'].includes(data.menuStyle)) && (data.notify === undefined || (data.notify && typeof data.notify === 'object' && !Array.isArray(data.notify) && Object.keys(data.notify).length <= 5)))) deny('invalid profile');
+  if (data !== null && !(hasOnly(data, ALLOWED.user) && validPhoto(data) && (data.theme === undefined || (typeof data.theme === 'string' && data.theme.length <= 40)) && (data.menuStyle === undefined || ['list', 'circle'].includes(data.menuStyle)) && (data.nav === undefined || ['top', 'side'].includes(data.nav)) && (data.notify === undefined || (data.notify && typeof data.notify === 'object' && !Array.isArray(data.notify) && Object.keys(data.notify).length <= 5)))) deny('invalid profile');
 }
 
 export function checkRead(store, auth, teamId, coll) {

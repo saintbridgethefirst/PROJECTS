@@ -39,6 +39,9 @@ try {
   ok(await p.locator('.gt2-bar.soft-start').count() < await p.locator('.gt2-bar').count() / 2, 'most bars have real start dates');
   await p.evaluate(() => boardSetView('board')); await sleep(200);
   ok(await p.evaluate(() => TT.feature('subteams') && TT.feature('parts') && TT.feature('finance') && TT.feature('notebook') && TT.feature('risks')), 'tools switched on');
+  const buy = await p.evaluate(() => ({ on: TT.purchaseOn(), mine: TT.purchasesWaiting().mine.map(x => x.name) }));
+  ok(buy.on && buy.mine.includes('6S 5000 mAh LiPo'), 'purchase approvals on, with a battery order waiting for you: ' + JSON.stringify(buy));
+  ok(Number(await p.textContent('#approvals-badge')) >= 3, 'Approvals counts sign-offs and the purchase');
   await p.click('#share-btn'); await p.waitForSelector('#share-text');
   const text = await p.inputValue('#share-text');
   ok(text.startsWith('*Skyhawk UAV (sample team) · ') && /In progress|Done|Due/.test(text), 'the weekly share has this week in it');

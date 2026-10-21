@@ -121,7 +121,15 @@ try {
   await p.goto(BASE + '#/me'); await p.waitForSelector('#sf-sync'); await p.waitForSelector('#sf-sync-list', { timeout: 8000 });
   const n = await p.locator('#sf-sync-list li').count();
   ok(n >= 1 && (await p.locator('#sf-sync').textContent()).includes('Skyhawk UAV'), n + ' task(s) from the sample team this week');
-  const first = p.locator('#sf-sync-list li').first(); const tId = await first.getAttribute('data-id'); const teamId = await first.getAttribute('data-team');
+  const gated = p.locator('#sf-sync-list li:has(.sf-gated)');
+  ok(await gated.count() >= 1 && await gated.first().locator('input[type=checkbox]').count() === 0, 'tasks waiting in Review show a lock, not a tick box (they need a sign-off first)');
+  // Its Test sign-off given: now it can be ticked off from here.
+  const gId = await gated.first().getAttribute('data-id');
+  await p.evaluate((id) => { const k = 'tt_demo_store_v1'; const st = JSON.parse(localStorage.getItem(k)); const T = Object.values(st.teams).find(x => x.tasks && x.tasks[id]);
+    T.tasks[id].stage = 'test'; T.tasks[id].signoff = { stage: 'test', status: 'approved', by: 'x', byName: 'x', at: 1, approver: T.doc.ownerUid, approverName: 'Owner', note: '', decidedAt: 2 }; localStorage.setItem(k, JSON.stringify(st)); }, gId);
+  await p.reload(); await p.waitForSelector('#sf-sync-list', { timeout: 8000 }); await sleep(300);
+  const first = p.locator('#sf-sync-list li[data-id="' + gId + '"]');
+  ok(await first.locator('input[type=checkbox]').count() === 1, 'once signed off, it gets a tick box'); const tId = await first.getAttribute('data-id'); const teamId = await first.getAttribute('data-team');
   await first.locator('input[type=checkbox]').click(); await sleep(500);
   const t = (await store(p)).teams[teamId].tasks[tId];
   ok(t.flag === 'completed' && t.history[0].updated.includes('SelfTrack'), 'ticking it completes it on the team board, with a history line');

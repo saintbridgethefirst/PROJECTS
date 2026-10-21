@@ -54,7 +54,7 @@ try {
   ok(await A.locator('#approvals-btn').isVisible(), 'the Sign-offs button appears once a stage needs one');
   await sleep(300);
   const idx = (await teamOf(A)).doc;
-  ok(JSON.stringify(idx.workflow.gateList) === '[1,3]' && idx.workflow.gates.review.k === 'lead' && JSON.stringify(idx.leads) === '{"u_tom":["u_lea"]}', 'the owner’s first load stores the index the security rules use');
+  ok(JSON.stringify(idx.workflow.next) === '[1,1,3,3,5,5]' && idx.workflow.gates.review.k === 'lead' && JSON.stringify(idx.leads) === '{"u_tom":["u_lea"]}', 'the owner’s first load stores the index the security rules use');
 
   step('Tom: into Review is fine; past it is not');
   const T = await tab('Tom'); await signIn(T, 'Tom Reed', 'tom@x.com'); await openTeam(T);

@@ -57,6 +57,12 @@ export const auth = {
     currentUser = { ...currentUser, theme }; store.users[currentUser.uid] = { ...currentUser }; persist();
     return { ...currentUser };
   },
+  async setNav(nav) {
+    if (!currentUser) throw new Error('Not signed in.');
+    checkProfileWrite(authCtx(), currentUser.uid, { photo: currentUser.photo || '', nav, updatedAt: Date.now() });
+    currentUser = { ...currentUser, nav }; store.users[currentUser.uid] = { ...currentUser }; persist();
+    return { ...currentUser };
+  },
   async setMenuStyle(menuStyle) {
     if (!currentUser) throw new Error('Not signed in.');
     checkProfileWrite(authCtx(), currentUser.uid, { photo: currentUser.photo || '', menuStyle, updatedAt: Date.now() });
@@ -201,8 +207,39 @@ export const data = {
       return { about: 'Everything TeamTrack stores about you (demo).', account: { uid: me.uid, email: me.email, displayName: me.name, providers: ['demo'] }, profile: clone(store.users[me.uid]),
         studentVerification: clone(root.verifiedStudents[me.uid] || null), selfTrack: Object.entries(root.selfItems || {}).filter(([, d]) => d.uid === me.uid).map(([id, d]) => ({ id, ...clone(d) })), feedbackYouSent: list(root.feedback).filter(f => f.uid === me.uid), errorReportsFromYourBrowser: list(root.clientErrors).filter(f => f.uid === me.uid),
         invitationsToYou: Object.entries(store.teams).filter(([, T]) => T.invites && T.invites[email]).map(([id, T]) => ({ teamId: id, ...clone(T.invites[email]) })),
-        teams: myTeams().map(([id, T]) => { const yours = {}; Object.entries(T).forEach(([c, docs]) => { if (['doc', 'members', 'profiles'].includes(c) || !docs || typeof docs !== 'object') return; const mine = list(docs).filter(r => BY.some(f => r[f] === me.uid) || (r.attendees || []).includes(me.uid) || (r.mentions || []).includes(me.uid)); if (mine.length) yours[c] = mine; });
+        teams: myTeams().map(([id, T]) => { const yours = {}; Object.entries(T).forEach(([c, docs]) => { if (['doc', 'members', 'profiles', 'private'].includes(c) || !docs || typeof docs !== 'object') return; const mine = list(docs).filter(r => BY.some(f => r[f] === me.uid) || (r.attendees || []).includes(me.uid) || (r.mentions || []).includes(me.uid)); if (mine.length) yours[c] = mine; });
           return { teamId: id, teamName: T.doc.name, yourMembership: clone(T.members[me.uid]), yourProfileInTeam: clone((T.profiles || {})[me.uid] || null), yours }; }) };
+    }
+    // ── GitHub sync (the server's github.js, on the demo store) ──
+    if (name === 'githubConnect' || name === 'githubSimulate') {
+      const teamId = payload && payload.teamId; const T = store.teams[teamId];
+      if (!T || !T.members[me.uid]) fail('permission-denied', 'You’re not in this team.');
+      const role = T.members[me.uid].roleId; const ok = role === 'owner' || !!(T.doc.roles && T.doc.roles[role] && T.doc.roles[role].perms && T.doc.roles[role].perms['team.settings']);
+      const gh = await import('../../functions/ghsync.js');
+      if (name === 'githubConnect') {
+        if (!ok) fail('permission-denied', 'Only people who manage team settings can connect GitHub.');
+        if (payload.disconnect) { T.doc.github = null; if (T.private) delete T.private.github; persist(); return { ok: true }; }
+        const repo = gh.cleanRepo(payload.repo); if (!repo) fail('invalid-argument', 'Give the repository as owner/name, e.g. uni-robotics/rover.');
+        const old = gh.cleanGithub(T.doc.github); const secret = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
+        T.private = { ...(T.private || {}), github: { secret, repo, by: me.uid, at: Date.now(), last: null } };
+        T.doc.github = { repo, issues: old.repo ? old.issues : true, done: old.repo ? old.done : true, owner: old.owner || me.uid, connectedAt: Date.now() };
+        persist();
+        return { repo, secret, url: 'https://europe-west2-uni-teamtrack.cloudfunctions.net/githubWebhook?team=' + encodeURIComponent(teamId) + ' (demo: nothing is sent)' };
+      }
+      // Demo only: pretend GitHub sent an event, and apply it as the webhook would.
+      if (!T.private || !T.private.github) fail('failed-precondition', 'Connect a repository first.');
+      const weekIdx = new Map((T.doc.weeks || []).map((w, i) => [w.key, i]));
+      const tasks = Object.entries(T.tasks).map(([id, t]) => ({ ...clone(t), id, weekIdx: weekIdx.has(t.weekId) ? weekIdx.get(t.weekId) : -1 }));
+      const plan = gh.planGithubEvent(payload.kind, payload.payload, tasks, T.doc.github);
+      const now = Date.now(); const today = new Date().toLocaleDateString('en-CA');
+      const newTask = plan.create ? gh.newTaskPlace(T.doc, Object.entries(T.categories).map(([id, c]) => ({ ...c, id })), today) : null;
+      const d = new Date(); let h = d.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+      const time = String(d.getDate()).padStart(2, '0') + '/' + d.toLocaleString('en-GB', { month: 'short' }) + '/' + String(d.getFullYear()).slice(-2) + ' ' + h + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + ap;
+      const { ops, notes } = gh.githubOps(plan, tasks, { now, today, time, stages: (T.doc.workflow && T.doc.workflow.stages) || [], newTask, newId: 't_gh' + Math.random().toString(16).slice(2, 14) });
+      ops.forEach(o => { const id = o.path.split('/')[1]; if (o.type === 'set') T.tasks[id] = clone(o.data); else T.tasks[id] = { ...T.tasks[id], ...clone(o.data) }; });
+      const summary = { at: now, kind: payload.kind, action: (payload.payload && payload.payload.action) || '', links: plan.links.length, finished: plan.finish.length, created: plan.create && newTask ? 1 : 0, why: [plan.why, ...notes].filter(Boolean).join(' ') };
+      T.private.github.last = summary; persist();
+      return summary;
     }
     if (name === 'transferOwnership') {
       const T = store.teams[payload && payload.teamId]; const to = payload && payload.toUid;

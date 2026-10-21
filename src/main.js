@@ -15,6 +15,10 @@ import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mer
 import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
+import { runAutos, afterCommit } from './autos.js';
+import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue } from './github-ui.js';
+import { refIdOf } from '../functions/ghsync.js';
+import { waitingPurchases, decidePurchase, declineDialog, purchaseOn, purchaseLine } from './purchases.js';
 import { signersFor, canSignStage, gateOnTheWay, checklistOf, cleanWhiteboard, cleanWbItem, cleanWorkflow, storedWorkflow, leadsIndex } from './model.js';
 import { cleanComment, cleanTemplate, cleanEffort, cleanCapacity, MAX_DEPS, workflowOf, stageIdOf, stageKindOf, isCustomWorkflow, cleanMeeting, cleanNotebookEntry, cleanPart, cleanExpense, cleanBudget, cleanPaper, cleanLogEntry } from './model.js';
 import { openResearch, refreshResearch, seesMoney } from './research.js';
@@ -49,6 +53,7 @@ let boardLoaded = null;      // Promise once board.js is loaded
 
 // Theme pack: the choice saved in this browser, until your account's choice arrives.
 applyTheme(savedTheme(), { save: false });
+applyNav();
 document.title = APP_NAME;
 document.querySelectorAll('[data-app-name]').forEach(n => { n.textContent = APP_NAME; });
 document.querySelectorAll('[data-app-tagline]').forEach(n => { n.textContent = APP_TAGLINE + '.'; });
@@ -75,6 +80,7 @@ function show(screen) {
     // Your account's theme follows you to every device.
     if (u.theme && isTheme(u.theme) && u.theme !== currentTheme()) applyTheme(u.theme);
     if (u.menuStyle === 'circle' || u.menuStyle === 'list') { try { localStorage.setItem('tt_menu_style', u.menuStyle); } catch { /* */ } }
+    if (u.nav === 'side' || u.nav === 'top') { try { localStorage.setItem('tt_nav', u.nav); } catch { /* */ } applyNav(); }
     await route();
   });
   window.addEventListener('hashchange', () => { if (user) route(); });
@@ -85,10 +91,17 @@ async function route() {
   if (me) { closeTeam(); stopHome(); show('self-screen'); openSelf($('#self-screen'), selfCtx, me[1] || 'today'); return; }
   closeSelf();
   const m = location.hash.match(/^#\/t\/([A-Za-z0-9_-]+)/);
-  if (m) { if (!session || session.teamId !== m[1]) await openTeam(m[1]); }
+  if (m) {
+    // #/t/<team>/raise: the shareable "Raise an issue" link (GitHub sync)
+    if (/\/raise\/?$/.test(location.hash)) { pendingRaise = m[1]; history.replaceState(null, '', '#/t/' + m[1]); }
+    if (!session || session.teamId !== m[1]) await openTeam(m[1]);
+    maybeRaise();
+  }
   else { closeTeam(); renderHome(); if (location.hash === '#/account') setTimeout(() => window.TT && window.TT.openAccount && window.TT.openAccount(), 0); }
 }
 const goHome = () => { location.hash = '#/'; };
+let pendingRaise = '';
+function maybeRaise() { if (pendingRaise && session && session.booted && session.teamId === pendingRaise) { pendingRaise = ''; setTimeout(() => openRaiseIssue(ctx()), 300); } }
 /** What SelfTrack (self.js) needs from the app. */
 const selfCtx = {
   get backend() { return backend; }, get user() { return user; }, appName: APP_NAME, demo: DEMO_MODE,
@@ -490,6 +503,34 @@ async function chooseMenuStyle(v) {
   try { const u = await backend.auth.setMenuStyle(v); user = { ...user, ...(u || {}), menuStyle: v }; } catch (e) { console.warn('Menu style saved in this browser only:', e); }
 }
 
+// ── Navigation: tools along the top (default) or down a sidebar ─────────────
+function navMode() { try { return localStorage.getItem('tt_nav') === 'side' ? 'side' : 'top'; } catch { return 'top'; } }
+function navRail() { try { return localStorage.getItem('tt_nav_rail') === '1'; } catch { return false; } }
+function applyNav() {
+  const side = navMode() === 'side';
+  document.body.classList.toggle('nav-side', side);
+  document.body.classList.toggle('nav-rail', side && navRail());
+  if (window.boardFitTopBar) try { window.boardFitTopBar(); } catch { /* */ }
+  const c = document.getElementById('nav-collapse');
+  if (c) { c.setAttribute('aria-expanded', String(!navRail())); c.title = navRail() ? 'Expand the sidebar' : 'Collapse to icons'; c.setAttribute('aria-label', c.title); }
+}
+function toggleNavRail() { try { localStorage.setItem('tt_nav_rail', navRail() ? '0' : '1'); } catch { /* */ } applyNav(); }
+function navField() {
+  const box = el('div.seg-toggle', { role: 'radiogroup', 'aria-label': 'Navigation' });
+  const draw = () => box.replaceChildren(...[['top', '▭ Top bar'], ['side', '▯ Sidebar']].map(([v, label]) =>
+    el('button' + (navMode() === v ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(navMode() === v), dataset: { nav: v }, onclick: () => chooseNav(v).then(draw) }, label)));
+  draw();
+  return el('div.field', {}, el('span', {}, 'Navigation'), box,
+    el('div.hint', { style: { marginTop: '6px' } }, 'Where a team’s tools sit on a computer. The sidebar can fold down to icons. Phones always use the top bar.'));
+}
+async function chooseNav(v) {
+  try { localStorage.setItem('tt_nav', v); } catch { /* */ }
+  applyNav();
+  toast(v === 'side' ? 'Sidebar on (on a computer screen).' : 'Top bar on.');
+  if (!user || !backend.auth.setNav) return;
+  try { const u = await backend.auth.setNav(v); user = { ...user, ...(u || {}), nav: v }; } catch (e) { console.warn('Navigation saved in this browser only:', e); }
+}
+
 // ── Theme packs ─────────────────────────────────────────────────────────────
 function themePreview(id) {
   const prev = (k) => {
@@ -570,6 +611,7 @@ function openAccount() {
     el('label.field', {}, el('span', {}, 'Display name (shown to your teams)'), name),
     el('div.field', {}, el('span', {}, 'Theme'), el('div.row', {}, el('span', { id: 'account-theme-name' }, themeName(currentTheme())), el('span.spacer'),
       el('button.btn.small', { type: 'button', onclick: () => openThemes() }, '🎨 Change theme…'))),
+    navField(),
     menuStyleField(),
     notifyField(),
     installField(),
@@ -736,6 +778,7 @@ function refresh() {
   syncMoney(s); syncResearch(s);
   refreshResearch(ctx());
   if (!s.booted) { s.booted = true; onFirstLoad(); if (PUBLIC_DEMO && sget(DEMO_TOUR)) { sset(DEMO_TOUR, null); setTimeout(startDemoTour, 1200); } }
+  scheduleAutos(); maybeRaise(); if (window.boardUpdateApprovals) window.boardUpdateApprovals();
   if (window.TTSettingsRefresh) window.TTSettingsRefresh();
 }
 
@@ -772,9 +815,17 @@ function syncMoney(s) {
 function stopMoney(s) { if (s && s.unsubMoney) { s.unsubMoney.forEach(u => u && u()); s.unsubMoney = null; s.expenses = []; s.budget = null; s.financeLog = []; } }
 function researchChanged(after) {
   refreshResearch(ctx());
+  if (window.boardUpdateApprovals) window.boardUpdateApprovals();
+  scheduleAutos();
   if (after === 'settings' && window.TTSettingsRefresh) window.TTSettingsRefresh();
   if (after === 'wb' && window.__wbRefresh) window.__wbRefresh();
   if (after === 'board' && window.boardRender && session && session.booted) { window.boardRender(); if (window.boardRefreshEditor) window.boardRefreshEditor(); }
+}
+// Automatic steps: checked shortly after data changes (see autos.js).
+let autosTimer = 0;
+function scheduleAutos() {
+  clearTimeout(autosTimer);
+  autosTimer = setTimeout(() => { if (session && session.booted) runAutos(ctx()).catch(e => console.warn('Automatic steps', e)); }, 900);
 }
 async function onFirstLoad() {
   const s = session;
@@ -854,7 +905,7 @@ function cachedMyWork(ids, key) {
   promise.catch(() => { if (myWorkCache && myWorkCache.promise === promise) myWorkCache = null; });
   return promise;
 }
-async function writeOps(ops, { quiet = false } = {}) {
+async function writeOps(ops, { quiet = false, auto = false } = {}) {
   const s = session; if (!s || !ops.length) return true;
   myWorkCache = null;
   s.pending++; setSyncStatus(); rememberWrites(s, ops);
@@ -867,6 +918,7 @@ async function writeOps(ops, { quiet = false } = {}) {
   }
   catch (e) {
     console.error(e); settleWrites(s, ops, false);
+    if (auto) { if (session === s) { s.pending--; setSyncStatus(); } console.warn('An automatic step wasn’t allowed:', e && e.message); return false; }
     if (session === s) { s.pending--; setSyncStatus('error', saveError(e)); revert(); }  /* the board's notice says why */
     if (!quiet) report('write', { message: String((e && e.code) || 'error') + ': ' + String((e && e.message) || ''), stack: ops.map(o => o.type + ' ' + String(o.path).split('/')[0]).join(', ') });
     return false;
@@ -918,7 +970,7 @@ window.TT = {
       else { s.undo.push({ changes, key: coalesceKey || null, at: now }); if (s.undo.length > UNDO_LIMIT) s.undo.shift(); }
       s.redo = [];
     }
-    writeOps(changesToOps(changes, user));
+    writeOps(changesToOps(changes, user)).then(ok => { if (ok) afterCommit(ctx(), changes).catch(e => console.warn('Automatic steps', e)); });
   },
   async undo() { return this._step('undo'); },
   async redo() { return this._step('redo'); },
@@ -934,6 +986,22 @@ window.TT = {
   },
   canEditTemplate: (tpl) => !!session && (tpl.createdBy === user.uid || can(session.team, session.me, 'team.settings')),
   canComment: () => !!session && (can(session.team, session.me, 'tasks.editOwn') || can(session.team, session.me, 'tasks.editAll')),
+  // GitHub sync
+  githubRepo: () => (session ? githubOf(session).repo : ''),
+  taskRef: (task) => refOf(task),
+  branchName: (task) => branchName(refIdOf(task), task.name),
+  newIssueUrl: (task) => newIssueUrl(githubOf(session).repo, { title: task.name, body: '', ref: refOf(task) }),
+  openRaiseIssue: () => { if (session && session.booted) openRaiseIssue(ctx()); },
+  /** Demo only: pretend GitHub sent an event (the webhook's logic, run on the demo store). */
+  githubSimulate: (kind, payload) => (DEMO_MODE && session ? backend.data.callFunction('githubSimulate', { teamId: session.teamId, kind, payload }) : Promise.reject(new Error('Demo only'))),
+  // Purchase approvals (workflow step 3)
+  purchaseOn: () => !!session && purchaseOn(session),
+  purchasesWaiting: () => (session ? waitingPurchases(session) : { all: [], mine: [] }),
+  purchaseLine: (p) => (session ? purchaseLine(session, p) : p.name),
+  approvePurchase: (p) => decidePurchase(ctx(), p, 'approved', ''),
+  declinePurchase: (p) => declineDialog(ctx(), p),
+  openParts: () => { if (session && session.booted) openResearch(ctx(), 'parts'); },
+  runAutos: () => scheduleAutos(),
   commentCount: (taskId) => { if (!session || !session.comments) return 0; const ids = new Set(carryIndexOf(session).ids(taskId)); return session.comments.filter(c => ids.has(c.taskId)).length; },
   hasUnreadMention: (taskId) => { if (!session) return false; const ids = new Set(carryIndexOf(session).ids(taskId)); return collab.unreadMentions(user.uid, session.comments).some(c => ids.has(c.taskId)); },
   /** Ids of every carried-forward copy of a task (always includes taskId). */
@@ -1005,6 +1073,8 @@ window.TT = {
   openAccount,
   openThemes,
   menuStyle,
+  toggleNavRail,
+  applyNav,
   openSearch: () => startSearch(),
   /** A searchable list to pick one item from: items = [{ group, icon, title, sub, fields, run }]. */
   pickFrom: (items, placeholder, empty) => openSearch(() => ({ items, placeholder, empty })),

@@ -1,0 +1,82 @@
+// ─────────────────────────────────────────────────────────────────────────────
+//  Automatic steps (workflow step 4), each switched on in Settings ▸ Workflow:
+//    • all the parts a task needs are received → move it on to a chosen stage (never past a
+//      sign-off that hasn't been given)
+//    • a task is done → a comment @mentioning everyone whose tasks were waiting on it
+//    • a sign-off has waited N days → a comment @mentioning whoever can give it
+//  There's no server doing this: the app of someone allowed to make the change does it, so it is
+//  checked by the same security rules as a change made by hand, and shows in the task's history.
+// ─────────────────────────────────────────────────────────────────────────────
+import { newId, cleanAutos, cleanComment, cleanFeatures, carryIndexOf, workflowOf, stageIdOf, partsReadyMoves, waitingOn, signersFor } from './model.js';
+import { can, canEditOwnedBy } from './permissions.js';
+
+const DAY = 864e5;
+const stamp = () => { const n = new Date(); let h = n.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return String(n.getDate()).padStart(2, '0') + '/' + n.toLocaleString('en-GB', { month: 'short' }) + '/' + String(n.getFullYear()).slice(-2) + ' ' + h + ':' + String(n.getMinutes()).padStart(2, '0') + ' ' + ap; };
+const done = new WeakMap();   // session → what this app already did (so a slow snapshot doesn't repeat it)
+const seen = (s) => { let x = done.get(s); if (!x) { x = new Set(); done.set(s, x); } return x; };
+const nameOf = (s, uid) => ((s.members || []).find(m => m.uid === uid) || {}).name || 'someone';
+const latestOnly = (s) => { const ix = carryIndexOf(s); return (s.tasks || []).filter(t => { const l = ix.latest(t.id); return !l || l.id === t.id; }); };
+const canComment = (s) => can(s.team, s.me, 'tasks.editOwn') || can(s.team, s.me, 'tasks.editAll');
+function commentOp(ctx, taskId, text, mentions) {
+  const { id, ...data } = cleanComment({ taskId, authorUid: ctx.user.uid, authorName: ctx.user.name || '', text, mentions, createdAt: Date.now() });
+  return { type: 'set', path: 'comments/' + newId('cm'), data };
+}
+
+/** Parts in → move on, and sign-off reminders. Safe to call often. */
+export async function runAutos(ctx) {
+  const s = ctx.session; if (!s || !s.booted || !s.team || !s.me) return 0;
+  const a = cleanAutos(s.team.autos); const wf = workflowOf(s.team); const did = seen(s); const ops = [];
+  const now = Date.now(); const me = ctx.user;
+  // 1. All parts received → next stage
+  if (a.partsTo && cleanFeatures(s.team.features).parts && wf.stages.some(x => x.id === a.partsTo)) {
+    const ix = carryIndexOf(s);
+    const parts = (s.parts || []).map(p => { const l = p.taskId && ix.latest(p.taskId); return l ? { ...p, taskId: l.id } : p; });
+    const to = wf.stages.find(x => x.id === a.partsTo);
+    partsReadyMoves(latestOnly(s), parts, wf.stages, a.partsTo, (t) => stageIdOf(t, wf.stages, wf.moved))
+      .filter(m => canEditOwnedBy(s.team, s.me, m.task.ownerUid) && !did.has('p:' + m.task.id + ':' + a.partsTo))
+      .forEach(({ task, from }) => {
+        did.add('p:' + task.id + ':' + a.partsTo);
+        const was = (wf.stages.find(x => x.id === from) || {}).name || from;
+        const history = [{ time: stamp(), user: me.name || 'Someone', field: 'Stage', original: was, updated: to.name + ' (automatic: all its parts are received)' }, ...(task.history || [])].slice(0, 100);
+        ops.push({ type: 'update', path: 'tasks/' + task.id, data: { stage: to.id, history, updatedBy: me.name || '', updatedAt: now } });
+      });
+  }
+  // 3. Sign-offs waiting too long → remind whoever can give them (done by the person who asked)
+  if (a.remindDays && canComment(s)) {
+    latestOnly(s).forEach(t => {
+      const so = t.signoff; if (!so || so.status !== 'waiting' || so.by !== me.uid || t.flag === 'completed') return;
+      const st = wf.stages.find(x => x.id === so.stage); if (!st || !st.signoff || stageIdOf(t, wf.stages, wf.moved) !== st.id) return;
+      const last = Math.max(so.at || 0, so.remindedAt || 0);
+      if (now - last < a.remindDays * DAY || did.has('r:' + t.id + ':' + last) || !canEditOwnedBy(s.team, s.me, t.ownerUid)) return;
+      did.add('r:' + t.id + ':' + last);
+      const who = signersFor(st, s.team, s.members || [], t.ownerUid).uids.filter(u => u !== me.uid).slice(0, 5);
+      if (!who.length) return;
+      const days = Math.floor((now - (so.at || now)) / DAY);
+      ops.push(commentOp(ctx, t.id, '⏰ Reminder: this has waited ' + days + (days === 1 ? ' day' : ' days') + ' for a ' + st.name + ' sign-off. ' + who.map(u => '@' + nameOf(s, u)).join(' '), who));
+      ops.push({ type: 'update', path: 'tasks/' + t.id, data: { signoff: { ...so, remindedAt: now } } });
+    });
+  }
+  if (!ops.length) return 0;
+  await ctx.writeOps(ops, { quiet: true, auto: true });
+  return ops.length;
+}
+
+/** After this app saved board changes: tasks just done → tell the owners of tasks waiting on them. */
+export async function afterCommit(ctx, changes) {
+  const s = ctx.session; if (!s || !s.team || !cleanAutos(s.team.autos).tellWaiting || !canComment(s)) return 0;
+  const finished = (changes || []).filter(c => c.kind === 'task' && c.after && c.after.flag === 'completed' && (!c.before || c.before.flag !== 'completed'));
+  if (!finished.length) return 0;
+  const ix = carryIndexOf(s); const did = seen(s); const ops = [];
+  const nameOfTask = (id) => ((s.tasks || []).find(t => t.id === id) || (finished.find(c => c.id === id) || {}).after || {}).name || 'A task';
+  finished.forEach(c => {
+    const ids = ix.ids(c.id);
+    waitingOn(latestOnly(s), ids).forEach(t => {
+      const key = 'w:' + ix.rootOf(c.id) + ':' + t.id; if (did.has(key)) return; did.add(key);
+      const owner = t.ownerUid; const mention = owner && owner !== ctx.user.uid ? [owner] : [];
+      ops.push(commentOp(ctx, t.id, '✅ “' + nameOfTask(c.id) + '” is done, so this can go ahead.' + (mention.length ? ' @' + nameOf(s, owner) : '') + ' (automatic)', mention));
+    });
+  });
+  if (!ops.length) return 0;
+  await ctx.writeOps(ops, { quiet: true, auto: true });
+  return ops.length;
+}

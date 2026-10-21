@@ -144,24 +144,29 @@
       <div id="top-bar">
         <div id="top-actions">
           <button class="team-switch" id="team-switch" type="button" title="All teams"></button>
-          <div class="view-toggle" role="group" aria-label="View">
+          <span class="nav-group" style="order:2" aria-hidden="true">Views</span>
+          <span class="nav-group" style="order:4" aria-hidden="true">Work</span>
+          <span class="nav-group" style="order:9" aria-hidden="true">Plan</span>
+          <span class="nav-group" style="order:14" aria-hidden="true">Team</span>
+          <div class="view-toggle" data-nav="3" role="group" aria-label="View">
             <button class="top-btn on" type="button" data-view="board" aria-pressed="true" onclick="boardSetView('board')" title="Board: people × weeks" aria-label="Board view">▦<span class="lbl-view"> Board</span></button>
             <button class="top-btn" type="button" data-view="kanban" aria-pressed="false" onclick="boardSetView('kanban')" title="Kanban: To do · Doing · Done" aria-label="Kanban view">🗂️<span class="lbl-view"> Kanban</span></button>
             <button class="top-btn" type="button" data-view="gantt" aria-pressed="false" onclick="boardSetView('gantt')" title="Gantt: plan dates on a timeline" aria-label="Gantt view">📆<span class="lbl-view"> Gantt</span></button>
           </div>
-          <button class="top-btn search-btn" id="search-btn" onclick="TT.openSearch()" title="Search everything (Ctrl+K)" aria-label="Search">🔍<span class="act-lbl"> Search</span></button>
-          <button class="top-btn" data-perm="members.manage" onclick="TT.openSettings('members')" title="Invite people by email" aria-label="Invite">➕<span class="lbl-md"> Invite</span></button>
-          <button class="top-btn accent" data-perm="analytics.view" onclick="openAnalytics('overview')" title="Charts, KPIs and insights" aria-label="Analytics">📊<span class="lbl-lg"> Analytics</span></button>
-          <button class="top-btn" data-perm="analytics.view" onclick="openAnalytics('timeline')" title="Deadlines on a timeline" aria-label="Timeline">📅<span class="lbl-md"> Timeline</span></button>
-          <button class="top-btn" id="research-btn" onclick="TT.openResearch()" title="Tools: meetings, literature and any others your team has turned on" aria-label="Tools">🧰<span class="lbl-lg"> Tools</span></button>
-          <button class="top-btn activity-btn" id="activity-btn" onclick="TT.openActivity()" title="Mentions and team activity" aria-label="Activity">🔔<span class="act-lbl"> Activity</span><span class="count-badge" id="activity-badge" hidden></span></button>
-          <button class="top-btn" id="wb-btn" type="button" onclick="TT.openWhiteboards()" title="Whiteboards: plan together with notes, task cards and arrows" aria-label="Whiteboards" hidden>🧭<span class="lbl-md"> Whiteboards</span></button>
-          <button class="top-btn activity-btn" id="approvals-btn" type="button" onclick="openApprovals()" title="Tasks waiting for a sign-off" aria-label="Sign-offs" hidden>✅<span class="lbl-md"> Sign-offs</span><span class="count-badge" id="approvals-badge" hidden></span></button>
-          <button class="top-btn" id="share-btn" onclick="TT.openShare()" title="Share this week in your group chat (WhatsApp…)" aria-label="Share this week">📣<span class="lbl-md"> Share</span></button>
-          <button class="top-btn" data-perm="data.export" onclick="TT.openAI()" title="Summarise the board with AI" aria-label="AI summary">✨<span class="lbl-md"> AI summary</span></button>
-          <button class="top-btn" onclick="scrollToToday()" title="Jump to the current week" aria-label="Today">🎯<span class="lbl-md"> Today</span></button>
-          <button class="top-btn" onclick="TT.openSettings()" title="Team settings" aria-label="Settings">⚙️<span class="lbl-lg"> Settings</span></button>
+          <button class="top-btn search-btn" id="search-btn" data-nav="5" onclick="TT.openSearch()" title="Search everything (Ctrl+K)" aria-label="Search">🔍<span class="act-lbl"> Search</span></button>
+          <button class="top-btn" data-perm="members.manage" onclick="TT.openSettings('members')" data-nav="15" title="Invite people by email" aria-label="Invite">➕<span class="lbl-md"> Invite</span></button>
+          <button class="top-btn accent" data-perm="analytics.view" onclick="openAnalytics('overview')" data-nav="10" title="Charts, KPIs and insights" aria-label="Analytics">📊<span class="lbl-lg"> Analytics</span></button>
+          <button class="top-btn" data-perm="analytics.view" onclick="openAnalytics('timeline')" data-nav="11" title="Deadlines on a timeline" aria-label="Timeline">📅<span class="lbl-md"> Timeline</span></button>
+          <button class="top-btn" id="research-btn" data-nav="13" onclick="TT.openResearch()" title="Tools: meetings, literature and any others your team has turned on" aria-label="Tools">🧰<span class="lbl-lg"> Tools</span></button>
+          <button class="top-btn activity-btn" id="activity-btn" data-nav="6" onclick="TT.openActivity()" title="Mentions and team activity" aria-label="Activity">🔔<span class="act-lbl"> Activity</span><span class="count-badge" id="activity-badge" hidden></span></button>
+          <button class="top-btn" id="wb-btn" data-nav="12" type="button" onclick="TT.openWhiteboards()" title="Whiteboards: plan together with notes, task cards and arrows" aria-label="Whiteboards" hidden>🧭<span class="lbl-md"> Whiteboards</span></button>
+          <button class="top-btn activity-btn" id="approvals-btn" data-nav="7" type="button" onclick="openApprovals()" title="Sign-offs and purchases waiting for approval" aria-label="Approvals" hidden>✅<span class="lbl-md"> Approvals</span><span class="count-badge" id="approvals-badge" hidden></span></button>
+          <button class="top-btn" id="share-btn" data-nav="16" onclick="TT.openShare()" title="Share this week in your group chat (WhatsApp…)" aria-label="Share this week">📣<span class="lbl-md"> Share</span></button>
+          <button class="top-btn" data-perm="data.export" onclick="TT.openAI()" data-nav="17" title="Summarise the board with AI" aria-label="AI summary">✨<span class="lbl-md"> AI summary</span></button>
+          <button class="top-btn" onclick="scrollToToday()" data-nav="8" title="Jump to the current week" aria-label="Today">🎯<span class="lbl-md"> Today</span></button>
+          <button class="top-btn" onclick="TT.openSettings()" data-nav="18" title="Team settings" aria-label="Settings">⚙️<span class="lbl-lg"> Settings</span></button>
         </div>
+        <button class="top-btn" id="nav-collapse" type="button" onclick="TT.toggleNavRail()" title="Collapse to icons" aria-label="Collapse to icons" aria-expanded="true">⇤<span class="nav-lbl"> Collapse</span></button>
         <div id="floating-toggles" style="display: none;">
           <button class="top-btn account-chip" onclick="TT.openAccount()" aria-label="Your account"><span class="chip-avatar" aria-hidden="true"></span><span class="user-display">…</span></button>
           <button class="top-btn" id="theme-toggle-outer" onclick="toggleTheme()">🎨 Theme</button>

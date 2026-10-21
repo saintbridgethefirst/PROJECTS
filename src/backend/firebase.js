@@ -41,11 +41,11 @@ const EMAIL_KEY = 'tt_email_for_signin';
 
 // Uploaded account photo from users/{uid}; undefined = not loaded / none saved (then the
 // Google or Microsoft picture is used).
-let profilePhoto; let profileUid = null; let profileTheme = ''; let profileMenu = ''; let profileNotify = null;
+let profilePhoto; let profileUid = null; let profileTheme = ''; let profileMenu = ''; let profileNav = ''; let profileNotify = null;
 async function loadProfile(u) {
-  profileUid = u ? u.uid : null; profilePhoto = undefined; profileTheme = ''; profileMenu = ''; profileNotify = null;
+  profileUid = u ? u.uid : null; profilePhoto = undefined; profileTheme = ''; profileMenu = ''; profileNav = ''; profileNotify = null;
   if (!u) return;
-  try { const s = await getDoc(doc(db, 'users', u.uid)); if (s.exists() && typeof s.data().photo === 'string') profilePhoto = s.data().photo; if (s.exists() && typeof s.data().theme === 'string') profileTheme = s.data().theme; if (s.exists() && typeof s.data().menuStyle === 'string') profileMenu = s.data().menuStyle; if (s.exists() && s.data().notify && typeof s.data().notify === 'object') profileNotify = s.data().notify; }
+  try { const s = await getDoc(doc(db, 'users', u.uid)); if (s.exists() && typeof s.data().photo === 'string') profilePhoto = s.data().photo; if (s.exists() && typeof s.data().theme === 'string') profileTheme = s.data().theme; if (s.exists() && typeof s.data().menuStyle === 'string') profileMenu = s.data().menuStyle; if (s.exists() && typeof s.data().nav === 'string') profileNav = s.data().nav; if (s.exists() && s.data().notify && typeof s.data().notify === 'object') profileNotify = s.data().notify; }
   catch (e) { console.warn('Could not load profile:', e); }
 }
 
@@ -54,7 +54,7 @@ function toUser(u) {
   const photo = (profileUid === u.uid && profilePhoto !== undefined) ? profilePhoto : (u.photoURL || '');
   return {
     uid: u.uid, email: normEmail(u.email), name: u.displayName || (u.email || '').split('@')[0] || 'User',
-    photo, theme: profileUid === u.uid ? profileTheme : '', menuStyle: profileUid === u.uid ? profileMenu : '', notify: profileUid === u.uid ? profileNotify : null, emailVerified: !!u.emailVerified,
+    photo, theme: profileUid === u.uid ? profileTheme : '', menuStyle: profileUid === u.uid ? profileMenu : '', nav: profileUid === u.uid ? profileNav : '', notify: profileUid === u.uid ? profileNotify : null, emailVerified: !!u.emailVerified,
     provider: (u.providerData[0] && u.providerData[0].providerId) || 'password',
   };
 }
@@ -128,6 +128,13 @@ export const auth = {
     const u = fbAuth.currentUser; if (!u) throw new Error('Not signed in.');
     await setDoc(doc(db, 'users', u.uid), { menuStyle: style === 'circle' ? 'circle' : 'list', updatedAt: Date.now() }, { merge: true });
     profileUid = u.uid; profileMenu = style;
+    return toUser(u);
+  },
+  /** Where the team's tools sit: 'top' bar or 'side' bar (follows you to every device). */
+  async setNav(nav) {
+    const u = fbAuth.currentUser; if (!u) throw new Error('Not signed in.');
+    await setDoc(doc(db, 'users', u.uid), { nav: nav === 'side' ? 'side' : 'top', updatedAt: Date.now() }, { merge: true });
+    profileUid = u.uid; profileNav = nav;
     return toUser(u);
   },
   /** Email notification choices: { mentions, digest } (true unless switched off). */
@@ -306,6 +313,7 @@ export const data = {
     }
     const members = (await getDocs(collection(db, 'teams', teamId, 'members'))).docs;
     members.filter(d => d.data().roleId !== 'owner').forEach(d => ops.push({ type: 'delete', path: 'members/' + d.id }));
+    ops.push({ type: 'delete', path: 'private/github' });   // the GitHub webhook secret (the owner may delete it, never read it)
     await runOps(teamId, ops);
     // Final batch: the owner's membership + the team itself (the rules allow this pair together).
     const b = writeBatch(db);

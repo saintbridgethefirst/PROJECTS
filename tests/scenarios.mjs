@@ -61,6 +61,8 @@ const GATE_SUBTEAMS = [{ id: 'gear', name: 'Gear', color: '#3ba3ff', members: ['
 const GATE_WORKFLOW = storedWorkflow(cleanWorkflow({ stages: [
   { id: 'design', name: 'Design', kind: 'todo' }, { id: 'review', name: 'Review', kind: 'doing', signoff: 'lead' },
   { id: 'build', name: 'Build', kind: 'doing' }, { id: 'test', name: 'Test', kind: 'doing', signoff: 'admin' }, { id: 'done', name: 'Done' }] }));
+const ask = (by) => ({ status: 'waiting', by, byName: by, at: 1, amount: 300, approver: '', approverName: '', note: '', decidedAt: 0 });
+const decided = (status, approver, by = 'mem1') => ({ ...ask(by), status, approver, approverName: approver, decidedAt: 2 });
 const approved = (stage, by) => signoff('approved', { stage, approver: by, approverName: by, decidedAt: 2 });
 
 export function fixture() {
@@ -82,7 +84,7 @@ export function fixture() {
       },
       // A team whose workflow needs sign-offs: Review by mem1's sub-team lead (view1), Test by an admin.
       [GATE]: {
-        doc: teamDoc({ subteams: GATE_SUBTEAMS, leads: leadsIndex(GATE_SUBTEAMS), workflow: GATE_WORKFLOW }),
+        doc: teamDoc({ subteams: GATE_SUBTEAMS, leads: leadsIndex(GATE_SUBTEAMS), workflow: GATE_WORKFLOW, purchase: { on: true, over: 50 }, autos: { partsTo: 'build', tellWaiting: true, remindDays: 3 }, github: { repo: 'uni/rover', issues: true, done: true, owner: 'mem1', connectedAt: 1 } }),
         members: { owner: member('owner', 'owner'), admin1: member('admin1', 'admin'), mem1: member('mem1', 'member'), view1: member('view1', 'viewer') },
         invites: {}, categories: { c_mem1: { name: 'GEN', ownerUid: 'mem1', order: 0 } },
         tasks: {
@@ -90,6 +92,9 @@ export function fixture() {
           g_built: task('mem1', 'c_mem1', { stage: 'build', signoff: signoff('approved', { approver: 'view1', approverName: 'view1', decidedAt: 2 }) }),
           g_test: task('mem1', 'c_mem1', { stage: 'test' }),
         },
+        // Purchase approvals over 50: a cheap part, a dear one, one waiting, one approved.
+        parts: { p_cheap: part('mem1', { qty: 2, unitCost: 10 }), p_dear: part('mem1', { qty: 1, unitCost: 300 }),
+          p_wait: part('mem1', { qty: 1, unitCost: 300, approval: ask('mem1') }), p_ok: part('mem1', { qty: 1, unitCost: 300, approval: decided('approved', 'admin1') }) },
       },
     },
   };
@@ -317,6 +322,32 @@ export const writeScenarios = [
   ['gate: …but the Review approval doesn’t pass Test', 'mem1', GATE, [upd('tasks/g_built', { flag: 'completed', completedDate: '2026-10-21' })], 'deny'],
   ['gate: an admin signs off Test', 'admin1', GATE, [upd('tasks/g_test', { flag: 'completed', completedDate: '2026-10-21', signoff: approved('test', 'admin1') })], 'allow'],
   ['gate: only sign-off leads can change the leads index', 'mem1', GATE, [upd('team', { leads: { mem1: ['mem1'] } })], 'deny'],
+  // Purchase approvals (workflow step 3)
+  ['purchase: a cheap part is ordered without approval', 'mem1', GATE, [upd('parts/p_cheap', { status: 'ordered' })], 'allow'],
+  ['purchase: a dear part can’t be marked ordered unapproved', 'mem1', GATE, [upd('parts/p_dear', { status: 'ordered' })], 'deny'],
+  ['purchase: …nor received', 'mem1', GATE, [upd('parts/p_dear', { status: 'received' })], 'deny'],
+  ['purchase: …nor added as already ordered', 'mem1', GATE, [set('parts/p_new', part('mem1', { qty: 1, unitCost: 300, status: 'ordered' }))], 'deny'],
+  ['purchase: anyone asks for approval in their own name', 'mem1', GATE, [upd('parts/p_dear', { approval: ask('mem1') })], 'allow'],
+  ['purchase: …not in someone else’s', 'mem1', GATE, [upd('parts/p_dear', { approval: ask('admin1') })], 'deny'],
+  ['purchase: nobody approves their own request', 'mem1', GATE, [upd('parts/p_wait', { approval: decided('approved', 'mem1') })], 'deny'],
+  ['purchase: a member can’t approve', 'view1', GATE, [upd('parts/p_wait', { approval: decided('approved', 'view1') })], 'deny'],
+  ['purchase: nobody forges a finance manager’s approval', 'mem1', GATE, [upd('parts/p_wait', { status: 'ordered', approval: decided('approved', 'admin1') })], 'deny'],
+  ['purchase: a finance manager approves', 'admin1', GATE, [upd('parts/p_wait', { approval: decided('approved', 'admin1') })], 'allow'],
+  ['purchase: …or declines with a note', 'admin1', GATE, [upd('parts/p_wait', { approval: { ...decided('declined', 'admin1'), note: 'Too dear; find another supplier' } })], 'allow'],
+  ['purchase: the team owner approves anything', 'owner', GATE, [upd('parts/p_wait', { approval: decided('approved', 'owner') })], 'allow'],
+  ['purchase: once approved, it is ordered', 'mem1', GATE, [upd('parts/p_ok', { status: 'ordered', orderedDate: '2026-10-21' })], 'allow'],
+  ['purchase: an approved cost can’t quietly go up', 'mem1', GATE, [upd('parts/p_ok', { unitCost: 900 })], 'deny'],
+  ['purchase: …but changing it and asking again is fine', 'mem1', GATE, [upd('parts/p_ok', { unitCost: 900, approval: { ...ask('mem1'), amount: 900 } })], 'allow'],
+  ['purchase: only settings or finance managers change the approval limit', 'mem1', GATE, [upd('team', { purchase: { on: true, over: 100000 } })], 'deny'],
+  ['purchase: a finance manager changes the approval limit', 'admin1', GATE, [upd('team', { purchase: { on: true, over: 100 } })], 'allow'],
+  ['autos: only settings managers change the automatic steps', 'mem1', GATE, [upd('team', { autos: { partsTo: '', tellWaiting: false, remindDays: 0 } })], 'deny'],
+  ['autos: an admin changes them', 'admin1', GATE, [upd('team', { autos: { partsTo: 'build', tellWaiting: false, remindDays: 5 } })], 'allow'],
+  ['autos: shaped settings only', 'admin1', GATE, [upd('team', { autos: { partsTo: 'build', run: 'anything' } })], 'deny'],
+  ['github: a settings manager changes the options', 'admin1', GATE, [upd('team', { github: { repo: 'uni/rover', issues: false, done: true, owner: 'admin1', connectedAt: 1 } })], 'allow'],
+  ['github: …but not the repository (only the server sets it, with its secret)', 'admin1', GATE, [upd('team', { github: { repo: 'evil/repo', issues: true, done: true, owner: 'admin1', connectedAt: 1 } })], 'deny'],
+  ['github: a member can’t change the options', 'mem1', GATE, [upd('team', { github: { repo: 'uni/rover', issues: false, done: false, owner: 'mem1', connectedAt: 1 } })], 'deny'],
+  ['github: only shaped settings', 'admin1', GATE, [upd('team', { github: { repo: 'uni/rover', token: 'ghp_x' } })], 'deny'],
+  ['a task’s owner records when they reminded the sign-off person', 'mem1', GATE, [upd('tasks/g_wait', { signoff: { ...signoff('waiting'), remindedAt: 5 } })], 'allow'],
   // Sign-offs and checklists (workflow step 2)
   ['a member ticks checklist items on their task', 'mem1', TEAM, [upd('tasks/t_mem1', { checks: { review_c0: true } })], 'allow'],
   ['a member sends their task for sign-off', 'mem1', TEAM, [upd('tasks/t_mem1', { stage: 'review', signoff: signoff('waiting') })], 'allow'],

@@ -75,6 +75,7 @@ export function partChanges(before, after, n) {
   if ((before.budgetId || '') !== (after.budgetId || '')) b.push('budget line ' + q(n.line(before.budgetId)) + ' → ' + q(n.line(after.budgetId)));
   if (JSON.stringify(before.extras || []) !== JSON.stringify(after.extras || [])) b.push('extra costs ' + n.money(partExtras(before)) + ' → ' + n.money(partExtras(after)) + (after.extras && after.extras.length ? ' (' + after.extras.map(x => x.label).join(', ') + ')' : ''));
   if ((before.subteamId || '') !== (after.subteamId || '') && n.subteam) b.push('sub-team ' + q(n.subteam(before.subteamId)) + ' → ' + q(n.subteam(after.subteamId)));
+  if (before.approval && before.approval.status === 'approved' && !after.approval) b.push('approval cleared (cost changed)');
   return clip(join('Part ' + q(before.name), b));
 }
 

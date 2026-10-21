@@ -79,6 +79,17 @@ export async function buildSample(user, now = Date.now()) {
   arrow('wl_1', 'wi_cdr', 'wi_cad'); arrow('wl_2', 'wi_cad', 'wi_wa', 'build'); arrow('wl_3', 'wi_tb', 'wi_fa'); arrow('wl_4', 'wi_wa', 'wi_rt', 'Testing'); arrow('wl_5', 'wi_fa', 'wi_ft'); arrow('wl_6', 'wi_n2', 'wi_ft');
   team.wbItems = wi;
   team.doc.features.whiteboards = true;
+  // Workflow steps 3 and 4: purchase approvals over £100, and the automatic steps.
+  team.doc.purchase = { on: true, over: 100 };
+  team.doc.autos = { partsTo: 'build', tellWaiting: true, remindDays: 3 };
+  // GitHub sync: a (made-up) repository is connected, so Settings ▸ Integrations can simulate events.
+  team.doc.github = { repo: 'skyhawk-uav/flight-software', issues: true, done: true, owner: user.uid, connectedAt: now - 10 * DAY };
+  team.private = { github: { secret: 'demo-only', repo: 'skyhawk-uav/flight-software', by: user.uid, at: now - 10 * DAY, last: null } };
+  const asker = Object.keys(raw.users).find(u => u !== ownerUid && team.members[u]) || user.uid;
+  if (team.parts && team.parts.p_bat) team.parts.p_bat.approval = { status: 'waiting', by: asker, byName: nameOf(asker), at: now - 5 * HOUR, amount: 237, approver: '', approverName: '', note: '', decidedAt: 0 };
+  if (team.parts) team.parts.p_gear = { name: 'Carbon landing gear set', partNo: 'CLG-450', supplier: 'HobbyKing', url: '', qty: 1, unitCost: 140, status: 'needed', neededBy: '', orderedDate: '', receivedDate: '',
+    taskId: '', budgetId: 'b_air', notes: 'Lighter than the printed legs.', extras: [], subteamId: '', createdBy: asker, createdByName: nameOf(asker), createdAt: now - 3 * DAY, updatedAt: now - DAY,
+    approval: { status: 'approved', by: asker, byName: nameOf(asker), at: now - 2 * DAY, amount: 140, approver: user.uid, approverName: user.name || 'You', note: '', decidedAt: now - DAY } };
   const users = {};
   Object.values(raw.users).forEach(u => { if (u.uid !== ownerUid) users[u.uid] = u; });
   return { teamId: 't_sample_' + newId('x').slice(-10), team, users };

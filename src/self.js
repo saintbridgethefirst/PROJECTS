@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import './self.css';
 import { el, modal, toast } from './ui.js';
-import { newId } from './model.js';
+import { newId, gateOnTheWay } from './model.js';
 import * as M from './self-model.js';
 
 const VIEWS = { today: 'Today', week: 'Week', growth: 'Growth' };
@@ -256,16 +256,25 @@ function syncCard(today) {
   else if (!S.workAt) sec.append(el('p.sf-empty', {}, 'Loading your team tasks…'));
   else if (!rows.length) sec.append(el('p.sf-empty', {}, 'Nothing from your teams this week.'));
   else sec.append(el('ul.sf-list', { id: 'sf-sync-list' }, rows.map(r => el('li.sf-task.sf-team-task', { dataset: { team: r.teamId, id: r.id } },
-    r.support ? el('span.sf-support', { title: 'You’re supporting this task' }, '🤝') : el('input', { type: 'checkbox', 'aria-label': 'Mark done in ' + r.team + ': ' + r.name, onchange: (e) => { e.target.disabled = true; completeTeamTask(r); } }),
+    r.support ? el('span.sf-support', { title: 'You’re supporting this task' }, '🤝') : gateFor(r) ? el('span.sf-support.sf-gated', { title: 'Needs a ' + gateFor(r).name + ' sign-off before it can be done. Open it on the team board.' }, '🔒') : el('input', { type: 'checkbox', 'aria-label': 'Mark done in ' + r.team + ': ' + r.name, onchange: (e) => { e.target.disabled = true; completeTeamTask(r); } }),
     el('button.sf-team-open', { type: 'button', onclick: () => S.ctx.openTaskIn(r.teamId, r.id), title: 'Open in ' + r.team },
       el('span.sf-task-title', {}, r.name), el('small', {}, [r.team, r.weekTitle, r.dueDate ? (r.late ? r.late + (r.late === 1 ? ' day' : ' days') + ' late' : 'due ' + weekday(r.dueDate) + ' ' + short(r.dueDate)) : ''].filter(Boolean).join(' · ')))))));
   return sec;
 }
 const stamp = () => { const n = new Date(); let h = n.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return String(n.getDate()).padStart(2, '0') + '/' + n.toLocaleString('default', { month: 'short' }) + '/' + String(n.getFullYear()).slice(-2) + ' ' + h + ':' + String(n.getMinutes()).padStart(2, '0') + ' ' + ap; };
+/** A sign-off stage the task still has to pass before it can be done (its team's workflow), or null. */
+function gateFor(r) {
+  const w = S.work.find(x => x.teamId === r.teamId); const t = w && w.tasks.find(x => x.id === r.id); if (!t) return null;
+  const team = w.team || S.teams.find(x => x.id === r.teamId); const stages = (team && team.workflow && team.workflow.stages) || [];
+  if (!stages.some(x => x.signoff)) return null;
+  const from = stages.some(x => x.id === t.stage) ? t.stage : stages[0].id;
+  return gateOnTheWay(t, stages, from, stages[stages.length - 1].id);
+}
 /** Tick a team task from SelfTrack: saved to the team's board, with a line in its history. */
 async function completeTeamTask(r) {
   const s = S; const w = s.work.find(x => x.teamId === r.teamId); const t = w && w.tasks.find(x => x.id === r.id); if (!t) return;
   const me = s.ctx.user; const old = t.flag;
+  const gate = gateFor(r); if (gate) { toast('This one needs a ' + gate.name + ' sign-off first. Open it on the team board.', 5000); render(); return; }
   const history = [{ time: stamp(), user: me.name || 'Someone', field: 'Task Status Flag', original: String(old || 'none'), updated: 'completed (from SelfTrack)' }, ...(t.history || [])].slice(0, 100);
   t.flag = 'completed'; render();
   try {

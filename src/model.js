@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { DEFAULT_ROLES, PERM_KEYS } from './permissions.js';
 import { LIMITS } from './config.js';
+import { cleanGithub } from '../functions/ghsync.js';
 
 export const PRIORITIES = ['Minor', 'Major', 'Critical', 'Blocker'];
 export const FLAGS = ['none', 'pending', 'backlog', 'completed'];
@@ -119,6 +120,9 @@ export function cleanTeam(t) {
     workflow: cleanWorkflow(t.workflow),
     features: cleanFeatures(t.features),
     subteams: cleanSubteams(t.subteams),
+    purchase: cleanPurchase(t.purchase),
+    autos: cleanAutos(t.autos),
+    github: cleanGithub(t.github),
     plan: cleanPlan(t.plan),
     weeks: (Array.isArray(t.weeks) ? t.weeks : []).map(cleanWeek),
   };
@@ -332,14 +336,16 @@ export function canSignStage(stage, team, me, ownerUid) {
 }
 /** What the security rules need to check sign-offs without loops (stored with the workflow):
  *  order: stage id (and legacy 'todo'/'doing', and moved ids) → position; gates: stage id → { o, k, s };
- *  gateList: positions of stages that need a sign-off; done: the last position. */
+ *  next[i]: the first position at or after i that needs a sign-off (stages.length when none); done: the last position. */
 export function workflowIndex(stages, moved = {}) {
   const order = {}; stages.forEach((s, i) => { order[s.id] = i; });
   ['todo', 'doing'].forEach(k => { if (order[k] === undefined) { const i = stages.findIndex(s => s.kind === k); if (i >= 0) order[k] = i; } });
   Object.entries(moved || {}).forEach(([a, b]) => { if (order[a] === undefined && order[b] !== undefined) order[a] = order[b]; });
-  const gates = {}; const gateList = [];
-  stages.forEach((s, i) => { if (s.signoff) { gates[s.id] = { o: i, k: s.signoff, s: s.signer || '' }; gateList.push(i); } });
-  return { order, gates, gateList, done: stages.length - 1 };
+  const gates = {};
+  stages.forEach((s, i) => { if (s.signoff) gates[s.id] = { o: i, k: s.signoff, s: s.signer || '' }; });
+  const next = new Array(stages.length + 1).fill(stages.length);
+  for (let i = stages.length - 1; i >= 0; i--) next[i] = stages[i].signoff ? i : next[i + 1];
+  return { order, gates, next, done: stages.length - 1 };
 }
 /** Each member's sub-team leads (not themselves), for the security rules: { uid: [leadUid] }. */
 export function leadsIndex(subteams) {
@@ -368,7 +374,8 @@ export function cleanSignoff(v) {
   if (!v || typeof v !== 'object' || !['waiting', 'approved', 'changes'].includes(v.status)) return null;
   const s = (x, n) => String(x == null ? '' : x).slice(0, n);
   return { stage: cleanStageId(v.stage), status: v.status, by: s(v.by, 64), byName: s(v.byName, 80), at: Number(v.at) || 0,
-    approver: s(v.approver, 64), approverName: s(v.approverName, 80), note: s(v.note, 500), decidedAt: Number(v.decidedAt) || 0 };
+    approver: s(v.approver, 64), approverName: s(v.approverName, 80), note: s(v.note, 500), decidedAt: Number(v.decidedAt) || 0,
+    ...(Number(v.remindedAt) > 0 ? { remindedAt: Number(v.remindedAt) } : {}) };
 }
 export function cleanChecks(v) {
   const out = {}; Object.entries(v && typeof v === 'object' && !Array.isArray(v) ? v : {}).slice(0, 50).forEach(([k, on]) => { if (on === true && cleanStageId(k)) out[k] = true; });
@@ -581,10 +588,61 @@ export function cleanPart(p, id) {
     qty: Math.round(num(p.qty, 0, 100000, 1)), unitCost: money(p.unitCost), status: PART_STATUS.includes(p.status) ? p.status : 'needed',
     neededBy: isoOrEmpty(p.neededBy), orderedDate: isoOrEmpty(p.orderedDate), receivedDate: isoOrEmpty(p.receivedDate),
     taskId: p.taskId ? safeKey(p.taskId) : '', budgetId: p.budgetId ? safeKey(p.budgetId) : '', notes: str(p.notes, 2000),
-    extras: cleanExtras(p.extras), subteamId: p.subteamId ? safeKey(p.subteamId) : '',
+    extras: cleanExtras(p.extras), subteamId: p.subteamId ? safeKey(p.subteamId) : '', approval: cleanApproval(p.approval),
     createdBy: str(p.createdBy, 128), createdByName: str(p.createdByName, 80), createdAt: Number(p.createdAt) || 0, updatedAt: Number(p.updatedAt) || 0,
   };
 }
+// ── Purchase approvals (workflow step 3) ─────────────────────────────────────
+/** Team setting: { on, over } — with approvals on, an order costing more than `over` needs approving before it's Ordered. */
+export function cleanPurchase(p) { p = p && typeof p === 'object' ? p : {}; return { on: p.on === true, over: money(p.over) }; }
+export function cleanApproval(v) {
+  if (!v || typeof v !== 'object' || !['waiting', 'approved', 'declined'].includes(v.status)) return null;
+  const s = (x, n) => String(x == null ? '' : x).slice(0, n);
+  return { status: v.status, by: s(v.by, 128), byName: s(v.byName, 80), at: Number(v.at) || 0, amount: money(v.amount),
+    approver: s(v.approver, 128), approverName: s(v.approverName, 80), note: s(v.note, 500), decidedAt: Number(v.decidedAt) || 0 };
+}
+/** Does buying this part need an approval first? (Cost over the team's limit, approvals on, not bought yet.) */
+export function needsApproval(part, purchase) {
+  const pc = cleanPurchase(purchase);
+  return pc.on && !!part && !['ordered', 'received', 'cancelled'].includes(part.status) && partTotal(part) > pc.over;
+}
+export const isApproved = (part) => !!(part && part.approval && part.approval.status === 'approved');
+/** Can `member` approve or decline this part's request? The team owner always; finance managers, not their own. */
+export function canApprovePurchase(team, member, part) {
+  if (!team || !member) return false;
+  if (team.ownerUid === member.uid) return true;
+  const role = member.roleId === 'owner' ? null : team.roles && team.roles[member.roleId];
+  const fin = member.roleId === 'owner' || !!(role && role.perms && role.perms['finance.edit']);
+  return fin && !!part && !!part.approval && part.approval.by !== member.uid;
+}
+
+// ── Automatic steps (workflow step 4) ────────────────────────────────────────
+/** { partsTo: stage a task moves to once all its parts are received ('' = off), tellWaiting, remindDays (0 = off) } */
+export function cleanAutos(a) {
+  a = a && typeof a === 'object' ? a : {};
+  return { partsTo: a.partsTo ? cleanStageId(a.partsTo) : '', tellWaiting: a.tellWaiting === true, remindDays: Math.max(0, Math.min(60, Math.round(Number(a.remindDays) || 0))) };
+}
+/** Tasks whose parts are all in and that should move on to `to`: [{ task, from }]. Never past a sign-off still to give. */
+export function partsReadyMoves(tasks, parts, stages, to, stageOf) {
+  const j = stages.findIndex(s => s.id === to); if (j < 0) return [];
+  const byTask = new Map();
+  (parts || []).filter(p => p.taskId && p.status !== 'cancelled').forEach(p => { const l = byTask.get(p.taskId) || []; l.push(p); byTask.set(p.taskId, l); });
+  const out = [];
+  (tasks || []).forEach(t => {
+    const list = byTask.get(t.id); if (!list || !list.length || t.flag === 'completed') return;
+    if (!list.every(p => p.status === 'received')) return;
+    const from = stageOf(t); const i = stages.findIndex(s => s.id === from); if (i < 0 || i >= j) return;
+    if (gateOnTheWay(t, stages, from, to)) return;
+    out.push({ task: t, from });
+  });
+  return out;
+}
+/** Open tasks that wait on `doneId` (through "waits on"), so their owners can be told. */
+export function waitingOn(tasks, doneIds) {
+  const ids = new Set(doneIds);
+  return (tasks || []).filter(t => t.flag !== 'completed' && (t.dependsOn || []).some(d => ids.has(d)));
+}
+
 /** Extra costs on a part: shipping, VAT, duty, fees, a discount… each a fixed amount or a % of the items. */
 export const EXTRA_LABELS = ['Shipping', 'VAT / tax', 'Import duty', 'Fees', 'Discount', 'Other'];
 export const EXTRA_LIMIT = 10;
