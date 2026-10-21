@@ -867,7 +867,7 @@ button.tx-part:hover { border-color: var(--line-color); }
 .wf-stage label.wf-bit, .wf-stage div.wf-bit { margin: 0; } .wf-stage .wf-more { margin-bottom: 0; } .wf-stage { padding-bottom: 10px; }
 
 /* Team settings: use more of a big screen */
-.modal.settings-modal { max-width: min(1240px, 96vw); max-height: min(960px, 100%); height: 100%; }
+@media (min-width: 641px) { .modal.settings-modal { max-width: min(1240px, 96vw); max-height: min(960px, 100%); height: 100%; } }
 /* Workflow cards, compact: everything for a stage in two short lines */
 .wf-stage { padding: 8px 12px; }
 .wf-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin: 8px 0 2px 24px; }
