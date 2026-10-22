@@ -30,7 +30,9 @@ export function openSettings(ctx, tab = 'general', focusUid = null) {
   if (can(T(), me(), 'members.manage')) {
     invUnsub = ctx.backend.data.watchInvites(s.teamId, (list) => { invites = list; if ((current === 'members' || current === 'plan') && !(pane.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) render(); else { const r = pane.querySelector('#plan-room'); if (r) r.dispatchEvent(new Event('refresh')); } }, (e) => console.warn(e));
   }
-  window.TTSettingsRefresh = () => { if (!ctx.session) { m.close(); return; } if (current === 'subteams' && pane.querySelector('#st-save:not([disabled])')) return; if (!pane.contains(document.activeElement) || current === 'members') render(); };
+  window.TTSettingsRefresh = () => { if (!ctx.session) { m.close(); return; } if (current === 'subteams' && pane.querySelector('#st-save:not([disabled])')) return; const a = document.activeElement; const typing = pane.contains(a) && (a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(a.type)));
+    // Re-draw with the latest team (another device, or a server change like GitHub connect) unless someone is typing here.
+    if (!typing || current === 'members') { const y = pane.scrollTop; render(); pane.scrollTop = y; } };
 
   function render() {
     if (current === 'subteams' && !cleanFeatures(T().features).subteams) current = 'features';

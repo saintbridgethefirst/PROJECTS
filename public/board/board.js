@@ -2358,7 +2358,7 @@
             TT.githubStatus(url).then(st => {
                 if (!st) return;
                 c.classList.remove('gh-loading'); c.classList.add('gh-' + st.state);
-                const word = GH_TEXT[st.state] || (st.note ? 'linked' : '?');
+                const word = GH_TEXT[st.state] || (st.note ? '🔒 linked' : '?');
                 c.textContent = (prefix ? prefix + ' · ' : '') + word + (st.state === 'closed' && st.reason === 'not_planned' ? ' (not planned)' : '') + (withTitle && st.title ? ' — ' + st.title : '');
                 c.title = st.label + (st.title ? ': ' + st.title : '') + (st.note ? ' — ' + st.note : '');
             });

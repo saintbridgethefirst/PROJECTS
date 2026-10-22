@@ -23,6 +23,8 @@ function serverError(e) {
 const field = (label, input) => el('label.field', {}, el('span', {}, label), input);
 export const raiseLink = (teamId) => location.origin + location.pathname + '#/t/' + teamId + '/raise';
 
+/** The webhook address and secret from the last Connect, kept so a re-drawn page still shows them. */
+let lastSetup = null;
 /** Settings ▸ Integrations ▸ GitHub. */
 export function githubSection(ctx, { rerender } = {}) {
   const s = ctx.session; const g = githubOf(s); const edit = can(s.team, s.me, 'team.settings');
@@ -31,7 +33,7 @@ export function githubSection(ctx, { rerender } = {}) {
   async function connect(repo) {
     try {
       const r = await ctx.backend.data.callFunction('githubConnect', { teamId: s.teamId, repo });
-      showSetup(r); toast('Connected to ' + r.repo + '. Now add the webhook on GitHub.', 5000);
+      lastSetup = { ...r, teamId: s.teamId }; if (rerender && setup.isConnected === false) rerender(); else showSetup(r); toast('Connected to ' + r.repo + '. Now add the webhook on GitHub.', 5000);
     } catch (e) { toast(serverError(e), 9000); }
   }
   function showSetup(r) {
@@ -44,6 +46,7 @@ export function githubSection(ctx, { rerender } = {}) {
         el('li', {}, 'Secret: ', el('input.inp.gh-copy', { readonly: true, value: r.secret, id: 'gh-secret', 'aria-label': 'Secret' }), ' ', copyBtn('gh-secret-copy', r.secret), el('div.hint', {}, 'Shown only now. Lost it? Press “New secret” and update the webhook.')),
         el('li', {}, 'Which events: “Let me select individual events”, then tick ', el('b', {}, 'Issues'), ' and ', el('b', {}, 'Pull requests'), '. Add webhook.'))));
   }
+  if (lastSetup && lastSetup.teamId === s.teamId && g.repo && lastSetup.repo === g.repo) showSetup(lastSetup);
   box.append(el('h4', {}, '🐙 GitHub'),
     el('p.hint', {}, 'Connect your team’s repository. A pull request or issue that mentions a task’s reference (like TT-4K2P9Q, shown on every task) is linked to that task by itself, a merged pull request finishes its task, and new issues can become tasks. Nobody pastes links. GitHub sends the events; TeamTrack never gets access to your code.'));
   if (!g.repo) {
@@ -67,7 +70,7 @@ export function githubSection(ctx, { rerender } = {}) {
       el('button.btn.small', { type: 'button', id: 'gh-reconnect', onclick: () => connect(g.repo) }, 'New secret'),
       el('button.btn.small.danger', { type: 'button', id: 'gh-disconnect', onclick: async () => {
         if (!confirm('Disconnect ' + g.repo + '? GitHub events stop arriving; links already on tasks stay.')) return;
-        try { await ctx.backend.data.callFunction('githubConnect', { teamId: s.teamId, disconnect: true }); toast('Disconnected.'); if (rerender) rerender(); } catch (e) { toast(serverError(e), 9000); }
+        try { await ctx.backend.data.callFunction('githubConnect', { teamId: s.teamId, disconnect: true }); lastSetup = null; toast('Disconnected.'); if (rerender) rerender(); } catch (e) { toast(serverError(e), 9000); }
       } }, 'Disconnect'), el('span.spacer'), save) : '',
     setup,
     tokenBox(ctx, g, edit, rerender),
@@ -166,27 +169,28 @@ export async function reopenIssue(ctx, task, number) {
   catch (e) { toast(serverError(e), 9000); }
 }
 
-/** Demo only: pretend GitHub sent an event. */
+/** Demo only: pretend GitHub sent an event. (State kept across re-draws of the page.) */
+const sim = { taskId: '', out: '', n: 40 };
 function simulateBox(ctx) {
   const s = ctx.session; const g = githubOf(s);
   const open = (s.tasks || []).filter(t => t.flag !== 'completed');
-  const pick = el('select', { id: 'gh-sim-task', 'aria-label': 'Task the pull request is for' }, open.slice(0, 200).map(t => el('option', { value: t.id }, refOf(t) + ' · ' + t.name)));
-  const out = el('div.hint', { id: 'gh-sim-out' });
-  let n = 40;
+  const pick = el('select', { id: 'gh-sim-task', 'aria-label': 'Task the pull request is for', onchange: (e) => { sim.taskId = e.target.value; } }, open.slice(0, 200).map(t => el('option', { value: t.id, selected: t.id === sim.taskId }, refOf(t) + ' · ' + t.name)));
+  const out = el('div.hint', { id: 'gh-sim-out' }, sim.out);
   const send = async (kind, payload) => {
     try {
       const r = await ctx.backend.data.callFunction('githubSimulate', { teamId: s.teamId, kind, payload: { repository: { full_name: g.repo }, ...payload } });
-      out.textContent = 'GitHub → TeamTrack: ' + [r.links ? r.links + ' linked' : '', r.finished ? r.finished + ' finished' : '', r.created ? 'a task made' : '', r.why].filter(Boolean).join(' · ');
+      sim.out = 'GitHub → TeamTrack: ' + [r.links ? r.links + ' linked' : '', r.finished ? r.finished + ' finished' : '', r.created ? 'a task made' : '', r.why].filter(Boolean).join(' · ');
+      const o = document.getElementById('gh-sim-out'); if (o) o.textContent = sim.out;
     } catch (e) { toast(friendlyError(e), 6000); }
   };
-  const pr = (merged) => { const t = open.find(x => x.id === pick.value); if (!t) return; n++;
+  const pr = (merged) => { const t = open.find(x => x.id === (sim.taskId || pick.value)); if (!t) return; const n = ++sim.n;
     const url = 'https://github.com/' + g.repo + '/pull/' + n; const ref = refOf(t);
     send('pull_request', { action: 'opened', pull_request: { number: n, title: 'Work on ' + t.name, body: '', html_url: url, head: { ref: branchName(refIdOf(t), t.name) }, merged: false } })
       .then(() => merged && send('pull_request', { action: 'closed', pull_request: { number: n, title: 'Work on ' + t.name + ' (' + ref + ')', body: '', html_url: url, head: { ref: 'main' }, merged: true } }));
   };
   return el('div.banner.gh-sim', { id: 'gh-sim' }, el('b', {}, 'Try it (demo): pretend GitHub sends an event'),
     el('div.row', { style: { gap: '8px', flexWrap: 'wrap', marginTop: '8px' } },
-      el('button.btn.small', { type: 'button', id: 'gh-sim-issue', onclick: () => { n++; send('issues', { action: 'opened', issue: { number: n, title: 'Battery connector gets hot', body: 'Seen on the bench test.', html_url: 'https://github.com/' + g.repo + '/issues/' + n } }); } }, 'A new issue arrives'),
+      el('button.btn.small', { type: 'button', id: 'gh-sim-issue', onclick: () => { const n = ++sim.n; send('issues', { action: 'opened', issue: { number: n, title: 'Battery connector gets hot', body: 'Seen on the bench test.', html_url: 'https://github.com/' + g.repo + '/issues/' + n } }); } }, 'A new issue arrives'),
       pick, el('button.btn.small', { type: 'button', id: 'gh-sim-pr', onclick: () => pr(false) }, 'A pull request opens for it'),
       el('button.btn.small', { type: 'button', id: 'gh-sim-merge', onclick: () => pr(true) }, '…and is merged')), out);
 }
