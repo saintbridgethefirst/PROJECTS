@@ -400,7 +400,7 @@ export const data = {
     const T = store.teams[teamId]; if (!T) return;
     // Same order as production: sub-documents, then the owner's membership, then the team doc.
     const ops = [];
-    ['templates', 'comments', 'meetings', 'whiteboards', 'wbItems', 'notebook', 'parts', 'papers', 'expenses', 'finance', 'financeLog', 'requests', 'profiles', 'risks', 'requirements', 'tasks', 'categories', 'invites'].forEach(c => Object.keys(T[c] || {}).forEach(id => ops.push({ type: 'delete', path: c + '/' + id })));
+    ['templates', 'comments', 'meetings', 'whiteboards', 'wbItems', 'notebook', 'parts', 'papers', 'expenses', 'finance', 'financeLog', 'requests', 'profiles', 'presence', 'risks', 'requirements', 'tasks', 'categories', 'invites'].forEach(c => Object.keys(T[c] || {}).forEach(id => ops.push({ type: 'delete', path: c + '/' + id })));
     Object.keys(T.members).filter(u => T.members[u].roleId !== 'owner').forEach(u => ops.push({ type: 'delete', path: 'members/' + u }));
     Object.keys(T.members).filter(u => T.members[u].roleId === 'owner').forEach(u => ops.push({ type: 'delete', path: 'members/' + u }));
     ops.push({ type: 'delete', path: 'team' });

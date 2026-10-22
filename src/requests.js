@@ -64,7 +64,7 @@ export function approveLeave(ctx, req) {
       const names = Object.fromEntries(s.members.map(x => [x.uid, x.name || x.email]));
       const ops = handOverOps(s.tasks, s.categories || [], { uid: who.uid, name: who.name || who.email }, plan, { name: myName(ctx), names });
       ops.push({ type: 'update', path: 'team', data: { former: { ...(s.team.former || {}), [who.uid]: { name: (who.name || who.email || '').slice(0, 80), leftAt: Date.now() } } } },
-        { type: 'delete', path: 'members/' + who.uid }, { type: 'delete', path: 'requests/' + req.id });
+        { type: 'delete', path: 'members/' + who.uid }, { type: 'delete', path: 'presence/' + who.uid }, { type: 'delete', path: 'requests/' + req.id });
       if (await ctx.writeOps(ops)) { m.close(); toast((who.name || who.email) + ' has left' + (open.length ? '; their tasks were handed on.' : '.'), 5000); }
     } }, 'Approve and remove'));
 }

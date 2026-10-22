@@ -565,7 +565,7 @@
                                 }
                                 else domEl.innerText = activeNode.name;
                             }
-                        } else { render(); }
+                        } else { clearTimeout(window.__ttTypeRender); window.__ttTypeRender = setTimeout(() => { if (document.activeElement === e.target) render(); }, 450); }
                     });
                     el.addEventListener('change', (e) => { 
                         if(e.target.dataset.original !== e.target.value) {
@@ -817,7 +817,7 @@
         
         
         function closeEditor() {
-            activeNode = null;
+            activeNode = null; if (window.TT && TT.lookingAt) TT.lookingAt('');
             const f = document.getElementById('edit-form'); if (f) { f.style.display = 'none'; f.innerHTML = ''; }
             const n = document.getElementById('no-selection'); if (n) n.style.display = 'block';
         }
@@ -1659,6 +1659,7 @@
         // ---------- Editor panel ----------
         const ICON_CHOICES = ['🔧', '⚙️', '🤖', '📐', '🧪', '📊', '📝', '💡', '🚀', '🎯', '⚡', '🔌', '🖥️', '📦', '🧠', '📷'];
         function openEditor(nodeData) {
+            if (TT.lookingAt) TT.lookingAt(nodeData && (!nodeData.type || nodeData.type === 'task') ? nodeData.id : '');
             if (nodeData.type === 'person') return openPersonPanel(nodeData);
             _openEditorBase(nodeData);
             const form = document.getElementById('edit-form'); if (!form) return;
@@ -3248,6 +3249,7 @@
             { const nc = document.getElementById('nodes-container'); if (nc) nc.classList.toggle('big-board', nc.children.length > 40); }
             markSubteams();
             fitCategoryLabels();
+            if (window.TTPresencePaint) window.TTPresencePaint();
             renderSubteamBar();
             if (boardView === 'kanban') renderKanban();
             if (boardView === 'gantt') renderGantt();

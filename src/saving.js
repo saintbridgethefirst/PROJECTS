@@ -18,6 +18,18 @@ export function setSyncStatus(app, state, why) {
   // Saving for a while → probably a slow or broken connection: say so after a few seconds.
   if (st === 'saving' && !s.slowTimer) s.slowTimer = setTimeout(() => { s.slowTimer = null; if (app.session === s) { s.slow = true; netPill(s, 'saving'); } }, SLOW_SAVE_MS);
   if (st !== 'saving') { clearTimeout(s.slowTimer); s.slowTimer = null; s.slow = false; }
+  // A save that takes a moment shows a small "Saving…" so people know it's working, then "Saved".
+  const chip = $('#save-chip');
+  if (chip) {
+    if (st === 'saving' && !s.chipTimer && !chip.classList.contains('on')) s.chipTimer = setTimeout(() => { s.chipTimer = null; if (app.session === s && s.pending > 0) { chip.className = 'save-chip on'; chip.textContent = 'Saving…'; } }, 600);
+    if (st !== 'saving') {
+      clearTimeout(s.chipTimer); s.chipTimer = null;
+      if (chip.classList.contains('on') && !chip.classList.contains('done')) {
+        chip.className = st === 'saved' ? 'save-chip on done' : 'save-chip'; chip.textContent = st === 'saved' ? '✓ Saved' : '';
+        clearTimeout(chip._t); chip._t = setTimeout(() => { chip.className = 'save-chip'; chip.textContent = ''; }, 1400);
+      }
+    }
+  }
   netPill(s, st);
 }
 const SLOW_SAVE_MS = 5000;

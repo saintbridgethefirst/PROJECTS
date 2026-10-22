@@ -12,6 +12,12 @@ const overrides = fs.readFileSync(new URL('./board-overrides.js', import.meta.ur
 
 // 1) Text patches inside code we keep (each must match exactly once).
 const patches = [
+  // Closing the editor: you're no longer looking at that task (Who's here)
+  ["        function closeEditor() {\n            activeNode = null;",
+   "        function closeEditor() {\n            activeNode = null; if (window.TT && TT.lookingAt) TT.lookingAt('');"],
+  // Typing a status or reference: redraw the board once you pause, not on every key (no jitter)
+  ["                        } else { render(); }",
+   "                        } else { clearTimeout(window.__ttTypeRender); window.__ttTypeRender = setTimeout(() => { if (document.activeElement === e.target) render(); }, 450); }"],
   // Configurable labels on cards
   ["let flagBadge = ''; let jiraBadge = task.jiraId && !task.isGhost ?",
    "let flagBadge = ''; let jiraBadge = task.jiraId && !task.isGhost && TT.label('jiraId').show ?"],

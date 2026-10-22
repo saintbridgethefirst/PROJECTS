@@ -835,3 +835,26 @@ test('currency: the team’s own, else the budget’s, else pounds; a first gues
   assert.equal(guessCurrency('en-GB'), 'GBP'); assert.equal(guessCurrency('de-DE'), 'EUR'); assert.equal(guessCurrency('hi-IN'), 'INR'); assert.equal(guessCurrency('de-CH'), 'CHF'); assert.equal(guessCurrency('en'), 'GBP');
   assert.ok(formatMoney(12.5, 'EUR', 'en-GB').includes('€'));
 });
+
+test('Pro Education stays with the student owner; deleting old tasks and leaving need approval', async () => {
+  const { planOf } = await import('../src/model.js');
+  const { deleteNeedsApproval } = await import('../src/permissions.js');
+  const { proActive } = await import('../functions/lib.js');
+  const plan = { tier: 'pro', edu: true, until: Date.now() + 864e5, by: 'stu' };
+  assert.equal(planOf({ ownerUid: 'stu', plan }).tier, 'pro');
+  assert.equal(planOf({ ownerUid: 'boss', plan }).tier, 'free', 'handed to someone else: back to Free');
+  assert.equal(planOf({ ownerUid: 'boss', plan: { ...plan, edu: false } }).tier, 'pro', 'a paid plan stays');
+  assert.equal(proActive(plan, Date.now(), 'boss'), false); assert.equal(proActive(plan, Date.now(), 'stu'), true);
+  const team = { roles: DEFAULT_ROLES };
+  const mem = { uid: 'm', roleId: 'member' }, adm = { uid: 'a', roleId: 'admin' };
+  assert.equal(deleteNeedsApproval(team, mem, { createdBy: 'm', createdAt: Date.now() - 1000 }), false, 'my own, made just now');
+  assert.equal(deleteNeedsApproval(team, mem, { createdBy: 'm', createdAt: Date.now() - 2 * 864e5 }), true, 'older: ask');
+  assert.equal(deleteNeedsApproval(team, mem, { createdBy: 'x', createdAt: Date.now() - 1000 }), true, 'someone else’s: ask');
+  assert.equal(deleteNeedsApproval(team, adm, { createdBy: 'x', createdAt: 1 }), false, 'admins delete');
+  assert.equal(deleteNeedsApproval(team, mem, { name: 'unsaved' }), false, 'not saved yet');
+});
+
+test('importer reads other apps’ exports (Asana, Planner, ClickUp column names)', async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('../src/importer.js', import.meta.url), 'utf8');
+  for (const name of ['section/column', 'bucket name', 'assignee email', 'completed at', 'due on']) assert.ok(src.includes("'" + name + "'"), name);
+});

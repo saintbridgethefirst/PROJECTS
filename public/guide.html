@@ -286,6 +286,9 @@ section.block { padding: 72px 0; }
 .matrix th, .matrix td { padding: 11px 12px; text-align: center; border-bottom: 1.5px solid var(--line); }
 .matrix th { font: 700 13px var(--display); background: var(--paper-2); color: var(--ink); }
 .matrix th:first-child, .matrix td:first-child { text-align: left; }
+.matrix.compare tr.grp td { background: var(--paper-2); font: 800 12px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: left; }
+.matrix.compare th small { font-weight: 600; color: var(--muted); }
+.matrix .soon { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; border: 1.5px dashed var(--line); color: var(--muted); }
 .matrix td:first-child { font-weight: 600; color: var(--ink); }
 .matrix td:first-child small { display: block; font-weight: 500; color: var(--muted); font-size: 12.5px; }
 .matrix tr:last-child td { border-bottom: 0; }
@@ -359,7 +362,7 @@ footer a { color: var(--ink-2); }
   <div class="wrap">
     <a class="logo" href="./"><img src="icons/logo-96.png" alt=""><span>TeamTrack</span><small>GUIDE</small></a>
     <nav class="toc" aria-label="Sections">
-      <a href="#start">Quick start</a><a href="#board">The board</a><a href="#weeks">Weeks</a><a href="#tasks">Tasks</a><a href="#views">Views</a><a href="#tools">Tools</a><a href="#roles">Roles</a><a href="#sync">Stay in sync</a><a href="#plans">Plans</a><a href="#faq">FAQ</a>
+      <a href="#start">Quick start</a><a href="#board">The board</a><a href="#weeks">Weeks</a><a href="#tasks">Tasks</a><a href="#views">Views</a><a href="#tools">Tools</a><a href="#roles">Roles</a><a href="#sync">Stay in sync</a><a href="#plans">Plans</a><a href="#compare">Compare</a><a href="#faq">FAQ</a>
     </nav>
     <a class="btn primary" href="./">Open TeamTrack →</a>
   </div>
@@ -694,6 +697,54 @@ footer a { color: var(--ink-2); }
   </div>
 </section>
 
+<!-- ═══ Feature chart ═══ -->
+<section class="block" id="compare">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">✓</span><div><h2>Every feature, side by side</h2><p>What each plan includes. Pro Education (free with a university email) includes everything in Pro.</p></div></div>
+    <div class="matrix-wrap">
+    <table class="matrix compare">
+      <thead><tr><th>Feature</th><th>Free</th><th>Pro<br><small>Pro Education free</small></th><th>Organisation</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="4">People and teams</td></tr>
+        <tr><td>People per team</td><td>30</td><td>100</td><td>500</td></tr>
+        <tr><td>Teams you can own</td><td>5</td><td>Unlimited</td><td>Unlimited</td></tr>
+        <tr><td>Roles and permissions, enforced by the server</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Sub-teams with leads</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Who’s online, busy / free status</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Leaving and deleting need an admin’s approval</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr class="grp"><td colspan="4">Planning and views</td></tr>
+        <tr><td>Board, Kanban and Gantt</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Analytics, timeline, burndown and workload</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Weeks on your own calendar, weekly metric</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Whiteboards with task cards</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr class="grp"><td colspan="4">Workflow</td></tr>
+        <tr><td>Custom stages, checklists and sign-offs</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Purchase approvals over a limit</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Automatic steps (parts in, waiting tasks, reminders)</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>GitHub: references, links, live issue state</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr class="grp"><td colspan="4">Tools</td></tr>
+        <tr><td>Meetings, lab notebook, literature</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Parts, budget and finance in your currency</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Risk register and requirements</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Import from Excel, Jira, Trello, Asana, Planner…</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr class="grp"><td colspan="4">Pro</td></tr>
+        <tr><td>Email @mentions and the Monday digest</td><td><span class="no">—</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Full change history (finance beyond 90 days)</td><td><span class="no">—</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Supervisor and sponsor view (read-only link)</td><td><span class="no">—</span></td><td><span class="soon">Soon</span></td><td><span class="soon">Soon</span></td></tr>
+        <tr><td>Bill of materials, mass budget, document control</td><td><span class="no">—</span></td><td><span class="soon">Soon</span></td><td><span class="soon">Soon</span></td></tr>
+        <tr class="grp"><td colspan="4">Organisation</td></tr>
+        <tr><td>Single sign-on (Microsoft / Google)</td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="soon">Soon</span></td></tr>
+        <tr><td>Admin console across teams</td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="soon">Soon</span></td></tr>
+        <tr><td>Signed data agreement, UK data residency</td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="soon">Soon</span></td></tr>
+        <tr class="grp"><td colspan="4">Safety</td></tr>
+        <tr><td>Daily and weekly backups of the whole service</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        <tr><td>Data kept in London (europe-west2), UK GDPR</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
 <!-- ═══ 10 Shortcuts ═══ -->
 <section class="block" id="keys">
   <div class="wrap">
@@ -739,7 +790,8 @@ footer a { color: var(--ink-2); }
 </section>
 </main>
 
-<footer><div class="wrap"><span>TeamTrack · part of the TRAWPIE suite</span><span><a href="./">App</a> · <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></span></div></footer>
+<footer id="site-footer"></footer>
+<script src="footer.js" defer></script>
 
 <script>
 (function () {

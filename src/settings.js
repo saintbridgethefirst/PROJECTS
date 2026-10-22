@@ -40,7 +40,9 @@ export function openSettings(ctx, tab = 'general', focusUid = null) {
     if (current === 'subteams' && !cleanFeatures(T().features).subteams) current = 'features';
     // Members and Roles are for people who manage them; everyone else sees the team on the board itself
     const shown = TABS.filter(([k]) => (k !== 'danger' || me().roleId === 'owner') && (k !== 'subteams' || cleanFeatures(T().features).subteams)
-      && (k !== 'members' || can(T(), me(), 'members.manage')) && (k !== 'roles' || can(T(), me(), 'roles.manage')));
+      && (k !== 'members' || can(T(), me(), 'members.manage')) && (k !== 'roles' || can(T(), me(), 'roles.manage'))
+      // switches only owners and admins can change: others just see the result on the board
+      && (!['features', 'workflow', 'fields', 'integrations'].includes(k) || can(T(), me(), 'team.settings')));
     if (!shown.some(([k]) => k === current)) current = 'general';
     nav.replaceChildren(...shown
       .map(([k, label]) => el('button' + (k === current ? '.on' : ''), { type: 'button', onclick: () => { current = k; render(); } }, label)));
@@ -114,13 +116,17 @@ function plan(pane, ctx, { invites, rerender } = {}) {
     const owners = s.members.filter(m => ['owner', 'admin'].includes(m.roleId)).map(m => m.name || m.email);
     const note = el('input.inp', { id: 'plan-ask-note', maxlength: 300, placeholder: 'Why the team needs it (optional)' });
     pane.append(el('section.plan-member', {}, el('h4', {}, 'Want Pro for this team?'),
-      el('p.hint', {}, 'Only the team’s owner and admins can change the plan (' + owners.join(', ') + '). Students with a university email can switch on Pro Education free.'),
+      el('p.hint', {}, 'Only the team’s owner and admins can change the plan (' + owners.join(', ') + '). An owner with a university email can switch on Pro Education free.'),
       mine ? el('p', { id: 'plan-asked' }, '🙋 You asked on ' + fmtDay(mine.at) + '. ', el('button.link-btn', { type: 'button', onclick: async () => { if (await TT.dismissAsk(ctx.user.uid)) rerender && rerender(); } }, 'Withdraw'))
         : el('div.row', { style: { gap: '8px', flexWrap: 'wrap' } }, note, el('button.btn', { type: 'button', id: 'plan-ask-admins', onclick: async () => { if (await TT.askForPro(note.value)) { toast('Asked the owner and admins.'); rerender && rerender(); } } }, 'Ask them'))));
   }
   // Students and staff: a verified university email turns on free Pro Education straight away.
   const eduSoon = P.tier === 'pro' && P.edu && P.until && P.until - Date.now() < 30 * 864e5;
-  if ((P.tier === 'free' || eduSoon) && settings) {
+  if ((P.tier === 'free' || eduSoon) && settings && s.me.roleId !== 'owner') {
+    pane.append(el('section.plan-edu', {}, el('h4', {}, '🎓 Free for students and university staff'),
+      el('p.hint', { id: 'plan-edu-owner' }, 'Pro Education is switched on by the team’s owner, with their university email. It stays with them: if the team is handed to someone else, it goes back to Free until the new owner turns it on.')));
+  }
+  if ((P.tier === 'free' || eduSoon) && settings && s.me.roleId === 'owner') {
     const claim = TT.eduClaim; const thisTeam = claim.teams.includes(s.teamId); const left = claim.limit - claim.teams.length;
     const sec = el('section.plan-edu', {}, el('h4', {}, '🎓 Free for students and university staff'));
     if (TT.academic) {

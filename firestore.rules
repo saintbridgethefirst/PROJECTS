@@ -400,7 +400,8 @@ service cloud.firestore {
         && request.resource.data.ownerUid == request.auth.uid
         && (!('plan' in request.resource.data) || request.resource.data.plan.tier == 'free');
       // Students and staff with a verified university email turn on free Pro Education (up to 400 days at a time).
-      allow update: if academic() && ownerOrAdmin(t)
+      // Only the team's OWNER (not an admin or member) can, so a student can't be invited just to unlock it.
+      allow update: if academic() && isMember(t) && myRole(t) == 'owner'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['plan'])
         && validPlan(request.resource.data.plan) && request.resource.data.plan.tier == 'pro' && request.resource.data.plan.edu == true
         && request.resource.data.plan.by == request.auth.uid && request.resource.data.plan.until > request.time.toMillis()
@@ -560,6 +561,17 @@ service cloud.firestore {
         allow delete: if isMember(t) && (resource.data.createdBy == request.auth.uid || can(t, 'team.settings'));
       }
       // Each member's working profile (hours a week, skills, time off): they edit their own; member managers edit anyone's.
+      // Who's here: each person writes only their own (online heartbeat, status, the task they have open).
+      match /presence/{uid} {
+        allow read: if isMember(t);
+        allow create, update: if isMember(t) && uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['at', 'state', 'note', 'until', 'taskId'])
+          && request.resource.data.at is number && request.resource.data.at <= request.time.toMillis() + 120000
+          && request.resource.data.state in ['', 'free', 'busy', 'away']
+          && request.resource.data.note is string && request.resource.data.note.size() <= 80
+          && request.resource.data.until is number && request.resource.data.taskId is string && request.resource.data.taskId.size() <= 64;
+        allow delete: if isMember(t) && (uid == request.auth.uid || can(t, 'members.manage'));
+      }
       match /profiles/{uid} {
         allow read: if isMember(t);
         allow create, update: if isMember(t) && (uid == request.auth.uid || can(t, 'members.manage')) && validProfile(request.resource.data);
@@ -621,10 +633,13 @@ service cloud.firestore {
 
       match /tasks/{task} {
         allow read: if isMember(t);
+        // who made it and when can't be forged or changed later (deleting without approval depends on them)
         allow create: if canEditOwned(t, request.resource.data.ownerUid) && validTask(request.resource.data)
+          && request.resource.data.get('createdBy', '') == request.auth.uid && request.resource.data.get('createdAt', 0) <= request.time.toMillis() + 300000
           && getAfter(/databases/$(database)/documents/teams/$(t)/categories/$(request.resource.data.categoryId)).data.ownerUid == request.resource.data.ownerUid;
         allow update: if ((canEditOwned(t, resource.data.ownerUid)
           && canEditOwned(t, request.resource.data.ownerUid) && validTask(request.resource.data)
+          && request.resource.data.get('createdBy', '') == resource.data.get('createdBy', '') && request.resource.data.get('createdAt', 0) == resource.data.get('createdAt', 0)
           && getAfter(/databases/$(database)/documents/teams/$(t)/categories/$(request.resource.data.categoryId)).data.ownerUid == request.resource.data.ownerUid)
           || signoffDecision(t)) && signoffGates(t);
         // Deleting: those who edit everyone's tasks; others only a task they made in the last day (anything older is asked for)

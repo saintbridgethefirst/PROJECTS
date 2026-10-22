@@ -193,6 +193,7 @@
         // ---------- Editor panel ----------
         const ICON_CHOICES = ['🔧', '⚙️', '🤖', '📐', '🧪', '📊', '📝', '💡', '🚀', '🎯', '⚡', '🔌', '🖥️', '📦', '🧠', '📷'];
         function openEditor(nodeData) {
+            if (TT.lookingAt) TT.lookingAt(nodeData && (!nodeData.type || nodeData.type === 'task') ? nodeData.id : '');
             if (nodeData.type === 'person') return openPersonPanel(nodeData);
             _openEditorBase(nodeData);
             const form = document.getElementById('edit-form'); if (!form) return;
@@ -1782,6 +1783,7 @@
             { const nc = document.getElementById('nodes-container'); if (nc) nc.classList.toggle('big-board', nc.children.length > 40); }
             markSubteams();
             fitCategoryLabels();
+            if (window.TTPresencePaint) window.TTPresencePaint();
             renderSubteamBar();
             if (boardView === 'kanban') renderKanban();
             if (boardView === 'gantt') renderGantt();

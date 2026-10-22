@@ -86,8 +86,9 @@ try {
   await A.click('#top-actions button:has-text("Invite")'); await A.fill('.settings-pane textarea', 'tom@uni.ac.uk'); await A.click('.settings-pane button:has-text("Invite")'); await sleep(200); await A.keyboard.press('Escape');
   const B = await tab('Tom'); await signIn(B, 'Tom Reed', 'tom@uni.ac.uk');
   await B.click('#invites-list button:has-text("Join team")'); await B.waitForSelector('.node-cat'); await sleep(500);
-  await openFeatures(B);
-  ok(await B.locator('.feature-card input:disabled').count() === 12, 'switches are disabled for a member');
+  await B.evaluate(() => TT.openSettings('features')); await B.waitForSelector('.settings-nav'); await sleep(200);
+  const tabs = await B.evaluate(() => [...document.querySelectorAll('.settings-nav button')].map(b => b.textContent));
+  ok(!tabs.includes('Features') && !tabs.includes('Workflow') && !tabs.includes('Integrations'), 'a member doesn’t see the Features, Workflow or Integrations settings: ' + tabs.join(', '));
   await B.keyboard.press('Escape'); await sleep(200);
 
   step('People: hours, skills, time off, heatmap');

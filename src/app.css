@@ -930,3 +930,50 @@ button.tx-part:hover { border-color: var(--line-color); }
 .leave-pending { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 .so-badge.rq-leave { background: color-mix(in srgb, #d69e2e 22%, transparent); color: #b7791f; }
 .so-badge.rq-del { background: color-mix(in srgb, #e53e3e 18%, transparent); color: #c53030; }
+
+/* "Saving…" / "✓ Saved" for saves that take a moment */
+.save-chip { position: fixed; right: 16px; bottom: 16px; z-index: 9000; display: none; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
+  background: var(--bg-panel, #1a2030); color: var(--text-muted, #9aa); border: 1px solid var(--border-color, #334); box-shadow: 0 6px 20px rgba(0,0,0,.18); pointer-events: none; }
+.save-chip.on { display: inline-flex; }
+.save-chip.on:not(.done)::before { content: ''; width: 11px; height: 11px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: save-spin .8s linear infinite; }
+.save-chip.done { color: var(--ok, #38a169); }
+@keyframes save-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .save-chip.on:not(.done)::before { animation: none; } }
+
+/* Who's here */
+.online-btn { gap: 6px; }
+.online-faces { display: inline-flex; }
+.online-faces .avatar { width: 22px; height: 22px; font-size: 9.5px; margin-left: -6px; border: 2px solid var(--bg-panel, #1a2030); }
+.online-faces .avatar:first-child { margin-left: 0; }
+.online-count { font-size: 11px; font-weight: 800; color: var(--text-muted); }
+.online-face { position: relative; overflow: visible !important; }
+.online-face.pr-free::after, .online-face.pr-busy::after, .online-face.pr-away::after { content: ''; position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--bg-panel, #1a2030); }
+.pr-free::after, .pr-dot.pr-free { background: #2f9e57; }
+.pr-busy::after, .pr-dot.pr-busy { background: #e53e3e; }
+.pr-away::after, .pr-dot.pr-away { background: #d69e2e; }
+.pr-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+.pr-dot.pr-auto { background: transparent; border: 2px solid var(--text-muted); width: 6px; height: 6px; }
+.pr-choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.pr-choice { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.pr-choice.on { border-color: var(--line-color); box-shadow: 0 0 0 2px color-mix(in srgb, var(--line-color) 30%, transparent); }
+.pr-list { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow: auto; }
+.pr-row { display: flex; align-items: flex-start; gap: 10px; }
+.pr-row .avatar { width: 30px; height: 30px; flex: none; }
+.pr-who { display: flex; flex-direction: column; min-width: 0; }
+.pr-who .hint { overflow-wrap: anywhere; }
+.pr-task { text-align: left; font-size: 12.5px; }
+/* people's rows on the board, and cards someone else has open */
+.node-person[data-presence] .avatar-circle { position: relative; }
+.node-person[data-presence] .avatar-circle::after { content: ''; position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--bg-panel, #1a2030); background: #8892a6; }
+.node-person[data-presence="free"] .avatar-circle::after { background: #2f9e57; }
+.node-person[data-presence="busy"] .avatar-circle::after { background: #e53e3e; }
+.node-person[data-presence="away"] .avatar-circle::after { background: #d69e2e; }
+.node-person[data-presence="off"] .avatar-circle::after { display: none; }
+.task-card .viewers { position: absolute; top: -9px; left: 12px; display: inline-flex; pointer-events: auto; }
+.task-card .viewers .avatar { width: 20px; height: 20px; font-size: 9px; margin-left: -5px; border: 2px solid var(--line-color); }
+.task-card .viewers .avatar:first-child { margin-left: 0; }
+
+/* Site footer (public/footer.js): under the sign-in screen and the home screen only */
+#auth-screen[hidden] + .auth-footer { display: none; }
+.auth-footer { --sf-bg: var(--bg-main); }
+#auth-screen:not([hidden]) { min-height: calc(100vh - 1px); }

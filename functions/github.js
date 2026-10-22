@@ -59,6 +59,12 @@ export async function handleWebhook(db, { teamId, kind, signature, rawBody, deli
   if (!signatureOk(priv.data().secret, rawBody, signature)) return { status: 401, body: 'Bad signature: check the webhook secret.' };
   let payload; try { payload = JSON.parse(rawBody.toString('utf8')); } catch { return { status: 400, body: 'Send the webhook as application/json.' }; }
   const teamSnap = await db.doc('teams/' + teamId).get(); const team = teamSnap.data() || {};
+  // Only issues and pull requests change tasks: anything else (pushes, stars, ping…) is noted without reading the tasks.
+  if (!['issues', 'pull_request'].includes(kind)) {
+    const act = String((payload && payload.action) || '').slice(0, 40);
+    await teamSnap.ref.update({ 'github.last': { at: Date.now(), kind: String(kind).slice(0, 40), action: act, links: 0, finished: 0, created: 0, ok: true } });
+    return { status: 200, body: { kind, why: kind === 'ping' ? 'ping' : 'Not an issue or pull request: nothing to do.' } };
+  }
   const weekIdx = new Map((team.weeks || []).map((w, i) => [w.key, i]));
   const taskSnap = await db.collection('teams/' + teamId + '/tasks').get();
   let tasks = taskSnap.docs.map(d => ({ ...d.data(), id: d.id, weekIdx: weekIdx.has(d.data().weekId) ? weekIdx.get(d.data().weekId) : -1 }));

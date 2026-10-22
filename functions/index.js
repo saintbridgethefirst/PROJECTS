@@ -120,7 +120,7 @@ export const emailMentions = onDocumentCreated({ document: 'teams/{teamId}/comme
   const uids = [...new Set((c.mentions || []).filter(u => typeof u === 'string' && u && u !== c.authorUid))].slice(0, 20);
   if (!uids.length) return;
   const team = (await db.doc('teams/' + teamId).get()).data();
-  if (!team || !proActive(team.plan)) return;
+  if (!team || !proActive(team.plan, Date.now(), team.ownerUid)) return;
   const task = c.taskId ? (await db.doc('teams/' + teamId + '/tasks/' + c.taskId).get()).data() : null;
   await Promise.all(uids.map(async (uid) => {
     const [m, u] = await Promise.all([db.doc('teams/' + teamId + '/members/' + uid).get(), db.doc('users/' + uid).get()]);
@@ -133,7 +133,7 @@ export const emailMentions = onDocumentCreated({ document: 'teams/{teamId}/comme
 /** Every Monday 08:00 UK time: each person's overdue and upcoming tasks across their Pro teams. */
 export const mondayDigest = onSchedule({ schedule: '0 8 * * 1', timeZone: 'Europe/London', region: REGION, secrets: [RESEND_API_KEY], timeoutSeconds: 540, maxInstances: 1 }, async () => {
   const now = Date.now(); const today = new Date(now).toLocaleDateString('en-CA', { timeZone: 'Europe/London' });
-  const teams = (await db.collection('teams').where('plan.tier', 'in', ['pro', 'org']).get()).docs.filter(d => proActive(d.data().plan, now));
+  const teams = (await db.collection('teams').where('plan.tier', 'in', ['pro', 'org']).get()).docs.filter(d => proActive(d.data().plan, now, d.data().ownerUid));
   const people = new Map();   // uid → { email, name, teams: [] }
   for (const t of teams) {
     const [members, tasks] = await Promise.all([db.collection('teams/' + t.id + '/members').get(), db.collection('teams/' + t.id + '/tasks').where('flag', '!=', 'completed').get()]);
@@ -280,6 +280,7 @@ export const githubConnect = onCall({ region: REGION, invoker: 'public', maxInst
 }));
 /** GitHub calls this for every issue and pull-request event in a connected repository. */
 export const githubWebhook = onRequest({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30, cors: false }, async (req, res) => {
+  if (req.method === 'GET') { res.status(200).send('TeamTrack GitHub webhook is running (send events with POST)'); return; }   // for uptime checks
   if (req.method !== 'POST') { res.status(405).send('POST only'); return; }
   try {
     const r = await handleWebhook(db, { teamId: req.query.team, kind: req.get('X-GitHub-Event') || '', signature: req.get('X-Hub-Signature-256') || '', rawBody: req.rawBody, delivery: req.get('X-GitHub-Delivery') || '' });

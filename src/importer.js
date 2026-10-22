@@ -1,5 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  Import tasks from: Excel / CSV tables, Jira (CSV export), Trello (JSON
+//  Import tasks from: Excel / CSV tables (incl. Asana, ClickUp, Monday.com,
+//  Microsoft Planner, Notion and Google Sheets exports), Jira (CSV export), Trello (JSON
 //  export), the old single-user tracker (JSON backup or its Excel file), the
 //  analytics export, or a Google collection sheet. Rows are previewed first;
 //  nothing changes until you confirm.
@@ -8,17 +9,17 @@ import { el, toast, modal, pickFile } from './ui.js';
 
 const PRIORITY_WORDS = { minor: 'Minor', low: 'Minor', lowest: 'Minor', trivial: 'Minor', p3: 'Minor', p4: 'Minor', p5: 'Minor', major: 'Major', medium: 'Major', normal: 'Major', p2: 'Major', critical: 'Critical', high: 'Critical', p1: 'Critical', blocker: 'Blocker', urgent: 'Blocker', highest: 'Blocker', p0: 'Blocker' };
 const ALIASES = {
-  owner: ['owner', 'owner email', 'owner (email or name)', 'person', 'assignee', 'assigned to', 'team member', 'member', 'email'],
-  task: ['task', 'title', 'task title', 'task name', 'name', 'summary'],
-  category: ['category', 'type', 'workstream', 'area', 'group', 'epic', 'epic link', 'epic name', 'parent summary', 'component/s', 'components', 'issue type', 'list'],
+  owner: ['owner', 'owner email', 'owner (email or name)', 'person', 'assignee', 'assignee email', 'assigned to', 'assignees', 'team member', 'member', 'email', 'people', 'responsible'],
+  task: ['task', 'title', 'task title', 'task name', 'name', 'summary', 'item', 'item name', 'card name'],
+  category: ['category', 'type', 'workstream', 'area', 'group', 'epic', 'epic link', 'epic name', 'parent summary', 'component/s', 'components', 'issue type', 'list', 'section', 'section/column', 'column', 'bucket', 'bucket name', 'project', 'projects', 'folder', 'board', 'labels', 'tags'],
   week: ['week', 'sprint', 'week (title or monday date yyyy-mm-dd)'],
   weekStart: ['week start', 'week starting', 'week start date'],
   priority: ['priority'],
-  deadline: ['deadline', 'due', 'due date', 'deadline (yyyy-mm-dd)'],
-  status: ['status', 'status badge'],
+  deadline: ['deadline', 'due', 'due date', 'due on', 'end date', 'date', 'timeline end', 'deadline (yyyy-mm-dd)'],
+  status: ['status', 'status badge', 'progress', 'stage'],
   flag: ['flag', 'state'],
   ref: ['reference', 'reference id', 'jira', 'jira id', 'jira case id', 'ref', 'ticket', 'issue key', 'key'],
-  completedOn: ['completed on', 'resolved', 'resolution date'],
+  completedOn: ['completed on', 'completed at', 'completed date', 'date completed', 'done date', 'resolved', 'resolution date'],
   imported: ['imported?', 'imported', 'imported? (leave blank)'],
 };
 
@@ -229,6 +230,7 @@ export function importFromFile(TT) {
         el('button.link-btn', { type: 'button', id: 'imp-template', onclick: () => downloadTemplate(TT) }, 'Download a template')),
       el('li', {}, el('b', {}, 'Trello'), ': open the board ▸ Menu ▸ Print, export and share ▸ Export as JSON. Lists become categories.'),
       el('li', {}, el('b', {}, 'Jira'), ': Filters ▸ Export ▸ CSV (all fields).'),
+      el('li', {}, el('b', {}, 'Asana, ClickUp, Monday.com, Microsoft Planner or Notion'), ': export the project or board as CSV or Excel and drop it here. Sections, columns, buckets or tags become categories; assignees become owners (matched by email or name).'),
       el('li', {}, el('b', {}, 'A TeamTrack backup'), ' (.json) or the old single-user tracker’s Excel file.')));
   m.foot.append(el('button.btn.ghost', { type: 'button', onclick: m.close }, 'Cancel'));
 }

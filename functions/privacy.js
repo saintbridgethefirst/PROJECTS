@@ -33,7 +33,7 @@ export async function exportUserData(db, account) {
   };
   for (const m of await memberships(db, uid)) {
     const team = (await getData(db, 'teams/' + m.teamId)) || {};
-    const t = { teamId: m.teamId, teamName: team.name || '', yourMembership: plain(m.member), yourProfileInTeam: await getData(db, `teams/${m.teamId}/profiles/${uid}`), yours: {} };
+    const t = { teamId: m.teamId, teamName: team.name || '', yourMembership: plain(m.member), yourProfileInTeam: await getData(db, `teams/${m.teamId}/profiles/${uid}`), yourStatusInTeam: await getData(db, `teams/${m.teamId}/presence/${uid}`), yours: {} };
     for (const c of TEAM_COLLECTIONS) {
       const mine = rows(await db.collection(`teams/${m.teamId}/${c}`).get()).filter(r => BY_FIELDS.some(f => r[f] === uid) || (Array.isArray(r.attendees) && r.attendees.includes(uid)) || (Array.isArray(r.mentions) && r.mentions.includes(uid)));
       if (mine.length) t.yours[c] = mine;
@@ -84,7 +84,7 @@ export async function deleteUserData(db, account) {
       });
     }
     summary.recordsAnonymised += ops.length;
-    ops.push({ ref: db.doc(`teams/${m.teamId}/profiles/${uid}`), del: true }, { ref: m.ref, del: true });
+    ops.push({ ref: db.doc(`teams/${m.teamId}/profiles/${uid}`), del: true }, { ref: db.doc(`teams/${m.teamId}/presence/${uid}`), del: true }, { ref: m.ref, del: true });
     await writeAll(db, ops); summary.teamsLeft++;
   }
   const del = [];

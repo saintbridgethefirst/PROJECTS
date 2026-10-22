@@ -16,11 +16,12 @@ import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
 import { runAutos, afterCommit } from './autos.js';
+import { startPresence, stopPresence, lookingAt, paintPresence, openPresence, refreshPresenceModal } from './presence.js';
 import { peopleRequests, needsDeleteApproval, askToDelete, approveLeave, approveDelete, declineRequest } from './requests.js';
 import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending, ghMark, offerCloseIssues } from './github-ui.js';
 import { refIdOf } from '../functions/ghsync.js';
 import { waitingPurchases, decidePurchase, declineDialog, purchaseOn, purchaseLine } from './purchases.js';
-import { signersFor, canSignStage, gateOnTheWay, checklistOf, cleanWhiteboard, cleanWbItem, cleanWorkflow, storedWorkflow, leadsIndex } from './model.js';
+import { signersFor, canSignStage, gateOnTheWay, checklistOf, cleanWhiteboard, cleanWbItem, cleanWorkflow, storedWorkflow, leadsIndex, cleanPresence } from './model.js';
 import { guessCurrency, CURRENCIES } from './model.js';
 import { cleanComment, cleanTemplate, cleanEffort, cleanCapacity, MAX_DEPS, workflowOf, stageIdOf, stageKindOf, isCustomWorkflow, cleanMeeting, cleanNotebookEntry, cleanPart, cleanExpense, cleanBudget, cleanPaper, cleanLogEntry } from './model.js';
 import { openResearch, refreshResearch, seesMoney } from './research.js';
@@ -678,7 +679,7 @@ async function openTeam(teamId) {
     commentsChanged();
   }, (e) => console.warn('comments', e));
   // Research tools (Phase 7)
-  s.meetings = []; s.notebook = []; s.parts = []; s.papers = []; s.expenses = []; s.budget = null; s.profiles = []; s.risks = []; s.requirements = []; s.requests = [];
+  s.meetings = []; s.notebook = []; s.parts = []; s.papers = []; s.expenses = []; s.budget = null; s.profiles = []; s.risks = []; s.requirements = []; s.requests = []; s.presence = [];
   // Each tool's records are only listened to while the team has that tool switched on (syncResearch):
   // every listener costs a database read per record each time the team is opened.
   s.researchUnsubs = {};
@@ -706,7 +707,7 @@ function closeTeam() {
   session.unsub && session.unsub();
   session.unsubComments && session.unsubComments();
   session.unsubTemplates && session.unsubTemplates();
-  (session.unsubResearch || []).forEach(u => u && u()); stopMoney(session);
+  stopPresence(); (session.unsubResearch || []).forEach(u => u && u()); stopMoney(session);
   window.removeEventListener('online', session.onOnline); window.removeEventListener('offline', session.onOnline);
   session = null;
   if (window.boardReset) window.boardReset();
@@ -791,6 +792,7 @@ const RESEARCH = [
   ['notebook', cleanNotebookEntry, 'notebook', 'board', 'notebook'], ['profiles', (p, id) => cleanProfile(p, id), 'profiles', 'board', null],
   ['risks', cleanRisk, 'risks', null, 'risks'], ['requirements', cleanRequirement, 'requirements', null, 'requirements'],
   ['requests', (r, id) => ({ ...r, id }), 'requests', 'settings', null],
+  ['presence', (p, id) => cleanPresence(p, id), 'presence', 'presence', null],
   ['whiteboards', cleanWhiteboard, 'whiteboards', 'wb', 'whiteboards'], ['wbItems', cleanWbItem, 'wbItems', 'wb', 'whiteboards'],
 ];
 function syncResearch(s) {
@@ -823,6 +825,7 @@ function researchChanged(after) {
   if (after === 'settings' && window.TTSettingsRefresh) window.TTSettingsRefresh();
   if (after === 'settings' && window.boardRender && session && session.booted) window.boardRender();   // "Delete asked" chips
   if (after === 'wb' && window.__wbRefresh) window.__wbRefresh();
+  if (after === 'presence') { paintPresence(ctx()); refreshPresenceModal(); }
   if (after === 'board' && window.boardRender && session && session.booted) { window.boardRender(); if (window.boardRefreshEditor) window.boardRefreshEditor(); }
 }
 // Automatic steps: checked shortly after data changes (see autos.js).
@@ -833,6 +836,7 @@ function scheduleAutos() {
 }
 async function onFirstLoad() {
   const s = session;
+  startPresence(ctx);
   // Teams made before a permission existed: give the built-in roles that permission's default, once.
   if (can(s.team, s.me, 'roles.manage')) {
     const roles = JSON.parse(JSON.stringify(s.team.roles || {})); let changed = false;
@@ -932,6 +936,8 @@ function revert() { if (session && session.team) { const model = buildModel(stat
 
 // ── Bridge used by board.js ─────────────────────────────────────────────────
 const UNDO_LIMIT = 60;
+window.TTPresencePaint = () => { if (session && session.booted) paintPresence(ctx()); };
+setInterval(() => window.TTPresencePaint(), 60e3);
 window.TT = {
   get me() { return session && session.me ? { uid: user.uid, name: user.name, email: user.email, roleId: session.me.roleId } : null; },
   get team() { return session && session.team; },
@@ -1012,6 +1018,9 @@ window.TT = {
   approvePurchase: (p) => decidePurchase(ctx(), p, 'approved', ''),
   declinePurchase: (p) => declineDialog(ctx(), p),
   openParts: () => { if (session && session.booted) openResearch(ctx(), 'parts'); },
+  // Who's here (presence.js)
+  openPresence: () => { if (session) openPresence(ctx()); },
+  lookingAt: (taskId) => { if (session) lookingAt(taskId); },
   // Leaving and deleting need an admin's approval (requests.js)
   peopleRequests: () => peopleRequests(session),
   needsDeleteApproval: (task) => needsDeleteApproval(ctx(), task),

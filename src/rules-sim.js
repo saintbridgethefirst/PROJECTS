@@ -262,7 +262,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
           // Verified university email: free Pro Education, up to 400 days at a time, never over an Organisation plan.
           const now = Date.now(), p = after.plan;
           const claim = post.root && post.root.eduClaims && post.root.eduClaims[auth.uid];
-          if (academicOf(pre, auth) && ['owner', 'admin'].includes(roleId) && validPlan(p) && p.tier === 'pro' && p.edu === true && p.by === auth.uid &&
+          if (academicOf(pre, auth) && roleId === 'owner' && validPlan(p) && p.tier === 'pro' && p.edu === true && p.by === auth.uid &&
             p.until > now && p.until <= now + 400 * 864e5 && ((before.plan || {}).tier || 'free') !== 'org' &&
             claim && claim.year === new Date().getUTCFullYear() && claim.teams.includes(teamId)) return;
           deny('plan');
@@ -319,7 +319,8 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (isDelete) { if (!(can('tasks.editAll') || (canEditOwned(before.ownerUid) && before.createdBy === auth.uid && (before.createdAt || 0) > Date.now() - 86400000))) deny('delete task'); return; }
       const catAfter = T1 && T1.categories[after.categoryId];
       if (!catAfter || catAfter.ownerUid !== after.ownerUid) deny('task row mismatch');
-      if (isCreate) { if (!(canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, null, auth))) deny('create task'); return; }
+      if (isCreate) { if (!(canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, null, auth) && (after.createdBy || '') === auth.uid && (after.createdAt || 0) <= Date.now() + 300000)) deny('create task'); return; }
+      if ((after.createdBy || '') !== (before.createdBy || '') || (after.createdAt || 0) !== (before.createdAt || 0)) deny('who made a task can’t change');
       if (canEditOwned(before.ownerUid) && canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, before, auth)) { if (!signoffGates(T0, auth, meMember, before, after)) deny('sign-off gate'); return; }
       // Recording a sign-off decision (firestore.rules ▸ signoffDecision)
       const ch = changedKeys(before, after);
@@ -369,6 +370,13 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (!partApproval(T0, auth, can, before, after)) deny('purchase approval');
       if (!purchaseOk(T0, before, after)) deny('needs purchase approval');
       if (!costKept(can, before, after)) deny('approved cost');
+      return;
+    }
+    case 'presence': {
+      if (!meMember) deny('not a member');
+      if (isDelete) { if (!(id === auth.uid || can('members.manage'))) deny('delete presence'); return; }
+      if (!(id === auth.uid && hasOnly(after, ['at', 'state', 'note', 'until', 'taskId']) && typeof after.at === 'number' && after.at <= Date.now() + 120000
+        && ['', 'free', 'busy', 'away'].includes(after.state) && isStr(after.note, 80) && typeof after.until === 'number' && isStr(after.taskId, 64))) deny('presence');
       return;
     }
     case 'profiles': {

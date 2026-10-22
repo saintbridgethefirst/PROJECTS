@@ -175,7 +175,9 @@ export function cleanPlan(p) {
 /** The plan in force now: a plan past its end date falls back to Free. */
 export function planOf(team, now = Date.now()) {
   const p = cleanPlan(team && team.plan);
-  const tier = p.tier !== 'free' && p.until && p.until < now ? 'free' : p.tier;
+  // Pro Education belongs to the student who owns the team: it ends if the team changes hands.
+  const handedOn = p.edu && p.by && team && team.ownerUid && p.by !== team.ownerUid;
+  const tier = (p.tier !== 'free' && p.until && p.until < now) || handedOn ? 'free' : p.tier;
   return { ...PLANS[tier], tier, edu: tier !== 'free' && p.edu, until: tier === 'free' ? 0 : p.until, expired: tier !== p.tier, label: tier === 'free' ? 'Free' : PLANS[tier].name + (p.edu ? ' Education' : '') };
 }
 /** Whether a team's plan includes a paid feature. */
@@ -950,6 +952,17 @@ export function nextReqRef(list) {
 
 // ── Your data: a deleted person's name in shared records ────────────────────
 // Same as functions/lib.js scrubPerson (the server does the real deletion; the demo uses this).
+// ── Who's here (presence.js) ────────────────────────────────────────────────
+export const PRESENCE_STATES = ['free', 'busy', 'away'];
+export const PRESENCE_LABEL = { free: 'Available', busy: 'Busy', away: 'Away' };
+export const ONLINE_MS = 5 * 60e3;   // a heartbeat every 2 minutes; 5 without one = gone
+export function cleanPresence(p, id) {
+  p = p && typeof p === 'object' ? p : {};
+  return { id: safeKey(id || p.id), at: Number(p.at) || 0, state: PRESENCE_STATES.includes(p.state) ? p.state : '', note: str(p.note, 80), until: Number(p.until) > 0 ? Number(p.until) : 0, taskId: safeKey(p.taskId) };
+}
+export const isOnline = (p, now = Date.now()) => !!p && p.at > now - ONLINE_MS && p.at <= now + 60e3;
+/** The status in force: a status with an end time that has passed goes back to automatic. */
+export const statusOf = (p, now = Date.now()) => (p && p.state && !(p.until && p.until < now) ? p.state : '');
 export const FORMER_MEMBER = 'Former member';
 /** People who left: { uid: { name, leftAt } }, so their past work keeps their name. */
 export const histTime = (ms = Date.now()) => { const n = new Date(ms); let h = n.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return String(n.getDate()).padStart(2, '0') + '/' + n.toLocaleString('en-GB', { month: 'short' }) + '/' + String(n.getFullYear()).slice(-2) + ' ' + h + ':' + String(n.getMinutes()).padStart(2, '0') + ' ' + ap; };

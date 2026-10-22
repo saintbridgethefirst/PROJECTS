@@ -50,9 +50,10 @@ export function codeEmail(code, appName = 'TeamTrack') {
 // ── Notifications ───────────────────────────────────────────────────────────
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 /** Is a team's plan Pro (or Organisation) right now? Mirrors planOf() in src/model.js. */
-export function proActive(plan, now = Date.now()) {
+export function proActive(plan, now = Date.now(), ownerUid = '') {
   const p = plan && typeof plan === 'object' ? plan : {};
   if (p.tier !== 'pro' && p.tier !== 'org') return false;
+  if (p.edu && p.by && ownerUid && p.by !== ownerUid) return false;   // Education plan, but the team changed hands
   return !(Number(p.until) > 0 && Number(p.until) < now);
 }
 /** Email choices on users/{uid}.notify — on unless switched off. */
