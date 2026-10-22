@@ -40,7 +40,8 @@ export function cleanRepo(v) {
 export function cleanGithub(g) {
   g = g && typeof g === 'object' ? g : {};
   const repo = cleanRepo(g.repo);
-  return { repo, issues: g.issues !== false, done: g.done !== false, owner: typeof g.owner === 'string' ? g.owner.slice(0, 128) : '', connectedAt: Number(g.connectedAt) || 0, write: g.write === true };
+  return { repo, issues: g.issues !== false, done: g.done !== false, owner: typeof g.owner === 'string' ? g.owner.slice(0, 128) : '', connectedAt: Number(g.connectedAt) || 0, write: g.write === true,
+    last: g.last && typeof g.last === 'object' ? { at: Number(g.last.at) || 0, kind: String(g.last.kind || '').slice(0, 40), action: String(g.last.action || '').slice(0, 40), links: Number(g.last.links) || 0, finished: Number(g.last.finished) || 0, created: Number(g.last.created) || 0, ok: g.last.ok !== false } : null };
 }
 /** A link to GitHub's own "new issue" page, filled in, naming the task so the webhook links them. */
 export function newIssueUrl(repo, { title = '', body = '', ref = '' } = {}) {
@@ -67,6 +68,9 @@ export function planGithubEvent(kind, payload, tasks, settings) {
   (tasks || []).forEach(t => { const k = refIdOf(t); if (!chains.has(k)) chains.set(k, []); chains.get(k).push(t); });
   const latest = (k) => (chains.get(k) || []).reduce((a, t) => (!a || (t.weekIdx || 0) >= (a.weekIdx || 0) ? t : a), null);
   const byRef = new Map([...chains.keys()].map(k => [taskRef(k), latest(k)]));
+  // A team's own reference on a task (Ref field, e.g. DRN-12) works too, as a whole word.
+  const custom = [...chains.keys()].map(k => latest(k)).filter(t => t && /^[A-Za-z0-9][A-Za-z0-9._/-]{2,39}$/.test(String(t.jiraId || '').trim()));
+  const customHits = (...texts) => { const all = texts.map(x => String(x || '')).join('\n').toLowerCase(); return custom.filter(t => { const r = t.jiraId.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); return new RegExp('(^|[^a-z0-9])' + r + '($|[^a-z0-9])').test(all); }); };
   const linked = (url) => { const seen = new Set(); return (tasks || []).filter(t => (t.attachments || []).some(a => a.url === url)).map(t => latest(refIdOf(t))).filter(t => t && !seen.has(t.id) && seen.add(t.id)); };
   const attach = (t, item, isPull) => {
     const url = item.html_url; if (!url || (t.attachments || []).some(a => a.url === url)) return;
@@ -77,6 +81,7 @@ export function planGithubEvent(kind, payload, tasks, settings) {
     const pr = p.pull_request || {};
     const refs = findRefs(pr.title, pr.body, pr.head && pr.head.ref);
     const hits = refs.map(r => byRef.get(r)).filter(Boolean);
+    customHits(pr.title, pr.body, pr.head && pr.head.ref).forEach(t => { if (!hits.includes(t)) hits.push(t); });
     hits.forEach(t => attach(t, pr, true));
     linked(pr.html_url).forEach(t => { if (!hits.includes(t)) hits.push(t); });
     if (p.action === 'closed' && pr.merged && s.done) hits.forEach(t => finish(t, 'pull request #' + pr.number + ' merged'));
@@ -88,6 +93,7 @@ export function planGithubEvent(kind, payload, tasks, settings) {
     if (is.pull_request) { out.why = 'A pull request’s issue event.'; return out; }
     const refs = findRefs(is.title, is.body);
     const hits = refs.map(r => byRef.get(r)).filter(Boolean);
+    customHits(is.title, is.body).forEach(t => { if (!hits.includes(t)) hits.push(t); });
     linked(is.html_url).forEach(t => { if (!hits.includes(t)) hits.push(t); });
     if (p.action === 'opened' || p.action === 'reopened' || p.action === 'edited') hits.forEach(t => attach(t, is, false));
     if (p.action === 'opened' && !hits.length && s.issues) out.create = { name: String(is.title || 'GitHub issue').slice(0, 200), url: is.html_url, label: 'Issue #' + is.number + ': ' + String(is.title || '').slice(0, 160) };

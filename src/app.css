@@ -147,7 +147,7 @@ body.hide-metric .metric-badge { display: none; }
 .spinner { width: 16px; height: 16px; border: 2px solid var(--border-color); border-top-color: var(--line-color); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading-screen { display: grid; place-items: center; min-height: 100vh; color: var(--text-muted); gap: 10px; }
-.col-add { margin-top: auto; align-self: stretch; background: transparent; border: 1px dashed transparent; color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 650; padding: 8px; border-radius: 10px; cursor: pointer; opacity: .35; transition: opacity .15s, border-color .15s; }
+.col-add { margin-top: 0; align-self: stretch; background: transparent; border: 1px dashed transparent; color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 650; padding: 8px; border-radius: 10px; cursor: pointer; opacity: .35; transition: opacity .15s, border-color .15s; }
 .col-week:hover .col-add, .col-add:focus-visible { opacity: 1; border-color: var(--border-color); }
 .col-add:hover { color: var(--line-color); border-color: var(--line-color) !important; }
 .metric-badge:empty { background: transparent; box-shadow: none; border: 1px dashed var(--border-color); color: var(--text-muted); opacity: 0; transition: opacity .15s; }
@@ -916,3 +916,7 @@ button.tx-part:hover { border-color: var(--line-color); }
 .gh-close-opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; cursor: pointer; }
 .gh-close-opt input { margin-top: 3px; }
 .gh-token-steps { margin: 6px 0 10px; padding-left: 20px; display: grid; gap: 4px; }
+.gh-status { margin: 8px 0 10px; }
+.gh-guide { margin: 0 0 12px; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 14px; }
+.gh-guide summary { cursor: pointer; font-weight: 700; }
+.gh-guide ol { margin: 10px 0 2px; padding-left: 20px; display: grid; gap: 6px; font-size: 13.5px; }

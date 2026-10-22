@@ -68,7 +68,7 @@ export async function buildSample(user, now = Date.now()) {
   // A whiteboard: Design → Build → Test with real task cards, notes and arrows.
   const wbId = 'wb_sample'; let z = 0;
   team.whiteboards = { [wbId]: { name: 'Drone Challenge plan', createdBy: user.uid, createdByName: user.name || 'You', createdAt: now - 6 * DAY, updatedAt: now - DAY } };
-  const wi = {}; const item = (id, kind, x, y, extra) => { if (kind === 'task' && !team.tasks[extra.taskId]) return; wi[id] = { boardId: wbId, kind, x, y, w: { note: 260, text: 260, title: 420, task: 300, link: 0 }[kind], h: { note: 150, text: 44, title: 56, task: 104, link: 0 }[kind], text: '', color: '', taskId: '', from: '', to: '', z: z++, createdBy: user.uid, updatedAt: now - DAY, ...extra }; };
+  const wi = {}; const item = (id, kind, x, y, extra) => { if (kind === 'task' && !team.tasks[extra.taskId]) return; wi[id] = { boardId: wbId, kind, x, y, w: { note: 260, text: 260, title: 420, task: 300, link: 0, shape: 200, frame: 1120, pen: 180 }[kind], h: { note: 150, text: 44, title: 56, task: 104, link: 0, shape: 120, frame: 300, pen: 90 }[kind], text: '', color: '', taskId: '', from: '', to: '', shape: '', path: '', z: z++, createdBy: user.uid, updatedAt: now - DAY, ...extra }; };
   item('wi_t1', 'title', 0, 0, { text: 'Design' }); item('wi_t2', 'title', 0, 330, { text: 'Build' }); item('wi_t3', 'title', 0, 660, { text: 'Test' });
   item('wi_cdr', 'task', 0, 80, { taskId: 't_criticalde_33' }); item('wi_cad', 'task', 360, 80, { taskId: 't_wingcadv_28' });
   item('wi_n1', 'note', 740, 60, { color: '#fef08a', text: 'Landing gear ideas\n- Retract or fixed legs?\n- Carbon tube legs\n- Shock absorbers from foam' });
@@ -76,6 +76,16 @@ export async function buildSample(user, now = Date.now()) {
   item('wi_rt', 'task', 0, 740, { taskId: 't_rangetestk_67' }); item('wi_ft', 'task', 360, 740, { taskId: 't_flighttest_42' });
   item('wi_n2', 'note', 740, 720, { color: '#fbcfe8', text: 'Book the flying field\nAsk the club about Saturday slots' });
   const arrow = (id, from, to, text = '') => { if (wi[from] && wi[to]) item(id, 'link', 0, 0, { from, to, text }); };
+  // Newer tools: a frame round the build area, a decision diamond, shapes and a pen mark.
+  item('wi_fr', 'frame', -30, 370, { text: 'Build sprint (this week)', color: '#bbf7d0', z: -10 });
+  item('wi_dec', 'shape', 1100, 410, { shape: 'diamond', text: 'Ready to fly?', color: '#fed7aa', w: 220, h: 140 });
+  item('wi_risk', 'shape', 1100, 80, { shape: 'ellipse', text: 'Risk: wind over 15 knots', color: '#fbcfe8', w: 220, h: 110 });
+  item('wi_ok', 'shape', 1400, 430, { shape: 'pill', text: 'Book the field', color: '#bbf7d0', w: 200, h: 80 });
+  item('wi_pen', 'pen', 708, 395, { w: 330, h: 136, color: '#e11d48', path: '40,500 80,200 200,60 400,20 600,40 800,120 940,300 980,520 900,760 700,920 450,980 220,920 80,760 40,500' });
+  item('wi_n3', 'text', 1000, 560, { text: 'Fuselage is the long pole ↑', w: 280 });
+  arrow('wl_7', 'wi_fa', 'wi_dec'); arrow('wl_8', 'wi_dec', 'wi_ok', 'yes'); arrow('wl_9', 'wi_dec', 'wi_ft', 'no: fix first');
+  if (wi.wl_8) wi.wl_8.shape = '';
+  arrow('wl_10', 'wi_risk', 'wi_dec'); if (wi.wl_10) wi.wl_10.shape = 'none';
   arrow('wl_1', 'wi_cdr', 'wi_cad'); arrow('wl_2', 'wi_cad', 'wi_wa', 'build'); arrow('wl_3', 'wi_tb', 'wi_fa'); arrow('wl_4', 'wi_wa', 'wi_rt', 'Testing'); arrow('wl_5', 'wi_fa', 'wi_ft'); arrow('wl_6', 'wi_n2', 'wi_ft');
   team.wbItems = wi;
   team.doc.features.whiteboards = true;

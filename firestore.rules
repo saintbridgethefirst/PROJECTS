@@ -53,7 +53,7 @@ service cloud.firestore {
       return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency'])
         && d.get('archiveRev', 0) is int
         && d.get('currency', 'GBP') in ['GBP', 'EUR', 'USD', 'INR', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD']
-        && (d.get('github', null) == null || (d.github is map && d.github.keys().hasOnly(['repo', 'issues', 'done', 'owner', 'connectedAt', 'write']) && d.github.get('repo', '') is string && d.github.get('repo', '').size() <= 140))
+        && (d.get('github', null) == null || (d.github is map && d.github.keys().hasOnly(['repo', 'issues', 'done', 'owner', 'connectedAt', 'write', 'last']) && d.github.get('repo', '') is string && d.github.get('repo', '').size() <= 140))
         && (d.get('purchase', null) == null || (d.purchase is map && d.purchase.keys().hasOnly(['on', 'over']) && d.purchase.get('on', false) is bool
           && d.purchase.get('over', 0) is number && d.purchase.get('over', 0) >= 0 && d.purchase.get('over', 0) <= 100000000))
         && (d.get('autos', null) == null || (d.autos is map && d.autos.keys().hasOnly(['partsTo', 'tellWaiting', 'remindDays']) && d.autos.get('partsTo', '') is string
@@ -164,9 +164,10 @@ service cloud.firestore {
         && d.name is string && d.name.size() > 0 && d.name.size() <= 80 && d.createdBy is string && d.createdAt is number;
     }
     function validWbItem(d) {
-      return d.keys().hasOnly(['boardId', 'kind', 'x', 'y', 'w', 'h', 'text', 'color', 'taskId', 'from', 'to', 'z', 'createdBy', 'updatedAt'])
+      return d.keys().hasOnly(['boardId', 'kind', 'x', 'y', 'w', 'h', 'text', 'color', 'taskId', 'from', 'to', 'z', 'createdBy', 'updatedAt', 'shape', 'path'])
         && d.boardId is string && d.boardId.size() > 0 && d.boardId.size() <= 64
-        && d.kind in ['note', 'text', 'title', 'task', 'link']
+        && d.kind in ['note', 'text', 'title', 'task', 'link', 'shape', 'pen', 'frame']
+        && d.get('shape', '') is string && d.get('shape', '').size() <= 12 && d.get('path', '') is string && d.get('path', '').size() <= 6000
         && d.x is number && d.y is number && d.w is number && d.h is number
         && d.text is string && d.text.size() <= 2000
         && d.get('color', '') is string && d.get('color', '').size() <= 20

@@ -26,7 +26,7 @@ export async function connectGithub(db, uid, teamId, repoIn) {
   const secret = crypto.randomBytes(24).toString('hex');
   const now = Date.now(); const old = cleanGithub(team.data().github);
   await db.doc('teams/' + teamId + '/private/github').set({ secret, repo, by: uid, at: now, last: null });
-  await team.ref.update({ github: { repo, issues: old.repo ? old.issues : true, done: old.repo ? old.done : true, owner: old.owner || uid, connectedAt: now } });
+  await team.ref.update({ github: { repo, issues: old.repo ? old.issues : true, done: old.repo ? old.done : true, owner: old.owner || uid, connectedAt: now, write: false, last: null } });
   return { repo, secret };
 }
 /** Forget the repository and its secret. */
@@ -75,6 +75,8 @@ export async function handleWebhook(db, { teamId, kind, signature, rawBody, deli
   const summary = { at: now, kind: String(kind).slice(0, 40), action: String((payload && payload.action) || '').slice(0, 40), delivery: String(delivery || '').slice(0, 80),
     links: plan.links.length, finished: plan.finish.length, created: plan.create && newTask ? 1 : 0, why: [plan.why, ...notes].filter(Boolean).join(' ').slice(0, 300) };
   batch.set(priv.ref, { last: summary }, { merge: true });
+  // What the app shows (Settings ▸ Integrations ▸ GitHub): proof that events arrive.
+  batch.update(teamSnap.ref, { 'github.last': { at: now, kind: summary.kind, action: summary.action, links: summary.links, finished: summary.finished, created: summary.created, ok: plan.ok } });
   await batch.commit();
   return { status: plan.ok ? 200 : 202, body: summary };
 }

@@ -836,8 +836,16 @@ export function cleanFeatures(f) {
 // ── Whiteboards ───────────────────────────────────────────────────────────────
 // A board (whiteboards/{id}) and its items (wbItems/{id}, one document each, so people can edit
 // the same board at once): sticky notes, text, headings, task cards and arrows between items.
-export const WB_KINDS = ['note', 'text', 'title', 'task', 'link'];
+export const WB_KINDS = ['note', 'text', 'title', 'task', 'link', 'shape', 'pen', 'frame'];
 export const WB_COLORS = ['#fef08a', '#bbf7d0', '#bfdbfe', '#fbcfe8', '#fed7aa', '#e9d5ff', '#e5e7eb'];
+/** Ink for pen strokes and arrows. */
+export const WB_INKS = ['#1f2937', '#e11d48', '#2563eb', '#16a34a', '#ea580c', '#7c3aed'];
+export const WB_SHAPES = ['rect', 'ellipse', 'diamond', 'triangle', 'pill'];
+/** A pen stroke: points in a 0–1000 box, "x,y x,y …" (scaled to the item's size when drawn). */
+export function cleanWbPath(v) {
+  const pts = String(v || '').trim().split(/\s+/).map(p => p.split(',').map(Number)).filter(p => p.length === 2 && p.every(Number.isFinite)).slice(0, 600);
+  return pts.map(([x, y]) => Math.round(Math.min(1000, Math.max(0, x))) + ',' + Math.round(Math.min(1000, Math.max(0, y)))).join(' ');
+}
 export const WB_MAX_ITEMS = 500;
 const wbNum = (v, lo, hi, dflt) => { const n = Number(v); return Number.isFinite(n) ? Math.round(Math.min(hi, Math.max(lo, n))) : dflt; };
 export function cleanWhiteboard(b, id) {
@@ -846,11 +854,12 @@ export function cleanWhiteboard(b, id) {
 }
 export function cleanWbItem(d, id) {
   d = d || {}; const kind = WB_KINDS.includes(d.kind) ? d.kind : 'note';
-  const dflt = { note: [220, 140], text: [260, 44], title: [420, 56], task: [300, 104], link: [0, 0] }[kind];
+  const dflt = { note: [220, 140], text: [260, 44], title: [420, 56], task: [300, 104], link: [0, 0], shape: [180, 110], pen: [120, 80], frame: [640, 420] }[kind];
   const key = (v) => (v ? safeKey(v) : '');
   return { id: safeKey(id || d.id), boardId: key(d.boardId), kind, x: wbNum(d.x, -50000, 50000, 0), y: wbNum(d.y, -50000, 50000, 0),
     w: kind === 'link' ? 0 : wbNum(d.w, 40, 2400, dflt[0]), h: kind === 'link' ? 0 : wbNum(d.h, 24, 2400, dflt[1]),
-    text: str(d.text, 2000), color: WB_COLORS.includes(d.color) ? d.color : (kind === 'note' ? WB_COLORS[0] : ''),
+    text: str(d.text, 2000), color: (WB_COLORS.includes(d.color) || WB_INKS.includes(d.color)) ? d.color : (kind === 'note' ? WB_COLORS[0] : ''),
+    shape: kind === 'shape' ? (WB_SHAPES.includes(d.shape) ? d.shape : 'rect') : kind === 'link' ? (['both', 'none'].includes(d.shape) ? d.shape : '') : '', path: kind === 'pen' ? cleanWbPath(d.path) : '',
     taskId: kind === 'task' ? key(d.taskId) : '', from: kind === 'link' ? key(d.from) : '', to: kind === 'link' ? key(d.to) : '',
     z: wbNum(d.z, -1e6, 1e6, 0), createdBy: str(d.createdBy, 64), updatedAt: Number(d.updatedAt) || 0 };
 }

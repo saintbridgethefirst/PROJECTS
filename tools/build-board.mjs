@@ -21,7 +21,7 @@ const patches = [
   ['<label>Status Badge</label><input type="text" id="edit-status" value="${esc(nodeData.status)}">',
    "${TT.label('status').show ? `<label>${esc(TT.label('status').label)}</label><input type=\"text\" id=\"edit-status\" value=\"${esc(nodeData.status)}\">` : ''}"],
   ['<label>Jira Case ID</label><input type="text" id="edit-jira" value="${esc(nodeData.jiraId || \'\')}" placeholder="e.g. NASHCPI-1944">',
-   "${TT.label('jiraId').show ? `<label>${esc(TT.label('jiraId').label)}</label><input type=\"text\" id=\"edit-jira\" value=\"${esc(nodeData.jiraId || '')}\" placeholder=\"e.g. a ticket or document number\">` : ''}"],
+   "${TT.label('jiraId').show ? `<label>${esc(TT.label('jiraId').label)}</label><input type=\"text\" id=\"edit-jira\" value=\"${esc(nodeData.jiraId || '')}\" placeholder=\"${esc(TT.taskRef(nodeData))} (automatic: type your own to change it)\" title=\"Leave empty to use ${esc(TT.taskRef(nodeData))}. GitHub links pull requests and issues that mention either.\">` : ''}"],
   // Commit the typed value even if a teammate's update re-rendered the panel mid-typing
   ["logHistory(activeNode, fName === 'name' ? 'Title' : fName, e.target.dataset.original, e.target.value);",
    "activeNode[id === 'edit-jira' ? 'jiraId' : (id === 'edit-name' ? 'name' : 'status')] = e.target.value;\n                            logHistory(activeNode, fName === 'name' ? 'Title' : (fName === 'jira' ? TT.label('jiraId').label : (fName === 'status' ? TT.label('status').label : fName)), e.target.dataset.original, e.target.value);"],

@@ -790,7 +790,7 @@
 
 /* Speed on big teams: the browser skips layout and painting of people rows that are off-screen
    (a 100-person board is ~70,000 elements). Rows render normally as they scroll into view. */
-#nodes-container > .row-person { content-visibility: auto; contain-intrinsic-size: auto 320px; }
+#nodes-container.big-board > .row-person { content-visibility: auto; contain-intrinsic-size: auto 320px; }
 @media print { #nodes-container > .row-person { content-visibility: visible; } }
 
         /* Workflow stages (Settings ▸ Workflow) */

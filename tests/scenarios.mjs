@@ -346,6 +346,8 @@ export const writeScenarios = [
   ['currency: a finance manager sets the team’s currency', 'admin1', GATE, [upd('team', { currency: 'EUR' })], 'allow'],
   ['currency: a member can’t', 'mem1', GATE, [upd('team', { currency: 'EUR' })], 'deny'],
   ['currency: only known currencies', 'admin1', GATE, [upd('team', { currency: 'BTC' })], 'deny'],
+  ['whiteboards: a member draws shapes, pen strokes and frames', 'mem1', TEAM, [set('wbItems/wi_s', wbItem('mem1', { kind: 'shape', shape: 'ellipse', text: 'Idea' })), set('wbItems/wi_p', wbItem('mem1', { kind: 'pen', path: '0,0 500,500 1000,0', color: '#e11d48' })), set('wbItems/wi_f', wbItem('mem1', { kind: 'frame', text: 'Sprint 3', w: 600, h: 400 }))], 'allow'],
+  ['whiteboards: a pen stroke can’t be huge', 'mem1', TEAM, [set('wbItems/wi_big', wbItem('mem1', { kind: 'pen', path: '1,1 '.repeat(2000) }))], 'deny'],
   ['github: a settings manager changes the options', 'admin1', GATE, [upd('team', { github: { repo: 'uni/rover', issues: false, done: true, owner: 'admin1', connectedAt: 1 } })], 'allow'],
   ['github: …but not the repository (only the server sets it, with its secret)', 'admin1', GATE, [upd('team', { github: { repo: 'evil/repo', issues: true, done: true, owner: 'admin1', connectedAt: 1 } })], 'deny'],
   ['github: …nor claim a token the server doesn’t have', 'admin1', GATE, [upd('team', { github: { repo: 'uni/rover', issues: true, done: true, owner: 'mem1', connectedAt: 1, write: true } })], 'deny'],

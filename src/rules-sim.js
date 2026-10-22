@@ -48,7 +48,7 @@ function validTeam(d) {
     (d.workflow === undefined || d.workflow === null || (d.workflow && typeof d.workflow === 'object' && hasOnly(d.workflow, ['stages', 'moved', 'order', 'gates', 'next', 'done']) && Array.isArray(d.workflow.stages) && d.workflow.stages.length >= 2 && d.workflow.stages.length <= 10)) &&
     (d.purchase === undefined || d.purchase === null || (typeof d.purchase === 'object' && hasOnly(d.purchase, ['on', 'over']) && (d.purchase.on === undefined || typeof d.purchase.on === 'boolean') && (d.purchase.over === undefined || isNum(d.purchase.over, 0, 1e8)))) &&
     (d.currency === undefined || ['GBP', 'EUR', 'USD', 'INR', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD'].includes(d.currency)) &&
-    (d.github === undefined || d.github === null || (typeof d.github === 'object' && hasOnly(d.github, ['repo', 'issues', 'done', 'owner', 'connectedAt', 'write']) && (d.github.repo === undefined || isStr(d.github.repo, 140)))) &&
+    (d.github === undefined || d.github === null || (typeof d.github === 'object' && hasOnly(d.github, ['repo', 'issues', 'done', 'owner', 'connectedAt', 'write', 'last']) && (d.github.repo === undefined || isStr(d.github.repo, 140)))) &&
     (d.autos === undefined || d.autos === null || (typeof d.autos === 'object' && hasOnly(d.autos, ['partsTo', 'tellWaiting', 'remindDays']) && (d.autos.partsTo === undefined || isStr(d.autos.partsTo, 40)) &&
       (d.autos.tellWaiting === undefined || typeof d.autos.tellWaiting === 'boolean') && (d.autos.remindDays === undefined || (Number.isInteger(d.autos.remindDays) && d.autos.remindDays >= 0 && d.autos.remindDays <= 60))));
 }
@@ -151,8 +151,9 @@ const validLog = (d) => hasOnly(d, ALLOWED.log) && typeof d.at === 'number' && t
   ['budget', 'spending', 'income', 'parts'].includes(d.kind) && typeof d.text === 'string' && d.text.length > 0 && d.text.length <= 600;
 
 const validWhiteboard = (d) => hasOnly(d, ['name', 'createdBy', 'createdByName', 'createdAt', 'updatedAt']) && typeof d.name === 'string' && d.name.length > 0 && d.name.length <= 80 && typeof d.createdBy === 'string' && typeof d.createdAt === 'number';
-const validWbItem = (d) => hasOnly(d, ['boardId', 'kind', 'x', 'y', 'w', 'h', 'text', 'color', 'taskId', 'from', 'to', 'z', 'createdBy', 'updatedAt']) &&
-  typeof d.boardId === 'string' && d.boardId.length > 0 && d.boardId.length <= 64 && ['note', 'text', 'title', 'task', 'link'].includes(d.kind) &&
+const validWbItem = (d) => hasOnly(d, ['boardId', 'kind', 'x', 'y', 'w', 'h', 'text', 'color', 'taskId', 'from', 'to', 'z', 'createdBy', 'updatedAt', 'shape', 'path']) &&
+  typeof d.boardId === 'string' && d.boardId.length > 0 && d.boardId.length <= 64 && ['note', 'text', 'title', 'task', 'link', 'shape', 'pen', 'frame'].includes(d.kind) &&
+  (d.shape === undefined || isStr(d.shape, 12)) && (d.path === undefined || isStr(d.path, 6000)) &&
   ['x', 'y', 'w', 'h'].every(k => typeof d[k] === 'number') && isStr(d.text, 2000) &&
   ['color', 'taskId', 'from', 'to'].every(k => d[k] === undefined || isStr(d[k], k === 'color' ? 20 : 64)) && typeof d.createdBy === 'string';
 /** SelfTrack items (firestore.rules ▸ validSelf). */

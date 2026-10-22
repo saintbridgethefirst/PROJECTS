@@ -1679,6 +1679,8 @@
         function render() { withFrameCache(() => {
             syncSubteamView();
             _renderBase();
+            // Skip painting off-screen rows only on big boards: on small ones Safari sometimes left rows blank after a change until you scrolled.
+            { const nc = document.getElementById('nodes-container'); if (nc) nc.classList.toggle('big-board', nc.children.length > 40); }
             markSubteams();
             fitCategoryLabels();
             renderSubteamBar();
@@ -1720,7 +1722,7 @@
             const weeks = new Set(kbWeeks().map(w => w.key)); const q = ((document.getElementById('search-tasks') || {}).value || '').trim().toLowerCase();
             return latestOfChains(allTaskLocs().filter(l => weeks.has(l.weekKey))).filter(l => !hiddenPersons.has(l.person.id) && !phaseHidden(l.task) && !l.task.isGhost
                 && (!kbMine || l.person.id === (TT.me && TT.me.uid))
-                && (!q || [l.task.name, l.task.jiraId, l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
+                && (!q || [l.task.name, l.task.jiraId, TT.taskRef ? TT.taskRef(l.task) : '', l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
         }
         const PRIO_RANK = { Blocker: 0, Critical: 1, Major: 2, Minor: 3 };
         function kbSort(st) {
@@ -1863,7 +1865,7 @@
             const q = ((document.getElementById('search-tasks') || {}).value || '').trim().toLowerCase();
             return latestOfChains(allTaskLocs()).filter(l => !l.task.isGhost && !hiddenPersons.has(l.person.id) && !phaseHidden(l.task)
                 && (!gtHideDone || l.task.flag !== 'completed')
-                && (!q || [l.task.name, l.task.jiraId, l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
+                && (!q || [l.task.name, l.task.jiraId, TT.taskRef ? TT.taskRef(l.task) : '', l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
         }
         function gtColor(t) { const st = stageById(TT.stageId(t)); return st && st.color ? st.color : (TT.stageOf(t) === 'done' ? '#48bb78' : TT.stageOf(t) === 'doing' ? '#4299e1' : '#718096'); }
         function gtFmt(iso) { const d = parseISO(iso); return d ? d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : ''; }

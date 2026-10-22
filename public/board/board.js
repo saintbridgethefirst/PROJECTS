@@ -517,7 +517,7 @@
                         <option value="Blocker" ${nodeData.priority==='Blocker'?'selected':''}>Blocker</option>
                     </select>
                     ${TT.label('status').show ? `<label>${esc(TT.label('status').label)}</label><input type="text" id="edit-status" value="${esc(nodeData.status)}">` : ''}
-                    ${TT.label('jiraId').show ? `<label>${esc(TT.label('jiraId').label)}</label><input type="text" id="edit-jira" value="${esc(nodeData.jiraId || '')}" placeholder="e.g. a ticket or document number">` : ''}
+                    ${TT.label('jiraId').show ? `<label>${esc(TT.label('jiraId').label)}</label><input type="text" id="edit-jira" value="${esc(nodeData.jiraId || '')}" placeholder="${esc(TT.taskRef(nodeData))} (automatic: type your own to change it)" title="Leave empty to use ${esc(TT.taskRef(nodeData))}. GitHub links pull requests and issues that mention either.">` : ''}
                     <label>Deadline</label><div class="due-field"><button type="button" class="due-display${nodeData.dueDate ? '' : ' empty'}" onclick="openDuePicker()" aria-label="Choose deadline">${dueDisplayHtml(nodeData)}</button><input type="date" id="edit-due" class="due-native" tabindex="-1" aria-hidden="true" value="${esc(nodeData.dueDate || '')}"></div>
                     <div class="due-quick"><button type="button" onclick="setDueQuick(0)">Today</button><button type="button" onclick="setDueQuick(1)">Tomorrow</button><button type="button" onclick="setDueQuick(7)">+1 week</button><button type="button" onclick="setDueQuick(null)">Clear</button></div>
                     <label>Supporting Person 1</label><select id="edit-support"><option value="">None</option>${personOptions1}</select>
@@ -3145,6 +3145,8 @@
         function render() { withFrameCache(() => {
             syncSubteamView();
             _renderBase();
+            // Skip painting off-screen rows only on big boards: on small ones Safari sometimes left rows blank after a change until you scrolled.
+            { const nc = document.getElementById('nodes-container'); if (nc) nc.classList.toggle('big-board', nc.children.length > 40); }
             markSubteams();
             fitCategoryLabels();
             renderSubteamBar();
@@ -3186,7 +3188,7 @@
             const weeks = new Set(kbWeeks().map(w => w.key)); const q = ((document.getElementById('search-tasks') || {}).value || '').trim().toLowerCase();
             return latestOfChains(allTaskLocs().filter(l => weeks.has(l.weekKey))).filter(l => !hiddenPersons.has(l.person.id) && !phaseHidden(l.task) && !l.task.isGhost
                 && (!kbMine || l.person.id === (TT.me && TT.me.uid))
-                && (!q || [l.task.name, l.task.jiraId, l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
+                && (!q || [l.task.name, l.task.jiraId, TT.taskRef ? TT.taskRef(l.task) : '', l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
         }
         const PRIO_RANK = { Blocker: 0, Critical: 1, Major: 2, Minor: 3 };
         function kbSort(st) {
@@ -3329,7 +3331,7 @@
             const q = ((document.getElementById('search-tasks') || {}).value || '').trim().toLowerCase();
             return latestOfChains(allTaskLocs()).filter(l => !l.task.isGhost && !hiddenPersons.has(l.person.id) && !phaseHidden(l.task)
                 && (!gtHideDone || l.task.flag !== 'completed')
-                && (!q || [l.task.name, l.task.jiraId, l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
+                && (!q || [l.task.name, l.task.jiraId, TT.taskRef ? TT.taskRef(l.task) : '', l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
         }
         function gtColor(t) { const st = stageById(TT.stageId(t)); return st && st.color ? st.color : (TT.stageOf(t) === 'done' ? '#48bb78' : TT.stageOf(t) === 'doing' ? '#4299e1' : '#718096'); }
         function gtFmt(iso) { const d = parseISO(iso); return d ? d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : ''; }

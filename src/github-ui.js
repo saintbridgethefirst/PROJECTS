@@ -58,11 +58,25 @@ export function githubSection(ctx, { rerender } = {}) {
   const v = { ...g };
   const people = (s.members || []).slice().sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
   const save = el('button.btn.small.primary', { type: 'button', id: 'gh-save', disabled: true, onclick: async () => {
-    if (await ctx.writeOps([{ type: 'update', path: 'team', data: { github: { repo: g.repo, issues: v.issues, done: v.done, owner: v.owner, connectedAt: g.connectedAt, write: g.write } } }])) { toast('GitHub settings saved.'); if (rerender) rerender(); }
+    if (await ctx.writeOps([{ type: 'update', path: 'team', data: { github: { repo: g.repo, issues: v.issues, done: v.done, owner: v.owner, connectedAt: g.connectedAt, write: g.write, last: g.last } } }])) { toast('GitHub settings saved.'); if (rerender) rerender(); }
   } }, 'Save');
   const touch = () => { save.disabled = false; };
+  const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
+  const what = (l) => ({ ping: 'GitHub said hello (webhook added)', issues: 'issue ' + l.action, pull_request: 'pull request ' + (l.action === 'closed' ? 'closed or merged' : l.action) })[l.kind] || (l.kind + ' ' + l.action);
+  const status = g.last && g.last.at
+    ? el('div.banner.info.gh-status', { id: 'gh-status' }, el('b', {}, '✓ GitHub is sending events. '), 'Last: ' + what(g.last) + ', ' + ago(g.last.at) + (g.last.links || g.last.finished || g.last.created ? ' (' + [g.last.links && g.last.links + ' linked', g.last.finished && g.last.finished + ' finished', g.last.created && 'a task made'].filter(Boolean).join(', ') + ')' : '') + '.')
+    : el('div.banner.gh-status', { id: 'gh-status' }, el('b', {}, 'No events from GitHub yet. '), 'Add the webhook (steps below); GitHub then sends a test “ping” and this turns green.');
+  const guide = el('details.gh-guide', { id: 'gh-guide', open: !(g.last && g.last.at) },
+    el('summary', {}, 'How to add the webhook on GitHub'),
+    el('ol', {},
+      el('li', {}, 'In TeamTrack, press ', el('b', {}, 'New secret'), ' (below). It shows a ', el('b', {}, 'Payload URL'), ' and a ', el('b', {}, 'Secret'), ', each with a Copy button.'),
+      el('li', {}, 'On GitHub open ', el('a', { href: 'https://github.com/' + g.repo + '/settings/hooks', target: '_blank', rel: 'noopener noreferrer' }, g.repo + ' ▸ Settings ▸ Webhooks'), ' and press ', el('b', {}, 'Add webhook'), ' (or edit the one you have).'),
+      el('li', {}, 'Paste the ', el('b', {}, 'Payload URL'), '. Set ', el('b', {}, 'Content type'), ' to ', el('code', {}, 'application/json'), '. Paste the ', el('b', {}, 'Secret'), '. Leave SSL verification on.'),
+      el('li', {}, 'Under “Which events”, choose ', el('b', {}, 'Let me select individual events'), ', untick ', el('b', {}, 'Pushes'), ', tick ', el('b', {}, 'Issues'), ' and ', el('b', {}, 'Pull requests'), '. Keep ', el('b', {}, 'Active'), ' ticked. Save.'),
+      el('li', {}, 'Check: the webhook’s ', el('b', {}, 'Recent Deliveries'), ' tab shows a green ✓ “ping”, and the box above turns green here. From then on, every issue or pull request that mentions a task’s reference shows on its card.')));
   box.append(
     el('p', {}, 'Connected to ', el('a', { href: 'https://github.com/' + g.repo, target: '_blank', rel: 'noopener noreferrer', id: 'gh-repo-link' }, g.repo), '.'),
+    status, guide,
     el('label.chk', {}, el('input', { type: 'checkbox', id: 'gh-issues', checked: g.issues, disabled: !edit, onchange: (e) => { v.issues = e.target.checked; touch(); } }), ' New issues become tasks for ',
       el('select', { id: 'gh-owner', disabled: !edit, 'aria-label': 'Who gets new issues', onchange: (e) => { v.owner = e.target.value; touch(); } }, people.map(m => el('option', { value: m.uid, selected: m.uid === (g.owner || s.team.ownerUid) }, m.name || m.email)))),
     el('label.chk', {}, el('input', { type: 'checkbox', id: 'gh-done', checked: g.done, disabled: !edit, onchange: (e) => { v.done = e.target.checked; touch(); } }), ' A merged pull request or closed issue finishes its task (not past a sign-off still to give)'),

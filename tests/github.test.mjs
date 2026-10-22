@@ -24,7 +24,7 @@ test('branch names, repos and the new-issue link', () => {
   assert.equal(cleanRepo('https://github.com/Uni/rover.git'), 'Uni/rover');
   assert.equal(cleanRepo('uni/rover'), 'uni/rover');
   assert.equal(cleanRepo('not a repo'), '');
-  assert.deepEqual(cleanGithub({ repo: 'uni/rover' }), { repo: 'uni/rover', issues: true, done: true, owner: '', connectedAt: 0, write: false });
+  assert.deepEqual(cleanGithub({ repo: 'uni/rover' }), { repo: 'uni/rover', issues: true, done: true, owner: '', connectedAt: 0, write: false, last: null });
   const u = newIssueUrl('uni/rover', { title: 'Motor stalls', body: 'At 50% throttle', ref: 'TT-ABC123' });
   assert.ok(u.startsWith('https://github.com/uni/rover/issues/new?title=Motor%20stalls&body=') && decodeURIComponent(u).includes('TeamTrack: TT-ABC123'));
 });
@@ -87,4 +87,10 @@ test('webhook signatures', async () => {
   assert.equal(signatureOk('wrong', body, sig), false);
   assert.equal(signatureOk('s3cret', body, ''), false);
   assert.equal(signatureOk('s3cret', Buffer.from('{"zen":"changed"}'), sig), false);
+});
+test('a team’s own reference (the Ref field) links too, as a whole word', async () => {
+  const { planGithubEvent } = await import('../functions/ghsync.js');
+  const T = [{ id: 't1', name: 'Gear', jiraId: 'DRN-12', flag: 'none', attachments: [] }, { id: 't2', name: 'Other', jiraId: 'DRN-1', flag: 'none', attachments: [] }];
+  const plan = planGithubEvent('pull_request', { action: 'opened', repository: { full_name: 'u/r' }, pull_request: { number: 3, title: 'Fix landing gear (drn-12)', body: '', html_url: 'https://github.com/u/r/pull/3', head: { ref: 'fix' } } }, T, { repo: 'u/r' });
+  assert.deepEqual(plan.links.map(l => l.taskId), ['t1'], 'DRN-12 matches, DRN-1 doesn’t');
 });

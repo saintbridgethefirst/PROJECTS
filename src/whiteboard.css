@@ -59,3 +59,62 @@
   .wb-zoom { bottom: 76px; }
   .wb-count { display: none; }
 }
+
+/* Top bar: everything on one line, the same height */
+.wb-head { min-height: 58px; box-sizing: border-box; }
+.wb-head > * { margin: 0; }
+.wb-head .btn.small, .wb-head .wb-board-select { height: 36px; box-sizing: border-box; display: inline-flex; align-items: center; padding-top: 0; padding-bottom: 0; line-height: 1; }
+.wb-head .wb-board-select { width: auto; min-width: 140px; padding: 0 30px 0 12px; }
+.wb-crumb { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+
+/* Tool bar groups */
+.wb-tools { max-height: calc(100% - 32px); overflow-y: auto; scrollbar-width: none; }
+.wb-tool-gap { margin-top: 6px; position: relative; }
+.wb-tool-gap::before { content: ''; position: absolute; left: 8px; right: 8px; top: -5px; height: 1px; background: var(--border-color); }
+.wb-canvas[data-tool^="shape"], .wb-canvas[data-tool="frame"] { cursor: crosshair; }
+.wb-canvas[data-tool="pen"] { cursor: crosshair; }
+
+/* Shapes */
+.wb-shape { --fill: #bfdbfe; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px 16px; color: #1a202c; font-size: 15px; font-weight: 600; line-height: 1.35; }
+.wb-shape-bg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.wb-shape-bg > * { fill: var(--fill); stroke: color-mix(in srgb, var(--fill) 55%, #1a202c); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.wb-shape .wb-text { position: relative; max-width: 100%; }
+.wb-shape-diamond .wb-text, .wb-shape-triangle .wb-text { max-width: 62%; }
+.wb-shape-triangle { align-items: flex-end; padding-bottom: 14%; }
+.wb-shape.sel { box-shadow: none; outline: 2px dashed var(--line-color); outline-offset: 4px; }
+.wb-shape .wb-edit { text-align: center; position: relative; }
+
+/* Pen strokes */
+.wb-pen { --ink: #1f2937; }
+.wb-pen svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.wb-pen polyline { stroke: var(--ink); }
+.wb-pen.sel { box-shadow: none; outline: 2px dashed var(--line-color); outline-offset: 4px; }
+.wb-pen-live { fill: none; stroke: var(--line-color); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Frames: a titled area behind everything */
+.wb-frame { --frame: transparent; border: 2px dashed color-mix(in srgb, var(--text-muted) 55%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--frame) 22%, transparent); }
+.wb-frame.sel { box-shadow: none; border-color: var(--line-color); }
+.wb-frame-title { position: absolute; left: 10px; top: -30px; font-size: 15px; font-weight: 800; color: var(--text-muted); white-space: nowrap; }
+.wb-frame .wb-edit { position: absolute; left: 10px; top: -32px; width: auto; min-width: 200px; font-size: 15px; font-weight: 800; background: var(--bg-main); }
+
+/* Multi-select box */
+.wb-marquee { position: fixed; z-index: 9050; border: 1.5px solid var(--line-color); background: color-mix(in srgb, var(--line-color) 12%, transparent); border-radius: 4px; pointer-events: none; }
+
+/* Right-click menu */
+.wb-menu { position: fixed; z-index: 9200; min-width: 230px; padding: 6px; border-radius: 12px; background: var(--bg-panel); border: 1px solid var(--border-color); box-shadow: 0 16px 40px rgba(0, 0, 0, .3); display: flex; flex-direction: column; gap: 1px; }
+.wb-menu-item { display: flex; align-items: center; gap: 10px; border: 0; background: transparent; color: var(--text-main); font: inherit; font-size: 13.5px; font-weight: 600; text-align: left; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.wb-menu-item:hover:not(:disabled), .wb-menu-item:focus-visible { background: color-mix(in srgb, var(--line-color) 16%, transparent); outline: none; }
+.wb-menu-item:disabled { opacity: .45; cursor: default; }
+.wb-menu-item.danger { color: #e53e3e; }
+.wb-menu-ico { width: 20px; text-align: center; }
+.wb-menu-item kbd { margin-left: auto; font: inherit; font-size: 11px; color: var(--text-muted); }
+.wb-menu-sep { height: 1px; background: var(--border-color); margin: 4px 6px; }
+.wb-menu .wb-swatches { padding: 6px 10px; }
+.wb-shape-pick { font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 7px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); width: auto; margin: 0; }
+.wb-tools, .wb-zoom { z-index: 9150; }
+@media (max-width: 700px) {
+  .wb-tools { max-width: calc(100vw - 24px); max-height: none; overflow-x: auto; overflow-y: hidden; }
+  .wb-tool { flex: 0 0 auto; }
+  .wb-tool-gap { margin-top: 0; margin-left: 6px; }
+  .wb-tool-gap::before { left: -4px; right: auto; top: 8px; bottom: 8px; width: 1px; height: auto; }
+}

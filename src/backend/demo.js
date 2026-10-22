@@ -229,7 +229,7 @@ export const data = {
         const repo = gh.cleanRepo(payload.repo); if (!repo) fail('invalid-argument', 'Give the repository as owner/name, e.g. uni-robotics/rover.');
         const old = gh.cleanGithub(T.doc.github); const secret = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
         T.private = { ...(T.private || {}), github: { secret, repo, by: me.uid, at: Date.now(), last: null } };
-        T.doc.github = { repo, issues: old.repo ? old.issues : true, done: old.repo ? old.done : true, owner: old.owner || me.uid, connectedAt: Date.now() };
+        T.doc.github = { repo, issues: old.repo ? old.issues : true, done: old.repo ? old.done : true, owner: old.owner || me.uid, connectedAt: Date.now(), write: false, last: null };
         persist();
         return { repo, secret, url: 'https://europe-west2-uni-teamtrack.cloudfunctions.net/githubWebhook?team=' + encodeURIComponent(teamId) + ' (demo: nothing is sent)' };
       }
@@ -275,7 +275,7 @@ export const data = {
       const { ops, notes } = gh.githubOps(plan, tasks, { now, today, time, stages: (T.doc.workflow && T.doc.workflow.stages) || [], newTask, newId: 't_gh' + Math.random().toString(16).slice(2, 14) });
       ops.forEach(o => { const id = o.path.split('/')[1]; if (o.type === 'set') T.tasks[id] = clone(o.data); else T.tasks[id] = { ...T.tasks[id], ...clone(o.data) }; });
       const summary = { at: now, kind: payload.kind, action: (payload.payload && payload.payload.action) || '', links: plan.links.length, finished: plan.finish.length, created: plan.create && newTask ? 1 : 0, why: [plan.why, ...notes].filter(Boolean).join(' ') };
-      T.private.github.last = summary; persist();
+      T.private.github.last = summary; T.doc.github = { ...gh.cleanGithub(T.doc.github), last: { at: now, kind: summary.kind, action: summary.action, links: summary.links, finished: summary.finished, created: summary.created, ok: plan.ok } }; persist();
       return summary;
     }
     if (name === 'transferOwnership') {
