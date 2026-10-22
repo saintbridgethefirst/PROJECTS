@@ -31,4 +31,16 @@ Service account `github-deploy@uni-teamtrack.iam.gserviceaccount.com` (Google Cl
 - Firebase Admin, Service Account User — deploying the site and rules
 - Cloud Datastore Owner, Cloud Datastore Backups Admin, Cloud Datastore Backup Schedules Admin,
   Cloud Datastore Restore Admin — backups and restores
-- Cloud Functions Admin — only if GitHub should deploy the Cloud Functions
+- Cloud Functions Admin, Cloud Build Editor, Artifact Registry Administrator, Secret Manager Secret Accessor,
+  Cloud Scheduler Admin, Eventarc Admin — GitHub deploys the Cloud Functions whenever `functions/` changes
+- Firebase Hosting Admin — preview links for pull requests
+
+## Trying a change before it goes live
+Open a pull request instead of pushing to `main`. After the tests pass, a bot comments a private
+preview link (`uni-teamtrack--pr-N-….web.app`, expires after 7 days). It uses the **live database**,
+so try changes on a test team. To sign in there, add the preview domain once under Firebase ▸
+Authentication ▸ Settings ▸ Authorised domains (or just look, signed out). Merge the pull request to go live.
+
+## Before a demo
+Feature freeze: for the week before, only bug fixes go to `main`. Check the latest CI run is green,
+the Backups check ran this morning, and there are no new error emails.

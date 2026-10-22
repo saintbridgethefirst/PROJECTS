@@ -56,11 +56,19 @@ setGlobalOptions({ region: REGION, maxInstances: 3, memory: '256MiB' });
 
 export const sendStudentCode = onCall({ region: REGION, invoker: 'public', secrets: [RESEND_API_KEY], maxInstances: 3, timeoutSeconds: 30 }, (req) => explain('sendStudentCode', () => sendStudentCodeImpl(req)));
 /** Log the real cause and give the person a readable reason instead of "internal". */
+/** A server failure is recorded like a browser crash (clientErrors), so the admins get the same email alert. */
+async function serverFault(name, e) {
+  try {
+    await db.collection('clientErrors').add({ kind: 'server', msg: String((e && (e.message || e.code)) || e || 'Unknown error').slice(0, 300), stack: String((e && e.stack) || '').slice(0, 2000),
+      where: String(name).slice(0, 100), ua: 'Cloud Functions', build: 'functions', at: Date.now(), uid: '', expireAt: new Date(Date.now() + 30 * 864e5) });
+  } catch (x) { console.error('serverFault', x); }
+}
 async function explain(name, fn) {
   try { return await fn(); }
   catch (e) {
+    if (e instanceof HttpsError && e.code !== 'internal') throw e;
+    console.error(name, e); await serverFault(name, e);
     if (e instanceof HttpsError) throw e;
-    console.error(name, e);
     throw new HttpsError('internal', 'Something went wrong on the server (' + String((e && (e.code || e.message)) || 'unknown').slice(0, 120) + '). Try again in a minute.');
   }
 }
@@ -276,7 +284,7 @@ export const githubWebhook = onRequest({ region: REGION, invoker: 'public', maxI
   try {
     const r = await handleWebhook(db, { teamId: req.query.team, kind: req.get('X-GitHub-Event') || '', signature: req.get('X-Hub-Signature-256') || '', rawBody: req.rawBody, delivery: req.get('X-GitHub-Delivery') || '' });
     res.status(r.status).json(typeof r.body === 'string' ? { message: r.body } : r.body);
-  } catch (e) { console.error('githubWebhook', e); res.status(500).json({ message: 'Something went wrong; GitHub will show this delivery as failed.' }); }
+  } catch (e) { console.error('githubWebhook', e); await serverFault('githubWebhook', e); res.status(500).json({ message: 'Something went wrong; GitHub will show this delivery as failed.' }); }
 });
 /** Create, close or reopen a task's GitHub issue (needs the team's token, set in Settings ▸ Integrations). */
 export const githubIssue = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('githubIssue', async () => {
