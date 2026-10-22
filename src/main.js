@@ -17,7 +17,7 @@ import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFi
 import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
 import { runAutos, afterCommit } from './autos.js';
 import { peopleRequests, needsDeleteApproval, askToDelete, approveLeave, approveDelete, declineRequest } from './requests.js';
-import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending, ghMark } from './github-ui.js';
+import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending, ghMark, offerCloseIssues } from './github-ui.js';
 import { refIdOf } from '../functions/ghsync.js';
 import { waitingPurchases, decidePurchase, declineDialog, purchaseOn, purchaseLine } from './purchases.js';
 import { signersFor, canSignStage, gateOnTheWay, checklistOf, cleanWhiteboard, cleanWbItem, cleanWorkflow, storedWorkflow, leadsIndex } from './model.js';
@@ -974,7 +974,7 @@ window.TT = {
       else { s.undo.push({ changes, key: coalesceKey || null, at: now }); if (s.undo.length > UNDO_LIMIT) s.undo.shift(); }
       s.redo = [];
     }
-    writeOps(changesToOps(changes, user)).then(ok => { if (ok) afterCommit(ctx(), changes).catch(e => console.warn('Automatic steps', e)); });
+    writeOps(changesToOps(changes, user)).then(ok => { if (ok) { afterCommit(ctx(), changes).catch(e => console.warn('Automatic steps', e)); offerCloseIssues(ctx(), changes); } });
   },
   async undo() { return this._step('undo'); },
   async redo() { return this._step('redo'); },

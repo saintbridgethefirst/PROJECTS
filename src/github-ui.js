@@ -266,3 +266,35 @@ export function openRaiseIssue(ctx) {
   } }, 'Open on GitHub'));
   setTimeout(() => title.focus(), 30);
 }
+
+/** A task was just marked done here: offer to close its open GitHub issues as well. */
+export function offerCloseIssues(ctx, changes) {
+  const s = ctx.session; const g = githubOf(s); if (!g.repo) return null;
+  const own = g.repo.split('/')[0].toLowerCase();
+  const open = [];
+  (changes || []).filter(c => c.kind === 'task' && c.after && c.after.flag === 'completed' && c.before && c.before.flag !== 'completed').forEach(c => {
+    (c.after.attachments || []).forEach(a => {
+      const m = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/issues\/(\d+)$/i.exec(String(a.url || ''));
+      if (m && m[1].toLowerCase() === own && a.state !== 'closed') open.push({ taskId: c.id, task: c.after.name || 'Task', number: +m[3], url: a.url, title: String(a.name || '').replace(/^Issue #\d+:?\s*/, '') });
+    });
+  });
+  if (!open.length || document.getElementById('gh-done-close')) return null;
+  const m = modal(open.length === 1 ? 'Close issue #' + open[0].number + ' too?' : 'Close its GitHub issues too?', { narrow: true }); m.box.id = 'gh-done-close';
+  const boxes = open.map((o, i) => el('label.gh-close-opt', {}, el('input', { type: 'checkbox', checked: true, 'data-i': i }), el('span', {}, el('b', {}, '#' + o.number + (o.title ? ' · ' + o.title : '')), el('span.hint', {}, ' ' + o.task))));
+  const reason = el('select', { id: 'gh-done-reason', 'aria-label': 'Close as' }, el('option', { value: 'completed' }, 'Close as completed'), el('option', { value: 'not_planned' }, 'Close as not planned'));
+  m.body.append(el('p.hint', {}, 'You marked ' + (new Set(open.map(o => o.taskId)).size === 1 ? 'this task' : 'these tasks') + ' done. ' + (open.length === 1 ? 'Its GitHub issue is' : 'These GitHub issues are') + ' still open.'), ...boxes,
+    g.write ? el('label.field', { style: { marginTop: '10px' } }, el('span', {}, 'How'), reason) : el('p.hint', {}, 'GitHub opens for each one; the closed state comes back here by itself. (Add a token in Settings ▸ Integrations to close them from here.)'));
+  const chosen = () => open.filter((o, i) => { const b = m.body.querySelector('input[data-i="' + i + '"]'); return b && b.checked; });
+  const go = el('button.btn.primary', { type: 'button', id: 'gh-done-go', onclick: async () => {
+    const list = chosen(); if (!list.length) { m.close(); return; }
+    if (!g.write) { list.forEach(o => window.open(o.url, '_blank', 'noopener')); m.close(); return; }
+    go.disabled = true; go.textContent = 'Closing…'; let n = 0;
+    for (const o of list) {
+      try { await ctx.backend.data.callFunction('githubIssue', { teamId: s.teamId, taskId: o.taskId, action: 'close', number: o.number, reason: reason.value, finish: false }); n++; }
+      catch (e) { toast(serverError(e), 9000); }
+    }
+    m.close(); if (n) toast('Closed ' + (n === 1 ? 'issue #' + list[0].number : n + ' issues') + ' on GitHub.');
+  } }, g.write ? 'Close on GitHub' : 'Open on GitHub');
+  m.foot.append(el('button.btn.ghost', { type: 'button', id: 'gh-done-skip', onclick: () => m.close() }, 'Not now'), el('span.spacer'), go);
+  return m;
+}

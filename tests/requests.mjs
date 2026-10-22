@@ -72,6 +72,15 @@ try {
   await A.locator('#quick-menu button', { hasText: 'Reopen issue' }).click(); await sleep(600);
   chip = await card(A, 'Telemetry link').locator('.gh-chip').textContent(); ok(/Open/.test(chip), 'reopened: ' + chip);
 
+  step('Marking the task done offers to close its open issue');
+  await A.evaluate(() => { const l = allTaskLocs().find(x => x.task.name === 'Telemetry link'); l.task.flag = 'completed'; l.task.completedDate = new Date().toLocaleDateString('en-CA'); saveDatabase(); render(); });
+  await A.waitForSelector('#gh-done-close', { timeout: 5000 });
+  ok((await A.textContent('#gh-done-close')).includes('#14'), 'asks about #14');
+  await A.click('#gh-done-go'); await sleep(700);
+  T = await team(A); ok(T.tasks.t_gh.flag === 'completed' && T.tasks.t_gh.attachments[0].state === 'closed', 'task done and issue closed');
+  ok(/Closed/.test(await card(A, 'Telemetry link').locator('.gh-chip').textContent()), 'card shows Closed');
+  await A.evaluate(() => { const l = allTaskLocs().find(x => x.task.name === 'Telemetry link'); l.task.flag = 'none'; l.task.completedDate = ''; saveDatabase(); render(); }); await sleep(400);
+  ok(await A.locator('#gh-done-close').count() === 0, 'reopening the task doesn’t ask');
   step('Create an issue with a title and details');
   await card(A, 'Weld the frame').click({ button: 'right' }); await sleep(200);
   await A.locator('#quick-menu button', { hasText: 'GitHub' }).first().hover(); await sleep(200);
