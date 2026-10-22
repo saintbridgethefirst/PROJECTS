@@ -1,6 +1,6 @@
 # Every push and pull request: all tests. Pushes to main that pass: deploy the website and
-# security rules to Firebase, and the Cloud Functions too when anything under functions/ changed
-# (so the site and the server never drift apart). Pull requests get a private preview link.
+# security rules to Firebase, and the Cloud Functions (unchanged ones are skipped), so the site and
+# the server never drift apart. Pull requests get a private preview link.
 # "Run workflow" on the Actions tab can also force a functions deploy.
 #
 # One-time setup: add the secret FIREBASE_SERVICE_ACCOUNT (Settings > Secrets and variables > Actions),
@@ -70,8 +70,7 @@ jobs:
         run: |
           BEFORE='${{ github.event.before }}'
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then CH=${{ inputs.deploy_functions && 'yes' || 'no' }};
-          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then CH=yes;
-          elif git diff --quiet "$BEFORE" "${{ github.sha }}" -- functions/; then CH=no; else CH=yes; fi
+          else CH=yes; fi   # every push: Firebase skips functions whose code didn't change, so this is cheap and never misses one
           echo "changed=$CH" >> "$GITHUB_OUTPUT"; echo "Cloud Functions changed: $CH"
       - name: Check the deploy key is in place
         run: |

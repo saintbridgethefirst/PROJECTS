@@ -1,7 +1,7 @@
 // The pure part of the translator (shared with tools/i18n-keys.mjs and the tests).
 // A shown text = [lead: emoji, arrows, bullets] core [tail: … : ! ?]. Numbers in the core become {n}.
-const LEAD = /^[\s\p{Extended_Pictographic}‍️←-⇿⌀-⏿■-➿⬀-⯿＋+•·▸▾▴◂‹›«»✓✗✕×#\-–—]+/u;
-const TAIL = /[\s…:!?.]*(\.\.\.)?[\s…:!?.]*$/;
+const LEAD = /^[\s\p{Extended_Pictographic}‍️←-⇿⌀-⏿■-➿⬀-⯿＋+•·▸▾▴◂‹›«»✓✗✕×#︽︾⊕⊖☰◎⋯\-–—]+/u;
+const TAIL = /[\s…:!?.✓✔→▸\p{Extended_Pictographic}\ufe0f]*(\.\.\.)?[\s…:!?.✓✔→▸\p{Extended_Pictographic}\ufe0f]*$/u;
 export function coreOf(text) {
   const s = String(text);
   const lead = (s.match(LEAD) || [''])[0];

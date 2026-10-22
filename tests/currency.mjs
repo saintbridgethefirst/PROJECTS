@@ -11,6 +11,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = [];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'de-DE' });
+await ctx.addInitScript(() => { try { if (!localStorage.getItem('tt_lang')) localStorage.setItem('tt_lang', 'en'); } catch (e) { /* */ } });   // a German browser, but the test reads English words
 async function tab(label) { const p = await ctx.newPage(); p.on('pageerror', e => errors.push(label + ': ' + e.message)); p.on('dialog', d => d.accept()); return p; }
 async function signIn(p, name, email) {
   await p.goto(BASE); await p.waitForSelector('#auth-screen:not([hidden])');

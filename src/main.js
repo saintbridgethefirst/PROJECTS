@@ -16,6 +16,7 @@ import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
 import { runAutos, afterCommit } from './autos.js';
+import { startI18n, setLang, currentLang, LANGS } from './i18n.js';
 import { startPresence, stopPresence, lookingAt, paintPresence, openPresence, refreshPresenceModal } from './presence.js';
 import { peopleRequests, needsDeleteApproval, askToDelete, approveLeave, approveDelete, declineRequest } from './requests.js';
 import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending, ghMark, offerCloseIssues } from './github-ui.js';
@@ -67,6 +68,7 @@ function show(screen) {
 
 // ── Boot ────────────────────────────────────────────────────────────────────
 (async function boot() {
+  try { await startI18n(); } catch (e) { console.warn('Language', e); }   // before anything is drawn
   try { backend = await loadBackend(); }
   catch (e) { console.error(e); show('auth-screen'); $('#auth-note').textContent = 'Could not start: ' + e.message; return; }
   // Crashes are reported (signed-in users only, no personal data) for the platform admin to see.
@@ -491,6 +493,11 @@ function notifyField() {
 
 // ── Right-click menu style: list (default) or circle ────────────────────────
 function menuStyle() { try { return localStorage.getItem('tt_menu_style') === 'circle' ? 'circle' : 'list'; } catch { return 'list'; } }
+function languageField() {
+  const sel = el('select', { id: 'acct-lang', 'aria-label': 'Language', translate: 'no', onchange: (e) => setLang(e.target.value) }, ...LANGS.map(([k, label]) => el('option', { value: k, selected: k === currentLang() }, label)));
+  return el('label.field', {}, el('span', {}, 'Language'), sel,
+    el('div.hint', { style: { marginTop: '6px' } }, 'Buttons, menus and settings. What people write stays as they wrote it. Translations are new: tell us if something reads oddly.'));
+}
 function menuStyleField() {
   const box = el('div.seg-toggle', { role: 'radiogroup', 'aria-label': 'Right-click menu style' });
   const draw = () => box.replaceChildren(...[['list', '☰ List'], ['circle', '◎ Circle']].map(([v, label]) =>
@@ -616,6 +623,7 @@ function openAccount() {
     el('div.field', {}, el('span', {}, 'Theme'), el('div.row', {}, el('span', { id: 'account-theme-name' }, themeName(currentTheme())), el('span.spacer'),
       el('button.btn.small', { type: 'button', onclick: () => openThemes() }, '🎨 Change theme…'))),
     navField(),
+    languageField(),
     menuStyleField(),
     notifyField(),
     installField(),

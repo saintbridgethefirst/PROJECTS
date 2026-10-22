@@ -858,3 +858,23 @@ test('importer reads other apps’ exports (Asana, Planner, ClickUp column names
   const src = (await import('node:fs')).readFileSync(new URL('../src/importer.js', import.meta.url), 'utf8');
   for (const name of ['section/column', 'bucket name', 'assignee email', 'completed at', 'due on']) assert.ok(src.includes("'" + name + "'"), name);
 });
+
+test('translator: icons, numbers, pieces and things people typed', async () => {
+  const { translateText } = await import('../src/i18n-core.js');
+  const d = { 'Add task': 'Añadir tarea', '{n} comments': '{n} comentarios', 'Due today': 'Vence hoy', 'Priority: Minor': 'Prioridad: Menor', 'COMPLETED': 'COMPLETADA' };
+  assert.equal(translateText('＋ Add task', d), '＋ Añadir tarea');
+  assert.equal(translateText('💬 12 comments', d), '💬 12 comentarios');
+  assert.equal(translateText('Due today · 12 comments', d), 'Vence hoy · 12 comentarios');
+  assert.equal(translateText('︾ Priority: Minor', d), '︾ Prioridad: Menor');
+  assert.equal(translateText('COMPLETED ✓', d), 'COMPLETADA ✓');
+  assert.equal(translateText('add task', d), 'añadir tarea', 'lower-case start follows');
+  assert.equal(translateText('Weld the frame', d), null, 'unknown text (what people typed) is left alone');
+  for (const f of ['t1', 't2', 't3', 't4', 't5']) {
+    const m = (await import('../src/i18n/' + f + '.js')).default;
+    for (const [k, v] of Object.entries(m)) {
+      assert.equal(v.length, 4, f + ': four languages for ' + k);
+      const n = (k.match(/\{n\}/g) || []).length;
+      v.forEach((t, i) => assert.equal((t.match(/\{n\}/g) || []).length, n, f + ' [' + i + '] keeps every number in “' + k + '”'));
+    }
+  }
+});
