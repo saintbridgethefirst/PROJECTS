@@ -114,3 +114,14 @@ test('live state: every event records the issue or PR state on the card, with a 
   const c = cleanTask({ id: 'x', name: 'x', attachments: [{ provider: 'github', url, state: 'merged', reason: 'bogus' }, { provider: 'link', url: 'https://x.y', state: 'open' }] });
   assert.equal(c.attachments[0].state, 'merged'); assert.equal(c.attachments[0].reason, ''); assert.equal(c.attachments[1].state, undefined);
 });
+test('a renamed repository is followed: links move to the new address, events link again', async () => {
+  const { repoRenamed, planGithubEvent } = await import('../functions/ghsync.js');
+  const T = [{ id: 'a', name: 'A', flag: 'none', attachments: [{ provider: 'github', url: 'https://github.com/me/TRAWPIE/issues/8', state: 'open' }] }, { id: 'b', name: 'B', attachments: [] }];
+  const p = { action: 'opened', repository: { full_name: 'me/TRAWPIE-TeamTrack' }, issue: { number: 11, title: 'X', body: 'TeamTrack: ' + (await import('../functions/ghsync.js')).taskRef('b'), html_url: 'https://github.com/me/TRAWPIE-TeamTrack/issues/11', state: 'open' } };
+  assert.equal(planGithubEvent('issues', p, T, { repo: 'me/TRAWPIE' }).ok, false, 'without following, the event is ignored');
+  const m = repoRenamed({ repo: 'me/TRAWPIE' }, p, T);
+  assert.equal(m.repo, 'me/TRAWPIE-TeamTrack'); assert.equal(m.ops.length, 1);
+  assert.equal(m.ops[0].data.attachments[0].url, 'https://github.com/me/TRAWPIE-TeamTrack/issues/8');
+  assert.deepEqual(planGithubEvent('issues', p, T, { repo: m.repo }).links.map(l => l.taskId), ['b'], 'linked after following');
+  assert.equal(repoRenamed({ repo: 'me/trawpie-teamtrack' }, p, T), null, 'same name in other letter case: nothing to do');
+});

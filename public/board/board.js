@@ -1766,6 +1766,10 @@
                 if (TT.parseGithub(a.url)) {
                     const pg = TT.parseGithub(a.url); ic.textContent = ''; ic.appendChild(ghGlyph(pg.kind)); ic.className = 'att-gh-ic';
                     row.appendChild(ghChip(a, { task, editable, withTitle: true, bare: true }));
+                    if (editable && pg.kind === 'issue' && !ownIssue(pg)) {
+                        const og = document.createElement('a'); og.className = 'btn small gh-close-btn'; og.href = a.url; og.target = '_blank'; og.rel = 'noopener noreferrer';
+                        og.textContent = a.state === 'closed' ? 'Reopen on GitHub ↗' : 'Close on GitHub ↗'; og.title = 'Add a GitHub token in Settings ▸ Integrations to close issues from here'; row.appendChild(og);
+                    }
                     if (editable && ownIssue(pg)) {
                         const cl = document.createElement('button'); cl.type = 'button'; cl.className = 'btn small gh-close-btn'; cl.textContent = 'Close…'; cl.title = 'Close this issue on GitHub';
                         cl.onclick = () => TT.closeIssue(task, pg.number); row.appendChild(cl);
@@ -2365,7 +2369,9 @@
                 : '<circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor"/>';
             return s;
         }
-        function ownIssue(pg) { return pg && pg.kind === 'issue' && TT.githubWrite() && TT.githubRepo() && pg.label.toLowerCase().startsWith(TT.githubRepo().toLowerCase() + '#'); }
+        // An issue in the team's repository (same owner counts too: a renamed repository keeps its old links)
+        function teamIssue(pg) { const r = (TT.githubRepo() || '').toLowerCase(); return !!(pg && pg.kind === 'issue' && r && (pg.label.toLowerCase().startsWith(r + '#') || pg.owner.toLowerCase() === r.split('/')[0])); }
+        function ownIssue(pg) { return teamIssue(pg) && TT.githubWrite(); }
         // a = the attachment. Its saved state (kept current by GitHub's webhook) shows at once and
         // changes live; without one, the public API is asked (private repos just say "linked").
         function ghChip(a, o = {}) {
@@ -2392,7 +2398,11 @@
                     else items.push({ icon: '✓', label: 'Close as completed', action: () => TT.closeIssue(t, pg.number, 'completed') },
                         { icon: '⊘', label: 'Close as not planned', action: () => TT.closeIssue(t, pg.number, 'not_planned') },
                         { icon: '⧉', label: 'Close as duplicate…', action: () => TT.closeIssue(t, pg.number, 'duplicate') });
-                } else if (o.editable && pg.kind === 'issue' && !TT.githubWrite()) items.push({ icon: 'ℹ', label: 'Add a token in Settings ▸ Integrations to close it from here', action: () => {} });
+                } else if (o.editable && pg.kind === 'issue') {
+                    // No token yet: close it on GitHub (the webhook brings the new state back here)
+                    items.push({ icon: state === 'closed' ? '↺' : '✓', label: (state === 'closed' ? 'Reopen' : 'Close') + ' on GitHub ↗', action: () => window.open(a.url, '_blank', 'noopener') });
+                    if (TT.can && TT.can('team.settings')) items.push({ icon: '🔑', label: 'Close from here: add a GitHub token…', action: () => TT.openSettings('integrations') });
+                }
                 items.push({ icon: '⧉', label: 'Copy link', action: async () => { try { await navigator.clipboard.writeText(a.url); toast('Copied.'); } catch { toast(a.url, 8000); } } });
                 showMenu(r.left, r.bottom + 4, items);
             });

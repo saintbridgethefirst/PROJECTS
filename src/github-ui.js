@@ -183,7 +183,7 @@ export function linkIssueDialog(ctx, task) {
     const ok = window.boardAddAttachment ? window.boardAddAttachment(task.id, { id: 'gh_' + mm[2].toLowerCase() + '_' + mm[3], provider: 'github', name: (mm[2].toLowerCase() === 'pull' ? 'PR' : 'Issue') + ' #' + mm[3], url: clean, size: 0, addedBy: ctx.user.name || '', addedAt: Date.now() }) : false;
     if (ok) {
       m.close(); toast('Linked #' + mm[3] + '.');
-      if (g.write && g.repo && mm[1].toLowerCase() === g.repo.toLowerCase()) setTimeout(() => refreshIssue(ctx, task, mm[2].toLowerCase() === 'pull' ? 'pull' : 'issues', Number(mm[3])), 1200);
+      if (g.write && g.repo && mm[1].split('/')[0].toLowerCase() === g.repo.split('/')[0].toLowerCase()) setTimeout(() => refreshIssue(ctx, task, mm[2].toLowerCase() === 'pull' ? 'pull' : 'issues', Number(mm[3])), 1200);
     }
   } }, 'Link'));
   setTimeout(() => url.focus(), 30);

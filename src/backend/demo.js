@@ -274,7 +274,13 @@ export const data = {
       // Demo only: pretend GitHub sent an event, and apply it as the webhook would.
       if (!T.private || !T.private.github) fail('failed-precondition', 'Connect a repository first.');
       const weekIdx = new Map((T.doc.weeks || []).map((w, i) => [w.key, i]));
-      const tasks = Object.entries(T.tasks).map(([id, t]) => ({ ...clone(t), id, weekIdx: weekIdx.has(t.weekId) ? weekIdx.get(t.weekId) : -1 }));
+      let tasks = Object.entries(T.tasks).map(([id, t]) => ({ ...clone(t), id, weekIdx: weekIdx.has(t.weekId) ? weekIdx.get(t.weekId) : -1 }));
+      const moved = gh.repoRenamed(T.doc.github, payload.payload, tasks);   // the repository was renamed on GitHub: follow it
+      if (moved) {
+        moved.ops.forEach(o => { const id = o.path.slice(6); if (T.tasks[id]) T.tasks[id].attachments = o.data.attachments; });
+        T.doc.github = { ...T.doc.github, repo: moved.repo }; T.private.github.repo = moved.repo;
+        tasks = Object.entries(T.tasks).map(([id, t]) => ({ ...clone(t), id, weekIdx: weekIdx.has(t.weekId) ? weekIdx.get(t.weekId) : -1 }));
+      }
       const plan = gh.planGithubEvent(payload.kind, payload.payload, tasks, T.doc.github);
       const now = Date.now(); const today = new Date().toLocaleDateString('en-CA');
       const newTask = plan.create ? gh.newTaskPlace(T.doc, Object.entries(T.categories).map(([id, c]) => ({ ...c, id })), today) : null;

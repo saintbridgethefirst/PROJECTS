@@ -43,6 +43,23 @@ export function cleanRepo(v) {
   const m = /^(?:https?:\/\/github\.com\/)?([\w.-]{1,39})\/([\w.-]{1,100}?)(?:\.git)?\/?$/i.exec(String(v || '').trim());
   return m ? m[1] + '/' + m[2] : '';
 }
+/**
+ * A renamed (or transferred) repository: GitHub keeps sending events to the same webhook (the
+ * secret proves it's ours) under the new name. Returns the new name, and the task writes that
+ * move links from the old address to the new one; null when nothing changed.
+ */
+export function repoRenamed(settings, payload, tasks) {
+  const s = cleanGithub(settings); const full = cleanRepo(payload && payload.repository && payload.repository.full_name);
+  if (!s.repo || !full || full.toLowerCase() === s.repo.toLowerCase()) return null;
+  const from = 'https://github.com/' + s.repo.toLowerCase() + '/'; const to = 'https://github.com/' + full + '/';
+  const ops = [];
+  (tasks || []).forEach(t => {
+    const atts = t.attachments || [];
+    if (!atts.some(a => String(a.url || '').toLowerCase().startsWith(from))) return;
+    ops.push({ type: 'update', path: 'tasks/' + t.id, data: { attachments: atts.map(a => (String(a.url || '').toLowerCase().startsWith(from) ? { ...a, url: to + a.url.slice(from.length) } : a)) } });
+  });
+  return { repo: full, from: s.repo, ops };
+}
 /** The team's GitHub settings (team doc ▸ github). */
 export function cleanGithub(g) {
   g = g && typeof g === 'object' ? g : {};

@@ -6,7 +6,7 @@
 //  finish tasks, turn new issues into tasks). No GitHub token is needed.
 // ─────────────────────────────────────────────────────────────────────────────
 import crypto from 'node:crypto';
-import { planGithubEvent, githubOps, newTaskPlace, cleanGithub, cleanRepo, taskRef as ref, refIdOf, gateBlocks, stateOf } from './ghsync.js';
+import { planGithubEvent, githubOps, newTaskPlace, cleanGithub, cleanRepo, taskRef as ref, refIdOf, gateBlocks, stateOf, repoRenamed } from './ghsync.js';
 
 const fail = (code, message) => Object.assign(new Error(message), { code });
 
@@ -61,7 +61,18 @@ export async function handleWebhook(db, { teamId, kind, signature, rawBody, deli
   const teamSnap = await db.doc('teams/' + teamId).get(); const team = teamSnap.data() || {};
   const weekIdx = new Map((team.weeks || []).map((w, i) => [w.key, i]));
   const taskSnap = await db.collection('teams/' + teamId + '/tasks').get();
-  const tasks = taskSnap.docs.map(d => ({ ...d.data(), id: d.id, weekIdx: weekIdx.has(d.data().weekId) ? weekIdx.get(d.data().weekId) : -1 }));
+  let tasks = taskSnap.docs.map(d => ({ ...d.data(), id: d.id, weekIdx: weekIdx.has(d.data().weekId) ? weekIdx.get(d.data().weekId) : -1 }));
+  // The repository was renamed on GitHub: follow it (the signature proves the event is from our webhook).
+  const moved = repoRenamed(team.github, payload, tasks);
+  if (moved) {
+    const batch0 = db.batch();
+    moved.ops.forEach(o => batch0.update(db.doc('teams/' + teamId + '/' + o.path), o.data));
+    batch0.update(teamSnap.ref, { 'github.repo': moved.repo }); batch0.set(priv.ref, { repo: moved.repo }, { merge: true });
+    await batch0.commit();
+    team.github = { ...(team.github || {}), repo: moved.repo };
+    const fixed = new Map(moved.ops.map(o => [o.path.slice(6), o.data.attachments]));
+    tasks = tasks.map(t => (fixed.has(t.id) ? { ...t, attachments: fixed.get(t.id) } : t));
+  }
   const plan = planGithubEvent(kind, payload, tasks, team.github);
   const now = Date.now();
   let newTask = null;
@@ -73,7 +84,7 @@ export async function handleWebhook(db, { teamId, kind, signature, rawBody, deli
   const batch = db.batch();
   ops.forEach(o => { const ref = db.doc('teams/' + teamId + '/' + o.path); if (o.type === 'set') batch.set(ref, o.data); else batch.update(ref, o.data); });
   const summary = { at: now, kind: String(kind).slice(0, 40), action: String((payload && payload.action) || '').slice(0, 40), delivery: String(delivery || '').slice(0, 80),
-    links: plan.links.length, finished: plan.finish.length, created: plan.create && newTask ? 1 : 0, why: [plan.why, ...notes].filter(Boolean).join(' ').slice(0, 300) };
+    links: plan.links.length, finished: plan.finish.length, created: plan.create && newTask ? 1 : 0, why: [moved ? 'Repository renamed from ' + moved.from + ' to ' + moved.repo + '; following it.' : '', plan.why, ...notes].filter(Boolean).join(' ').slice(0, 300) };
   batch.set(priv.ref, { last: summary }, { merge: true });
   // What the app shows (Settings ▸ Integrations ▸ GitHub): proof that events arrive.
   batch.update(teamSnap.ref, { 'github.last': { at: now, kind: summary.kind, action: summary.action, links: summary.links, finished: summary.finished, created: summary.created, ok: plan.ok } });
@@ -141,34 +152,38 @@ export async function issueAction(db, uid, teamId, a) {
     return { number: is.number, url: is.html_url, state: 'open' };
   }
   const n = Math.round(Number(a.number)); if (!(n > 0)) throw fail('invalid-argument', 'Which issue?');
+  // The link's own repository: the team's, or another of the same owner (a renamed repository keeps its old links)
+  const own = g.repo.split('/')[0].toLowerCase();
+  const linkOf = (k) => (task.attachments || []).map(x => /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/(issues|pull)\/(\d+)$/i.exec(String(x.url || ''))).find(m => m && m[3].toLowerCase() === k && +m[4] === n && m[1].toLowerCase() === own);
+  const hit = linkOf(a.action === 'refresh' && a.kind === 'pull' ? 'pull' : 'issues'); const R = hit ? hit[1] + '/' + hit[2] : g.repo;
   if (a.action === 'refresh') {   // read the current state from GitHub (after linking one by hand)
     const kind = a.kind === 'pull' ? 'pull' : 'issues';
-    const url = (task.attachments || []).map(x => x.url).find(u => new RegExp('/' + g.repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/' + kind + '/' + n + '$', 'i').test(u));
+    const url = hit && hit[0];
     if (!url) throw fail('permission-denied', 'That isn’t linked to this task.');
-    const it = await gh(token, 'GET', '/repos/' + g.repo + '/' + (kind === 'pull' ? 'pulls' : 'issues') + '/' + n);
+    const it = await gh(token, 'GET', '/repos/' + R + '/' + (kind === 'pull' ? 'pulls' : 'issues') + '/' + n);
     const state = stateOf(it, kind === 'pull'); const reason = it.state_reason === 'not_planned' || it.state_reason === 'duplicate' ? it.state_reason : '';
     const name = (kind === 'pull' ? 'PR #' : 'Issue #') + n + ': ' + String(it.title || '').slice(0, 160);
     await taskRefDoc.update({ attachments: (task.attachments || []).map(x => (x.url === url ? { ...x, state, reason, name } : x)), updatedBy: who, updatedAt: now });
     return { number: n, state, reason };
   }
-  if (!(task.attachments || []).some(x => new RegExp('/' + g.repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/issues/' + n + '$', 'i').test(x.url))) throw fail('permission-denied', 'That issue isn’t linked to this task.');
+  if (!hit) throw fail('permission-denied', 'That issue isn’t linked to this task.');
   if (a.action === 'reopen') {
-    await gh(token, 'PATCH', '/repos/' + g.repo + '/issues/' + n, { state: 'open' });
+    await gh(token, 'PATCH', '/repos/' + R + '/issues/' + n, { state: 'open' });
     history.unshift({ time: stamp(now), user: who, field: 'GitHub', original: 'closed', updated: 'Reopened issue #' + n });
-    await taskRefDoc.update({ attachments: withState(task.attachments, g.repo, n, 'open', ''), history: history.slice(0, 100), updatedBy: who, updatedAt: now });
+    await taskRefDoc.update({ attachments: withState(task.attachments, R, n, 'open', ''), history: history.slice(0, 100), updatedBy: who, updatedAt: now });
     return { number: n, state: 'open' };
   }
   const reason = ['completed', 'not_planned', 'duplicate'].includes(a.reason) ? a.reason : 'completed';
   const dup = Math.round(Number(a.duplicateOf));
   if (reason === 'duplicate') {
     if (!(dup > 0)) throw fail('invalid-argument', 'Duplicate of which issue number?');
-    await gh(token, 'POST', '/repos/' + g.repo + '/issues/' + n + '/comments', { body: 'Duplicate of #' + dup });
+    await gh(token, 'POST', '/repos/' + R + '/issues/' + n + '/comments', { body: 'Duplicate of #' + dup });
   }
-  await gh(token, 'PATCH', '/repos/' + g.repo + '/issues/' + n, { state: 'closed', state_reason: reason });
+  await gh(token, 'PATCH', '/repos/' + R + '/issues/' + n, { state: 'closed', state_reason: reason });
   const label = { completed: 'completed', not_planned: 'not planned', duplicate: 'a duplicate of #' + dup }[reason];
   const patch = { updatedBy: who, updatedAt: now };
   history.unshift({ time: stamp(now), user: who, field: 'GitHub', original: 'open', updated: 'Closed issue #' + n + ' as ' + label });
-  patch.attachments = withState(task.attachments, g.repo, n, 'closed', reason === 'completed' ? '' : reason);
+  patch.attachments = withState(task.attachments, R, n, 'closed', reason === 'completed' ? '' : reason);
   let finished = false;
   if (a.finish && reason === 'completed' && task.flag !== 'completed' && !gateBlocks({ ...task, id: taskSnap.id }, (team.workflow && team.workflow.stages) || [])) {
     history.unshift({ time: stamp(now), user: who, field: 'Task Status Flag', original: task.flag || 'none', updated: 'completed (GitHub issue #' + n + ' closed)' });
