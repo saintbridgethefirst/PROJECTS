@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  Google Calendar sync. Keeps a "TeamTrack – <team>" calendar in the person's own
+//  Google Calendar sync. Keeps a "Trawpie – <team>" calendar in the person's own
 //  Google account in step with the team's deadlines and phases. Each event carries
 //  hidden ids (ttTeam, ttId), so a sync updates or removes events instead of copying.
 //  Scope calendar.app.created: the app can only touch calendars it created.

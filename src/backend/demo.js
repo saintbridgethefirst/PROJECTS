@@ -204,7 +204,7 @@ export const data = {
     if (name === 'refreshTeamStats') { if (!(store.admins && store.admins[me.uid])) fail('permission-denied', 'Only platform admins can do this.'); notify(); return { teams: Object.keys(store.teams).length, removed: 0 }; }
     if (name === 'exportMyData') {
       const email = normEmail(me.email); const list = (o) => Object.entries(o || {}).map(([id, d]) => ({ id, ...clone(d) }));
-      return { about: 'Everything TeamTrack stores about you (demo).', account: { uid: me.uid, email: me.email, displayName: me.name, providers: ['demo'] }, profile: clone(store.users[me.uid]),
+      return { about: 'Everything Trawpie stores about you (demo).', account: { uid: me.uid, email: me.email, displayName: me.name, providers: ['demo'] }, profile: clone(store.users[me.uid]),
         studentVerification: clone(root.verifiedStudents[me.uid] || null), selfTrack: Object.entries(root.selfItems || {}).filter(([, d]) => d.uid === me.uid).map(([id, d]) => ({ id, ...clone(d) })), feedbackYouSent: list(root.feedback).filter(f => f.uid === me.uid), errorReportsFromYourBrowser: list(root.clientErrors).filter(f => f.uid === me.uid),
         invitationsToYou: Object.entries(store.teams).filter(([, T]) => T.invites && T.invites[email]).map(([id, T]) => ({ teamId: id, ...clone(T.invites[email]) })),
         teams: myTeams().map(([id, T]) => { const yours = {}; Object.entries(T).forEach(([c, docs]) => { if (['doc', 'members', 'profiles', 'private'].includes(c) || !docs || typeof docs !== 'object') return; const mine = list(docs).filter(r => BY.some(f => r[f] === me.uid) || (r.attendees || []).includes(me.uid) || (r.mentions || []).includes(me.uid)); if (mine.length) yours[c] = mine; });
@@ -235,7 +235,7 @@ export const data = {
       }
       if (name === 'githubIssue') {   // the server's issueAction, on the demo store (nothing reaches GitHub)
         const g = gh.cleanGithub(T.doc.github); const P = T.private && T.private.github;
-        if (!g.repo || !P || !P.token) fail('failed-precondition', 'TeamTrack can’t change GitHub issues for this team yet (Settings ▸ Integrations ▸ GitHub ▸ token).');
+        if (!g.repo || !P || !P.token) fail('failed-precondition', 'Trawpie can’t change GitHub issues for this team yet (Settings ▸ Integrations ▸ GitHub ▸ token).');
         const t = T.tasks[payload.taskId]; if (!t) fail('not-found', 'That task doesn’t exist any more.');
         const perms = ((T.doc.roles || {})[role] || {}).perms || {};
         if (!(role === 'owner' || perms['tasks.editAll'] || (perms['tasks.editOwn'] && t.ownerUid === me.uid))) fail('permission-denied', 'You can only do this on tasks you can edit.');

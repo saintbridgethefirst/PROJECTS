@@ -231,7 +231,7 @@ export function importFromFile(TT) {
       el('li', {}, el('b', {}, 'Trello'), ': open the board ▸ Menu ▸ Print, export and share ▸ Export as JSON. Lists become categories.'),
       el('li', {}, el('b', {}, 'Jira'), ': Filters ▸ Export ▸ CSV (all fields).'),
       el('li', {}, el('b', {}, 'Asana, ClickUp, Monday.com, Microsoft Planner or Notion'), ': export the project or board as CSV or Excel and drop it here. Sections, columns, buckets or tags become categories; assignees become owners (matched by email or name).'),
-      el('li', {}, el('b', {}, 'A TeamTrack backup'), ' (.json) or the old single-user tracker’s Excel file.')));
+      el('li', {}, el('b', {}, 'A Trawpie backup'), ' (.json) or the old single-user tracker’s Excel file.')));
   m.foot.append(el('button.btn.ghost', { type: 'button', onclick: m.close }, 'Cancel'));
 }
 
@@ -247,7 +247,7 @@ function downloadTemplate(TT) {
   ];
   const ws = X.utils.aoa_to_sheet(rows); ws['!cols'] = [{ wch: 34 }, { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 22 }, { wch: 10 }, { wch: 14 }];
   const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Tasks');
-  X.writeFile(wb, 'TeamTrack-import-template.xlsx');
+  X.writeFile(wb, 'Trawpie-import-template.xlsx');
   toast('Template downloaded: fill it in, then drop it here. Leave Week empty and each task goes into the week of its deadline (or this week).', 7000);
 }
 

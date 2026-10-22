@@ -99,7 +99,7 @@ function plan(pane, ctx, { invites, rerender } = {}) {
     return el('div.plan-card' + (on ? '.on' : ''), { dataset: { tier: key } }, el('div.plan-card-head', {}, el('b', {}, t.name), on ? el('span.pro-badge.on', {}, 'Your plan') : ''),
       el('div.plan-price', {}, t.price), el('ul', {}, items.map(x => el('li', {}, x)))); };
   pane.append(el('section', {}, el('h4', {}, 'Compare plans'), el('div.plan-cards', {},
-    tierCard('free', ['Everything TeamTrack does today', 'Up to ' + PLANS.free.members + ' members a team', 'Up to ' + PLANS.free.ownTeams + ' teams of your own', 'Finance history for ' + PLANS.free.financeHistoryDays + ' days']),
+    tierCard('free', ['Everything Trawpie does today', 'Up to ' + PLANS.free.members + ' members a team', 'Up to ' + PLANS.free.ownTeams + ' teams of your own', 'Finance history for ' + PLANS.free.financeHistoryDays + ' days']),
     tierCard('pro', ['Everything in Free', 'Up to ' + PLANS.pro.members + ' members', ...PRO_FEATURES.filter(f => f.tier === 'pro').map(f => f.name + (f.status === 'live' ? '' : ' (soon)')), 'Pro Education: free for students and staff with a university email']),
     tierCard('org', ['Everything in Pro', ...PRO_FEATURES.filter(f => f.tier === 'org').map(f => f.name + (f.status === 'live' ? '' : ' (soon)')), 'Priority support and an uptime commitment']))));
   // Ask for Pro (pilot: no payment yet)
@@ -239,7 +239,7 @@ function adminPlans(ctx, rerender) {
         const ok = await TT.setTeamPlan(s.teamId, { tier: tier.value, edu: edu.checked, until: until.value ? new Date(until.value + 'T23:59:59').getTime() : 0, note: note.value });
         if (ok) { toast('Plan set to ' + tier.options[tier.selectedIndex].text + (edu.checked && tier.value !== 'free' ? ' Education' : '') + '.'); setTimeout(() => rerender && rerender(), 300); }
       } }, 'Set plan')),
-    el('h4', {}, '📈 Teams using TeamTrack'), statsBox,
+    el('h4', {}, '📈 Teams using Trawpie'), statsBox,
     el('h4', {}, 'Pro requests from all teams'), list,
     el('h4', {}, 'Teams on Pro Education'), eduList,
     el('h4', {}, '💬 Feedback'), fbList,
@@ -261,7 +261,7 @@ function adminPlans(ctx, rerender) {
   const unsubFb = TT.watchFeedback((rows) => {
     if (!sec.isConnected) { unsubFb && unsubFb(); return; }
     fbList.replaceChildren(...(rows.length ? rows.slice(0, 30).map(f => el('div.adm-fb', {},
-      el('div', {}, KINDS[f.kind] || '💬', ' ', el('b', {}, f.name || f.email || 'Someone'), el('span.hint', {}, ' · ' + fmtDay(f.at) + (f.email ? ' · ' : '')), f.email ? el('a', { href: 'mailto:' + f.email + '?subject=' + encodeURIComponent('Re: your TeamTrack feedback') }, 'Reply') : ''),
+      el('div', {}, KINDS[f.kind] || '💬', ' ', el('b', {}, f.name || f.email || 'Someone'), el('span.hint', {}, ' · ' + fmtDay(f.at) + (f.email ? ' · ' : '')), f.email ? el('a', { href: 'mailto:' + f.email + '?subject=' + encodeURIComponent('Re: your Trawpie feedback') }, 'Reply') : ''),
       el('p', {}, f.text), (f.errors || []).length ? el('div.hint', {}, 'Errors: ' + f.errors.join(' · ')) : '')) : [el('p.hint', {}, 'No feedback yet.')]));
   }, (e) => { fbList.replaceChildren(el('p.hint', {}, 'Could not load: ' + (e.message || e))); });
   const unsubErr = TT.watchClientErrors((rows) => {
@@ -381,7 +381,7 @@ function autosSection(ctx, stages, { rerender } = {}) {
   const touch = () => { btn.disabled = false; };
   const targets = stages.slice(1, -1);
   return el('section.wf-extra', { id: 'auto-settings' }, el('h4', {}, 'Automatic steps'),
-    el('p.hint', {}, 'Small jobs TeamTrack does for you. Each one is done by the app of someone who can make that change, and shows in the task’s history.'),
+    el('p.hint', {}, 'Small jobs Trawpie does for you. Each one is done by the app of someone who can make that change, and shows in the task’s history.'),
     el('div.row', {},
       el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-parts', checked: !!a.partsTo, disabled: !editable || !targets.length, onchange: (e) => { v.partsTo = e.target.checked ? (v.partsTo || (targets.find(x => x.id === 'build') || targets[0] || {}).id || '') : ''; const sel = document.getElementById('auto-parts-to'); if (sel && v.partsTo) sel.value = v.partsTo; touch(); } }),
         'When all the parts a task needs are received, move it to'),

@@ -1,4 +1,4 @@
-# TeamTrack setup guide
+# Trawpie setup guide
 
 This guide takes you from the downloaded folder to a live website where your team
 signs in, joins by email and tracks progress together. You don't need to write any
@@ -98,7 +98,7 @@ When it finishes, it prints your address, for example
 1. The team owner opens **Settings ▸ Members** and invites people by email, choosing a role.
 2. The app saves the invitation and gives you a ready-made message. Send it with
    **Gmail**, **Outlook**, **Other email app** or **Copy message**. Email opens in a
-   new tab, so TeamTrack stays open behind it.
+   new tab, so Trawpie stays open behind it.
 3. Your teammate opens the site and creates an account (or uses Google) **with the
    same email address**, verifies it from the email Firebase sends, and clicks
    **Join team**.
@@ -156,7 +156,7 @@ Google account (no server, free):
 
 - uploading task attachments to **Google Drive**,
 - **Export to Google Sheets** and the **task collection sheet**,
-- **Sync to Google Calendar**: a separate "TeamTrack – team name" calendar with
+- **Sync to Google Calendar**: a separate "Trawpie – team name" calendar with
   deadlines, phases and milestones, kept up to date each time you press Sync.
 
 The calendar *file* download ("Add to calendar") works without any of this.
@@ -165,8 +165,8 @@ The app asks Google for the narrowest permissions there are:
 
 | Permission | What it allows |
 |---|---|
-| `drive.file` | Only files TeamTrack created, or files a person picks. Never the rest of their Drive. |
-| `calendar.app.created` | Only calendars TeamTrack created, and their events. Never their other calendars. |
+| `drive.file` | Only files Trawpie created, or files a person picks. Never the rest of their Drive. |
+| `calendar.app.created` | Only calendars Trawpie created, and their events. Never their other calendars. |
 
 Your Firebase project is also a Google Cloud project, so everything below happens in
 the same project (`uni-teamtrack` for the university group).
@@ -175,18 +175,18 @@ the same project (`uni-teamtrack` for the university group).
 2. **APIs & Services ▸ Library**. Search for and **Enable** each of:
    **Google Drive API**, **Google Sheets API**, **Google Calendar API**.
 3. **Google Auth Platform** (older screens call it **OAuth consent screen**):
-   - **Branding**: app name `TeamTrack`, your email as support and developer contact.
+   - **Branding**: app name `Trawpie`, your email as support and developer contact.
    - **Audience**: user type **External**, publishing status **Testing**.
      Under **Test users** add the Google address of everyone in the group
      (up to 100). Only these people can connect Drive, Sheets or Calendar while the app
-     is in Testing; everyone else can still use the rest of TeamTrack.
+     is in Testing; everyone else can still use the rest of Trawpie.
    - **Data access ▸ Add or remove scopes**: add
      `https://www.googleapis.com/auth/drive.file` and
      `https://www.googleapis.com/auth/calendar.app.created`, then **Save**.
      (If the calendar scope isn't listed, make sure the Calendar API from step 2 is
      enabled and reopen the list.)
 4. **Clients** (or **APIs & Services ▸ Credentials ▸ Create credentials ▸ OAuth client ID**):
-   - Application type **Web application**, name `TeamTrack web`.
+   - Application type **Web application**, name `Trawpie web`.
    - **Authorised JavaScript origins** (no paths, no trailing slash):
      `https://uni-teamtrack.web.app`, `https://uni-teamtrack.firebaseapp.com`,
      and `http://127.0.0.1:5173` for testing on your computer.
@@ -236,7 +236,7 @@ nothing extra: the calendar file from **Add deadlines to your calendar** opens i
 **Steps** (replace `uni-teamtrack` if your project is called something else)
 
 1. Go to <https://entra.microsoft.com> ▸ **Applications ▸ App registrations ▸ New registration**.
-   - Name: `TeamTrack`.
+   - Name: `Trawpie`.
    - Supported account types: **Accounts in any organizational directory and personal
      Microsoft accounts** (or only your university's directory, if IT prefers).
    - Leave the redirect URI empty for now and click **Register**.
@@ -317,7 +317,7 @@ npx firebase deploy --only functions
 ```
 First time it asks to enable Cloud Functions, Cloud Build, Artifact Registry, Cloud Scheduler — answer **y**. Then:
 - `RESEND_API_KEY` → paste the key (input is hidden)
-- `MAIL_FROM` → `TeamTrack <notifications@mail.trawpie.org>`
+- `MAIL_FROM` → `Trawpie <notifications@mail.trawpie.org>`
 - `APP_URL` → `https://uni-teamtrack.web.app`
 If it complains about the region, open **Firestore ▸ Settings**, note the location, and change `REGION` at the top of `functions/index.js` to match (London = `europe-west2`, `eur3` = `europe-west1`, `nam5` = `us-central1`).
 
@@ -336,14 +336,14 @@ Two Cloud Functions do this: `githubConnect` (makes a secret for a team) and `gi
 firebase deploy --only functions
 ```
 
-No GitHub token or app is needed. In TeamTrack, someone who manages team settings opens **Settings ▸ Integrations ▸ GitHub**, types the repository (`owner/name`) and presses **Connect**. TeamTrack shows a payload URL and a secret; on GitHub, open the repository's **Settings ▸ Webhooks ▸ Add webhook**, paste both, choose `application/json`, and tick **Issues** and **Pull requests**. The secret is stored in `teams/{team}/private/github`, which no one can read from the app.
+No GitHub token or app is needed. In Trawpie, someone who manages team settings opens **Settings ▸ Integrations ▸ GitHub**, types the repository (`owner/name`) and presses **Connect**. Trawpie shows a payload URL and a secret; on GitHub, open the repository's **Settings ▸ Webhooks ▸ Add webhook**, paste both, choose `application/json`, and tick **Issues** and **Pull requests**. The secret is stored in `teams/{team}/private/github`, which no one can read from the app.
 
 After that:
 - a pull request whose title, description or branch name has a task's reference (`TT-XXXXXX`, shown on every task with a **Copy branch name** button) is linked to that task, and finishes it when merged;
 - a new issue becomes a task for the person chosen in the settings, unless it names a task (issues raised from the app's **Raise an issue** form do), and closing it finishes the task;
 - nothing finishes a task past a sign-off that hasn't been given.
 
-GitHub's webhook page shows each delivery and TeamTrack's answer, which is the first place to look if something doesn't link.
+GitHub's webhook page shows each delivery and Trawpie's answer, which is the first place to look if something doesn't link.
 
 ## Moving data from the old single-file tracker
 In a team, open the side panel and click **Import tasks (Excel, CSV or old tracker)**.

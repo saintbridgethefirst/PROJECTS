@@ -1,4 +1,4 @@
-# TeamTrack runbook — what to do when something goes wrong
+# Trawpie runbook — what to do when something goes wrong
 
 ## Backups (automatic)
 - Google takes a backup of the whole database **every day (kept 30 days)** and **every Sunday (kept 14 weeks)**.
@@ -7,7 +7,7 @@
 - See which backups exist: Actions ▸ Backups ▸ Run workflow ▸ `check`.
 
 ## A team lost or broke its data — restore ONE team
-1. Find the team ID: open the team in TeamTrack; it's in the address bar after `#/t/`.
+1. Find the team ID: open the team in Trawpie; it's in the address bar after `#/t/`.
 2. GitHub ▸ TRAWPIE ▸ **Actions ▸ Backups ▸ Run workflow**:
    action `restore-team`, team ID, backup day (`YYYY-MM-DD`, or empty for the latest), **apply unticked**.
 3. Open the finished run: the log says what would change (documents written / deleted per collection).

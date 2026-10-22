@@ -1,9 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  TeamTrack Cloud Functions (Blaze plan). Deploy from the project folder:
+//  Trawpie Cloud Functions (Blaze plan). Deploy from the project folder:
 //    cd functions && npm install && cd .. && firebase deploy --only functions
 //  First deploy asks for:
 //    RESEND_API_KEY — a SENDING-ONLY key from resend.com (paste it in the terminal, never in chat)
-//    MAIL_FROM      — e.g.  TeamTrack <notifications@mail.trawpie.org>
+//    MAIL_FROM      — e.g.  Trawpie <notifications@mail.trawpie.org>
 //    APP_URL        — e.g.  https://uni-teamtrack.web.app
 //  REGION must be your Firestore location's region (Firestore ▸ Settings), e.g. europe-west2 for London.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,8 +25,8 @@ import { normEmail, isAcademicEmail, newCode, hashCode, emailKey, checkSend, che
 initializeApp();
 const db = getFirestore();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
-const MAIL_FROM = defineString('MAIL_FROM', { default: 'TeamTrack <notifications@mail.trawpie.org>' });
-const APP_NAME = defineString('APP_NAME', { default: 'TeamTrack' });
+const MAIL_FROM = defineString('MAIL_FROM', { default: 'Trawpie <notifications@mail.trawpie.org>' });
+const APP_NAME = defineString('APP_NAME', { default: 'Trawpie' });
 const APP_URL = defineString('APP_URL', { default: 'https://uni-teamtrack.web.app' });
 const REGION = 'europe-west2';
 
@@ -280,7 +280,7 @@ export const githubConnect = onCall({ region: REGION, invoker: 'public', maxInst
 }));
 /** GitHub calls this for every issue and pull-request event in a connected repository. */
 export const githubWebhook = onRequest({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30, cors: false }, async (req, res) => {
-  if (req.method === 'GET') { res.status(200).send('TeamTrack GitHub webhook is running (send events with POST)'); return; }   // for uptime checks
+  if (req.method === 'GET') { res.status(200).send('Trawpie GitHub webhook is running (send events with POST)'); return; }   // for uptime checks
   if (req.method !== 'POST') { res.status(405).send('POST only'); return; }
   try {
     const r = await handleWebhook(db, { teamId: req.query.team, kind: req.get('X-GitHub-Event') || '', signature: req.get('X-Hub-Signature-256') || '', rawBody: req.rawBody, delivery: req.get('X-GitHub-Delivery') || '' });

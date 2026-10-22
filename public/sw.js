@@ -1,4 +1,4 @@
-// TeamTrack service worker: lets the installed app open without a connection.
+// Trawpie service worker: lets the installed app open without a connection.
 // Pages: network first (always the newest version when online), cached copy when offline.
 // Built files (/assets, /board, /icons): cached after first use; their names change on
 // every release, so old copies are simply never asked for again.

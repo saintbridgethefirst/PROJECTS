@@ -1,4 +1,7 @@
-# TeamTrack
+# Trawpie
+
+*Technical Research And Welfare for People In Education* · part of **Penteint**.
+(Formerly TeamTrack. The Firebase project id stays `uni-teamtrack`; old GitHub issues that say “TeamTrack: TT-…” still link.)
 
 A team progress tracker you can host as a website. People sign in, join their team by
 email invitation, and plan work week by week, with roles, deadlines, analytics and
@@ -31,7 +34,7 @@ mode, so `npm install` then `npm run dev` is enough to try it.
   edit; viewers read only), @mentions with autocomplete and an unread badge, an Activity
   panel (your mentions + a team-wide feed of changes and comments), and **My tasks** on
   the team list: everything you own or support across all your teams, by deadline.
-- **Phone app:** install TeamTrack on a phone's home screen (or a computer's dock); it
+- **Phone app:** install Trawpie on a phone's home screen (or a computer's dock); it
   opens full-screen and starts without a connection.
 - **Search everything:** Ctrl+K (⌘K) or 🔍 finds tasks (even by sub-task or reference),
   comments, people, phases, weeks and actions.

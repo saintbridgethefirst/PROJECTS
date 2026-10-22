@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 const env = import.meta.env || {};
 
-export const APP_NAME = env.VITE_APP_NAME || 'TeamTrack';
+export const APP_NAME = env.VITE_APP_NAME || 'Trawpie';
 export const APP_TAGLINE = env.VITE_APP_TAGLINE || 'Plan, track and review team progress';
 
 export const firebaseConfig = {

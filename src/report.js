@@ -238,7 +238,7 @@ export function reportHtml(R, { forWord = false } = {}) {
   return '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(R.title + ' · ' + R.team) + '</title><style>' + css + '</style></head><body>' +
     '<header>' + (R.logo && !forWord ? '<img src="' + esc(R.logo) + '" alt="">' : '') + '<div><h1>' + esc(R.title) + '</h1><div class="sub">' + esc(R.team) + ' · ' + esc(R.period.label) + ' (' + esc(fmt(R.period.from)) + ' – ' + esc(fmt(R.period.to)) + ')<br>Prepared by ' + esc(R.author) + ' on ' + esc(fmt(R.generated)) + '</div></div></header>' +
     (R.message ? '<div class="msg">' + esc(R.message) + '</div>' : '') + R.sections.map(sec).join('') +
-    '<footer>Generated with TeamTrack · ' + esc(fmt(R.generated)) + '</footer></body></html>';
+    '<footer>Generated with Trawpie · ' + esc(fmt(R.generated)) + '</footer></body></html>';
 }
 export function reportText(R) {
   const out = [R.title + ' — ' + R.team, R.period.label + ' (' + fmt(R.period.from) + ' – ' + fmt(R.period.to) + ')', 'Prepared by ' + R.author + ' on ' + fmt(R.generated), ''];
@@ -274,7 +274,7 @@ export function openReport(ctx) {
   const frame = el('iframe.rp-frame', { title: 'Report preview' });
   const data = () => ({
     team: s.team, rows: window.boardRows ? window.boardRows({ scope: 'all', allPhases: true }) : [], latestId: (id) => (carryIndexOf(s).latest(id) || {}).id || id, members: s.members, meetings: s.meetings, notebook: s.notebook, parts: s.parts,
-    papers: s.papers, expenses: s.expenses, budget: s.budget, risks: s.risks, requirements: s.requirements, timeEntries: window.boardTimeEntries ? window.boardTimeEntries() : [], money, author: ctx.user.name || ctx.user.email || 'TeamTrack', today: localISO(new Date()),
+    papers: s.papers, expenses: s.expenses, budget: s.budget, risks: s.risks, requirements: s.requirements, timeEntries: window.boardTimeEntries ? window.boardTimeEntries() : [], money, author: ctx.user.name || ctx.user.email || 'Trawpie', today: localISO(new Date()),
   });
   let current = null;
   const refresh = () => { current = buildReport(data(), opts); frame.srcdoc = reportHtml(current); saveOpts(opts); };

@@ -68,7 +68,7 @@ export function people(pane, kit) {
     needs.length ? el('div.rs-table-wrap', {}, el('table.rs-table', {}, el('tr', {}, ['Task', 'Needs', 'With', 'Week', 'Who could take it'].map(h => el('th', {}, h))),
       needs.map(l => el('tr', {}, el('td', {}, el('button.link-btn', { type: 'button', onclick: () => { R.m.close(); window.boardOpenTask(l.taskId); } }, l.name)), el('td', {}, el('span.rs-chip', {}, l.skill)), el('td', {}, l.person), el('td', {}, l.weekTitle),
         el('td', {}, suggestions(l, load, s, kit).map(sg => el('span.sugg' + (sg.uid === l.personId ? '.current' : ''), { title: sg.cap ? hrs(sg.free) + ' free that week' : 'hours not set' }, sg.name + (sg.cap ? ' · ' + hrs(sg.free) + ' free' : ''))).concat(suggestions(l, load, s, kit).length ? [] : [el('span.hint', {}, 'Nobody lists this skill yet')]))))))
-      : el('p.hint', {}, 'Set “Needs skill” in a task’s editor (e.g. CAD, ROS, soldering) and TeamTrack suggests who has the skill and the free hours.')));
+      : el('p.hint', {}, 'Set “Needs skill” in a task’s editor (e.g. CAD, ROS, soldering) and Trawpie suggests who has the skill and the free hours.')));
   // Profiles
   const uid = R.filters.peopleUid; const p = TT.profileOf(uid); const mayEdit = TT.canEditProfile(uid);
   const pick = el('select', { id: 'pp-person', 'aria-label': 'Person', onchange: (e) => { R.filters.peopleUid = e.target.value; kit.render(); } }, members.map(m => el('option', { value: m.uid, selected: m.uid === uid }, (m.uid === kit.me().uid ? 'Me — ' : '') + (m.name || m.email))));

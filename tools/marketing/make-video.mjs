@@ -1,5 +1,5 @@
 // Edits the 60-second captioned explainer from the screen recordings in marketing/video-kit.
-// Output: marketing/TeamTrack-60s.mp4 (16:9) and marketing/TeamTrack-60s-vertical.mp4 (9:16). Silent; add music later.
+// Output: marketing/Trawpie-60s.mp4 (16:9) and marketing/Trawpie-60s-vertical.mp4 (9:16). Silent; add music later.
 //   node tools/marketing/make-video.mjs
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -52,11 +52,11 @@ h1 span{display:inline-block;opacity:0;transform:translateY(40px);animation:up .
 @keyframes up{to{opacity:1;transform:none}}@keyframes pop{0%{opacity:0;transform:scale(.6)}100%{opacity:1;transform:none}}@keyframes sweep{to{transform:scaleX(1)}}@keyframes grow{to{width:var(--p)}}
 </style></head><body>`;
 
-const INTRO = (v) => card(v) + `<div class="brand"><img src="${logo}">TeamTrack</div>
+const INTRO = (v) => card(v) + `<div class="brand"><img src="${logo}">Trawpie</div>
 <h1><span style="animation-delay:.35s">Your</span> <span style="animation-delay:.5s">team’s</span> <span style="animation-delay:.65s">whole</span> <span style="animation-delay:.8s">week.</span><br><span class="hl" style="animation-delay:1.1s">One picture.</span></h1>
 <div class="mini">${[['Wing CAD v2', '#0e9f8e', '75%'], ['Telemetry link', '#3ba3ff', '35%'], ['Drop test', '#ffc53d', '60%']].map(([t, c, p], i) => `<div class="tk" style="--c:${c};--p:${p};animation-delay:${1.7 + i * .15}s">${t}<i><b></b></i></div>`).join('')}</div></body></html>`;
 
-const OUTRO = (v) => card(v) + `<div class="brand"><img src="${logo}">TeamTrack</div>
+const OUTRO = (v) => card(v) + `<div class="brand"><img src="${logo}">Trawpie</div>
 <h1 style="font-size:${v ? 96 : 104}px"><span style="animation-delay:.3s">Make</span> <span style="animation-delay:.42s">your</span> <span style="animation-delay:.54s">team’s</span> <span style="animation-delay:.66s">week</span> <span class="hl" style="animation-delay:.8s">visible.</span></h1>
 <div class="row"><span class="chip y" style="animation-delay:1.3s">Free for teams up to 30</span><span class="chip p" style="animation-delay:1.45s">🎓 Free Pro for students</span></div>
 <div class="url" style="animation-delay:1.9s">uni-teamtrack.web.app</div></body></html>`;
@@ -78,7 +78,7 @@ body{${PAPER}position:relative}
 .bot{position:absolute;bottom:44px;left:40px;right:40px;display:flex;align-items:center;justify-content:space-between;font-weight:900;font-size:40px}
 .bot .b{display:flex;align-items:center;gap:14px}.bot img{width:58px;height:58px;border-radius:15px;border:3px solid #14213d;box-shadow:3px 3px 0 #14213d}
 .bot span.u{padding:10px 22px;border:4px solid #14213d;border-radius:16px;background:#0e9f8e;color:#fff;box-shadow:5px 5px 0 #14213d;font-size:34px}
-</style></head><body><div class="frame"></div><div class="bot"><span class="b"><img src="${logo}">TeamTrack</span><span class="u">uni-teamtrack.web.app</span></div></body></html>`;
+</style></head><body><div class="frame"></div><div class="bot"><span class="b"><img src="${logo}">Trawpie</span><span class="u">uni-teamtrack.web.app</span></div></body></html>`;
 
 // ── Render HTML assets ─────────────────────────────────────────────────────
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
@@ -143,6 +143,6 @@ function join(files, out) {
   ff([...inputs, '-filter_complex', chain.replace(/;$/, ''), '-map', '[out]', ...ENC, '-movflags', '+faststart', out]);
   return dur(out);
 }
-const d16 = join(SCENES.map(s => s.d16), OUT + 'TeamTrack-60s.mp4');
-const d9 = join(SCENES.map(s => s.d9), OUT + 'TeamTrack-60s-vertical.mp4');
-console.log('  ✓ TeamTrack-60s.mp4', d16.toFixed(1) + 's', '· TeamTrack-60s-vertical.mp4', d9.toFixed(1) + 's');
+const d16 = join(SCENES.map(s => s.d16), OUT + 'Trawpie-60s.mp4');
+const d9 = join(SCENES.map(s => s.d9), OUT + 'Trawpie-60s-vertical.mp4');
+console.log('  ✓ Trawpie-60s.mp4', d16.toFixed(1) + 's', '· Trawpie-60s-vertical.mp4', d9.toFixed(1) + 's');

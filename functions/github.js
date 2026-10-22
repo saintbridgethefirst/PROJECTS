@@ -98,10 +98,10 @@ export async function handleWebhook(db, { teamId, kind, signature, rawBody, deli
   return { status: plan.ok ? 200 : 202, body: summary };
 }
 
-// ── Optional: let TeamTrack create and close issues (a fine-grained token, kept with the secret) ──
+// ── Optional: let Trawpie create and close issues (a fine-grained token, kept with the secret) ──
 const GH_API = 'https://api.github.com';
 async function gh(token, method, path, body) {
-  const r = await fetch(GH_API + path, { method, headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'TeamTrack', ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const r = await fetch(GH_API + path, { method, headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Trawpie', ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch { /* not JSON */ }
   if (!r.ok) {
     const msg = (j && j.message) || text.slice(0, 200);
@@ -116,7 +116,7 @@ function withState(atts, repo, n, state, reason) {
   const re = new RegExp('/' + repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/issues/' + n + '$', 'i');
   return (atts || []).map(x => (re.test(x.url) ? { ...x, state, reason } : x));
 }
-/** Save (or remove, with token '') the token that lets TeamTrack create and close issues. */
+/** Save (or remove, with token '') the token that lets Trawpie create and close issues. */
 export async function setGithubToken(db, uid, teamId, token) {
   const team = await canManage(db, uid, teamId);
   const priv = db.doc('teams/' + teamId + '/private/github'); const snap = await priv.get();
@@ -139,7 +139,7 @@ export async function issueAction(db, uid, teamId, a) {
   const [teamSnap, meSnap, priv] = await Promise.all([db.doc('teams/' + teamId).get(), db.doc('teams/' + teamId + '/members/' + uid).get(), db.doc('teams/' + teamId + '/private/github').get()]);
   if (!teamSnap.exists || !meSnap.exists) throw fail('permission-denied', 'You’re not in this team.');
   const team = teamSnap.data(); const g = cleanGithub(team.github); const token = priv.exists && priv.data().token;
-  if (!g.repo || !token) throw fail('failed-precondition', 'TeamTrack can’t change GitHub issues for this team yet (Settings ▸ Integrations ▸ GitHub ▸ token).');
+  if (!g.repo || !token) throw fail('failed-precondition', 'Trawpie can’t change GitHub issues for this team yet (Settings ▸ Integrations ▸ GitHub ▸ token).');
   const taskRefDoc = db.doc('teams/' + teamId + '/tasks/' + String(a.taskId || '')); const taskSnap = await taskRefDoc.get();
   if (!taskSnap.exists) throw fail('not-found', 'That task doesn’t exist any more.');
   const task = taskSnap.data(); const role = meSnap.data().roleId; const perms = ((team.roles || {})[role] || {}).perms || {};
@@ -149,7 +149,7 @@ export async function issueAction(db, uid, teamId, a) {
   const history = (task.history || []).slice();
   if (a.action === 'create') {
     const title = String(a.title || task.name || 'Issue').slice(0, 200);
-    const body = (String(a.body || '').slice(0, 4000) + '\n\nTeamTrack: ' + ref(refIdOf({ ...task, id: taskSnap.id }))).trim();
+    const body = (String(a.body || '').slice(0, 4000) + '\n\nTrawpie: ' + ref(refIdOf({ ...task, id: taskSnap.id }))).trim();
     const is = await gh(token, 'POST', '/repos/' + g.repo + '/issues', { title, body });
     const att = (task.attachments || []).slice();
     if (!att.some(x => x.url === is.html_url) && att.length < 30) att.push({ id: 'gh_issues_' + is.number, provider: 'github', name: 'Issue #' + is.number + ': ' + title.slice(0, 160), url: is.html_url, size: 0, addedBy: who, addedAt: now, state: 'open', reason: '' });

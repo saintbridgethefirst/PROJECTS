@@ -2457,7 +2457,7 @@
             inp.addEventListener('change', () => { const v = inp.value.trim().slice(0, 40); if ((task.skill || '') === v) return; logHistory(task, 'Skill needed', task.skill || 'none', v || 'none'); task.skill = v; saveDatabase(); render(); openEditor(task); });
             inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
             row.append(inp, dl); s.appendChild(row);
-            if (!task.skill) { const h = document.createElement('div'); h.className = 'hint'; h.textContent = 'Say what this task needs and TeamTrack suggests who has the skill and the hours.'; s.appendChild(h); return s; }
+            if (!task.skill) { const h = document.createElement('div'); h.className = 'hint'; h.textContent = 'Say what this task needs and Trawpie suggests who has the skill and the hours.'; s.appendChild(h); return s; }
             const used = (uid) => allTaskLocs().filter(l => l.person.id === uid && loc && l.weekKey === loc.weekKey && l.task.flag !== 'completed' && l.task.id !== task.id).reduce((a, l) => a + (l.task.effort || 0), 0);
             const people = db.filter(p => !p.former).map(p => { const prof = TT.profileOf(p.id); const has = prof.skills.some(k => k.toLowerCase() === task.skill.toLowerCase()); const cap = TT.capacityFor(p.id, week && week.startDate ? week.startDate : ''); return { p, has, cap, free: Math.max(0, cap - used(p.id)) }; }).filter(x => x.has);
             people.sort((a, b) => (b.cap ? b.free : -1) - (a.cap ? a.free : -1));

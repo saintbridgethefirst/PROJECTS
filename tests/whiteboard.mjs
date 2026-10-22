@@ -47,8 +47,9 @@ try {
   const cv = await A.locator('#wb-canvas').boundingBox();
   await A.mouse.click(cv.x + 700, cv.y + 520); await A.waitForSelector('#wb-edit');
   await A.keyboard.type('Design ability icons'); await A.keyboard.press('Enter'); await A.keyboard.type('- Active abilities'); await A.keyboard.press('Enter'); await A.keyboard.type('- UI states');
-  await A.keyboard.press('Escape'); await sleep(400);
-  let note = (await wbItems(A)).find(i => i.text.startsWith('Design ability icons'));
+  await A.keyboard.press('Escape');
+  let note = null;   // a slow CI machine can take a while to save the note: wait for it rather than a fixed pause
+  for (let t = 0; t < 40 && !(note && note.text.split('\n').length === 3); t++) { await sleep(250); note = (await wbItems(A)).find(i => (i.text || '').startsWith('Design ability icons')); }
   ok(note && note.kind === 'note' && note.text.split('\n').length === 3, 'a note with three lines');
   ok(await A.locator('[data-tool=select][aria-pressed=true]').count() === 1, 'back to the select tool');
   const nb = await item(A, note.id).boundingBox(); const z = await A.evaluate(() => parseFloat(document.querySelector('#wb-zoom-pct').textContent) / 100);

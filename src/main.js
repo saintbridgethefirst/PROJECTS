@@ -160,7 +160,7 @@ const DEMO_NEXT = 'tt_demo_next', DEMO_TOUR = 'tt_demo_tour';
 const sget = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const sset = (k, v) => { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch { /* */ } };
 function demoWelcome(box, note, wrap) {
-  const title = document.querySelector('#auth-screen .auth-title'); if (title) title.textContent = 'Try TeamTrack: no sign-up, nothing to install.';
+  const title = document.querySelector('#auth-screen .auth-title'); if (title) title.textContent = 'Try Trawpie: no sign-up, nothing to install.';
   // On the demo itself, the "try the demo" links point to the guide instead.
   const tourLink = document.querySelector('#auth-screen .auth-tour'); if (tourLink) tourLink.hidden = true;
   const tryBtn = document.getElementById('try-demo'); if (tryBtn) { tryBtn.href = 'guide.html'; tryBtn.textContent = 'Read the illustrated guide →'; }
@@ -179,7 +179,7 @@ function demoWelcome(box, note, wrap) {
     el('button.btn.primary.block', { type: 'button', id: 'demo-go', onclick: go('sample') }, '▶ Open the sample team, with a 2-minute tour'),
     el('button.btn.block', { type: 'button', id: 'demo-empty', onclick: go('empty') }, 'Start with an empty team'),
     many,
-    el('p.hint', {}, 'Ready for real? ', el('a', { href: '/' }, 'Sign in to TeamTrack →')));
+    el('p.hint', {}, 'Ready for real? ', el('a', { href: '/' }, 'Sign in to Trawpie →')));
 }
 /** The sample team (src/sample.js): opens your existing copy, or loads one. tour = start the guided tour once it's open. */
 async function openSampleTeam(tour) {
@@ -215,7 +215,7 @@ function demoRibbon() {
   document.body.append(el('div.demo-ribbon', { id: 'demo-ribbon', role: 'note' },
     el('b', {}, 'Demo'), el('span.hint', {}, ' · stays in this browser · '),
     el('button.link-btn', { type: 'button', id: 'demo-ribbon-tour', onclick: () => { if (session && session.booted) startDemoTour(); else if (user) openSampleTeam(true); } }, 'Tour'),
-    el('span.hint', {}, ' · '), el('a', { href: '/' }, 'Get TeamTrack →')));
+    el('span.hint', {}, ' · '), el('a', { href: '/' }, 'Get Trawpie →')));
 }
 
 /** Email + password: "Sign in" and "Create account" in one form, plus "Forgot password?". */
@@ -442,7 +442,7 @@ const isStandalone = () => { try { return window.matchMedia('(display-mode: stan
 const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isPhoneOrTablet = () => { try { return window.matchMedia('(pointer: coarse)').matches; } catch { return false; } };
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; refreshInstallBanner(); });
-window.addEventListener('appinstalled', () => { installPrompt = null; toast('TeamTrack is installed. Open it from your home screen.'); refreshInstallBanner(); });
+window.addEventListener('appinstalled', () => { installPrompt = null; toast('Trawpie is installed. Open it from your home screen.'); refreshInstallBanner(); });
 if ('serviceWorker' in navigator && !DEMO_MODE && location.protocol === 'https:') {
   window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(e => console.warn('Offline support not available:', e)); });
 }
@@ -456,10 +456,10 @@ function installMode() {
 async function installApp() {
   const mode = installMode();
   if (mode === 'prompt') { installPrompt.prompt(); const r = await installPrompt.userChoice.catch(() => null); if (r && r.outcome === 'accepted') installPrompt = null; refreshInstallBanner(); return; }
-  const m = modal('Install TeamTrack', { narrow: true });
+  const m = modal('Install Trawpie', { narrow: true });
   m.body.append(isIOS()
-    ? el('div', {}, el('p.hint', { style: { marginTop: 0 } }, 'On iPhone and iPad, in Safari:'), el('ol.install-steps', {}, el('li', {}, 'Tap the Share button (the square with an arrow, at the bottom or top of Safari).'), el('li', {}, 'Scroll down and tap “Add to Home Screen”.'), el('li', {}, 'Tap “Add”. TeamTrack appears on your home screen and opens full-screen.')), el('p.hint', {}, 'In Chrome on iPhone, use the Share button in the address bar the same way.'))
-    : el('div', {}, el('p.hint', { style: { marginTop: 0 } }, 'Your browser didn’t offer an install button just now. You can still install TeamTrack:'), el('ul.install-steps', {}, el('li', {}, 'Chrome or Edge on a computer: the install icon at the right of the address bar, or menu ▸ “Install TeamTrack”.'), el('li', {}, 'Chrome on Android: menu ⋮ ▸ “Add to Home screen” or “Install app”.'), el('li', {}, 'Safari on a Mac: File ▸ “Add to Dock”.'))));
+    ? el('div', {}, el('p.hint', { style: { marginTop: 0 } }, 'On iPhone and iPad, in Safari:'), el('ol.install-steps', {}, el('li', {}, 'Tap the Share button (the square with an arrow, at the bottom or top of Safari).'), el('li', {}, 'Scroll down and tap “Add to Home Screen”.'), el('li', {}, 'Tap “Add”. Trawpie appears on your home screen and opens full-screen.')), el('p.hint', {}, 'In Chrome on iPhone, use the Share button in the address bar the same way.'))
+    : el('div', {}, el('p.hint', { style: { marginTop: 0 } }, 'Your browser didn’t offer an install button just now. You can still install Trawpie:'), el('ul.install-steps', {}, el('li', {}, 'Chrome or Edge on a computer: the install icon at the right of the address bar, or menu ▸ “Install Trawpie”.'), el('li', {}, 'Chrome on Android: menu ⋮ ▸ “Add to Home screen” or “Install app”.'), el('li', {}, 'Safari on a Mac: File ▸ “Add to Dock”.'))));
   m.foot.append(el('span.spacer'), el('button.btn.primary', { type: 'button', onclick: () => m.close() }, 'Got it'));
 }
 function refreshInstallBanner() {
@@ -468,13 +468,13 @@ function refreshInstallBanner() {
   const mode = installMode();
   b.hidden = !mode || dismissed || !isPhoneOrTablet() || DEMO_MODE;
   if (b.hidden) return;
-  b.replaceChildren(el('span', {}, '📱 ', el('b', {}, 'Install TeamTrack'), ' on this device: it opens full-screen from your home screen, like an app.'), el('span.spacer'),
+  b.replaceChildren(el('span', {}, '📱 ', el('b', {}, 'Install Trawpie'), ' on this device: it opens full-screen from your home screen, like an app.'), el('span.spacer'),
     el('button.btn.small.ghost', { type: 'button', onclick: () => { try { localStorage.setItem('tt_install_dismissed', '1'); } catch { /* */ } refreshInstallBanner(); } }, 'Not now'),
     el('button.btn.small.primary', { type: 'button', onclick: installApp }, mode === 'ios' ? 'Show me how' : 'Install'));
 }
 function installField() {
-  if (isStandalone()) return el('div.field', {}, el('span', {}, 'App'), el('div.hint', {}, '✓ You’re using the installed TeamTrack app.'));
-  return el('div.field', {}, el('span', {}, 'App'), el('div.row', {}, el('span.hint', {}, 'Put TeamTrack on your home screen or dock.'), el('span.spacer'),
+  if (isStandalone()) return el('div.field', {}, el('span', {}, 'App'), el('div.hint', {}, '✓ You’re using the installed Trawpie app.'));
+  return el('div.field', {}, el('span', {}, 'App'), el('div.row', {}, el('span.hint', {}, 'Put Trawpie on your home screen or dock.'), el('span.spacer'),
     el('button.btn.small', { type: 'button', onclick: installApp }, '📱 Install as an app…')));
 }
 

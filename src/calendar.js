@@ -2,7 +2,7 @@
 //  Calendars: task deadlines and project phases as calendar events.
 //   • "Add to calendar": an .ics file — opens in Google Calendar, Outlook, Apple
 //     Calendar and others. No accounts or setup needed.
-//   • "Sync to Google Calendar": keeps a "TeamTrack – <team>" calendar in your own
+//   • "Sync to Google Calendar": keeps a "Trawpie – <team>" calendar in your own
 //     Google account up to date (needs the site's Google client ID, SETUP.md part 3).
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, toast, modal, friendlyError } from './ui.js';

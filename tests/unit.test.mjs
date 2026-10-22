@@ -213,11 +213,11 @@ test('calendar: events for deadlines and phases, valid .ics', async () => {
   assert.match(mine.find(e => e.id === 'task-a').description, /Phase: Build[\s\S]*Sub-tasks: 1 of 1 done[\s\S]*https:\/\/uni-teamtrack.web.app\/#\/t\/t1/);
   assert.equal(teamEvents(session, { scope: 'all', uid: 'u1', includePhases: false }).length, 2, 'whole team, open only, no phases');
   assert.equal(teamEvents(session, { scope: 'all', uid: 'u1', includeDone: true, includePhases: false }).length, 3, 'completed included on request');
-  const ics = buildIcs(mine, { calName: 'TeamTrack – ' + session.team.name, teamId: 't1' });
+  const ics = buildIcs(mine, { calName: 'Trawpie – ' + session.team.name, teamId: 't1' });
   assert.ok(ics.startsWith('BEGIN:VCALENDAR\r\nVERSION:2.0\r\n') && ics.endsWith('END:VCALENDAR\r\n'));
   assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 3);
   assert.match(ics, /UID:task-a\.t1@teamtrack/); assert.match(ics, /DTSTART;VALUE=DATE:20261031\r\nDTEND;VALUE=DATE:20261101/);
-  assert.match(ics, /X-WR-CALNAME:TeamTrack – Robotics\\, Group\\; "A"/, 'commas and semicolons escaped');
+  assert.match(ics, /X-WR-CALNAME:Trawpie – Robotics\\, Group\\; "A"/, 'commas and semicolons escaped');
   assert.ok(ics.split('\r\n').every(l => new TextEncoder().encode(l).length <= 75), 'long lines folded to 75 bytes');
   assert.equal((ics.match(/BEGIN:VALARM/g) || []).length, 2, 'reminders on the deadline and the milestone, not the phase band');
 });

@@ -22,7 +22,7 @@ async function memberships(db, uid) {
 export async function exportUserData(db, account) {
   const uid = account.uid; const email = normEmail(account.email || '');
   const out = {
-    about: 'Everything TeamTrack stores about you, as of ' + new Date().toISOString() + '. Teams also hold work you shared with your teammates (tasks, comments, notes); the parts you made or that are assigned to you are listed under each team.',
+    about: 'Everything Trawpie stores about you, as of ' + new Date().toISOString() + '. Teams also hold work you shared with your teammates (tasks, comments, notes); the parts you made or that are assigned to you are listed under each team.',
     account, profile: await getData(db, 'users/' + uid),
     studentVerification: await getData(db, 'verifiedStudents/' + uid), proEducationClaims: await getData(db, 'eduClaims/' + uid),
     feedbackYouSent: rows(await db.collection('feedback').where('uid', '==', uid).get()),

@@ -39,7 +39,7 @@ try {
   step('Download my data');
   await A.evaluate(() => TT.openAccount()); await A.waitForSelector('#your-data-field');
   const [dl] = await Promise.all([A.waitForEvent('download'), A.click('#my-data-download')]);
-  ok(/^teamtrack-my-data-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()), 'a dated JSON file: ' + dl.suggestedFilename());
+  ok(/^trawpie-my-data-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()), 'a dated JSON file: ' + dl.suggestedFilename());
   const data = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));
   ok(data.account.email === 'aisha@uni.ac.uk' && data.teams.length === 2, 'my account and both my teams');
   const sky = data.teams.find(t => t.teamName === 'Skyhawk');

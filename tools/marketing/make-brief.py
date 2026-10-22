@@ -1,4 +1,4 @@
-"""Builds marketing/TeamTrack-video-brief.pdf: a brief to upload to Gemini (or any AI tool)
+"""Builds marketing/Trawpie-video-brief.pdf: a brief to upload to Gemini (or any AI tool)
 with the script, storyboard screenshots, key facts and a ready prompt.
 Uses the media in marketing/video-kit (made by capture.mjs / clips.mjs).
     python3 tools/marketing/make-brief.py
@@ -16,7 +16,7 @@ from PIL import Image as PILImage
 
 ROOT = Path(__file__).resolve().parents[2]
 KIT = ROOT / 'marketing' / 'video-kit'
-OUT = ROOT / 'marketing' / 'TeamTrack-video-brief.pdf'
+OUT = ROOT / 'marketing' / 'Trawpie-video-brief.pdf'
 
 pdfmetrics.registerFont(TTFont('Sans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
 pdfmetrics.registerFont(TTFont('Sans-Bold', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'))
@@ -43,7 +43,7 @@ S = {
 def P(text, style='body'): return Paragraph(text, S[style])
 
 # ── Content ────────────────────────────────────────────────────────────────
-SUMMARY = ('TeamTrack is a live team progress tracker for student project teams, competition teams (drone, Formula Student, '
+SUMMARY = ('Trawpie is a live team progress tracker for student project teams, competition teams (drone, Formula Student, '
            'robotics), research groups and small engineering teams. Its heart is a shared board of <b>people × weeks</b>: '
            'one row per person, one column per week, with task cards that show progress, deadlines and who is helping. '
            'It updates live for everyone, and teams switch on extra tools as they need them: meetings, a lab notebook, '
@@ -66,7 +66,7 @@ FACTS = [
 
 # (title, media, alt media, on screen, voiceover, in 60 s cut, seconds in the 60 s cut)
 SCENES = [
-    ('Hook', '01-signin.jpg', [], 'Your team’s whole week. One picture.', 'Running a student or engineering project with lots of people and moving parts? Meet TeamTrack.', True, 4),
+    ('Hook', '01-signin.jpg', [], 'Your team’s whole week. One picture.', 'Running a student or engineering project with lots of people and moving parts? Meet Trawpie.', True, 4),
     ('The board', 'clip-01-board-tour.mp4', ['03b-whole-team.jpg'], 'People × weeks, live for everyone', 'It’s a shared board: one row per person, one column per week. Everyone sees who’s doing what, and it updates live.', True, 7),
     ('Progress', 'clip-02-tick-subtasks.mp4', [], 'Tick it off, everyone sees it', 'Break work into sub-tasks. Tick them off and the progress bar moves for the whole team.', True, 5),
     ('What’s late', '09-kanban.jpg', ['03-board.jpg'], 'Late work turns red', 'Late tasks turn red, and the Kanban view shows what’s to do, in progress and done.', False, 0),
@@ -76,11 +76,11 @@ SCENES = [
     ('Analytics', 'clip-04-views.mp4', ['10-analytics.jpg', '11-planning.jpg', '13-timeline.jpg'], 'Are we on track?', 'Analytics answers “are we on track?”: completion, overdue work, workload, burndown and a timeline, all worked out for you.', True, 7),
     ('Tools', 'clip-06-tools.mp4', ['15-parts.jpg', '16-finance.jpg', '17-literature.jpg', '20-risks.jpg', '21-requirements.jpg'], 'Parts · Budget · Papers · Risks', 'Switch on the tools you need: parts and orders, budget and spending, literature, risks, requirements, meetings and people’s capacity.', True, 7),
     ('Your calendar', 'clip-08-week-dates.mp4', ['27-weeks.jpg'], 'Weeks that match your calendar', 'Set when week one starts and every week follows. Change one, and the rest move with it.', False, 0),
-    ('Invite your team', 'clip-07-invite.mp4', ['25-invite.jpg'], 'Invite by email. We send it.', 'Invite people by email. TeamTrack sends the invitation for you.', True, 5),
+    ('Invite your team', 'clip-07-invite.mp4', ['25-invite.jpg'], 'Invite by email. We send it.', 'Invite people by email. Trawpie sends the invitation for you.', True, 5),
     ('Find anything', 'clip-09-search.mp4', ['22-search.jpg', '23-activity.jpg'], 'Search everything · Ctrl K', 'Search finds any task, paper or meeting in a second, and the activity bell shows who mentioned you.', False, 0),
     ('Anywhere, your way', '28-phone.jpg', ['29-dark-theme.jpg'], 'Phone, laptop, 12 themes', 'It works on your phone and laptop, with twelve themes including dark mode.', False, 0),
     ('Free for students', '26-plan.jpg', [], 'Free for teams up to 30 · Free Pro for students', 'It’s free for teams of up to thirty, and students with a university email get Pro free.', True, 6),
-    ('Call to action', '30-guide.jpg', ['02-home.jpg'], 'uni-teamtrack.web.app', 'Make your team’s week visible. Try TeamTrack free at uni-teamtrack dot web dot app.', True, 5),
+    ('Call to action', '30-guide.jpg', ['02-home.jpg'], 'uni-teamtrack.web.app', 'Make your team’s week visible. Try Trawpie free at uni-teamtrack dot web dot app.', True, 5),
 ]
 
 MEDIA_NOTES = {
@@ -91,7 +91,7 @@ MEDIA_NOTES = {
     'clip-09-search.mp4': 'Searches “carbon” and opens the task',
 }
 
-GEMINI_PROMPT = '''I’m attaching a brief for TeamTrack, a team progress tracker I built for student and engineering project teams. It contains a product summary, key facts, a 60-second script, a storyboard with a screenshot of each scene, and the list of screen-recording files I have.
+GEMINI_PROMPT = '''I’m attaching a brief for Trawpie, a team progress tracker I built for student and engineering project teams. It contains a product summary, key facts, a 60-second script, a storyboard with a screenshot of each scene, and the list of screen-recording files I have.
 
 Please act as my video producer and:
 1. Tighten the 60-second voiceover so it reads naturally at about 150 words per minute (≈ 140–150 words), keeping it friendly and professional. Keep each line matched to its scene.
@@ -122,18 +122,18 @@ def boxed(flowables, bg=PAPER, pad=8, border=LINE):
 
 def footer(canvas, doc):
     canvas.saveState(); canvas.setFont('Sans', 8); canvas.setFillColor(MUTED)
-    canvas.drawString(18 * mm, 10 * mm, 'TeamTrack · explainer video brief · sample data is fictional')
+    canvas.drawString(18 * mm, 10 * mm, 'Trawpie · explainer video brief · sample data is fictional')
     canvas.drawRightString(A4[0] - 18 * mm, 10 * mm, str(doc.page)); canvas.restoreState()
 
 # ── Build ──────────────────────────────────────────────────────────────────
 doc = BaseDocTemplate(str(OUT), pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm, bottomMargin=18 * mm,
-                      title='TeamTrack — explainer video brief', author='Rushikesh Vibhandik', subject='Script, storyboard and facts for a TeamTrack explainer video')
+                      title='Trawpie — explainer video brief', author='Rushikesh Vibhandik', subject='Script, storyboard and facts for a Trawpie explainer video')
 frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='f')
 doc.addPageTemplates([PageTemplate(id='p', frames=[frame], onPage=footer)])
 W = doc.width
 story = []
 
-story += [P('TeamTrack — explainer video brief', 'title'),
+story += [P('Trawpie — explainer video brief', 'title'),
           P('Script, storyboard, key facts and a ready prompt for making a 60-second LinkedIn video and a 2–3 minute YouTube walkthrough. '
             'The screenshots show a fictional sample team (“Skyhawk UAV”, a 6-person drone-competition team).', 'sub')]
 story += [picture(KIT / '03b-whole-team.jpg', W), Spacer(1, 10)]
@@ -171,7 +171,7 @@ st = Table(rows, colWidths=[9 * mm, 17 * mm, 44 * mm, 36 * mm, W - 106 * mm], re
 st.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('BACKGROUND', (0, 0), (-1, 0), INK), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                         ('LINEBELOW', (0, 1), (-1, -1), 0.5, LINE), ('BOX', (0, 0), (-1, -1), 0.8, LINE),
                         ('TOPPADDING', (0, 0), (-1, -1), 5), ('BOTTOMPADDING', (0, 0), (-1, -1), 5)]))
-story += [st, Spacer(1, 6), P(f'Total: about {t} seconds and {words} words of voiceover. End card: TeamTrack logo · “Free for students” · uni-teamtrack.web.app', 'small'), PageBreak()]
+story += [st, Spacer(1, 6), P(f'Total: about {t} seconds and {words} words of voiceover. End card: Trawpie logo · “Free for students” · uni-teamtrack.web.app', 'small'), PageBreak()]
 
 # Storyboard
 story += [P('Storyboard — every scene', 'h1'),
@@ -191,7 +191,7 @@ story.append(PageBreak())
 # Long version and files
 story += [P('YouTube version (2–3 minutes)', 'h1'),
           P('Use all 15 scenes in order and slow down: show each feature for 8–15 seconds, and let the voiceover explain one thing at a time. '
-            'Add a 10-second intro (“In this video I’ll show you how a 6-person drone team plans 6 weeks of work in TeamTrack”) and finish with how to start: '
+            'Add a 10-second intro (“In this video I’ll show you how a 6-person drone team plans 6 weeks of work in Trawpie”) and finish with how to start: '
             'sign in, create a team, invite people, add tasks.'),
           P('Media files', 'h1'),
           P('All files are 1920×1080. Screen recordings are MP4 (no sound) with a visible cursor; screenshots are JPG. '

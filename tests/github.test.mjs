@@ -26,7 +26,7 @@ test('branch names, repos and the new-issue link', () => {
   assert.equal(cleanRepo('not a repo'), '');
   assert.deepEqual(cleanGithub({ repo: 'uni/rover' }), { repo: 'uni/rover', issues: true, done: true, owner: '', connectedAt: 0, write: false, last: null });
   const u = newIssueUrl('uni/rover', { title: 'Motor stalls', body: 'At 50% throttle', ref: 'TT-ABC123' });
-  assert.ok(u.startsWith('https://github.com/uni/rover/issues/new?title=Motor%20stalls&body=') && decodeURIComponent(u).includes('TeamTrack: TT-ABC123'));
+  assert.ok(u.startsWith('https://github.com/uni/rover/issues/new?title=Motor%20stalls&body=') && decodeURIComponent(u).includes('Trawpie: TT-ABC123'));
 });
 test('pull requests: linked by reference in title, description or branch; merged finishes the task', () => {
   const ref = taskRef('t_frame');
@@ -51,7 +51,7 @@ test('issues: a new one becomes a task, one naming a task is linked to it, closi
   assert.deepEqual(plan.create, { name: 'Battery gets hot', url: 'https://github.com/uni/rover/issues/9', label: 'Issue #9: Battery gets hot' });
   plan = planGithubEvent('issues', { action: 'opened', repository: repo, issue: is() }, [A, B], { ...S, issues: false });
   assert.equal(plan.create, null, 'switched off');
-  plan = planGithubEvent('issues', { action: 'opened', repository: repo, issue: is({ body: 'From the app\n\nTeamTrack: ' + taskRef('t_wheels') }) }, [A, B], S);
+  plan = planGithubEvent('issues', { action: 'opened', repository: repo, issue: is({ body: 'From the app\n\nTrawpie: ' + taskRef('t_wheels') }) }, [A, B], S);
   assert.equal(plan.create, null); assert.deepEqual(plan.links.map(l => l.taskId), ['t_wheels'], 'raised from the app: linked, no duplicate task');
   plan = planGithubEvent('issues', { action: 'closed', repository: repo, issue: is({ number: 7, html_url: 'https://github.com/uni/rover/issues/7' }) }, [A, B], S);
   assert.deepEqual(plan.finish.map(f => f.taskId), ['t_wheels'], 'closing the linked issue finishes the task');
@@ -117,11 +117,17 @@ test('live state: every event records the issue or PR state on the card, with a 
 test('a renamed repository is followed: links move to the new address, events link again', async () => {
   const { repoRenamed, planGithubEvent } = await import('../functions/ghsync.js');
   const T = [{ id: 'a', name: 'A', flag: 'none', attachments: [{ provider: 'github', url: 'https://github.com/me/TRAWPIE/issues/8', state: 'open' }] }, { id: 'b', name: 'B', attachments: [] }];
-  const p = { action: 'opened', repository: { full_name: 'me/TRAWPIE-TeamTrack' }, issue: { number: 11, title: 'X', body: 'TeamTrack: ' + (await import('../functions/ghsync.js')).taskRef('b'), html_url: 'https://github.com/me/TRAWPIE-TeamTrack/issues/11', state: 'open' } };
+  const p = { action: 'opened', repository: { full_name: 'me/TRAWPIE-TeamTrack' }, issue: { number: 11, title: 'X', body: 'Trawpie: ' + (await import('../functions/ghsync.js')).taskRef('b'), html_url: 'https://github.com/me/TRAWPIE-TeamTrack/issues/11', state: 'open' } };
   assert.equal(planGithubEvent('issues', p, T, { repo: 'me/TRAWPIE' }).ok, false, 'without following, the event is ignored');
   const m = repoRenamed({ repo: 'me/TRAWPIE' }, p, T);
   assert.equal(m.repo, 'me/TRAWPIE-TeamTrack'); assert.equal(m.ops.length, 1);
   assert.equal(m.ops[0].data.attachments[0].url, 'https://github.com/me/TRAWPIE-TeamTrack/issues/8');
   assert.deepEqual(planGithubEvent('issues', p, T, { repo: m.repo }).links.map(l => l.taskId), ['b'], 'linked after following');
   assert.equal(repoRenamed({ repo: 'me/trawpie-teamtrack' }, p, T), null, 'same name in other letter case: nothing to do');
+});
+
+test('issues made before the rename (body says "TeamTrack: TT-…") still link to their task', async () => {
+  const { findRefs, taskRef } = await import('../functions/ghsync.js');
+  const ref = taskRef('t_old');
+  assert.deepEqual([...findRefs('Old issue\n\nTeamTrack: ' + ref)], [ref]);
 });

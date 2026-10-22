@@ -48,7 +48,7 @@ export function githubSection(ctx, { rerender } = {}) {
   }
   if (lastSetup && lastSetup.teamId === s.teamId && g.repo && lastSetup.repo === g.repo) showSetup(lastSetup);
   box.append(el('h4', {}, ghMark(), ' GitHub'),
-    el('p.hint', {}, 'Connect your team’s repository. A pull request or issue that mentions a task’s reference (like TT-4K2P9Q, shown on every task) is linked to that task by itself, a merged pull request finishes its task, and new issues can become tasks. Nobody pastes links. GitHub sends the events; TeamTrack never gets access to your code.'));
+    el('p.hint', {}, 'Connect your team’s repository. A pull request or issue that mentions a task’s reference (like TT-4K2P9Q, shown on every task) is linked to that task by itself, a merged pull request finishes its task, and new issues can become tasks. Nobody pastes links. GitHub sends the events; Trawpie never gets access to your code.'));
   if (!g.repo) {
     const repo = el('input.inp', { id: 'gh-repo', placeholder: 'owner/repository, e.g. uni-robotics/rover', 'aria-label': 'GitHub repository', disabled: !edit });
     box.append(el('div.row', { style: { gap: '8px', flexWrap: 'wrap' } }, repo, el('button.btn.primary', { type: 'button', id: 'gh-connect', disabled: !edit, onclick: () => connect(repo.value) }, 'Connect')),
@@ -69,7 +69,7 @@ export function githubSection(ctx, { rerender } = {}) {
   const guide = el('details.gh-guide', { id: 'gh-guide', open: !(g.last && g.last.at) },
     el('summary', {}, 'How to add the webhook on GitHub'),
     el('ol', {},
-      el('li', {}, 'In TeamTrack, press ', el('b', {}, 'New secret'), ' (below). It shows a ', el('b', {}, 'Payload URL'), ' and a ', el('b', {}, 'Secret'), ', each with a Copy button.'),
+      el('li', {}, 'In Trawpie, press ', el('b', {}, 'New secret'), ' (below). It shows a ', el('b', {}, 'Payload URL'), ' and a ', el('b', {}, 'Secret'), ', each with a Copy button.'),
       el('li', {}, 'On GitHub open ', el('a', { href: 'https://github.com/' + g.repo + '/settings/hooks', target: '_blank', rel: 'noopener noreferrer' }, g.repo + ' ▸ Settings ▸ Webhooks'), ' and press ', el('b', {}, 'Add webhook'), ' (or edit the one you have).'),
       el('li', {}, 'Paste the ', el('b', {}, 'Payload URL'), '. Set ', el('b', {}, 'Content type'), ' to ', el('code', {}, 'application/json'), '. Paste the ', el('b', {}, 'Secret'), '. Leave SSL verification on.'),
       el('li', {}, 'Under “Which events”, choose ', el('b', {}, 'Let me select individual events'), ', untick ', el('b', {}, 'Pushes'), ', tick ', el('b', {}, 'Issues'), ' and ', el('b', {}, 'Pull requests'), '. Keep ', el('b', {}, 'Active'), ' ticked. Save.'),
@@ -96,11 +96,11 @@ export function githubSection(ctx, { rerender } = {}) {
   return box;
 }
 
-/** Optional: a token so TeamTrack creates issues straight away and closes them from a task. */
+/** Optional: a token so Trawpie creates issues straight away and closes them from a task. */
 function tokenBox(ctx, g, edit, rerender) {
   const s = ctx.session;
   const save = async (token) => {
-    try { const r = await ctx.backend.data.callFunction('githubConnect', { teamId: s.teamId, token }); toast(r.write ? 'TeamTrack can now create and close issues in ' + g.repo + '.' : 'Token removed.', 5000); if (rerender) rerender(); }
+    try { const r = await ctx.backend.data.callFunction('githubConnect', { teamId: s.teamId, token }); toast(r.write ? 'Trawpie can now create and close issues in ' + g.repo + '.' : 'Token removed.', 5000); if (rerender) rerender(); }
     catch (e) { toast(serverError(e), 9000); }
   };
   const box = el('div.gh-token', { id: 'gh-token' }, el('h4', { style: { marginTop: '18px' } }, 'Create and close issues from tasks'));
@@ -110,7 +110,7 @@ function tokenBox(ctx, g, edit, rerender) {
     return box;
   }
   const input = el('input.inp', { id: 'gh-token-input', type: 'password', autocomplete: 'off', placeholder: 'github_pat_…', 'aria-label': 'GitHub token', disabled: !edit });
-  box.append(el('p.hint', {}, 'Optional. Without it, “+ GitHub issue” opens GitHub’s page filled in and the issue links back when it’s submitted. With it, TeamTrack makes the issue itself, links it at once, and can close it (completed, not planned or duplicate) from the task.'),
+  box.append(el('p.hint', {}, 'Optional. Without it, “+ GitHub issue” opens GitHub’s page filled in and the issue links back when it’s submitted. With it, Trawpie makes the issue itself, links it at once, and can close it (completed, not planned or duplicate) from the task.'),
     el('ol.hint.gh-token-steps', {},
       el('li', {}, 'On GitHub: ', el('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener noreferrer' }, 'Settings ▸ Developer settings ▸ Fine-grained tokens ▸ Generate'), '.'),
       el('li', {}, 'Repository access: only ', el('b', {}, g.repo), '. Permissions: ', el('b', {}, 'Issues: Read and write'), '. Nothing else.'),
@@ -222,7 +222,7 @@ function simulateBox(ctx) {
   const send = async (kind, payload) => {
     try {
       const r = await ctx.backend.data.callFunction('githubSimulate', { teamId: s.teamId, kind, payload: { repository: { full_name: g.repo }, ...payload } });
-      sim.out = 'GitHub → TeamTrack: ' + [r.links ? r.links + ' linked' : '', r.finished ? r.finished + ' finished' : '', r.created ? 'a task made' : '', r.why].filter(Boolean).join(' · ');
+      sim.out = 'GitHub → Trawpie: ' + [r.links ? r.links + ' linked' : '', r.finished ? r.finished + ' finished' : '', r.created ? 'a task made' : '', r.why].filter(Boolean).join(' · ');
       const o = document.getElementById('gh-sim-out'); if (o) o.textContent = sim.out;
     } catch (e) { toast(friendlyError(e), 6000); }
   };

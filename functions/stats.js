@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  Pilot numbers: how much each team actually uses TeamTrack. Counts only —
+//  Pilot numbers: how much each team actually uses Trawpie. Counts only —
 //  never task names, comments or anything a team wrote. Stored at
 //  teamStats/{teamId}, readable by platform admins (Settings ▸ Plan ▸ Platform
 //  admin). Computed daily by dailyTeamStats and on demand by refreshTeamStats.

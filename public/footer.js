@@ -9,7 +9,7 @@
   if (!LANGS.some(function (l) { return l[0] === cur; })) cur = 'en';
   var cols = [
     ['Product', [['Live demo', 'https://uni-teamtrack.web.app/demo'], ['How it works', app + 'guide.html'], ['Plans & features', app + 'guide.html#compare'], ['Shortcuts', app + 'guide.html#keys']]],
-    ['Help', [['Contact us', 'mailto:rushivibhandik.college@gmail.com?subject=TeamTrack'], ['Report a problem', 'mailto:rushivibhandik.college@gmail.com?subject=TeamTrack%20problem'], ['Privacy policy', app + 'privacy.html'], ['Terms of service', app + 'terms.html']]],
+    ['Help', [['Contact us', 'mailto:rushivibhandik.college@gmail.com?subject=Trawpie'], ['Report a problem', 'mailto:rushivibhandik.college@gmail.com?subject=Trawpie%20problem'], ['Privacy policy', app + 'privacy.html'], ['Terms of service', app + 'terms.html']]],
     ['For teams', [['Student societies', app + 'guide.html#tools'], ['Research groups', app + 'guide.html#tools'], ['Roles & permissions', app + 'guide.html#roles'], ['Free for students', app + 'guide.html#plans']]],
   ];
   function h(tag, attrs, kids) {
@@ -19,8 +19,9 @@
   function render(el) {
     el.classList.add('site-footer');
     var brand = h('div', { class: 'ftr-brand' }, [
-      h('a', { class: 'ftr-logo', href: app || './' }, [h('img', { src: app + 'icons/logo-96.png', alt: '', width: '28', height: '28' }), h('b', { text: 'TeamTrack' })]),
+      h('a', { class: 'ftr-logo', href: app || './' }, [h('img', { src: app + 'icons/logo-96.png', alt: '', width: '28', height: '28' }), h('b', { text: 'Trawpie' })]),
       h('p', { text: 'Plan, track and review your team’s week: tasks, people, parts and budgets in one place.' }),
+      h('p', { class: 'ftr-small', text: 'Technical Research And Welfare for People In Education.' }),
       h('p', { class: 'ftr-small', text: 'Made in Bristol for student, research and engineering teams.' })]);
     var grid = h('div', { class: 'ftr-cols' }, cols.map(function (c) {
       return h('nav', { 'aria-label': c[0] }, [h('h4', { text: c[0] })].concat(c[1].map(function (l) { return h('a', { href: l[1] }, [document.createTextNode(l[0])]); })));
@@ -29,7 +30,7 @@
     sel.addEventListener('change', function () { try { localStorage.setItem('tt_lang', sel.value); } catch (e) { /* */ } location.reload(); });
     var bottom = h('div', { class: 'ftr-bottom' }, [
       h('label', { class: 'ftr-lang' }, [h('span', { 'aria-hidden': 'true', text: '🌐' }), sel]),
-      h('span', { class: 'ftr-small', text: '© ' + new Date().getFullYear() + ' TeamTrack · Data stored in London (Google Cloud europe-west2) · UK GDPR' })]);
+      h('span', { class: 'ftr-small', text: '© ' + new Date().getFullYear() + ' Trawpie, part of Penteint · Data stored in London (Google Cloud europe-west2) · UK GDPR' })]);
     el.replaceChildren(h('div', { class: 'ftr-wrap' }, [h('div', { class: 'ftr-top' }, [brand, grid]), bottom]));
   }
   var css = '.site-footer{border-top:1px solid var(--ftr-line,var(--line,var(--border-color,#2d3748)));margin-top:48px;padding:36px 16px 28px;color:var(--ftr-muted,var(--muted,var(--text-muted,#8a94a6)));font-size:14px;background:var(--ftr-bg,transparent)}'
