@@ -5,6 +5,8 @@
 //  finds your teams and your tasks across them. Keyboard: ↑ ↓ to move, Enter to open.
 // ─────────────────────────────────────────────────────────────────────────────
 import { el } from './ui.js';
+import { taskRef, refIdOf } from '../functions/ghsync.js';
+const refOf = (t) => taskRef(refIdOf(t));
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
 /** 0 = no match; higher is better. Every word of the query must appear somewhere. */
@@ -95,13 +97,13 @@ export function boardSources(ctx) {
   const weeks = new Map((s.team.weeks || []).map(w => [w.key, w]));
   const phases = new Map((s.team.phases || []).map(p => [p.id, p]));
   const fields = s.team.fields || [];
-  const who = (uid) => (s.members.find(m => m.uid === uid) || {}).name || 'Former member';
+  const who = (uid) => (s.members.find(m => m.uid === uid) || {}).name || ((s.team.former || {})[uid] ? s.team.former[uid].name + ' (left)' : 'Former member');
   const fieldText = (t) => fields.map(f => { const v = t.custom && t.custom[f.id]; return v === undefined || v === null || v === '' ? '' : String(f.type === 'person' ? who(v) : v); }).join(' ');
   (s.tasks || []).filter(t => weeks.has(t.weekId)).forEach(t => {
     const w = weeks.get(t.weekId), ph = phases.get(t.phaseId);
     items.push({ group: 'Tasks', icon: t.flag === 'completed' ? '✅' : (t.icon && !t.icon.startsWith('data:') ? t.icon : '📌'), title: t.name || 'Untitled task',
-      sub: [who(t.ownerUid), w.title, ph && ph.name, t.jiraId, t.status, t.dueDate && 'due ' + t.dueDate].filter(Boolean).join(' · '),
-      fields: [[t.name, 3], [t.jiraId, 3], [t.status, 1.5], [who(t.ownerUid), 1], [w.title, 1], [ph && ph.name, 1], [(t.subtasks || []).map(x => x.title).join(' · '), 1.2], [fieldText(t), 1], [(t.attachments || []).map(a => a.name).join(' '), 1]],
+      sub: [who(t.ownerUid), w.title, ph && ph.name, t.jiraId || refOf(t), t.status, t.dueDate && 'due ' + t.dueDate].filter(Boolean).join(' · '),
+      fields: [[t.name, 3], [t.jiraId, 3], [refOf(t), 3], [t.status, 1.5], [who(t.ownerUid), 1], [w.title, 1], [ph && ph.name, 1], [(t.subtasks || []).map(x => x.title).join(' · '), 1.2], [fieldText(t), 1], [(t.attachments || []).map(a => a.name).join(' '), 1]],
       run: () => window.boardOpenTask(t.id) });
   });
   const tasks = new Map((s.tasks || []).map(t => [t.id, t]));

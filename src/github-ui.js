@@ -47,7 +47,7 @@ export function githubSection(ctx, { rerender } = {}) {
         el('li', {}, 'Which events: “Let me select individual events”, then tick ', el('b', {}, 'Issues'), ' and ', el('b', {}, 'Pull requests'), '. Add webhook.'))));
   }
   if (lastSetup && lastSetup.teamId === s.teamId && g.repo && lastSetup.repo === g.repo) showSetup(lastSetup);
-  box.append(el('h4', {}, '🐙 GitHub'),
+  box.append(el('h4', {}, ghMark(), ' GitHub'),
     el('p.hint', {}, 'Connect your team’s repository. A pull request or issue that mentions a task’s reference (like TT-4K2P9Q, shown on every task) is linked to that task by itself, a merged pull request finishes its task, and new issues can become tasks. Nobody pastes links. GitHub sends the events; TeamTrack never gets access to your code.'));
   if (!g.repo) {
     const repo = el('input.inp', { id: 'gh-repo', placeholder: 'owner/repository, e.g. uni-robotics/rover', 'aria-label': 'GitHub repository', disabled: !edit });
@@ -126,21 +126,46 @@ const pendingAll = () => { try { return JSON.parse(localStorage.getItem(PENDING)
 export function ghPending(taskId) { const p = pendingAll()[taskId]; return p && Date.now() - p < 864e5 ? p : 0; }
 function setPending(taskId, on) { const all = pendingAll(); if (on) all[taskId] = Date.now(); else delete all[taskId]; try { localStorage.setItem(PENDING, JSON.stringify(all)); } catch { /* */ } }
 /** "+ GitHub issue": made straight away with the team's token, else GitHub's page, filled in. */
-export async function createIssue(ctx, task) {
-  const g = githubOf(ctx.session); if (!g.repo) return;
-  if (g.write) {
-    try {
-      const r = await ctx.backend.data.callFunction('githubIssue', { teamId: ctx.session.teamId, taskId: task.id, action: 'create', title: task.name });
-      toast('Created GitHub issue #' + r.number + ' and linked it.', 5000, 'Open', () => window.open(r.url, '_blank', 'noopener'));
-      return r;
-    } catch (e) { toast(serverError(e), 9000); return null; }
-  }
-  window.open(newIssueUrl(g.repo, { title: task.name, body: '', ref: refOf(task) }), '_blank', 'noopener');
-  setPending(task.id, true);
-  toast('GitHub opened with the issue filled in. Press “Submit new issue” there; it links to this task by itself.', 7000);
-  if (window.boardRender) window.boardRender();
-  if (window.boardRefreshEditor) window.boardRefreshEditor();
-  return null;
+export function createIssue(ctx, task) {
+  const g = githubOf(ctx.session); if (!g.repo) return null;
+  const m = modal('New GitHub issue', { narrow: true }); m.box.id = 'gh-new';
+  const title = el('input.inp', { id: 'gh-new-title', value: task.name || '', maxlength: 200, 'aria-label': 'Issue title' });
+  const body = el('textarea.inp.gh-new-body', { id: 'gh-new-body', rows: 7, maxlength: 4000, placeholder: 'What’s wrong or what needs doing? Steps, what you expected, links… (Markdown works)', 'aria-label': 'Details' });
+  m.body.append(
+    el('div.gh-new-repo.hint', {}, ghMark(), ' ', g.repo, ' · ', el('code', {}, refOf(task))),
+    el('label.field', {}, el('span', {}, 'Title'), title),
+    el('label.field', {}, el('span', {}, 'Details'), body),
+    el('p.hint', {}, g.write ? 'Created on GitHub straight away and linked to this task.' : 'GitHub opens with this filled in: press “Submit new issue” there and it links here by itself.'));
+  const go = el('button.btn.primary', { type: 'button', id: 'gh-new-save', onclick: async () => {
+    const t = title.value.trim(); if (!t) { toast('Give the issue a title.'); title.focus(); return; }
+    if (g.write) {
+      go.disabled = true; go.textContent = 'Creating…';
+      try {
+        const r = await ctx.backend.data.callFunction('githubIssue', { teamId: ctx.session.teamId, taskId: task.id, action: 'create', title: t, body: body.value.trim() });
+        m.close(); toast('Created issue #' + r.number + ' and linked it.', 5000, 'Open', () => window.open(r.url, '_blank', 'noopener'));
+      } catch (e) { go.disabled = false; go.textContent = 'Create issue'; toast(serverError(e), 9000); }
+      return;
+    }
+    window.open(newIssueUrl(g.repo, { title: t, body: body.value.trim(), ref: refOf(task) }), '_blank', 'noopener');
+    setPending(task.id, true); m.close();
+    toast('GitHub opened with the issue filled in. Press “Submit new issue” there; it links to this task by itself.', 7000);
+    if (window.boardRender) window.boardRender();
+    if (window.boardRefreshEditor) window.boardRefreshEditor();
+  } }, g.write ? 'Create issue' : 'Open on GitHub');
+  m.foot.append(el('span.spacer'), go);
+  setTimeout(() => { title.focus(); title.select(); }, 30);
+  return m;
+}
+/** GitHub's own state for a hand-linked issue or PR (needs the team's token; the webhook keeps it current after). */
+export async function refreshIssue(ctx, task, kind, number) {
+  const g = githubOf(ctx.session); if (!g.write) return null;
+  try { return await ctx.backend.data.callFunction('githubIssue', { teamId: ctx.session.teamId, taskId: task.id, action: 'refresh', kind, number }); } catch { return null; }
+}
+/** A small GitHub-style issue glyph (not GitHub's logo). */
+export function ghMark() {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 16 16'); s.setAttribute('class', 'gh-mark'); s.setAttribute('aria-hidden', 'true');
+  s.innerHTML = '<circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor"/>';
+  return s;
 }
 /** Link an issue or pull request by pasting its address. */
 export function linkIssueDialog(ctx, task) {
@@ -156,18 +181,21 @@ export function linkIssueDialog(ctx, task) {
     const clean = 'https://github.com/' + mm[1] + '/' + mm[2].toLowerCase() + '/' + mm[3];
     setPending(task.id, false);
     const ok = window.boardAddAttachment ? window.boardAddAttachment(task.id, { id: 'gh_' + mm[2].toLowerCase() + '_' + mm[3], provider: 'github', name: (mm[2].toLowerCase() === 'pull' ? 'PR' : 'Issue') + ' #' + mm[3], url: clean, size: 0, addedBy: ctx.user.name || '', addedAt: Date.now() }) : false;
-    if (ok) { m.close(); toast('Linked #' + mm[3] + '.'); }
+    if (ok) {
+      m.close(); toast('Linked #' + mm[3] + '.');
+      if (g.write && g.repo && mm[1].toLowerCase() === g.repo.toLowerCase()) setTimeout(() => refreshIssue(ctx, task, mm[2].toLowerCase() === 'pull' ? 'pull' : 'issues', Number(mm[3])), 1200);
+    }
   } }, 'Link'));
   setTimeout(() => url.focus(), 30);
 }
 /** Close (completed / not planned / duplicate) or reopen a linked issue from the task. */
-export function closeIssueDialog(ctx, task, number) {
+export function closeIssueDialog(ctx, task, number, preset) {
   const m = modal('Close issue #' + number, { narrow: true }); m.box.id = 'gh-close';
-  let reason = 'completed';
-  const dup = el('input.inp', { id: 'gh-close-dup', placeholder: 'Duplicate of # (number)', inputmode: 'numeric', style: { display: 'none', marginTop: '8px' } });
+  let reason = ['completed', 'not_planned', 'duplicate'].includes(preset) ? preset : 'completed';
+  const dup = el('input.inp', { id: 'gh-close-dup', placeholder: 'Duplicate of # (number)', inputmode: 'numeric', style: { display: reason === 'duplicate' ? '' : 'none', marginTop: '8px' } });
   const finish = el('input', { type: 'checkbox', id: 'gh-close-finish', checked: task.flag !== 'completed' });
-  const opt = (v, title, sub) => el('label.gh-close-opt', {}, el('input', { type: 'radio', name: 'gh-close-reason', value: v, checked: v === 'completed', onchange: () => { reason = v; dup.style.display = v === 'duplicate' ? '' : 'none'; finishRow.style.display = v === 'completed' && task.flag !== 'completed' ? '' : 'none'; } }), el('span', {}, el('b', {}, title), el('span.hint', {}, ' ' + sub)));
-  const finishRow = el('label.chk', { style: { marginTop: '10px', display: task.flag !== 'completed' ? '' : 'none' } }, finish, ' Also mark this task done');
+  const opt = (v, title, sub) => el('label.gh-close-opt', {}, el('input', { type: 'radio', name: 'gh-close-reason', value: v, checked: v === reason, onchange: () => { reason = v; dup.style.display = v === 'duplicate' ? '' : 'none'; finishRow.style.display = v === 'completed' && task.flag !== 'completed' ? '' : 'none'; } }), el('span', {}, el('b', {}, title), el('span.hint', {}, ' ' + sub)));
+  const finishRow = el('label.chk', { style: { marginTop: '10px', display: reason === 'completed' && task.flag !== 'completed' ? '' : 'none' } }, finish, ' Also mark this task done');
   m.body.append(opt('completed', 'Close as completed', 'Done, fixed, resolved'), opt('not_planned', 'Close as not planned', 'Won’t fix, can’t reproduce, stale'), opt('duplicate', 'Close as duplicate', 'Of another issue'), dup, finishRow);
   m.foot.append(el('span.spacer'), el('button.btn.primary', { type: 'button', id: 'gh-close-save', onclick: async () => {
     const d = Number(String(dup.value).replace('#', '').trim());
@@ -177,6 +205,7 @@ export function closeIssueDialog(ctx, task, number) {
       m.close(); toast('Closed #' + number + (r.finished ? ', and the task is done.' : '.'), 4000);
     } catch (e) { toast(serverError(e), 9000); }
   } }, 'Close issue'));
+  if (reason === 'duplicate') setTimeout(() => dup.focus(), 30);
 }
 export async function reopenIssue(ctx, task, number) {
   try { await ctx.backend.data.callFunction('githubIssue', { teamId: ctx.session.teamId, taskId: task.id, action: 'reopen', number }); toast('Reopened #' + number + '.'); }

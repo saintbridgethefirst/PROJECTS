@@ -67,8 +67,12 @@ try {
   await p.locator('.task-card', { hasText: 'Design gripper' }).click({ button: 'right', position: { x: 120, y: 40 } }); await sleep(300);
   ok(await p.locator('#radial-menu').isVisible() && await p.locator('#quick-menu.active').count() === 0, 'circle menu opens instead of the list');
   const ring = await segLabels(p);
-  ok(ring.length === listLabels.length, `same number of actions as the list (${ring.length} vs ${listLabels.length})`);
-  ok(listLabels.every(l => ring.some(r => r.includes(l.replace(/^\W+\s*/, '').split(' · ')[0].trim()))), 'every list action is in the circle');
+  // Up to ten wedges; the rest sit under "More" (outer ring)
+  ok(ring.length === Math.min(10, listLabels.length), `ten wedges at most (${ring.length} for ${listLabels.length} actions)`);
+  ok(listLabels.length <= 10 || ring.some(r => r.startsWith('More')), 'the rest under More');
+  const inRing = listLabels.filter(l => ring.some(r => r.includes(l.replace(/^\W+\s*/, '').split(' · ')[0].trim())));
+  ok(inRing.length >= ring.length - 1, 'the ring’s wedges are the list’s actions (' + inRing.length + ')');
+  ok(listLabels.some(l => /Delete/.test(l)) ? ring.some(r => /Delete/.test(r)) : true, 'Delete stays on the main ring');
   ok((await p.textContent('#radial-menu .rm-hub-title')).toUpperCase().includes('TASK'), 'the middle names what was clicked');
   ok(await sideOf(p) === 'right' && (await clearOf(p, 'Design gripper')) === true, 'the circle opens beside the card, not over it: ' + await sideOf(p));
   if (SHOTS) await p.screenshot({ path: `${SHOTS}/radial-desktop.png` });
@@ -92,7 +96,8 @@ try {
 
   step('Plain actions work: Duplicate');
   await p.locator('.task-card', { hasText: 'Order servos' }).click({ button: 'right', position: { x: 120, y: 40 } }); await sleep(300);
-  await clickSeg(p, 'Duplicate');
+  if (await p.locator('#radial-menu .rm-ring .rm-seg[aria-label^="Duplicate"]').count()) await clickSeg(p, 'Duplicate');
+  else { await clickSeg(p, 'More'); await clickSeg(p, 'Duplicate', 'rm-outer'); }
   ok((await tasks(p)).filter(t => t.name.startsWith('Order servos')).length === 2, 'Duplicate made a copy');
 
   step('Keyboard and closing');

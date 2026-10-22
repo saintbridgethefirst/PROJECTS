@@ -50,8 +50,9 @@ service cloud.firestore {
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
     function validTeam(d) {
-      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency'])
+      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former'])
         && d.get('archiveRev', 0) is int
+        && (!('former' in d) || (d.former is map && d.former.size() <= 300))
         && d.get('currency', 'GBP') in ['GBP', 'EUR', 'USD', 'INR', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD']
         && (d.get('github', null) == null || (d.github is map && d.github.keys().hasOnly(['repo', 'issues', 'done', 'owner', 'connectedAt', 'write', 'last']) && d.github.get('repo', '') is string && d.github.get('repo', '').size() <= 140))
         && (d.get('purchase', null) == null || (d.purchase is map && d.purchase.keys().hasOnly(['on', 'over']) && d.purchase.get('on', false) is bool
@@ -412,13 +413,15 @@ service cloud.firestore {
       allow update: if isMember(t) && validTeam(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.createdAt == resource.data.createdAt
-        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency'])
+        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former'])
         // archiveRev: changed by any save to an old week, so other devices re-read old weeks (backend/tasksync.js)
         && (!changed().hasAny(['archiveRev']) || can(t, 'tasks.editOwn') || can(t, 'tasks.editAll'))
         && (!changed().hasAny(['subteams', 'leads']) || can(t, 'team.settings') || can(t, 'members.manage'))
         && (!changed().hasAny(['weeks']) || can(t, 'weeks.manage'))
         && (!changed().hasAny(['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features', 'workflow']) || can(t, 'team.settings'))
         && (!changed().hasAny(['roles']) || can(t, 'roles.manage'))
+        // who used to be in the team (names stay on their past work): set when a member is removed
+        && (!changed().hasAny(['former']) || can(t, 'members.manage'))
         && (!changed().hasAny(['autos', 'github']) || can(t, 'team.settings'))
         // The repository itself is set by the server (githubConnect), which also keeps its secret.
         && (!changed().hasAny(['github']) || (request.resource.data.get('github', null) == null || (request.resource.data.github.get('repo', '') == resource.data.get('github', {}).get('repo', '')
@@ -442,6 +445,21 @@ service cloud.firestore {
         allow update: if isPlatformAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt'])
           && request.resource.data.status in ['approved', 'declined'];
         allow delete: if ownerOrAdmin(t) || isPlatformAdmin() || r == 'ask-' + request.auth.uid;
+        // Leaving the team: a member asks, and the owner or someone who manages members approves.
+        allow create: if isMember(t) && myRole(t) != 'owner' && r == 'leave-' + request.auth.uid
+          && request.resource.data.keys().hasOnly(['kind', 'by', 'byName', 'at', 'note']) && request.resource.data.kind == 'leave'
+          && request.resource.data.by == request.auth.uid && request.resource.data.byName is string && request.resource.data.byName.size() <= 80
+          && request.resource.data.note is string && request.resource.data.note.size() <= 300;
+        allow delete: if isMember(t) && (r == 'leave-' + request.auth.uid || (r.matches('^leave-.+') && can(t, 'members.manage')));
+        // Deleting a task: someone who may only edit their own tasks asks; someone who edits everyone's approves.
+        allow create: if isMember(t) && r == 'del-' + request.resource.data.taskId
+          && request.resource.data.keys().hasOnly(['kind', 'by', 'byName', 'at', 'note', 'taskId', 'taskName']) && request.resource.data.kind == 'delete'
+          && request.resource.data.by == request.auth.uid && request.resource.data.byName is string && request.resource.data.byName.size() <= 80
+          && request.resource.data.note is string && request.resource.data.note.size() <= 300
+          && request.resource.data.taskName is string && request.resource.data.taskName.size() <= 200
+          && exists(/databases/$(database)/documents/teams/$(t)/tasks/$(request.resource.data.taskId))
+          && canEditOwned(t, get(/databases/$(database)/documents/teams/$(t)/tasks/$(request.resource.data.taskId)).data.ownerUid);
+        allow delete: if isMember(t) && r.matches('^del-.+') && (can(t, 'tasks.editAll') || resource.data.by == request.auth.uid);
       }
 
       match /members/{uid} {
@@ -469,7 +487,8 @@ service cloud.firestore {
             || (uid == request.auth.uid && changed().hasOnly(['name', 'photo']) && validPhoto(request.resource.data))
           );
         allow delete: if isMember(t) && (
-            (resource.data.roleId != 'owner' && (can(t, 'members.manage') || uid == request.auth.uid))
+            // leaving needs approval: only someone who manages members removes a membership (their own included)
+            (resource.data.roleId != 'owner' && can(t, 'members.manage'))
             // the owner's membership goes only together with the team itself
             || (resource.data.roleId == 'owner' && uid == request.auth.uid && !existsAfter(teamPath(t)))
           );
@@ -608,7 +627,10 @@ service cloud.firestore {
           && canEditOwned(t, request.resource.data.ownerUid) && validTask(request.resource.data)
           && getAfter(/databases/$(database)/documents/teams/$(t)/categories/$(request.resource.data.categoryId)).data.ownerUid == request.resource.data.ownerUid)
           || signoffDecision(t)) && signoffGates(t);
-        allow delete: if canEditOwned(t, resource.data.ownerUid);
+        // Deleting: those who edit everyone's tasks; others only a task they made in the last day (anything older is asked for)
+        allow delete: if can(t, 'tasks.editAll')
+          || (canEditOwned(t, resource.data.ownerUid) && resource.data.get('createdBy', '') == request.auth.uid
+            && resource.data.get('createdAt', 0) > request.time.toMillis() - 86400000);
       }
     }
   }

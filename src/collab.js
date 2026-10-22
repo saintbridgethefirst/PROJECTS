@@ -201,7 +201,7 @@ export function buildFeed(session) {
     t.history.forEach((h, i) => {
       // Newest entries come first; entries we can't date fall back to the task's last update.
       const at = parseStamp(h.time) || (i === 0 ? t.updatedAt : 0) || (t.createdAt + (n - i));
-      out.push({ kind: /^created\b/i.test(h.updated || '') ? 'created' : 'change', at, who: h.user || 'Someone', taskId: t.id, task: t.name, week: weeks.get(t.weekId) || '', field: h.field, from: h.original, to: h.updated });
+      out.push({ kind: /^created\b/i.test(h.updated || '') && String(h.field).toLowerCase() !== 'github' ? 'created' : 'change', at, who: h.user || 'Someone', taskId: t.id, task: t.name, week: weeks.get(t.weekId) || '', field: h.field, from: h.original, to: h.updated });
     });
     if (t.createdAt && !t.history.some(h => /created|duplicated|imported/i.test(h.updated || ''))) {
       const author = (session.members.find(m => m.uid === t.createdBy) || {}).name || '';
@@ -276,6 +276,9 @@ export function openActivity(ctx, tab = 'mentions') {
 function describeChange(e) {
   const f = String(e.field || 'Change'); const lf = f.toLowerCase();
   if (lf.startsWith('sub-task')) return f.toLowerCase() + ' “' + (e.to || e.from) + '”';
+  if (lf === 'github') { const t = String(e.to || 'changed'); return 'GitHub: ' + t.charAt(0).toLowerCase() + t.slice(1); }
+  if (lf === 'attachment added' || lf === 'attachment') return e.to ? 'attached “' + e.to + '”' : 'changed files';
+  if (lf === 'attachment removed') return 'removed “' + (e.from || 'a file') + '”';
   if (lf === 'action' || lf === 'moved') return lf === 'moved' ? 'moved it from ' + (e.from || '?') + ' to ' + (e.to || '?') : (e.to || 'changed');
   if (e.from && e.to) return 'changed ' + lf + ' from “' + e.from + '” to “' + e.to + '”';
   if (e.to) return 'set ' + lf + ' to “' + e.to + '”';

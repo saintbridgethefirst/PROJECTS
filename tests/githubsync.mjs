@@ -72,7 +72,9 @@ try {
   await A.click('.gh-branch'); await sleep(200);
   ok(await A.evaluate(() => navigator.clipboard.readText()) === ref.toLowerCase() + '-tune-the-pid-loop', 'branch name copied');
   await A.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
-  await A.click('.gh-new-issue'); await sleep(300);
+  await A.click('.gh-new-issue'); await A.waitForSelector('#gh-new');
+  ok(await A.inputValue('#gh-new-title') === 'Tune the PID loop', 'the issue form starts with the task name');
+  await A.fill('#gh-new-body', 'Overshoots by 20%.'); await A.click('#gh-new-save'); await sleep(300);
   const href = await A.evaluate(() => window.__opened[0] || '');
   ok(href.startsWith('https://github.com/uni-robotics/rover/issues/new?') && decodeURIComponent(href).includes('TeamTrack: ' + ref), 'new issue on GitHub names the task');
   await shot(A, 'editor');
@@ -103,16 +105,16 @@ try {
   const pid = (await A.evaluate(() => window.boardAddTask({ ownerUid: TT.me.uid, name: 'Calibrate the IMU' }))).id; await sleep(400);
   await A.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
   await A.evaluate((id) => window.boardOpenTask(id), pid); await A.waitForSelector('.gh-new-issue');
-  await A.click('.gh-new-issue'); await sleep(400);
+  await A.click('.gh-new-issue'); await A.waitForSelector('#gh-new'); await A.click('#gh-new-save'); await sleep(400);
   ok((await A.evaluate(() => window.__opened.length)) === 1, 'GitHub’s new-issue page opened');
   ok(await A.locator('.gh-pending').isVisible(), 'the task says it’s waiting for GitHub');
   const cardOf = (name) => A.locator('.task-card', { hasText: name });
-  ok((await cardOf('Calibrate the IMU').first().textContent()).includes('issue being created'), 'and so does its card');
+  ok((await cardOf('Calibrate the IMU').first().textContent()).toLowerCase().includes('issue being created'), 'and so does its card');
   await A.click('.gh-link-issue'); await A.waitForSelector('#gh-link-url'); await A.fill('#gh-link-url', '#77'); await A.click('#gh-link-save'); await sleep(500);
   let imu = (await team(A)).tasks[pid];
   ok(imu.attachments.some(a => a.url === 'https://github.com/uni-robotics/rover/issues/77'), 'linked by typing #77');
   const imuText = await cardOf('Calibrate the IMU').first().textContent();
-  ok(imuText.includes('🐙 #77') && !(await A.locator('.gh-pending').count()), 'the card shows 🐙 #77; no longer waiting: ' + imuText.slice(0, 120));
+  ok(imuText.includes('#77') && !(await A.locator('.gh-pending').count()), 'the card shows #77; no longer waiting: ' + imuText.slice(0, 120));
 
   step('With a token: issues made at once, and closed from the task');
   await A.evaluate(() => TT.openSettings('integrations')); await A.waitForSelector('#gh-token-input');
@@ -122,23 +124,23 @@ try {
   ok((await team(A)).doc.github.write === true && !JSON.stringify((await team(A)).doc).includes('github_pat_'), 'saved on the server side only');
   await A.keyboard.press('Escape'); await sleep(200);
   await A.evaluate((id) => window.boardOpenTask(id), pid); await A.waitForSelector('.gh-new-issue');
-  await A.click('.gh-new-issue'); await sleep(600);
+  await A.click('.gh-new-issue'); await A.waitForSelector('#gh-new'); await A.fill('#gh-new-body', 'Drifts 2° a minute.'); await A.click('#gh-new-save'); await sleep(600);
   imu = (await team(A)).tasks[pid];
   const made101 = imu.attachments.find(a => /issues\/101$/.test(a.url));
-  ok(made101 && imu.history.some(h => h.updated === 'Created GitHub issue #101'), 'issue #101 made and linked at once');
-  ok((await cardOf('Calibrate the IMU').first().textContent()).includes('🐙 #101'), 'shown on the card');
+  ok(made101 && imu.history.some(h => h.updated === 'Created issue #101 and linked it'), 'issue #101 made and linked at once');
+  ok((await cardOf('Calibrate the IMU').first().textContent()).includes('#101'), 'shown on the card');
   await A.waitForSelector('.gh-close-btn');
   await A.locator('.gh-close-btn').last().click(); await A.waitForSelector('#gh-close');
   await A.check('input[name=gh-close-reason][value=duplicate]'); await A.click('#gh-close-save'); await sleep(200);
   ok(await A.locator('#gh-close').count() === 1, 'a duplicate needs the other issue’s number');
   await A.fill('#gh-close-dup', '77'); await A.click('#gh-close-save'); await sleep(500);
   imu = (await team(A)).tasks[pid];
-  ok(imu.history[0].updated === 'Closed GitHub issue #101 as a duplicate of #77' && imu.flag !== 'completed', 'closed as a duplicate; the task stays open');
+  ok(imu.history[0].updated === 'Closed issue #101 as a duplicate of #77' && imu.flag !== 'completed', 'closed as a duplicate; the task stays open');
   await A.locator('.gh-close-btn').first().click(); await A.waitForSelector('#gh-close');
   ok(await A.isChecked('#gh-close-finish'), '“also mark this task done” is offered');
   await A.click('#gh-close-save'); await sleep(600);
   imu = (await team(A)).tasks[pid];
-  ok(imu.flag === 'completed' && imu.history.some(h => h.updated === 'Closed GitHub issue #77 as completed'), 'closed as completed, and the task is done');
+  ok(imu.flag === 'completed' && imu.history.some(h => h.updated === 'Closed issue #77 as completed'), 'closed as completed, and the task is done');
 
   step('Right-click a card: GitHub actions');
   await A.keyboard.press('Escape'); await sleep(200);
@@ -149,7 +151,7 @@ try {
   ok(await qm('GitHub').isVisible(), 'the menu has GitHub');
   await qm('GitHub').click(); await sleep(250);
   ok(await qs('Create GitHub issue').isVisible() && await qs('Link an existing issue').isVisible() && await qs('Copy branch name').isVisible(), 'create, link and copy the branch name');
-  await qs('Create GitHub issue').click(); await sleep(600);
+  await qs('Create GitHub issue').click(); await A.waitForSelector('#gh-new'); await A.click('#gh-new-save'); await sleep(600);
   const pidTask = Object.values((await team(A)).tasks).find(t => t.name === 'Tune the PID loop');
   ok(pidTask.attachments.some(a => /issues\/102$/.test(a.url)), 'created #102 from the menu');
   step('Disconnect');

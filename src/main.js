@@ -16,7 +16,8 @@ import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
 import { runAutos, afterCommit } from './autos.js';
-import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending } from './github-ui.js';
+import { peopleRequests, needsDeleteApproval, askToDelete, approveLeave, approveDelete, declineRequest } from './requests.js';
+import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending, ghMark } from './github-ui.js';
 import { refIdOf } from '../functions/ghsync.js';
 import { waitingPurchases, decidePurchase, declineDialog, purchaseOn, purchaseLine } from './purchases.js';
 import { signersFor, canSignStage, gateOnTheWay, checklistOf, cleanWhiteboard, cleanWbItem, cleanWorkflow, storedWorkflow, leadsIndex } from './model.js';
@@ -820,6 +821,7 @@ function researchChanged(after) {
   if (window.boardUpdateApprovals) window.boardUpdateApprovals();
   scheduleAutos();
   if (after === 'settings' && window.TTSettingsRefresh) window.TTSettingsRefresh();
+  if (after === 'settings' && window.boardRender && session && session.booted) window.boardRender();   // "Delete asked" chips
   if (after === 'wb' && window.__wbRefresh) window.__wbRefresh();
   if (after === 'board' && window.boardRender && session && session.booted) { window.boardRender(); if (window.boardRefreshEditor) window.boardRefreshEditor(); }
 }
@@ -993,7 +995,8 @@ window.TT = {
   githubWrite: () => !!session && githubOf(session).write,
   createIssue: (task) => (session ? createIssue(ctx(), task) : null),
   linkIssue: (task) => { if (session) linkIssueDialog(ctx(), task); },
-  closeIssue: (task, n) => { if (session) closeIssueDialog(ctx(), task, n); },
+  closeIssue: (task, n, reason) => { if (session) closeIssueDialog(ctx(), task, n, reason); },
+  ghMark,
   reopenIssue: (task, n) => (session ? reopenIssue(ctx(), task, n) : null),
   ghPending: (taskId) => ghPending(taskId) && !(((session && session.tasks) || []).find(t => t.id === taskId) || { attachments: [] }).attachments.some(a => /github\.com\/[^/]+\/[^/]+\/issues\//.test(a.url)),
   taskRef: (task) => refOf(task),
@@ -1009,6 +1012,14 @@ window.TT = {
   approvePurchase: (p) => decidePurchase(ctx(), p, 'approved', ''),
   declinePurchase: (p) => declineDialog(ctx(), p),
   openParts: () => { if (session && session.booted) openResearch(ctx(), 'parts'); },
+  // Leaving and deleting need an admin's approval (requests.js)
+  peopleRequests: () => peopleRequests(session),
+  needsDeleteApproval: (task) => needsDeleteApproval(ctx(), task),
+  askToDelete: (task) => { if (session) askToDelete(ctx(), task); },
+  deleteAsked: (taskId) => !!session && (session.requests || []).some(r => r.id === 'del-' + taskId),
+  approveLeave: (r) => approveLeave(ctx(), r),
+  approveDelete: (r) => approveDelete(ctx(), r),
+  declineRequest: (r) => declineRequest(ctx(), r),
   runAutos: () => scheduleAutos(),
   commentCount: (taskId) => { if (!session || !session.comments) return 0; const ids = new Set(carryIndexOf(session).ids(taskId)); return session.comments.filter(c => ids.has(c.taskId)).length; },
   hasUnreadMention: (taskId) => { if (!session) return false; const ids = new Set(carryIndexOf(session).ids(taskId)); return collab.unreadMentions(user.uid, session.comments).some(c => ids.has(c.taskId)); },

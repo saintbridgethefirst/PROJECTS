@@ -108,7 +108,7 @@ const patches = [
 ];
 // Speed (stress test): the side-panel search read every card's laid-out text on every redraw.
 patches.push(["            const query = document.getElementById('search-tasks').value.toLowerCase();\n            document.querySelectorAll('.task-card').forEach(card => {\n                const text = card.innerText.toLowerCase();",
-  "            const query = document.getElementById('search-tasks').value.toLowerCase();\n            if (!query) { document.querySelectorAll('.task-card.hidden-by-search').forEach(c => c.classList.remove('hidden-by-search')); drawLines(); return; }\n            document.querySelectorAll('.task-card').forEach(card => {\n                const text = card.textContent.toLowerCase();"]);
+  "            const query = document.getElementById('search-tasks').value.toLowerCase();\n            if (!query) { document.querySelectorAll('.task-card.hidden-by-search').forEach(c => c.classList.remove('hidden-by-search')); drawLines(); return; }\n            document.querySelectorAll('.task-card').forEach(card => {\n                const text = (card.textContent + ' ' + (card.dataset.find || '')).toLowerCase();"]);  // also its TT- reference and linked GitHub issues
 patches.push(["function fmtShort(iso) { const d = parseISO(iso); return d ? d.getDate() + ' ' + d.toLocaleString('default', { month: 'short' }) : ''; }",
   "const MONTHS_SHORT = Array.from({ length: 12 }, (_, m) => new Date(2000, m, 1).toLocaleString('default', { month: 'short' }));\n        function fmtShort(iso) { const d = parseISO(iso); return d ? d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()] : ''; }"]);
 // Speed: measure every connector end first, then add all lines at once (adding a line between two

@@ -22,6 +22,8 @@
 
         function deleteActiveNode() {
             if (activeNode && activeNode.type === 'person') { TT.removeMember(activeNode.id); return; }
+            // A task older than a day: those who can't edit everyone's tasks ask an admin instead
+            if (activeNode && (!activeNode.type || activeNode.type === 'task') && TT.needsDeleteApproval && TT.needsDeleteApproval(activeNode)) { TT.askToDelete(activeNode); return; }
             const b = commitCount; _deleteActiveNodeCore(); if (commitCount !== b) toast('Deleted.', 8000, 'Undo', undo);
         }
         function deleteWeek(i) { const b = commitCount; _deleteWeekCore(i); if (commitCount !== b) toast('Week deleted.', 8000, 'Undo', undo); }
@@ -143,6 +145,7 @@
             if (task.flag !== 'completed' && TT.customWorkflow) plan.appendChild(stageBar(task));
             else if (task.flag !== 'completed' && TT.stageOf(task) === 'doing') { const d = document.createElement('span'); d.className = 'stage-chip'; d.textContent = '🔵 Doing'; plan.appendChild(d); }
             const dc = TT.feature('planning') ? depChip(task) : null; if (dc) plan.appendChild(dc);
+            if (TT.deleteAsked && TT.deleteAsked(task.id)) { const d = document.createElement('span'); d.className = 'effort-chip del-asked-chip'; d.textContent = '🗑 Delete asked'; d.title = 'Waiting for an admin to approve deleting this task'; plan.appendChild(d); }
             const cc = carryChip(task); if (cc) plan.appendChild(cc);
             const nb = TT.feature('notebook') ? TT.notebookCount(task.id) : 0; if (nb) { const n = document.createElement('span'); n.className = 'effort-chip nb-chip'; n.textContent = '📓 ' + nb; n.title = nb + ' lab notebook entr' + (nb === 1 ? 'y' : 'ies'); plan.appendChild(n); }
             if (plan.childNodes.length) card.insertBefore(plan, card.querySelector('.progress-wrapper'));
@@ -162,15 +165,15 @@
                 const dot = document.createElement('span'); dot.className = 'mention-dot'; dot.textContent = '@'; dot.title = 'You were mentioned in a comment here';
                 card.appendChild(dot); card.classList.add('has-mention');
             }
+            // GitHub: right under the task name, so a linked card is obvious at a glance
             const ghLinks = (task.attachments || []).filter(a => TT.parseGithub(a.url));
-            if (ghLinks.length) {
-                const row = document.createElement('div'); row.className = 'gh-chips';
-                ghLinks.slice(0, 3).forEach(a => { const g = TT.parseGithub(a.url); const c = ghChip(a.url, (g.kind === 'pull' ? '🐙 PR #' : '🐙 #') + g.number); row.appendChild(c); });
-                card.insertBefore(row, anchor);
-            } else if (TT.ghPending && TT.ghPending(task.id)) {
-                const row = document.createElement('div'); row.className = 'gh-chips';
-                const c = document.createElement('span'); c.className = 'gh-chip gh-loading'; c.textContent = '🐙 issue being created…'; c.title = 'Waiting for GitHub to link the new issue';
-                row.appendChild(c); card.insertBefore(row, anchor);
+            if (TT.taskRef) card.dataset.find = [TT.taskRef(task), ...ghLinks.map(a => { const g = TT.parseGithub(a.url); return '#' + g.number + ' ' + g.label + ' ' + (a.name || ''); })].join(' ');
+            const titleEl = card.querySelector('.card-title');
+            if (ghLinks.length || (TT.ghPending && TT.ghPending(task.id))) {
+                const row = document.createElement('div'); row.className = 'gh-chips gh-under-title';
+                if (ghLinks.length) ghLinks.slice(0, 3).forEach(a => row.appendChild(ghChip(a, { task, editable: TT.canEditOwner(person.id) })));
+                else { const c = document.createElement('span'); c.className = 'gh-chip gh-loading'; c.append(ghGlyph('issue'), document.createTextNode(' Issue being created…')); c.title = 'Waiting for GitHub to link the new issue'; row.appendChild(c); }
+                if (titleEl) titleEl.after(row); else card.insertBefore(row, anchor);
             }
             if (task.attachments && task.attachments.length) {
                 const a = document.createElement('div'); a.className = 'att-chip'; a.textContent = '📎 ' + task.attachments.length + (task.attachments.length === 1 ? ' file' : ' files');
@@ -288,19 +291,21 @@
         function attachmentSection(task, editable) {
             const s = section('Files & links');
             const list = document.createElement('div'); list.className = 'att-list';
-            const icons = { gdrive: '🟩', onedrive: '🟦', link: '🔗', github: '🐙' };
+            const icons = { gdrive: '🟩', onedrive: '🟦', link: '🔗', github: '🔗' };
             (task.attachments || []).forEach(a => {
                 const row = document.createElement('div'); row.className = 'att-item';
                 const ic = document.createElement('span'); ic.textContent = icons[a.provider] || '🔗';
                 const link = document.createElement('a'); link.href = a.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = a.name || a.url; link.title = (a.addedBy ? 'Added by ' + a.addedBy + ' · ' : '') + a.url;
                 row.append(ic, link);
                 if (TT.parseGithub(a.url)) {
-                    ic.textContent = '🐙'; row.appendChild(ghChip(a.url, '', true));
-                    const pg = TT.parseGithub(a.url);
-                    if (editable && pg.kind === 'issue' && TT.githubWrite() && TT.githubRepo() && pg.label.toLowerCase().startsWith(TT.githubRepo().toLowerCase() + '#')) {
+                    const pg = TT.parseGithub(a.url); ic.textContent = ''; ic.appendChild(ghGlyph(pg.kind)); ic.className = 'att-gh-ic';
+                    row.appendChild(ghChip(a, { task, editable, withTitle: true, bare: true }));
+                    if (editable && ownIssue(pg)) {
                         const cl = document.createElement('button'); cl.type = 'button'; cl.className = 'btn small gh-close-btn'; cl.textContent = 'Close…'; cl.title = 'Close this issue on GitHub';
                         cl.onclick = () => TT.closeIssue(task, pg.number); row.appendChild(cl);
-                        TT.githubStatus(a.url).then(st => { if (st && st.state === 'closed' && cl.isConnected) { cl.textContent = 'Reopen'; cl.title = 'Reopen this issue on GitHub'; cl.onclick = () => TT.reopenIssue(task, pg.number); } });
+                        const reopen = () => { cl.textContent = 'Reopen'; cl.title = 'Reopen this issue on GitHub'; cl.onclick = () => TT.reopenIssue(task, pg.number); };
+                        if (a.state === 'closed') reopen();
+                        else if (!a.state) TT.githubStatus(a.url).then(st => { if (st && st.state === 'closed' && cl.isConnected) reopen(); });
                     }
                 }
                 if (editable) {
@@ -318,10 +323,10 @@
                 const ref = document.createElement('code'); ref.className = 'gh-ref'; ref.textContent = TT.taskRef(task); ref.title = 'Put this in a pull request’s title or branch name and GitHub links it here';
                 const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'btn small ghost gh-branch'; cp.textContent = '⎇ Copy branch name';
                 cp.onclick = async () => { const b = TT.branchName(task); try { await navigator.clipboard.writeText(b); toast('Copied: ' + b); } catch { toast(b, 8000); } };
-                const ni = document.createElement('button'); ni.type = 'button'; ni.className = 'btn small ghost gh-new-issue'; ni.textContent = '＋ GitHub issue'; ni.title = TT.githubWrite() ? 'Create the issue now and link it' : 'Open GitHub with the issue filled in';
-                ni.onclick = async () => { ni.disabled = true; await TT.createIssue(task); ni.disabled = false; };
+                const ni = document.createElement('button'); ni.type = 'button'; ni.className = 'btn small ghost gh-new-issue'; ni.textContent = '＋ GitHub issue…'; ni.title = 'Write the issue (title and details) and link it to this task';
+                ni.onclick = () => TT.createIssue(task);
                 const li = document.createElement('button'); li.type = 'button'; li.className = 'btn small ghost gh-link-issue'; li.textContent = '🔗 Link existing'; li.onclick = () => TT.linkIssue(task);
-                g.append(document.createTextNode('🐙 '), ref, cp, ni, li); s.appendChild(g);
+                g.append(ghGlyph('issue'), ref, cp, ni, li); s.appendChild(g);
                 if (TT.ghPending(task.id)) {
                     const w = document.createElement('div'); w.className = 'gh-pending';
                     w.textContent = '⏳ Waiting for GitHub: once you submit the issue there, it links here by itself. Not showing up? Use “Link existing” and paste its address.';
@@ -351,7 +356,8 @@
         function addAttachmentToTask(taskId, att) {
             const loc = locateTask(taskId); if (!loc) { toast('That task no longer exists.'); return false; }
             const t = loc.task; t.attachments = [...(t.attachments || []), att];
-            logHistory(t, 'Attachment added', '', att.name);
+            const pg = att.provider === 'github' && TT.parseGithub(att.url);
+            if (pg) logHistory(t, 'GitHub', '', 'Linked ' + (pg.kind === 'pull' ? 'PR #' : 'issue #') + pg.number); else logHistory(t, 'Attachment added', '', att.name);
             saveDatabase(); render(); if (activeNode && activeNode.id === taskId) openEditor(t);
             return true;
         }
@@ -436,12 +442,12 @@
             const at = items.findIndex(it => it && it.label === 'Duplicate');
             items.splice(at + 1, 0, { icon: '📎', label: 'Attach file or link…', action: () => TT.openAttach(loc.task.id) });
             if (TT.githubRepo && TT.githubRepo()) {
-                const t = loc.task; const issues = (t.attachments || []).map(a => TT.parseGithub(a.url)).filter(g => g && g.kind === 'issue');
-                items.splice(at + 1, 0, { icon: '🐙', label: 'GitHub', submenu: [
-                    { icon: '＋', label: 'Create GitHub issue', action: () => TT.createIssue(t) },
+                const t = loc.task; const issues = (t.attachments || []).map(a => { const g = TT.parseGithub(a.url); return g && { ...g, url: a.url }; }).filter(g => g && g.kind === 'issue');
+                items.splice(at + 1, 0, { icon: '◉', label: 'GitHub', submenu: [
+                    { icon: '＋', label: 'Create GitHub issue…', action: () => TT.createIssue(t) },
                     { icon: '🔗', label: 'Link an existing issue or PR…', action: () => TT.linkIssue(t) },
                     { icon: '⎇', label: 'Copy branch name', action: async () => { const b = TT.branchName(t); try { await navigator.clipboard.writeText(b); toast('Copied: ' + b); } catch { toast(b, 8000); } } },
-                    ...(TT.githubWrite() ? issues.slice(0, 3).map(g => ({ icon: '✓', label: 'Close issue #' + g.number + '…', action: () => TT.closeIssue(t, g.number) })) : []),
+                    ...(TT.githubWrite() ? issues.slice(0, 3).map(g => { const st = ((t.attachments || []).find(a => a.url === g.url) || {}).state; return st === 'closed' ? { icon: '↺', label: 'Reopen issue #' + g.number, action: () => TT.reopenIssue(t, g.number) } : { icon: '✓', label: 'Close issue #' + g.number + '…', action: () => TT.closeIssue(t, g.number) }; }) : []),
                 ] });
             }
             const phaseItem = phaseMenuItem(loc); if (phaseItem) items.splice(at + 1, 0, phaseItem);
@@ -885,16 +891,44 @@
 
         // ---------- GitHub issue / pull-request state chips ----------
         const GH_TEXT = { open: 'Open', closed: 'Closed', merged: 'Merged', draft: 'Draft' };
-        function ghChip(url, prefix, withTitle) {
-            const c = document.createElement('a'); c.className = 'gh-chip gh-loading'; c.href = url; c.target = '_blank'; c.rel = 'noopener noreferrer';
-            c.textContent = (prefix ? prefix + ' · ' : '') + '…'; c.title = 'GitHub';
-            c.addEventListener('click', (e) => e.stopPropagation());
-            TT.githubStatus(url).then(st => {
-                if (!st) return;
-                c.classList.remove('gh-loading'); c.classList.add('gh-' + st.state);
-                const word = GH_TEXT[st.state] || (st.note ? '🔒 linked' : '?');
-                c.textContent = (prefix ? prefix + ' · ' : '') + word + (st.state === 'closed' && st.reason === 'not_planned' ? ' (not planned)' : '') + (withTitle && st.title ? ' — ' + st.title : '');
-                c.title = st.label + (st.title ? ': ' + st.title : '') + (st.note ? ' — ' + st.note : '');
+        const GH_WHY = { not_planned: 'not planned', duplicate: 'duplicate' };
+        function ghGlyph(kind) {
+            const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 16 16'); s.setAttribute('class', 'gh-mark'); s.setAttribute('aria-hidden', 'true');
+            s.innerHTML = kind === 'pull'
+                ? '<circle cx="4" cy="3.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4" cy="12.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 5.3v5.4M12 10.7V6.5a2 2 0 0 0-2-2H7.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.6 2.9 7 4.5l1.6 1.6" fill="none" stroke="currentColor" stroke-width="1.5"/>'
+                : '<circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor"/>';
+            return s;
+        }
+        function ownIssue(pg) { return pg && pg.kind === 'issue' && TT.githubWrite() && TT.githubRepo() && pg.label.toLowerCase().startsWith(TT.githubRepo().toLowerCase() + '#'); }
+        // a = the attachment. Its saved state (kept current by GitHub's webhook) shows at once and
+        // changes live; without one, the public API is asked (private repos just say "linked").
+        function ghChip(a, o = {}) {
+            const pg = TT.parseGithub(a.url);
+            const c = document.createElement(o.bare ? 'a' : 'button'); c.className = 'gh-chip gh-loading';
+            if (o.bare) { c.href = a.url; c.target = '_blank'; c.rel = 'noopener noreferrer'; } else c.type = 'button';
+            const label = (pg.kind === 'pull' ? 'PR #' : '#') + pg.number;
+            const paint = (st) => {
+                c.className = 'gh-chip' + (st && st.state ? ' gh-' + st.state : '') + (st ? '' : ' gh-loading');
+                const word = st ? (GH_TEXT[st.state] || (st.note ? '🔒 linked' : '')) : '…';
+                const why = st && st.state === 'closed' && GH_WHY[st.reason] ? ' · ' + GH_WHY[st.reason] : '';
+                c.textContent = ''; if (!o.bare) c.appendChild(ghGlyph(pg.kind));
+                const t = document.createElement('span'); t.className = 'gh-chip-txt'; t.textContent = (o.bare ? '' : label + ' · ') + word + why + (o.withTitle && st && st.title ? ' — ' + st.title : ''); c.appendChild(t);
+                c.title = 'GitHub ' + pg.label + (st && st.title ? ': ' + st.title : '') + (st && st.note ? ' — ' + st.note : '') + (o.bare ? '' : ' (click for actions)');
+            };
+            if (a.state) paint({ state: a.state, reason: a.reason || '', title: (a.name || '').replace(/^(Issue|PR) #\d+:?\s*/, '') });
+            else { paint(null); TT.githubStatus(a.url).then(st => { if (st) paint(st); }); }
+            c.addEventListener('click', (e) => {
+                e.stopPropagation(); if (o.bare) return; e.preventDefault();
+                const r = c.getBoundingClientRect(); const t = o.task; const state = c.classList.contains('gh-closed') ? 'closed' : c.classList.contains('gh-merged') ? 'merged' : 'open';
+                const items = [{ header: 'GitHub ' + pg.label }, { icon: '↗', label: 'Open on GitHub', action: () => window.open(a.url, '_blank', 'noopener') }];
+                if (o.editable && ownIssue(pg)) {
+                    if (state === 'closed') items.push({ icon: '↺', label: 'Reopen issue', action: () => TT.reopenIssue(t, pg.number) });
+                    else items.push({ icon: '✓', label: 'Close as completed', action: () => TT.closeIssue(t, pg.number, 'completed') },
+                        { icon: '⊘', label: 'Close as not planned', action: () => TT.closeIssue(t, pg.number, 'not_planned') },
+                        { icon: '⧉', label: 'Close as duplicate…', action: () => TT.closeIssue(t, pg.number, 'duplicate') });
+                } else if (o.editable && pg.kind === 'issue' && !TT.githubWrite()) items.push({ icon: 'ℹ', label: 'Add a token in Settings ▸ Integrations to close it from here', action: () => {} });
+                items.push({ icon: '⧉', label: 'Copy link', action: async () => { try { await navigator.clipboard.writeText(a.url); toast('Copied.'); } catch { toast(a.url, 8000); } } });
+                showMenu(r.left, r.bottom + 4, items);
             });
             return c;
         }
@@ -953,6 +987,26 @@
             if (out.length > lines) res[lines - 1] = res[lines - 1].replace(/…?$/, '').slice(0, Math.max(1, max - 1)) + '…';
             return res;
         }
+        // Short names for the ring (the full name shows in the middle on hover)
+        const RM_SHORT = [
+            [/^Make it a sub-task/i, 'Sub-task of'], [/^Waits on another task/i, 'Waits on'], [/^Save as template/i, 'Template'],
+            [/^Supporting people/i, 'Support'], [/^Attach file or link/i, 'Attach'], [/^Add deadlines? to my calendar/i, 'Calendar'],
+            [/^Open details/i, 'Details'], [/^Edit in side panel|^Open in side panel/i, 'Side panel'], [/^Open original task/i, 'Original'],
+            [/^Carry forward/i, 'Carry over'], [/^Move to week/i, 'Move week'], [/^Add sub-task/i, 'Sub-task'], [/^Set start date/i, 'Start date'],
+            [/^Clear deadline/i, 'No deadline'], [/^Create GitHub issue/i, 'New issue'], [/^Link an existing issue/i, 'Link issue'],
+            [/^Copy branch name/i, 'Branch'], [/^Close issue #(\d+)/i, 'Close #$1'], [/^Reopen issue #(\d+)/i, 'Reopen #$1'], [/^Open on GitHub/i, 'Open'],
+            [/^Close as completed/i, 'Completed'], [/^Close as not planned/i, 'Not planned'], [/^Close as duplicate/i, 'Duplicate'],
+            [/^Move (up|down) \(my view\)/i, 'Move $1'], [/^Show only this person/i, 'Only them'], [/^Add task here.*/i, 'Add task'],
+            [/^Add task to week/i, 'Add task'], [/^Add from template/i, 'From template'], [/^AI summary/i, 'AI summary'], [/^Delete task/i, 'Delete'],
+            [/^Duplicate$/i, 'Duplicate'], [/^Priority$/i, 'Priority'], [/^Status flag$/i, 'Flag'],
+        ];
+        function shortLabel(label) {
+            const l = String(label).split(' · ')[0].replace(/…$/, '').trim();
+            for (const [re, to] of RM_SHORT) { const m = l.match(re); if (m) return to.replace(/\$(\d)/g, (_, i) => m[i] || '').trim(); }
+            if (l.length <= 12) return l;
+            const words = l.split(/\s+/).filter(w => !/^(a|an|the|to|of|my|it|as|or|and|this|from)$/i.test(w));
+            return words.slice(0, 2).join(' ');
+        }
         function runItem(it) {
             closeContextMenu();
             try { const r = it.action && it.action(); if (r && r.catch) r.catch(err => { console.error(err); toast('Something went wrong: ' + err.message); }); }
@@ -962,8 +1016,18 @@
             closeRadial();
             const clean = cleanMenuItems(rawItems);
             const title = (clean.find(i => i.header) || {}).header || 'Actions';
-            const items = clean.filter(i => !i.header && !i.divider);
+            let items = clean.filter(i => !i.header && !i.divider);
             if (!items.length) return;
+            // A ring stays readable up to about 10 wedges; the rest go under "More"
+            const MAXR = 10;
+            if (items.length > MAXR) {
+                const risky = items.filter(i => i.danger).slice(0, 2); const rest = items.filter(i => !risky.includes(i)); const room = MAXR - 1 - risky.length;
+                // the everyday actions stay on the ring (in their usual order); the rest go under More
+                const KEEP = [/^Open details|^Edit in side panel/i, /^Priority/i, /^Status|flag/i, /^Stage|^Move to stage/i, /^Duplicate/i, /^Move to week/i, /^Carry forward/i, /^GitHub/i, /^Attach/i, /^Add sub-task/i];
+                const rank = (it) => { const l = String(it.label); const k = KEEP.findIndex(re => re.test(l)); return k === -1 ? 99 : k; };
+                const keep = new Set([...rest].sort((x, y) => rank(x) - rank(y) || rest.indexOf(x) - rest.indexOf(y)).slice(0, room));
+                items = [...rest.filter(i => keep.has(i)), { icon: '⋯', label: 'More', submenu: rest.filter(i => !keep.has(i)) }, ...risky];
+            }
             const vw = window.innerWidth, vh = window.innerHeight;
             const R0 = 50, R1 = Math.min(160, Math.floor(Math.min(vw, vh) / 2) - 14), R2 = R1 + 6, R3 = R1 + 84;
             const roomOuter = Math.min(vw, vh) >= 2 * R3 + 16;
@@ -996,10 +1060,13 @@
                 const mid = (a0 + a1) / 2, rm = (r0 + r1) / 2;
                 const arc = 2 * Math.PI * rm * ((a1 - a0) / 360);
                 const [tx, ty] = polar(o, o, rm, mid);
-                const label = String(it.label).split(' · ')[0];
-                const lines = wrapLabel(label, Math.max(4, Math.floor(arc / 6.4)), opts && opts.oneLine ? 1 : 2);
+                const label = shortLabel(it.label);
+                // fit: as many characters as the wedge is wide; shrink the type a little before cutting a word
+                const width = Math.min(arc * 0.86, (r1 - r0) * 1.5);
+                let fs = 10.5, lines = wrapLabel(label, Math.max(4, Math.floor(width / (fs * 0.6))), opts && opts.oneLine ? 1 : 2);
+                if (lines.some(l => l.endsWith('…'))) { fs = 9; lines = wrapLabel(label, Math.max(4, Math.floor(width / (fs * 0.6))), opts && opts.oneLine ? 1 : 2); }
                 const ic = svgEl('text', { x: tx, y: ty - (lines.length > 1 ? 9 : 4), class: 'rm-icon', 'text-anchor': 'middle', 'dominant-baseline': 'middle' }); ic.textContent = it.icon || '•';
-                const tl = svgEl('text', { x: tx, y: ty + (lines.length > 1 ? 9 : 13), class: 'rm-label', 'text-anchor': 'middle' });
+                const tl = svgEl('text', { x: tx, y: ty + (lines.length > 1 ? 9 : 13), class: 'rm-label', 'text-anchor': 'middle', style: 'font-size:' + fs + 'px' });
                 lines.forEach((l, i) => { const t = svgEl('tspan', { x: tx, dy: i ? '1.15em' : '0' }); t.textContent = l; tl.appendChild(t); });
                 g.append(ic, tl);
                 if (it.submenu) { const [ax, ay] = polar(o, o, r1 - 7, mid); const ar = svgEl('text', { x: ax, y: ay, class: 'rm-arrow', 'text-anchor': 'middle', 'dominant-baseline': 'middle', transform: `rotate(${mid} ${ax} ${ay})` }); ar.textContent = '▲'; g.appendChild(ar); }
@@ -1362,8 +1429,9 @@
         function updateApprovals() {
             const b = document.getElementById('approvals-btn'); if (!b) return;
             const buy = TT.purchaseOn && TT.purchaseOn();
-            b.hidden = !wfStages().some(s => s.signoff) && !buy;
-            const n = b.hidden ? 0 : waitingSignoffs().filter(x => x.mine).length + (buy ? TT.purchasesWaiting().mine.length : 0);
+            const pr = TT.peopleRequests ? TT.peopleRequests() : { leave: [], del: [], mine: 0 };
+            b.hidden = !wfStages().some(s => s.signoff) && !buy && !pr.leave.length && !pr.del.length;
+            const n = b.hidden ? 0 : waitingSignoffs().filter(x => x.mine).length + (buy ? TT.purchasesWaiting().mine.length : 0) + pr.mine;
             const badge = document.getElementById('approvals-badge'); if (badge) { badge.hidden = !n; badge.textContent = n > 9 ? '9+' : String(n); }
             b.setAttribute('aria-label', 'Approvals' + (n ? ', ' + n + ' waiting for you' : ''));
         }
@@ -1391,6 +1459,27 @@
             if (others.length) { out.push(h('h4', 'so-h', 'Purchases waiting for someone else (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(p => ul.appendChild(h('li', '', TT.purchaseLine(p) + ' · asked by ' + (p.approval.byName || 'someone')))); out.push(ul); }
             return out;
         }
+        // Leaving the team and deleting tasks (requests.js), at the top: they're about people
+        function requestCards(h) {
+            const pr = TT.peopleRequests ? TT.peopleRequests() : { leave: [], del: [] }; const out = [];
+            const mine = [...pr.leave, ...pr.del].filter(r => r.mine); const others = [...pr.leave, ...pr.del].filter(r => !r.mine);
+            if (!mine.length && !others.length) return out;
+            out.push(h('h4', 'so-h', 'Requests waiting for you (' + mine.length + ')'));
+            if (!mine.length) out.push(h('p', 'hint', 'Nothing for you to decide.'));
+            mine.forEach(r => {
+                const card = h('article', 'so-card rq-card'); card.dataset.request = r.id;
+                const top = h('div', 'so-card-top'); top.append(h('span', 'so-badge' + (r.kind === 'leave' ? ' rq-leave' : ' rq-del'), r.kind === 'leave' ? 'LEAVING' : 'DELETE'), h('span', 'hint', (r.byName || 'Someone') + ' · asked ' + soAgo(r.at)));
+                const name = h(r.kind === 'leave' ? 'div' : 'button', r.kind === 'leave' ? 'so-name' : 'link-btn so-name', r.kind === 'leave' ? (r.byName || 'Someone') + ' wants to leave the team' : (r.taskName || 'Untitled task'));
+                if (r.kind !== 'leave') { name.type = 'button'; name.onclick = () => { document.getElementById('approvals-modal')?.closest('.modal-overlay')?.remove(); openOriginalTask(r.taskId); }; }
+                card.append(top, name); if (r.note) card.append(h('div', 'hint', '“' + r.note + '”'));
+                const btns = h('div', 'so-btns');
+                const ap = h('button', 'btn-primary rq-approve', r.kind === 'leave' ? 'Review and approve…' : 'Delete the task'); ap.type = 'button'; ap.onclick = () => (r.kind === 'leave' ? TT.approveLeave(r) : TT.approveDelete(r));
+                const no = h('button', 'btn-secondary rq-decline', r.kind === 'leave' ? 'Decline' : 'Keep it'); no.type = 'button'; no.onclick = () => TT.declineRequest(r);
+                btns.append(ap, no); card.append(btns); out.push(card);
+            });
+            if (others.length) { out.push(h('h4', 'so-h', 'Other requests (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(r => ul.appendChild(h('li', '', (r.kind === 'leave' ? (r.byName || 'Someone') + ' asked to leave' : 'Delete “' + (r.taskName || 'a task') + '” · asked by ' + (r.byName || 'someone')) + ', ' + soAgo(r.at)))); out.push(ul); }
+            return out;
+        }
         function openApprovals() {
             const m = TT.modal('Approvals'); m.box.id = 'approvals-modal'; m.box.classList.add('so-modal');
             const draw = () => {
@@ -1416,7 +1505,7 @@
                 });
                 if (others.length) { out.push(h('h4', 'so-h', 'Waiting for someone else (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(({ l, who }) => ul.appendChild(h('li', '', (l.task.name || 'Untitled task') + ' · ' + l.person.name + ' · waiting for ' + who.label))); out.push(ul); }
                 if (recent.length) { out.push(h('h4', 'so-h', 'Recently decided')); const ul = h('ul', 'so-recent'); recent.forEach(l => { const so = l.task.signoff; const li = h('li'); li.append(h('span', so.status === 'approved' ? 'so-ok' : 'so-ch', so.status === 'approved' ? 'Approved' : 'Changes requested'), ' · ' + (l.task.name || 'Untitled task') + ' (' + l.person.name + ')' + (so.note ? ': “' + so.note + '”' : '') + ' · ' + so.approverName + ', ' + soAgo(so.decidedAt)); ul.appendChild(li); }); out.push(ul); }
-                m.body.replaceChildren(...out, ...purchaseCards(h));
+                m.body.replaceChildren(...requestCards(h), ...out, ...purchaseCards(h));
             };
             m.box.__draw = draw; draw();
         }
@@ -1722,7 +1811,7 @@
             const weeks = new Set(kbWeeks().map(w => w.key)); const q = ((document.getElementById('search-tasks') || {}).value || '').trim().toLowerCase();
             return latestOfChains(allTaskLocs().filter(l => weeks.has(l.weekKey))).filter(l => !hiddenPersons.has(l.person.id) && !phaseHidden(l.task) && !l.task.isGhost
                 && (!kbMine || l.person.id === (TT.me && TT.me.uid))
-                && (!q || [l.task.name, l.task.jiraId, TT.taskRef ? TT.taskRef(l.task) : '', l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
+                && (!q || [l.task.name, l.task.jiraId, TT.taskRef ? TT.taskRef(l.task) : '', l.task.status, l.person.name, ...(l.task.attachments || []).filter(a => TT.parseGithub(a.url)).map(a => '#' + TT.parseGithub(a.url).number + ' ' + (a.name || ''))].join(' ').toLowerCase().includes(q)));
         }
         const PRIO_RANK = { Blocker: 0, Critical: 1, Major: 2, Minor: 3 };
         function kbSort(st) {
@@ -1865,7 +1954,7 @@
             const q = ((document.getElementById('search-tasks') || {}).value || '').trim().toLowerCase();
             return latestOfChains(allTaskLocs()).filter(l => !l.task.isGhost && !hiddenPersons.has(l.person.id) && !phaseHidden(l.task)
                 && (!gtHideDone || l.task.flag !== 'completed')
-                && (!q || [l.task.name, l.task.jiraId, TT.taskRef ? TT.taskRef(l.task) : '', l.task.status, l.person.name].join(' ').toLowerCase().includes(q)));
+                && (!q || [l.task.name, l.task.jiraId, TT.taskRef ? TT.taskRef(l.task) : '', l.task.status, l.person.name, ...(l.task.attachments || []).filter(a => TT.parseGithub(a.url)).map(a => '#' + TT.parseGithub(a.url).number + ' ' + (a.name || ''))].join(' ').toLowerCase().includes(q)));
         }
         function gtColor(t) { const st = stageById(TT.stageId(t)); return st && st.color ? st.color : (TT.stageOf(t) === 'done' ? '#48bb78' : TT.stageOf(t) === 'doing' ? '#4299e1' : '#718096'); }
         function gtFmt(iso) { const d = parseISO(iso); return d ? d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : ''; }

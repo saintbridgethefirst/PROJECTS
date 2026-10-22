@@ -51,3 +51,11 @@ export function roleList(team) {
 
 export function normEmail(e) { return String(e || '').trim().toLowerCase(); }
 export function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normEmail(e)); }
+
+/** Deleting a task needs someone who edits everyone's tasks to approve it, unless you could
+ *  edit everyone's anyway, or it's your own task made in the last day (an undo for mistakes). */
+export function deleteNeedsApproval(team, member, task, now = Date.now()) {
+  if (!member || can(team, member, 'tasks.editAll')) return false;
+  if (!task || !task.createdAt) return false;   // not saved yet
+  return !(task.createdBy === member.uid && task.createdAt > now - 86400000);
+}

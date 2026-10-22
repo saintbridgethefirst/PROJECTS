@@ -37,7 +37,7 @@ export const appLink = (teamId) => location.origin + location.pathname + '#/t/' 
 export function teamEvents(session, { scope = 'mine', uid, includeDone = false, includePhases = true } = {}) {
   const T = session.team; const weeks = new Map((T.weeks || []).map(w => [w.key, w.title]));
   const phases = new Map((T.phases || []).map(p => [p.id, p]));
-  const name = (u) => (session.members.find(m => m.uid === u) || {}).name || 'Former member';
+  const name = (u) => (session.members.find(m => m.uid === u) || {}).name || formerName(session, u);
   const link = appLink(session.teamId);
   const out = [];
   // A task carried forward over several weeks is one deadline: use its latest copy, and keep the
@@ -152,3 +152,4 @@ export function openCalendar(ctx) {
   update();
   return m;
 }
+function formerName(session, u) { const f = session.team && session.team.former && session.team.former[u]; return f && f.name ? f.name + ' (left)' : 'Former member'; }

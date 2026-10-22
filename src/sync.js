@@ -8,7 +8,7 @@
 //  and write only what changed. Undo/redo work on these diffs, so undoing your
 //  own edit never reverts a teammate's.
 // ─────────────────────────────────────────────────────────────────────────────
-import { can, canEditOwnedBy } from './permissions.js';
+import { can, canEditOwnedBy, deleteNeedsApproval } from './permissions.js';
 import { cleanTask, TASK_CONTENT_FIELDS, workflowOf, stageIdOf, gateOnTheWay, canSignStage } from './model.js';
 import { LIMITS } from './config.js';
 
@@ -38,7 +38,8 @@ export function buildModel(state) {
   const byId = new Map(people.map(p => [p.id, p]));
   categories.forEach(c => {
     if (!byId.has(c.ownerUid)) {
-      const ghost = { id: c.ownerUid, type: 'person', name: 'Former member', email: '', roleId: '', former: true, categories: [] };
+      const was = team && team.former && team.former[c.ownerUid];
+      const ghost = { id: c.ownerUid, type: 'person', name: was && was.name ? was.name + ' (left)' : 'Former member', email: '', roleId: '', former: true, leftAt: (was && was.leftAt) || 0, categories: [] };
       people.push(ghost); byId.set(ghost.id, ghost);
     }
   });
@@ -112,6 +113,7 @@ export function deniedChanges(changes, team, member) {
     if (c.kind === 'weeks') { if (!can(team, member, 'weeks.manage')) reasons.push('change weeks'); return; }
     const owners = [c.before?.ownerUid, c.after?.ownerUid].filter(Boolean);
     if (!owners.every(o => canEditOwnedBy(team, member, o)) && !isSignoffDecision(c, member)) reasons.push(c.kind === 'cat' ? 'edit this category' : 'edit this task');
+    if (c.kind === 'task' && c.before && !c.after && deleteNeedsApproval(team, member, c.before)) reasons.push('delete “' + (c.before.name || 'a task') + '” without approval (right-click it ▸ Delete task… to ask)');
     // Sign-offs: a task can't move forward past a stage that needs one, unless you're allowed to give it.
     if (c.kind === 'task' && c.before && c.after) {
       const wf = workflowOf(team);

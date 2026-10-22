@@ -242,19 +242,27 @@ export const data = {
         const d = new Date(); let hh = d.getHours(); const ap = hh >= 12 ? 'PM' : 'AM'; hh = hh % 12 || 12;
         const time = String(d.getDate()).padStart(2, '0') + '/' + d.toLocaleString('en-GB', { month: 'short' }) + '/' + String(d.getFullYear()).slice(-2) + ' ' + hh + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + ap;
         const who = (T.members[me.uid] && T.members[me.uid].name) || me.name || 'Someone';
-        const hist = (u) => { t.history = [{ time, user: who, field: 'Attachment', original: '', updated: u }, ...(t.history || [])].slice(0, 100); };
+        const hist = (u, was) => { t.history = [{ time, user: who, field: 'GitHub', original: was || '', updated: u }, ...(t.history || [])].slice(0, 100); };
         if (payload.action === 'create') {
           P.n = (P.n || 100) + 1; const url = 'https://github.com/' + g.repo + '/issues/' + P.n;
-          t.attachments = [...(t.attachments || []), { id: 'gh_issues_' + P.n, provider: 'github', name: 'Issue #' + P.n + ': ' + String(payload.title || t.name).slice(0, 160), url, size: 0, addedBy: who, addedAt: Date.now() }];
-          hist('Created GitHub issue #' + P.n); t.updatedAt = Date.now(); persist();
+          t.attachments = [...(t.attachments || []), { id: 'gh_issues_' + P.n, provider: 'github', name: 'Issue #' + P.n + ': ' + String(payload.title || t.name).slice(0, 160), url, size: 0, addedBy: who, addedAt: Date.now(), state: 'open', reason: '' }];
+          hist('Created issue #' + P.n + ' and linked it'); t.updatedAt = Date.now(); persist();
           return { number: P.n, url, state: 'open' };
         }
         const n = Math.round(Number(payload.number));
+        if (payload.action === 'refresh') {   // demo: GitHub isn't reachable, so a hand-linked one is shown as open
+          const k = payload.kind === 'pull' ? 'pull' : 'issues'; const at = (t.attachments || []).find(a => a.url.endsWith('/' + g.repo + '/' + k + '/' + n));
+          if (!at) fail('permission-denied', 'That isn’t linked to this task.');
+          if (!at.state) { at.state = 'open'; at.reason = ''; t.updatedAt = Date.now(); persist(); }
+          return { number: n, state: at.state, reason: at.reason || '' };
+        }
         if (!(t.attachments || []).some(a => a.url.endsWith('/' + g.repo + '/issues/' + n))) fail('permission-denied', 'That issue isn’t linked to this task.');
-        if (payload.action === 'reopen') { hist('Reopened GitHub issue #' + n); persist(); return { number: n, state: 'open' }; }
+        const setState = (state, reason) => { t.attachments = t.attachments.map(a => (a.url.endsWith('/' + g.repo + '/issues/' + n) ? { ...a, state, reason } : a)); };
+        if (payload.action === 'reopen') { setState('open', ''); hist('Reopened issue #' + n, 'closed'); t.updatedAt = Date.now(); persist(); return { number: n, state: 'open' }; }
         const reason = ['completed', 'not_planned', 'duplicate'].includes(payload.reason) ? payload.reason : 'completed';
         if (reason === 'duplicate' && !(Number(payload.duplicateOf) > 0)) fail('invalid-argument', 'Duplicate of which issue number?');
-        hist('Closed GitHub issue #' + n + ' as ' + ({ completed: 'completed', not_planned: 'not planned', duplicate: 'a duplicate of #' + payload.duplicateOf })[reason]);
+        setState('closed', reason === 'completed' ? '' : reason);
+        hist('Closed issue #' + n + ' as ' + ({ completed: 'completed', not_planned: 'not planned', duplicate: 'a duplicate of #' + payload.duplicateOf })[reason], 'open');
         let finished = false;
         if (payload.finish && reason === 'completed' && t.flag !== 'completed' && !gh.gateBlocks(t, (T.doc.workflow && T.doc.workflow.stages) || [])) {
           t.history = [{ time, user: who, field: 'Task Status Flag', original: t.flag || 'none', updated: 'completed (GitHub issue #' + n + ' closed)' }, ...t.history].slice(0, 100);

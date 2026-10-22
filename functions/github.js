@@ -6,7 +6,7 @@
 //  finish tasks, turn new issues into tasks). No GitHub token is needed.
 // ─────────────────────────────────────────────────────────────────────────────
 import crypto from 'node:crypto';
-import { planGithubEvent, githubOps, newTaskPlace, cleanGithub, cleanRepo, taskRef as ref, refIdOf, gateBlocks } from './ghsync.js';
+import { planGithubEvent, githubOps, newTaskPlace, cleanGithub, cleanRepo, taskRef as ref, refIdOf, gateBlocks, stateOf } from './ghsync.js';
 
 const fail = (code, message) => Object.assign(new Error(message), { code });
 
@@ -94,6 +94,11 @@ async function gh(token, method, path, body) {
   }
   return j;
 }
+/** The task's attachments with one linked issue's state changed. */
+function withState(atts, repo, n, state, reason) {
+  const re = new RegExp('/' + repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/issues/' + n + '$', 'i');
+  return (atts || []).map(x => (re.test(x.url) ? { ...x, state, reason } : x));
+}
 /** Save (or remove, with token '') the token that lets TeamTrack create and close issues. */
 export async function setGithubToken(db, uid, teamId, token) {
   const team = await canManage(db, uid, teamId);
@@ -130,17 +135,27 @@ export async function issueAction(db, uid, teamId, a) {
     const body = (String(a.body || '').slice(0, 4000) + '\n\nTeamTrack: ' + ref(refIdOf({ ...task, id: taskSnap.id }))).trim();
     const is = await gh(token, 'POST', '/repos/' + g.repo + '/issues', { title, body });
     const att = (task.attachments || []).slice();
-    if (!att.some(x => x.url === is.html_url) && att.length < 30) att.push({ id: 'gh_issues_' + is.number, provider: 'github', name: 'Issue #' + is.number + ': ' + title.slice(0, 160), url: is.html_url, size: 0, addedBy: who, addedAt: now });
-    history.unshift({ time: stamp(now), user: who, field: 'Attachment', original: '', updated: 'Created GitHub issue #' + is.number });
+    if (!att.some(x => x.url === is.html_url) && att.length < 30) att.push({ id: 'gh_issues_' + is.number, provider: 'github', name: 'Issue #' + is.number + ': ' + title.slice(0, 160), url: is.html_url, size: 0, addedBy: who, addedAt: now, state: 'open', reason: '' });
+    history.unshift({ time: stamp(now), user: who, field: 'GitHub', original: '', updated: 'Created issue #' + is.number + ' and linked it' });
     await taskRefDoc.update({ attachments: att, history: history.slice(0, 100), updatedBy: who, updatedAt: now });
     return { number: is.number, url: is.html_url, state: 'open' };
   }
   const n = Math.round(Number(a.number)); if (!(n > 0)) throw fail('invalid-argument', 'Which issue?');
+  if (a.action === 'refresh') {   // read the current state from GitHub (after linking one by hand)
+    const kind = a.kind === 'pull' ? 'pull' : 'issues';
+    const url = (task.attachments || []).map(x => x.url).find(u => new RegExp('/' + g.repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/' + kind + '/' + n + '$', 'i').test(u));
+    if (!url) throw fail('permission-denied', 'That isn’t linked to this task.');
+    const it = await gh(token, 'GET', '/repos/' + g.repo + '/' + (kind === 'pull' ? 'pulls' : 'issues') + '/' + n);
+    const state = stateOf(it, kind === 'pull'); const reason = it.state_reason === 'not_planned' || it.state_reason === 'duplicate' ? it.state_reason : '';
+    const name = (kind === 'pull' ? 'PR #' : 'Issue #') + n + ': ' + String(it.title || '').slice(0, 160);
+    await taskRefDoc.update({ attachments: (task.attachments || []).map(x => (x.url === url ? { ...x, state, reason, name } : x)), updatedBy: who, updatedAt: now });
+    return { number: n, state, reason };
+  }
   if (!(task.attachments || []).some(x => new RegExp('/' + g.repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/issues/' + n + '$', 'i').test(x.url))) throw fail('permission-denied', 'That issue isn’t linked to this task.');
   if (a.action === 'reopen') {
     await gh(token, 'PATCH', '/repos/' + g.repo + '/issues/' + n, { state: 'open' });
-    history.unshift({ time: stamp(now), user: who, field: 'Attachment', original: '', updated: 'Reopened GitHub issue #' + n });
-    await taskRefDoc.update({ history: history.slice(0, 100), updatedBy: who, updatedAt: now });
+    history.unshift({ time: stamp(now), user: who, field: 'GitHub', original: 'closed', updated: 'Reopened issue #' + n });
+    await taskRefDoc.update({ attachments: withState(task.attachments, g.repo, n, 'open', ''), history: history.slice(0, 100), updatedBy: who, updatedAt: now });
     return { number: n, state: 'open' };
   }
   const reason = ['completed', 'not_planned', 'duplicate'].includes(a.reason) ? a.reason : 'completed';
@@ -152,7 +167,8 @@ export async function issueAction(db, uid, teamId, a) {
   await gh(token, 'PATCH', '/repos/' + g.repo + '/issues/' + n, { state: 'closed', state_reason: reason });
   const label = { completed: 'completed', not_planned: 'not planned', duplicate: 'a duplicate of #' + dup }[reason];
   const patch = { updatedBy: who, updatedAt: now };
-  history.unshift({ time: stamp(now), user: who, field: 'Attachment', original: '', updated: 'Closed GitHub issue #' + n + ' as ' + label });
+  history.unshift({ time: stamp(now), user: who, field: 'GitHub', original: 'open', updated: 'Closed issue #' + n + ' as ' + label });
+  patch.attachments = withState(task.attachments, g.repo, n, 'closed', reason === 'completed' ? '' : reason);
   let finished = false;
   if (a.finish && reason === 'completed' && task.flag !== 'completed' && !gateBlocks({ ...task, id: taskSnap.id }, (team.workflow && team.workflow.stages) || [])) {
     history.unshift({ time: stamp(now), user: who, field: 'Task Status Flag', original: task.flag || 'none', updated: 'completed (GitHub issue #' + n + ' closed)' });

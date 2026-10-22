@@ -7,7 +7,7 @@ import { isAcademicEmail, EDU_TEAMS_PER_YEAR } from './model.js';
 import { PRIORITIES, FLAGS } from './model.js';
 
 const ALLOWED = {
-  team: ['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency'],
+  team: ['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former'],
   user: ['photo', 'theme', 'menuStyle', 'nav', 'notify', 'updatedAt'],
   member: ['uid', 'email', 'name', 'photo', 'roleId', 'joinedAt'],
   invite: ['email', 'roleId', 'teamName', 'invitedBy', 'invitedByName', 'createdAt'],
@@ -270,7 +270,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (!meMember) deny('not a member');
       if (!validTeam(after) || after.ownerUid !== before.ownerUid || after.createdAt !== before.createdAt) deny('invalid team update');
       const ch = changedKeys(before, after);
-      if (!ch.every(k => ['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency'].includes(k))) deny('field not editable');
+      if (!ch.every(k => ['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former'].includes(k))) deny('field not editable');
       if (ch.includes('archiveRev') && !(can('tasks.editOwn') || can('tasks.editAll'))) deny('archiveRev');
       if ((ch.includes('subteams') || ch.includes('leads')) && !(can('team.settings') || can('members.manage'))) deny('sub-teams');
       if (ch.includes('weeks') && !can('weeks.manage')) deny('weeks');
@@ -279,6 +279,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if ((ch.includes('autos') || ch.includes('github')) && !can('team.settings')) deny('automatic steps');
       if (ch.includes('github') && after.github && ((after.github.repo || '') !== ((before.github || {}).repo || '') || !!after.github.write !== !!(before.github || {}).write)) deny('github repo and token are set by the server');
       if ((ch.includes('purchase') || ch.includes('currency')) && !(can('team.settings') || can('finance.edit'))) deny('purchase approvals / currency');
+      if (ch.includes('former') && !can('members.manage')) deny('former members');
       return;
     }
     case 'members': {
@@ -293,7 +294,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (!meMember) deny('not a member');
       if (isDelete) {
         const ownerClosingTeam = before.roleId === 'owner' && id === auth.uid && !T1;   // team deleted in the same batch
-        if (!(ownerClosingTeam || (before.roleId !== 'owner' && (can('members.manage') || id === auth.uid)))) deny('remove member');
+        if (!(ownerClosingTeam || (before.roleId !== 'owner' && can('members.manage')))) deny('remove member');
         return;
       }
       const ch = changedKeys(before, after);
@@ -315,7 +316,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
       return;
     }
     case 'tasks': {
-      if (isDelete) { if (!canEditOwned(before.ownerUid)) deny('delete task'); return; }
+      if (isDelete) { if (!(can('tasks.editAll') || (canEditOwned(before.ownerUid) && before.createdBy === auth.uid && (before.createdAt || 0) > Date.now() - 86400000))) deny('delete task'); return; }
       const catAfter = T1 && T1.categories[after.categoryId];
       if (!catAfter || catAfter.ownerUid !== after.ownerUid) deny('task row mismatch');
       if (isCreate) { if (!(canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, null, auth))) deny('create task'); return; }
@@ -415,7 +416,22 @@ export function checkWrite(pre, post, auth, teamId, op) {
         if (ch.every(k => ['status', 'decidedAt'].includes(k)) && ['approved', 'declined'].includes(after.status)) return;
       }
       const planAdmin = !!meMember && ['owner', 'admin'].includes(roleId);
-      if (isDelete) { if (!(planAdmin || isAdmin || id === 'ask-' + auth.uid)) deny('delete request'); return; }
+      if (isDelete) {
+        const ok = planAdmin || isAdmin || id === 'ask-' + auth.uid || id === 'leave-' + auth.uid
+          || (meMember && id.startsWith('leave-') && can('members.manage'))
+          || (meMember && id.startsWith('del-') && (before.by === auth.uid || can('tasks.editAll')));
+        if (!ok) deny('delete request'); return;
+      }
+      if (isCreate && meMember && id === 'leave-' + auth.uid) {
+        if (!(roleId !== 'owner' && hasOnly(after, ['kind', 'by', 'byName', 'at', 'note']) && after.kind === 'leave' && after.by === auth.uid && isStr(after.byName, 80) && isStr(after.note, 300))) deny('leave request');
+        return;
+      }
+      if (isCreate && meMember && id.startsWith('del-')) {
+        const task = T0 && T0.tasks && T0.tasks[after.taskId];
+        if (!(id === 'del-' + after.taskId && hasOnly(after, ['kind', 'by', 'byName', 'at', 'note', 'taskId', 'taskName']) && after.kind === 'delete' && after.by === auth.uid
+          && isStr(after.byName, 80) && isStr(after.note, 300) && isStr(after.taskName, 200) && task && canEditOwned(task.ownerUid))) deny('delete request');
+        return;
+      }
       if (id === 'ask-' + auth.uid && isCreate && meMember) {
         if (!(hasOnly(after, ['by', 'byName', 'at', 'note']) && after.by === auth.uid && isStr(after.note, 300))) deny('ask');
         return;

@@ -11,6 +11,13 @@
 
 /** The id a task's reference is made from: a task carried into later weeks keeps its first copy's. */
 export const refIdOf = (t) => (t && (t.carryOf || t.id)) || '';
+/** open | closed | merged | draft, from an issue or pull request in a GitHub event. */
+export function stateOf(item, isPull) {
+  if (!item) return '';
+  if (isPull && (item.merged || item.merged_at)) return 'merged';
+  if (item.state === 'closed') return 'closed';
+  return isPull && item.draft ? 'draft' : 'open';
+}
 /** A task's short reference: TT- and 6 letters/digits, the same every time for the same task id. */
 export function taskRef(id) {
   let h = 0x811c9dc5;   // FNV-1a
@@ -59,7 +66,7 @@ export function newIssueUrl(repo, { title = '', body = '', ref = '' } = {}) {
  * Returns { ok, why, links: [{ taskId, attachment }], finish: [{ taskId, why }], create: null | { name, url, label } }
  */
 export function planGithubEvent(kind, payload, tasks, settings) {
-  const out = { ok: true, why: '', links: [], finish: [], create: null };
+  const out = { ok: true, why: '', links: [], finish: [], create: null, states: [] };
   const s = cleanGithub(settings); const p = payload || {};
   const repo = p.repository && p.repository.full_name;
   if (kind === 'ping') { out.why = 'ping'; return out; }
@@ -74,7 +81,7 @@ export function planGithubEvent(kind, payload, tasks, settings) {
   const linked = (url) => { const seen = new Set(); return (tasks || []).filter(t => (t.attachments || []).some(a => a.url === url)).map(t => latest(refIdOf(t))).filter(t => t && !seen.has(t.id) && seen.add(t.id)); };
   const attach = (t, item, isPull) => {
     const url = item.html_url; if (!url || (t.attachments || []).some(a => a.url === url)) return;
-    out.links.push({ taskId: t.id, attachment: { provider: 'github', name: (isPull ? 'PR' : 'Issue') + ' #' + item.number + ': ' + String(item.title || '').slice(0, 160), url } });
+    out.links.push({ taskId: t.id, attachment: { provider: 'github', name: (isPull ? 'PR' : 'Issue') + ' #' + item.number + ': ' + String(item.title || '').slice(0, 160), url, state: stateOf(item, isPull), reason: item.state_reason === 'not_planned' ? 'not_planned' : '' } });
   };
   const finish = (t, why) => { if (t.flag !== 'completed' && !out.finish.some(f => f.taskId === t.id)) out.finish.push({ taskId: t.id, why }); };
   if (kind === 'pull_request') {
@@ -84,6 +91,7 @@ export function planGithubEvent(kind, payload, tasks, settings) {
     customHits(pr.title, pr.body, pr.head && pr.head.ref).forEach(t => { if (!hits.includes(t)) hits.push(t); });
     hits.forEach(t => attach(t, pr, true));
     linked(pr.html_url).forEach(t => { if (!hits.includes(t)) hits.push(t); });
+    hits.forEach(t => out.states.push({ taskId: t.id, url: pr.html_url, state: stateOf(pr, true), reason: '', label: 'PR #' + pr.number }));
     if (p.action === 'closed' && pr.merged && s.done) hits.forEach(t => finish(t, 'pull request #' + pr.number + ' merged'));
     if (!hits.length) out.why = refs.length ? 'No task has ' + refs.join(', ') + '.' : 'No TT- reference in the pull request.';
     return out;
@@ -97,7 +105,8 @@ export function planGithubEvent(kind, payload, tasks, settings) {
     linked(is.html_url).forEach(t => { if (!hits.includes(t)) hits.push(t); });
     if (p.action === 'opened' || p.action === 'reopened' || p.action === 'edited') hits.forEach(t => attach(t, is, false));
     if (p.action === 'opened' && !hits.length && s.issues) out.create = { name: String(is.title || 'GitHub issue').slice(0, 200), url: is.html_url, label: 'Issue #' + is.number + ': ' + String(is.title || '').slice(0, 160) };
-    if (p.action === 'closed' && s.done && is.state_reason !== 'not_planned') hits.forEach(t => finish(t, 'issue #' + is.number + ' closed'));
+    hits.forEach(t => out.states.push({ taskId: t.id, url: is.html_url, state: stateOf(is, false), reason: is.state_reason === 'not_planned' ? 'not_planned' : is.state_reason === 'duplicate' ? 'duplicate' : '', label: 'issue #' + is.number }));
+    if (p.action === 'closed' && s.done && is.state_reason !== 'not_planned' && is.state_reason !== 'duplicate') hits.forEach(t => finish(t, 'issue #' + is.number + ' closed'));
     if (!hits.length && !out.create) out.why = 'Nothing to do for this issue.';
     return out;
   }
@@ -129,6 +138,13 @@ export function githubOps(plan, tasks, env) {
     d.attachments.push({ id: 'gh_' + attachment.url.split('/').slice(-2).join('_').replace(/[^\w]/g, '_').slice(0, 40), ...attachment, size: 0, addedBy: 'GitHub', addedAt: env.now });
     d.history.unshift(hist(env.time, 'Attachment', '', 'Linked ' + attachment.name));
   });
+  (plan.states || []).forEach(({ taskId, url, state, reason, label }) => {
+    const cur = touched.get(taskId) || byId.get(taskId); const a = cur && (cur.attachments || []).find(x => x.url === url);
+    if (!a || !state || (a.state === state && (a.reason || '') === (reason || ''))) return;
+    const { d } = get(taskId);
+    const was = a.state || ''; d.attachments = d.attachments.map(x => (x.url === url ? { ...x, state, reason: reason || '' } : x));
+    if (was) d.history.unshift(hist(env.time, 'GitHub', was, label + ' ' + state + (reason ? ' (' + reason.replace('_', ' ') + ')' : '')));
+  });
   (plan.finish || []).forEach(({ taskId, why }) => {
     const { t, d } = get(taskId);
     const gate = gateBlocks(t, env.stages);
@@ -142,7 +158,7 @@ export function githubOps(plan, tasks, env) {
     else ops.push({ type: 'set', path: 'tasks/' + env.newId, data: {
       name: plan.create.name, priority: 'Minor', status: '', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'none', dueDate: '', completedDate: '',
       subtasks: [], history: [hist(env.time, 'Created', '', 'From GitHub: ' + plan.create.label)], custom: {}, icon: '🐙',
-      attachments: [{ id: 'gh_new', provider: 'github', name: plan.create.label, url: plan.create.url, size: 0, addedBy: 'GitHub', addedAt: env.now }],
+      attachments: [{ id: 'gh_new', provider: 'github', name: plan.create.label, url: plan.create.url, size: 0, addedBy: 'GitHub', addedAt: env.now, state: 'open', reason: '' }],
       categoryId: env.newTask.categoryId, ownerUid: env.newTask.ownerUid, weekId: env.newTask.weekId, order: -1,
       createdBy: env.newTask.ownerUid, createdAt: env.now, updatedBy: 'GitHub', updatedAt: env.now } });
   }

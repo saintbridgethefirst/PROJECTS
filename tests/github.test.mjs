@@ -94,3 +94,23 @@ test('a team’s own reference (the Ref field) links too, as a whole word', asyn
   const plan = planGithubEvent('pull_request', { action: 'opened', repository: { full_name: 'u/r' }, pull_request: { number: 3, title: 'Fix landing gear (drn-12)', body: '', html_url: 'https://github.com/u/r/pull/3', head: { ref: 'fix' } } }, T, { repo: 'u/r' });
   assert.deepEqual(plan.links.map(l => l.taskId), ['t1'], 'DRN-12 matches, DRN-1 doesn’t');
 });
+test('live state: every event records the issue or PR state on the card, with a history line', async () => {
+  const { planGithubEvent, githubOps, stateOf } = await import('../functions/ghsync.js');
+  assert.equal(stateOf({ state: 'closed', merged: true }, true), 'merged');
+  assert.equal(stateOf({ state: 'open', draft: true }, true), 'draft');
+  assert.equal(stateOf({ state: 'closed' }, false), 'closed');
+  const url = 'https://github.com/uni/rover/issues/7';
+  const T = [{ id: 't_wheels', name: 'Fit wheels', flag: 'none', attachments: [{ provider: 'github', name: 'Issue #7', url, state: 'open' }], history: [] }];
+  const plan = planGithubEvent('issues', { action: 'closed', repository: repo, issue: { number: 7, title: 'x', html_url: url, state: 'closed', state_reason: 'duplicate' } }, T, S);
+  assert.deepEqual(plan.states[0], { taskId: 't_wheels', url, state: 'closed', reason: 'duplicate', label: 'issue #7' });
+  assert.equal(plan.finish.length, 0, 'a duplicate isn’t done');
+  const { ops } = githubOps(plan, T, { now: 1, time: 't', today: '2026-10-22', stages: [] });
+  const d = ops[0].data;
+  assert.equal(d.attachments[0].state, 'closed'); assert.equal(d.attachments[0].reason, 'duplicate');
+  assert.equal(d.history[0].field, 'GitHub'); assert.ok(d.history[0].updated.includes('closed (duplicate)'));
+  const same = githubOps({ states: [{ taskId: 't_wheels', url, state: 'open', reason: '', label: 'issue #7' }] }, T, { now: 1, time: 't' });
+  assert.equal(same.ops.length, 0, 'nothing written when nothing changed');
+  const { cleanTask } = await import('../src/model.js');
+  const c = cleanTask({ id: 'x', name: 'x', attachments: [{ provider: 'github', url, state: 'merged', reason: 'bogus' }, { provider: 'link', url: 'https://x.y', state: 'open' }] });
+  assert.equal(c.attachments[0].state, 'merged'); assert.equal(c.attachments[0].reason, ''); assert.equal(c.attachments[1].state, undefined);
+});

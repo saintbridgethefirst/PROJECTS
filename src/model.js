@@ -6,6 +6,8 @@
 import { DEFAULT_ROLES, PERM_KEYS } from './permissions.js';
 import { LIMITS } from './config.js';
 import { cleanGithub } from '../functions/ghsync.js';
+export const GH_STATES = ['open', 'closed', 'merged', 'draft'];
+export const GH_REASONS = ['', 'not_planned', 'duplicate'];
 
 export const PRIORITIES = ['Minor', 'Major', 'Critical', 'Blocker'];
 export const FLAGS = ['none', 'pending', 'backlog', 'completed'];
@@ -124,6 +126,7 @@ export function cleanTeam(t) {
     autos: cleanAutos(t.autos),
     github: cleanGithub(t.github),
     currency: CURRENCIES.includes(t.currency) ? t.currency : '',
+    former: cleanFormer(t.former),
     plan: cleanPlan(t.plan),
     weeks: (Array.isArray(t.weeks) ? t.weeks : []).map(cleanWeek),
   };
@@ -242,6 +245,7 @@ export function cleanTask(t, id, fields = []) {
     attachments: (Array.isArray(t.attachments) ? t.attachments : []).slice(0, 30).map(a => ({
       id: safeKey(a.id), provider: ['gdrive', 'onedrive', 'link', 'github'].includes(a.provider) ? a.provider : 'link',
       name: str(a.name, 200), url: cleanUrl(a.url), size: Number(a.size) || 0, addedBy: str(a.addedBy, 80), addedAt: Number(a.addedAt) || 0,
+      ...(a.provider === 'github' && GH_STATES.includes(a.state) ? { state: a.state, reason: GH_REASONS.includes(a.reason) ? a.reason : '' } : {}),
     })).filter(a => a.url),
     // location
     categoryId: safeKey(t.categoryId), ownerUid: safeKey(t.ownerUid), weekId: safeKey(t.weekId), order: Number(t.order) || 0,
@@ -947,6 +951,32 @@ export function nextReqRef(list) {
 // ── Your data: a deleted person's name in shared records ────────────────────
 // Same as functions/lib.js scrubPerson (the server does the real deletion; the demo uses this).
 export const FORMER_MEMBER = 'Former member';
+/** People who left: { uid: { name, leftAt } }, so their past work keeps their name. */
+export const histTime = (ms = Date.now()) => { const n = new Date(ms); let h = n.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return String(n.getDate()).padStart(2, '0') + '/' + n.toLocaleString('en-GB', { month: 'short' }) + '/' + String(n.getFullYear()).slice(-2) + ' ' + h + ':' + String(n.getMinutes()).padStart(2, '0') + ' ' + ap; };
+export function cleanFormer(f) {
+  const out = {}; if (!f || typeof f !== 'object' || Array.isArray(f)) return out;
+  Object.entries(f).slice(0, 300).forEach(([uid, v]) => { const k = safeKey(uid); if (k && v && typeof v === 'object') out[k] = { name: String(v.name || '').slice(0, 80), leftAt: Number(v.leftAt) || 0 }; });
+  return out;
+}
+/** A leaving member's open tasks, handed to someone else: the task writes (into a row they have, or a new one). */
+export function handOverOps(tasks, categories, from, plan, me, now = Date.now()) {
+  // plan: { taskId: toUid }; categories: all team categories
+  const ops = []; const made = new Map();
+  const rowFor = (to, name) => {
+    const k = to + '|' + name; if (made.has(k)) return made.get(k);
+    const have = categories.find(c => c.ownerUid === to && c.name === name) || categories.filter(c => c.ownerUid === to).sort((a, b) => a.order - b.order)[0];
+    let id = have && have.id;
+    if (!id) { id = 'c_' + Math.random().toString(36).slice(2, 12); ops.push({ type: 'set', path: 'categories/' + id, data: { name: name || 'Handed over', ownerUid: to, order: 99 } }); }
+    made.set(k, id); return id;
+  };
+  tasks.filter(t => t.ownerUid === from.uid && plan[t.id]).forEach(t => {
+    const to = plan[t.id]; const cat = categories.find(c => c.id === t.categoryId);
+    const categoryId = rowFor(to, cat ? cat.name : 'Handed over');
+    const history = [{ time: histTime(now), user: me.name || 'Someone', field: 'Owner', original: from.name || 'Former member', updated: (me.names && me.names[to]) || 'new owner' }, ...(t.history || [])].slice(0, 100);
+    ops.push({ type: 'update', path: 'tasks/' + t.id, data: { ownerUid: to, categoryId, history, updatedBy: me.name || '', updatedAt: now } });
+  });
+  return ops;
+}
 const PERSON_NAME_KEYS = new Set(['authorName', 'createdByName', 'updatedByName', 'byName', 'invitedByName', 'updatedBy', 'user', 'userName']);
 export function scrubPerson(doc, names, emails) {
   const walk = (v, key) => {

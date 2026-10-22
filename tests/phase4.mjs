@@ -87,12 +87,12 @@ try {
   t = await tasks();
   ok(t.find(x => x.name === 'Mount lidar').attachments[0].provider === 'github' && t.find(x => x.name === 'Mount lidar').attachments[0].name === 'acme/robot-arm#7', 'GitHub link recognised and named owner/repo#7');
   await p.waitForSelector('.task-card .gh-chip.gh-open');
-  ok((await p.locator('.task-card', { hasText: 'Mount lidar' }).locator('.gh-chip').textContent()) === '🐙 #7 · Open', 'card shows “🐙 #7 · Open”');
+  ok((await p.locator('.task-card', { hasText: 'Mount lidar' }).locator('.gh-chip').textContent()) === '#7 · Open', 'card shows “#7 · Open”');
   ok((await p.locator('#edit-form .att-item .gh-chip').textContent()).includes('Servo jitter at low speed'), 'editor shows the issue title');
   ok(await p.locator('#edit-form .gh-done-box').count() === 0, 'no “mark completed” offer while the issue is open');
   await addLink('Calibrate IMU', 'https://github.com/acme/robot-arm/pull/42');
   await p.waitForSelector('#edit-form .gh-done-box');
-  ok((await p.locator('.task-card', { hasText: 'Calibrate IMU' }).locator('.gh-chip').textContent()) === '🐙 PR #42 · Merged', 'merged pull request shown as Merged');
+  ok((await p.locator('.task-card', { hasText: 'Calibrate IMU' }).locator('.gh-chip').textContent()) === 'PR #42 · Merged', 'merged pull request shown as Merged');
   ok((await p.textContent('#edit-form .gh-done-box')).includes('pull request is merged'), 'offers to complete the task once the PR is merged');
   if (SHOTS) await p.screenshot({ path: `${SHOTS}/phase4-github.png` });
   await p.click('#edit-form .gh-done-box button'); await sleep(400);

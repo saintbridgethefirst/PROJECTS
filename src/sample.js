@@ -5,7 +5,7 @@
 //  workflow (stages), sub-teams, parts and budget, notebook, risks, comments.
 //  Loaded only when someone presses the button.
 // ─────────────────────────────────────────────────────────────────────────────
-import { WORKFLOW_TEMPLATES, newId, storedWorkflow, cleanWorkflow, leadsIndex } from './model.js';
+import { WORKFLOW_TEMPLATES, newId, storedWorkflow, cleanWorkflow, leadsIndex, histTime } from './model.js';
 
 const SAMPLE_TODAY_MONDAY = '2026-10-19';   // the sample's "this week" (WEEK 4)
 const DAY = 864e5;
@@ -101,6 +101,43 @@ export async function buildSample(user, now = Date.now()) {
   if (team.parts) team.parts.p_gear = { name: 'Carbon landing gear set', partNo: 'CLG-450', supplier: 'HobbyKing', url: '', qty: 1, unitCost: 140, status: 'needed', neededBy: '', orderedDate: '', receivedDate: '',
     taskId: '', budgetId: 'b_air', notes: 'Lighter than the printed legs.', extras: [], subteamId: '', createdBy: asker, createdByName: nameOf(asker), createdAt: now - 3 * DAY, updatedAt: now - DAY,
     approval: { status: 'approved', by: asker, byName: nameOf(asker), at: now - 2 * DAY, amount: 140, approver: user.uid, approverName: user.name || 'You', note: '', decidedAt: now - DAY } };
+  // GitHub on cards: issues and pull requests with their live state, a token so issues can be
+  // created, closed and reopened from the board (the demo pretends; nothing reaches GitHub).
+  team.doc.github = { ...team.doc.github, write: true, last: { at: now - 2 * HOUR, kind: 'issues', action: 'closed', links: 0, finished: 1, created: 0, ok: true } };
+  team.private.github.token = 'ghp_demoOnlyNothingIsSentToGitHub000';
+  const R = 'https://github.com/skyhawk-uav/flight-software/';
+  const ghOn = (id, kind, n, title, state, reason = '') => {
+    const t = team.tasks[id]; if (!t) return;
+    t.attachments = (t.attachments || []).concat({ id: 'gh_' + kind + '_' + n, provider: 'github', name: (kind === 'pull' ? 'PR #' : 'Issue #') + n + ': ' + title, url: R + kind + '/' + n, size: 0, addedBy: 'GitHub', addedAt: now - 3 * DAY, state, reason });
+    t.history = [{ time: histTime(now - 3 * DAY), user: 'GitHub', field: 'GitHub', original: '', updated: 'Linked ' + (kind === 'pull' ? 'PR #' : 'issue #') + n }, ...(t.history || [])];
+  };
+  const openIds = Object.values(team.tasks).filter(t => t.flag !== 'completed').map(t => t.id);
+  const doneIds = Object.values(team.tasks).filter(t => t.flag === 'completed').map(t => t.id);
+  ghOn('t_telemetryl_56', 'issues', 14, 'Telemetry drops packets above 400 m', 'open');
+  ghOn('t_telemetryl_56', 'pull', 15, 'Retry lost MAVLink packets', 'draft');
+  ghOn('t_targetdete_96', 'pull', 21, 'Target detection with YOLOv8n', 'open');
+  ghOn('t_autonomous_102', 'issues', 9, 'Waypoint mission ends early', 'closed', 'not_planned');
+  if (doneIds[0]) { ghOn(doneIds[0], 'pull', 7, 'Flight log parser', 'merged'); ghOn(doneIds[0], 'issues', 6, 'Parse flight logs', 'closed'); }
+  if (!team.tasks.t_telemetryl_56 && openIds[0]) ghOn(openIds[0], 'issues', 14, 'Telemetry drops packets above 400 m', 'open');
+  // People: someone who left (their finished work keeps their name), a member asking to leave,
+  // and a member asking for an old task to be deleted. Both wait in Approvals.
+  const leftUid = 'u_left_sample'; const firstWeek = (team.doc.weeks || [])[0];
+  team.doc.former = { [leftUid]: { name: 'Priya Shah', leftAt: now - 9 * DAY } };
+  if (firstWeek) {
+    team.categories.c_left_sample = { name: 'Avionics', ownerUid: leftUid, order: 50 };
+    [['Pixhawk wiring diagram', 3], ['ESC calibration notes', 2]].forEach(([name, ago], i) => {
+      team.tasks['t_left_sample_' + i] = { name, priority: 'Major', status: '', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'completed', dueDate: firstWeek.startDate || '', startDate: '', completedDate: firstWeek.startDate || '',
+        subtasks: [], history: [{ time: histTime(now - ago * DAY), user: 'Priya Shah', field: 'Task Status Flag', original: 'none', updated: 'completed' }], custom: {}, icon: '', attachments: [], checks: {}, signoff: null,
+        categoryId: 'c_left_sample', ownerUid: leftUid, weekId: firstWeek.key, order: i, createdBy: leftUid, createdAt: now - (ago + 20) * DAY, updatedBy: 'Priya Shah', updatedAt: now - ago * DAY };
+    });
+  }
+  const memberUids = Object.entries(team.members).filter(([u, m]) => m.roleId === 'member' && u !== user.uid).map(([u]) => u);
+  team.requests = team.requests || {};
+  if (memberUids[0]) team.requests['leave-' + memberUids[0]] = { kind: 'leave', by: memberUids[0], byName: nameOf(memberUids[0]), at: now - 6 * HOUR, note: 'Moving to the rocketry society next term. Happy to hand my tasks to whoever picks up structures.' };
+  const asker2 = memberUids[1] || memberUids[0];
+  const oldOne = asker2 && Object.values(team.tasks).find(t => t.ownerUid === asker2 && t.flag !== 'completed');
+  const oldId = oldOne && Object.keys(team.tasks).find(k => team.tasks[k] === oldOne);
+  if (oldId) team.requests['del-' + oldId] = { kind: 'delete', by: asker2, byName: nameOf(asker2), at: now - 3 * HOUR, note: 'Duplicate of the wiring harness task.', taskId: oldId, taskName: oldOne.name };
   const users = {};
   Object.values(raw.users).forEach(u => { if (u.uid !== ownerUid) users[u.uid] = u; });
   return { teamId: 't_sample_' + newId('x').slice(-10), team, users };

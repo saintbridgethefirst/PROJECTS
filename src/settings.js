@@ -8,6 +8,8 @@ import { PERMISSIONS, can, roleList, normEmail, isValidEmail } from './permissio
 import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS, storedWorkflow, leadsIndex, cleanWorkflow, cleanPurchase, cleanAutos, currencyOf, CURRENCIES, CURRENCY_NAMES, cleanBudget } from './model.js';
 import { el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { githubSection } from './github-ui.js';
+import { askToLeave, cancelLeave, leaveOf } from './requests.js';
+import { timeAgo } from './collab.js';
 
 const TABS = [
   ['general', 'General'], ['members', 'Members'], ['roles', 'Roles & permissions'],
@@ -36,7 +38,11 @@ export function openSettings(ctx, tab = 'general', focusUid = null) {
 
   function render() {
     if (current === 'subteams' && !cleanFeatures(T().features).subteams) current = 'features';
-    nav.replaceChildren(...TABS.filter(([k]) => (k !== 'danger' || me().roleId === 'owner') && (k !== 'subteams' || cleanFeatures(T().features).subteams))
+    // Members and Roles are for people who manage them; everyone else sees the team on the board itself
+    const shown = TABS.filter(([k]) => (k !== 'danger' || me().roleId === 'owner') && (k !== 'subteams' || cleanFeatures(T().features).subteams)
+      && (k !== 'members' || can(T(), me(), 'members.manage')) && (k !== 'roles' || can(T(), me(), 'roles.manage')));
+    if (!shown.some(([k]) => k === current)) current = 'general';
+    nav.replaceChildren(...shown
       .map(([k, label]) => el('button' + (k === current ? '.on' : ''), { type: 'button', onclick: () => { current = k; render(); } }, label)));
     pane.replaceChildren();
     const fn = { general, members, roles, plan, features, workflow, subteams, phases, templates, fields, integrations, danger }[current];
@@ -457,7 +463,8 @@ function general(pane, ctx, { rerender } = {}) {
     weekNamingSection(ctx, editable, rerender),
     currencySection(ctx),
     el('section', {}, el('h4', {}, 'Your role'), el('p.hint', {}, 'You are ', el('b', {}, ctx.TT.roleName(ctx.session.me.roleId)), ' in this team. ',
-      ...PERMISSIONS.filter(p => can(T, ctx.session.me, p.key)).length ? ['You can: ', PERMISSIONS.filter(p => can(T, ctx.session.me, p.key)).map(p => p.label.toLowerCase()).join(', '), '.'] : ['You can view the board.'])),
+      ...PERMISSIONS.filter(p => can(T, ctx.session.me, p.key)).length ? ['You can: ', PERMISSIONS.filter(p => can(T, ctx.session.me, p.key)).map(p => p.label.toLowerCase()).join(', '), '.'] : ['You can view the board.']),
+      leaveBox(ctx)),
   );
 }
 
@@ -632,8 +639,16 @@ async function makeOwner(ctx, mm) {
   catch (e) { toast(String((e && e.message) || e), 6000); }
 }
 
+/** Leaving: member managers leave straight away; everyone else asks (requests.js). */
+function leaveBox(ctx) {
+  const s = ctx.session; if (s.me.roleId === 'owner') return '';
+  const asked = leaveOf(s, ctx.user.uid);
+  if (asked) return el('div.banner.leave-pending', { id: 'leave-pending' }, el('span', {}, '⏳ You asked to leave ', timeAgo(asked.at), '. The owner or an admin will approve it.'), el('span.spacer'), el('button.btn.small', { type: 'button', onclick: () => cancelLeave(ctx) }, 'Withdraw'));
+  return el('div.row', { style: { marginTop: '10px' } }, el('button.btn.small.danger', { type: 'button', id: 'leave-team', onclick: () => leaveTeam(ctx) }, 'Leave team…'));
+}
 async function leaveTeam(ctx) {
   const s = ctx.session;
+  if (!can(s.team, s.me, 'members.manage')) { askToLeave(ctx); return; }
   if (!confirm(`Leave ${s.team.name}? You’ll lose access until someone invites you again.`)) return;
   if (await save(ctx, [{ type: 'delete', path: 'members/' + ctx.user.uid }])) { document.querySelector('.modal-overlay')?.remove(); toast('You left ' + s.team.name + '.'); ctx.goHome(); }
 }
