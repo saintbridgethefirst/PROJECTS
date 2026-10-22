@@ -41,7 +41,7 @@ function beat(now) {
 function leave() {
   const ctx = state.getCtx && state.getCtx(); if (!ctx || !ctx.session || !ctx.session.me) return;
   // The demo keeps everything in this browser's storage: a closing tab must not write its (older) copy back.
-  if (window.TT && TT.isDemo) return;
+  if (window.TT && window.TT.isDemo) return;
   write(ctx, { at: 0, taskId: '' });
 }
 /** The editor opened (or closed) a task: tell the others (a few seconds at most later). */

@@ -1,3 +1,4 @@
+/* global boardSetView, openAnalytics, openApprovals, TT */
 // Collects the English words people see in the app, by opening (almost) every screen of the demo
 // with the sample team, so they can be translated (src/i18n/*.json).
 //   npx vite preview --port 4173 &   node tools/i18n-collect.mjs
