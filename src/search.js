@@ -5,6 +5,7 @@
 //  finds your teams and your tasks across them. Keyboard: ↑ ↓ to move, Enter to open.
 // ─────────────────────────────────────────────────────────────────────────────
 import { el } from './ui.js';
+import { icon } from './icons.js';
 import { taskRef, refIdOf } from '../functions/ghsync.js';
 const refOf = (t) => taskRef(refIdOf(t));
 
@@ -66,7 +67,7 @@ export function openSearch(sources) {
     results.forEach((r, i) => {
       if (r.group !== last) { last = r.group; list.append(el('div.cmdk-group', {}, q ? r.group : (r.group === 'Actions' ? 'Actions' : r.group))); }
       list.append(el('button.cmdk-item' + (i === active ? '.on' : ''), { type: 'button', role: 'option', id: 'cmdk-opt-' + i, 'aria-selected': String(i === active), onclick: () => choose(r), onmousemove: () => { if (active !== i) { active = i; paint(); } } },
-        el('span.cmdk-icon', { 'aria-hidden': 'true' }, r.icon || '•'),
+        el('span.cmdk-icon', { 'aria-hidden': 'true' }, lineIcon(r), el('span.cmdk-emoji', {}, r.icon || '•')),
         el('span.cmdk-text', {}, el('span.cmdk-title', {}, highlight(r.title, q)), r.sub ? el('span.cmdk-sub', {}, highlight(r.sub, q)) : ''),
         r.hint ? el('span.cmdk-hint', {}, r.hint) : ''));
     });
@@ -90,6 +91,17 @@ export function openSearch(sources) {
   open = { input, close };
 }
 export const searchOpen = () => !!open;
+
+// Line icons for the Professional look, matching the board toolbar.
+const EMOJI_ICON = { '⚙': 'settings', '🧭': 'compass', '👥': 'users', '📊': 'chart-column', '📅': 'calendar', '🗂': 'square-kanban', '▦': 'layout-grid',
+  '⏱': 'timer', '🔔': 'bell', '🗓': 'calendar-range', '📄': 'file-text', '📝': 'notebook-pen', '🔩': 'package', '💷': 'wallet', '📚': 'book-open',
+  '🕒': 'clock', '⚠': 'triangle-alert', '📐': 'ruler', '🧩': 'puzzle', '🎨': 'palette', '👤': 'user', '🎯': 'crosshair', '✨': 'sparkles',
+  '📥': 'download', '🏠': 'house', '💬': 'message-square', '📌': 'pin', '✅': 'square-check' };
+const ACTION_ICON = { 'Invite people': 'user-plus', 'Timeline': 'calendar-range', 'Add deadlines to my calendar': 'calendar', 'Turn features on or off': 'toggle-right', 'People: workload, skills, time off': 'users' };
+function lineIcon(r) {
+  const name = r.lico || EMOJI_ICON[String(r.icon || '').replace(/\uFE0F/g, '')] || (r.group === 'Tasks' ? 'pin' : '');
+  return (name && icon(name, 'ico cmdk-lico')) || '';
+}
 
 // ── What a board offers ─────────────────────────────────────────────────────
 export function boardSources(ctx) {
@@ -115,7 +127,7 @@ export function boardSources(ctx) {
   (s.team.phases || []).forEach(p => items.push({ group: 'Phases', icon: '🧭', title: p.name, sub: [p.start && p.end ? p.start + ' → ' + p.end : '', p.milestone && '🏁 ' + p.milestone].filter(Boolean).join(' · '), fields: [[p.name, 3], [p.milestone, 1.5]], run: () => window.boardShowPhase && window.boardShowPhase(p.id) }));
   if (TT.feature && TT.feature('subteams')) (s.team.subteams || []).forEach(g => items.push({ group: 'Sub-teams', icon: '🧩', title: g.name, sub: g.members.length + (g.members.length === 1 ? ' person' : ' people') + ' — show on the board', fields: [[g.name, 3]], run: () => { if (window.boardSetView && window.boardView && window.boardView() !== 'board') window.boardSetView('board'); window.boardShowSubteam && window.boardShowSubteam(g.id); } }));
   (s.team.weeks || []).forEach(w => items.push({ group: 'Weeks', icon: '📅', title: w.title, sub: w.startDate ? 'from ' + w.startDate : '', fields: [[w.title, 3], [w.startDate, 1]], run: () => window.boardShowWeek && window.boardShowWeek(w.key) }));
-  const act = (icon, title, run, extra = '', perm) => { if (!perm || TT.can(perm)) items.push({ group: 'Actions', icon, title, fields: [[title, 2], [extra, 1]], run, suggest: true }); };
+  const act = (icon, title, run, extra = '', perm) => { if (!perm || TT.can(perm)) items.push({ group: 'Actions', icon, lico: ACTION_ICON[title], title, fields: [[title, 2], [extra, 1]], run, suggest: true }); };
   act('⚙️', 'Team settings', () => TT.openSettings(), 'options configure');
   act('🧭', 'Project phases', () => TT.openSettings('phases'), 'settings stages milestones');
   const on = (k) => TT.feature && TT.feature(k);

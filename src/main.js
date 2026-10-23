@@ -18,6 +18,7 @@ import { carryRoots, cleanFeatures, TEAM_STARTS, startFeatures, cleanProfile, cl
 import { runAutos, afterCommit } from './autos.js';
 import { startI18n, setLang, currentLang, LANGS, translate } from './i18n.js';
 import { setLook } from './look.js';
+import { initTooltips } from './tooltip.js';
 import { startPresence, stopPresence, lookingAt, paintPresence, openPresence, refreshPresenceModal } from './presence.js';
 import { peopleRequests, needsDeleteApproval, askToDelete, approveLeave, approveDelete, declineRequest } from './requests.js';
 import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending, ghMark, offerCloseIssues } from './github-ui.js';
@@ -69,6 +70,7 @@ function show(screen) {
 
 // ── Boot ────────────────────────────────────────────────────────────────────
 (async function boot() {
+  initTooltips();
   try { await startI18n(); } catch (e) { console.warn('Language', e); }   // before anything is drawn
   try { backend = await loadBackend(); }
   catch (e) { console.error(e); show('auth-screen'); $('#auth-note').textContent = 'Could not start: ' + e.message; return; }

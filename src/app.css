@@ -312,7 +312,18 @@ body.hide-metric .metric-badge { display: none; }
 .cmdk-group { font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--text-muted); padding: 10px 10px 4px; }
 .cmdk-item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; background: none; color: var(--text-main); font: inherit; padding: 8px 10px; border-radius: 10px; cursor: pointer; }
 .cmdk-item.on { background: color-mix(in srgb, var(--line-color) 16%, transparent); }
-.cmdk-icon { width: 22px; text-align: center; flex: 0 0 auto; }
+.cmdk-icon { width: 22px; text-align: center; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
+.cmdk-lico { display: none; }
+body.look-pro .cmdk-lico { display: inline-flex; width: 18px; height: 18px; opacity: .8; }
+body.look-pro .cmdk-lico svg { width: 18px; height: 18px; }
+body.look-pro .cmdk-icon:has(.cmdk-lico) .cmdk-emoji { display: none; }
+.cmdk-item.on .cmdk-lico { opacity: 1; }
+/* Hover labels (src/tooltip.js) */
+.tt-tip { position: fixed; z-index: 100000; max-width: 260px; padding: 5px 9px; border-radius: 6px; background: #f2f4f8; color: #0f1729;
+  font: 500 12px/1.35 Inter, system-ui, sans-serif; letter-spacing: 0; pointer-events: none; opacity: 0; transform: translateY(-2px);
+  transition: opacity .12s ease, transform .12s ease; box-shadow: 0 6px 18px -6px rgba(15,23,41,.45); white-space: normal; }
+.tt-tip.on { opacity: 1; transform: none; }
+[data-theme="light"] .tt-tip, #landing .tt-tip { background: #0f1729; color: #fff; }
 .cmdk-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .cmdk-title { font-weight: 650; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmdk-sub { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -945,10 +956,12 @@ button.tx-part:hover { border-color: var(--line-color); }
 /* Who's here */
 .online-btn { gap: 6px; }
 .online-faces { display: inline-flex; }
-.online-faces .avatar { width: 22px; height: 22px; font-size: 9.5px; margin-left: -6px; border: 2px solid var(--bg-panel, #1a2030); }
+.online-faces .avatar { width: 22px; height: 22px; flex: 0 0 22px; box-sizing: content-box; font-size: 9.5px; margin-left: -6px; border: 2px solid var(--bg-panel, #1a2030); }
 .online-faces .avatar:first-child { margin-left: 0; }
 .online-count { font-size: 11px; font-weight: 800; color: var(--text-muted); }
 .online-face { position: relative; overflow: visible !important; }
+/* The status dot needs overflow visible, so the photo clips itself to the circle. */
+.online-face img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; border-radius: 50%; object-fit: cover; display: block; }
 .online-face.pr-free::after, .online-face.pr-busy::after, .online-face.pr-away::after { content: ''; position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--bg-panel, #1a2030); }
 .pr-free::after, .pr-dot.pr-free { background: #2f9e57; }
 .pr-busy::after, .pr-dot.pr-busy { background: #e53e3e; }
