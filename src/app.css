@@ -1285,3 +1285,19 @@ body.look-pro .st-tab i, body.look-pro .lp-pill i { border-radius: 2px; }
 .jb-bar .btn.small { display: inline-flex; align-items: center; justify-content: center; padding: 0 12px; }
 .jb-nav { align-items: center; }
 .jb-team { padding: 0 12px; }
+
+/* ── One dropdown style everywhere ─────────────────────────────────────────
+   The browser's own arrows (a double chevron on a Mac) are replaced by one thin chevron,
+   with room for it on the right. Colours come from the theme, so it fits every theme. */
+:root { --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa4b8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); color-scheme: dark; }
+[data-theme="light"] { --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2356607a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); color-scheme: light; }
+select:not([multiple]):not([size]) {
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  background-image: var(--select-chevron) !important; background-repeat: no-repeat !important;
+  background-position: right 10px center !important; background-size: 15px 15px !important;
+  padding-right: 34px !important; cursor: pointer; text-overflow: ellipsis;
+}
+select:not([multiple]):not([size]):hover { border-color: color-mix(in srgb, var(--line-color) 45%, var(--border-color)); }
+select:disabled { cursor: not-allowed; opacity: .6; }
+select::-ms-expand { display: none; }
+#landing select, .landing select, .auth-footer select { --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2356607a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
