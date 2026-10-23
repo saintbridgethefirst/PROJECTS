@@ -14,6 +14,8 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || 
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const A = await ctx.newPage(); A.on('pageerror', e => errors.push(e.message)); A.on('dialog', d => d.accept());
 const items = async () => Object.entries(Object.values(JSON.parse(await A.evaluate(() => localStorage.getItem('tt_demo_store_v1'))).teams)[0].wbItems || {}).map(([id, d]) => ({ id, ...d }));
+// Slow machines (CI) can take a while to save: wait for what we expect instead of a fixed pause.
+const until = async (pred, ms = 6000) => { let a = []; for (let t = 0; t < ms; t += 200) { a = await items(); if (pred(a)) return a; await sleep(200); } return a; };
 const menu = (label) => A.locator('#wb-menu .wb-menu-item', { hasText: label });
 
 try {
@@ -33,21 +35,21 @@ try {
   const cv = await A.locator('#wb-canvas').boundingBox();
   ok(await A.locator('.wb-tool[data-tool]').count() === 11, '11 tools');
   await A.click('[data-tool=shape-rect]'); await A.mouse.click(cv.x + 500, cv.y + 300); await A.waitForSelector('#wb-edit');
-  await A.keyboard.type('Motor test'); await A.keyboard.press('Control+Enter'); await sleep(400);
-  let all = await items();
+  await A.keyboard.type('Motor test'); await A.keyboard.press('Control+Enter');
+  let all = await until(a => a.some(i => i.kind === 'shape' && i.shape === 'rect' && i.text === 'Motor test'));
   ok(all.some(i => i.kind === 'shape' && i.shape === 'rect' && i.text === 'Motor test'), 'a rectangle with text');
   await A.keyboard.press('d'); ok(await A.locator('[data-tool=shape-diamond][aria-pressed=true]').count() === 1, 'D picks the diamond');
   await A.mouse.click(cv.x + 800, cv.y + 300); await A.waitForSelector('#wb-edit'); await A.keyboard.type('Passes?'); await A.keyboard.press('Control+Enter'); await sleep(400);
-  await A.click('[data-tool=frame]'); await A.mouse.click(cv.x + 650, cv.y + 520); await A.waitForSelector('#wb-edit'); await A.keyboard.press('Control+a'); await A.keyboard.type('Sprint 3'); await A.keyboard.press('Enter'); await sleep(400);
-  all = await items();
+  await A.click('[data-tool=frame]'); await A.mouse.click(cv.x + 650, cv.y + 520); await A.waitForSelector('#wb-edit'); await A.keyboard.press('Control+a'); await A.keyboard.type('Sprint 3'); await A.keyboard.press('Enter');
+  all = await until(a => a.some(i => i.kind === 'shape' && i.shape === 'diamond') && a.some(i => i.kind === 'frame' && i.text === 'Sprint 3'));
   const frame = all.find(i => i.kind === 'frame');
   ok(all.some(i => i.kind === 'shape' && i.shape === 'diamond') && frame && frame.text === 'Sprint 3', 'a diamond and a frame called “Sprint 3”');
   ok(frame.z < Math.min(...all.filter(i => i.kind !== 'frame').map(i => i.z)), 'the frame sits behind everything');
 
   step('The pen draws, also inside a frame, and stays on');
   await A.keyboard.press('p');
-  await A.mouse.move(cv.x + 560, cv.y + 520); await A.mouse.down(); for (let k = 0; k <= 20; k++) await A.mouse.move(cv.x + 560 + k * 8, cv.y + 520 + Math.sin(k / 3) * 30); await A.mouse.up(); await sleep(500);
-  all = await items(); const pen = all.find(i => i.kind === 'pen');
+  await A.mouse.move(cv.x + 560, cv.y + 520); await A.mouse.down(); for (let k = 0; k <= 20; k++) await A.mouse.move(cv.x + 560 + k * 8, cv.y + 520 + Math.sin(k / 3) * 30); await A.mouse.up();
+  all = await until(a => a.some(i => i.kind === 'pen')); const pen = all.find(i => i.kind === 'pen');
   ok(pen && pen.path.split(' ').length > 10 && pen.w > 100, 'a pen stroke saved as a path');
   ok(await A.locator('[data-tool=pen][aria-pressed=true]').count() === 1, 'the pen stays on for the next stroke');
   await A.keyboard.press('Escape'); await sleep(100);
@@ -57,8 +59,8 @@ try {
   await A.mouse.click(cv.x + 1100, cv.y + 160, { button: 'right' }); await A.waitForSelector('#wb-menu');
   ok(await menu('Sticky note').isVisible() && await menu('Ellipse').isVisible() && await menu('Frame').isVisible() && await menu('Zoom to fit').isVisible(), 'the menu offers notes, shapes, frames, zoom');
   await shot('menu');
-  await menu('Ellipse').click(); await A.waitForSelector('#wb-edit'); await A.keyboard.type('Ideas'); await A.keyboard.press('Control+Enter'); await sleep(400);
-  all = await items(); const ell = all.find(i => i.kind === 'shape' && i.shape === 'ellipse');
+  await menu('Ellipse').click(); await A.waitForSelector('#wb-edit'); await A.keyboard.type('Ideas'); await A.keyboard.press('Control+Enter');
+  all = await until(a => a.some(i => i.kind === 'shape' && i.shape === 'ellipse')); const ell = all.find(i => i.kind === 'shape' && i.shape === 'ellipse');
   ok(ell && Math.abs(ell.x + ell.w / 2 - (await A.evaluate(() => 0)) ) >= 0, 'an ellipse where you clicked');
 
   step('Right-click an item: colour, duplicate, order, delete');
@@ -68,12 +70,12 @@ try {
   ok(await menu('Duplicate').isVisible() && await menu('Bring to front').isVisible() && await menu('Make it a task').isVisible(), 'duplicate, order and make-a-task');
   await A.locator('#wb-menu .wb-swatch').nth(3).click(); await sleep(300);
   ok((await items()).find(i => i.id === rectId).color === '#fbcfe8', 'colour from the menu');
-  await A.locator('.wb-item[data-id="' + rectId + '"]').click({ button: 'right' }); await menu('Duplicate').click(); await sleep(400);
-  ok((await items()).filter(i => i.kind === 'shape' && i.text === 'Motor test').length === 2, 'duplicated');
+  await A.locator('.wb-item[data-id="' + rectId + '"]').click({ button: 'right' }); await menu('Duplicate').click();
+  ok((await until(a => a.filter(i => i.kind === 'shape' && i.text === 'Motor test').length === 2)).filter(i => i.kind === 'shape' && i.text === 'Motor test').length === 2, 'duplicated');
 
   step('Copy and paste, select all, multi-select with Shift-drag');
-  await A.locator('.wb-item[data-id="' + rectId + '"]').click({ position: { x: 8, y: 8 } }); await A.keyboard.press('Control+c'); await A.keyboard.press('Control+v'); await sleep(400);
-  ok((await items()).filter(i => i.kind === 'shape' && i.text === 'Motor test').length === 3, 'pasted a copy');
+  await A.locator('.wb-item[data-id="' + rectId + '"]').click({ position: { x: 8, y: 8 } }); await A.keyboard.press('Control+c'); await A.keyboard.press('Control+v');
+  ok((await until(a => a.filter(i => i.kind === 'shape' && i.text === 'Motor test').length === 3)).filter(i => i.kind === 'shape' && i.text === 'Motor test').length === 3, 'pasted a copy');
   await A.keyboard.press('Control+a'); await sleep(200);
   ok(await A.locator('.wb-item.sel').count() === (await items()).filter(i => i.kind !== 'link').length, 'Ctrl+A selects everything');
   await A.mouse.click(cv.x + 1300, cv.y + 700); await sleep(100);
