@@ -33,7 +33,7 @@
         <div class="lp-dd">
           <button type="button" class="lp-dd-btn" aria-haspopup="true">Product<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg></button>
           <div class="lp-dd-panel">
-            <a href="guide.html#board"><b>The board</b><span>People × weeks, Kanban and Gantt</span></a>
+            <a href="#lp-tour"><b>The board</b><span>People × weeks, Kanban and Gantt</span></a>
             <a href="guide.html#tools"><b>Parts and budgets</b><span>Orders, spending, burn rate</span></a>
             <a href="guide.html#roles"><b>Sign-offs and roles</b><span>Approvals, permissions, viewers</span></a>
             <a href="guide.html#sync"><b>GitHub and integrations</b><span>Issues, Drive, Sheets, Calendar</span></a>
@@ -102,6 +102,16 @@
           <span class="lp-cursor" aria-hidden="true">Tom</span>
         </div>
       </div>
+    </section>
+
+    <section class="lp-tour" id="lp-tour" aria-labelledby="lp-tour-title">
+      <h2 id="lp-tour-title">See every part of it before you sign up.</h2>
+      <p class="lp-tour-lead">These are real screens from the sample team you can open in the demo.</p>
+      <div class="lp-tour-tabs" role="tablist" aria-label="Parts of Trawpie"><button type="button" role="tab" class="lp-tour-tab on" aria-selected="true" data-shot="board" data-title="People × weeks" data-text="Every person’s tasks for each week, with deadlines, sub-tasks, priorities and what is waiting on what. Drag a card to move it to another week or person.">Board</button><button type="button" role="tab" class="lp-tour-tab" aria-selected="false" data-shot="kanban" data-title="Your own stages" data-text="Move work through Design, Review, Build and Test, or stages you name. Checklists and sign-offs make sure nothing skips a step.">Kanban</button><button type="button" role="tab" class="lp-tour-tab" aria-selected="false" data-shot="gantt" data-title="A timeline you can drag" data-text="Plan dates on a timeline with arrows for dependencies. Drag a bar to reschedule; the board follows.">Gantt</button><button type="button" role="tab" class="lp-tour-tab" aria-selected="false" data-shot="analytics" data-title="Know where you stand" data-text="Overdue work, what is due this week, workload per person and progress by week, worked out live. One click for a progress report or an Excel export.">Analytics</button><button type="button" role="tab" class="lp-tour-tab" aria-selected="false" data-shot="parts" data-title="Parts and money" data-text="Components, suppliers, orders, approvals and payments, each tied to the task that needs it. Budget lines and a burn-rate forecast for whoever manages the money.">Parts & budget</button><button type="button" role="tab" class="lp-tour-tab" aria-selected="false" data-shot="whiteboard" data-title="Plan it together" data-text="An endless canvas with sticky notes, shapes, frames and real task cards. Turn a note into a task in one click.">Whiteboards</button></div>
+      <figure class="lp-tour-shot" role="tabpanel">
+        <figcaption><b id="lp-tour-t">People × weeks</b><span id="lp-tour-x">Every person’s tasks for each week, with deadlines, sub-tasks, priorities and what is waiting on what. Drag a card to move it to another week or person.</span></figcaption>
+        <div class="lp-tour-frame"><img id="lp-tour-img" src="landing/board.webp" alt="Trawpie: People × weeks" width="1440" height="860" loading="lazy" decoding="async"></div>
+      </figure>
     </section>
 
     <section class="lp-signin" id="lp-signin" aria-labelledby="lp-signin-title">
@@ -200,9 +210,19 @@
             <p class="hint">You'll be the owner. Invite people by email once the team exists. Switch features on or off any time in Settings ▸ Features.</p>
           </section>
           <section id="sample-section" hidden>
-            <button class="guide-card sample-card" id="demo-sample" type="button">
+            <button class="guide-card sample-card" id="demo-sample" data-sample="drone" type="button">
               <span class="guide-card-ico" aria-hidden="true">🛩️</span>
               <span><b>Explore a sample team</b><span class="hint">A made-up drone team with 6 people, 40 tasks, workflow stages, sub-teams, parts, budget and notebook, all set to this week.</span></span>
+              <span class="guide-card-go" aria-hidden="true">→</span>
+            </button>
+            <button class="guide-card sample-card" id="demo-sample-corporate" data-sample="corporate" type="button">
+              <span class="guide-card-ico" aria-hidden="true">🏭</span>
+              <span><b>Explore a company project</b><span class="hint">An engineering company launching an autonomous warehouse robot: programme, suppliers, approvals, requirements and a customer pilot.</span></span>
+              <span class="guide-card-go" aria-hidden="true">→</span>
+            </button>
+            <button class="guide-card sample-card" id="demo-sample-satellite" data-sample="satellite" type="button">
+              <span class="guide-card-ico" aria-hidden="true">🛰️</span>
+              <span><b>Explore a satellite mission</b><span class="hint">A 3U CubeSat team from design reviews to the flight model: budgets, test campaigns and risks.</span></span>
               <span class="guide-card-go" aria-hidden="true">→</span>
             </button>
           </section>

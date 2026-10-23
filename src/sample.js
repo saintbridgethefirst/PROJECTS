@@ -12,7 +12,11 @@ const DAY = 864e5;
 const mondayOf = (d) => { const x = new Date(d); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
 
 /** The sample store, shifted to now and handed to `user`. Returns { teamId, team, users }. */
-export async function buildSample(user, now = Date.now()) {
+/** kind: 'drone' (a student drone team), 'corporate' (an engineering company) or 'satellite' (a CubeSat mission).
+ *  The other teams reuse the drone team's structure with their own words (data/sample-variants.json). */
+export const SAMPLE_KINDS = ['drone', 'corporate', 'satellite'];
+export async function buildSample(user, now = Date.now(), kind = 'drone') {
+  if (!SAMPLE_KINDS.includes(kind)) kind = 'drone';
   const raw = (await import('./data/sample-team.json')).default;
   const shiftDays = Math.round((mondayOf(now) - new Date(SAMPLE_TODAY_MONDAY + 'T12:00:00')) / DAY);
   const shiftMs = shiftDays * DAY;
@@ -140,5 +144,26 @@ export async function buildSample(user, now = Date.now()) {
   if (oldId) team.requests['del-' + oldId] = { kind: 'delete', by: asker2, byName: nameOf(asker2), at: now - 3 * HOUR, note: 'Duplicate of the wiring harness task.', taskId: oldId, taskName: oldOne.name };
   const users = {};
   Object.values(raw.users).forEach(u => { if (u.uid !== ownerUid) users[u.uid] = u; });
-  return { teamId: 't_sample_' + newId('x').slice(-10), team, users };
+  if (kind !== 'drone') await reword(team, users, kind);
+  return { teamId: 't_sample_' + (kind === 'drone' ? '' : kind + '_') + newId('x').slice(-10), team, users };
+}
+const VARIANT = {
+  corporate: { repo: 'harbourline/agv-fleet', emailFrom: '@uni.ac.uk', emailTo: '@harbourline.example' },
+  satellite: { repo: 'aurora-1/flight-software', emailFrom: '@uni.ac.uk', emailTo: '@space.uni.ac.uk' },
+};
+/** Swap every piece of drone text for the chosen team's (exact matches), plus the repository and email domain. */
+async function reword(team, users, kind) {
+  const map = (await import('./data/sample-variants.json')).default[kind] || {}; const v = VARIANT[kind];
+  const fix = (str) => {
+    if (Object.prototype.hasOwnProperty.call(map, str)) return map[str];
+    let out = str.split('skyhawk-uav/flight-software').join(v.repo);
+    if (out.includes(v.emailFrom)) out = out.split(v.emailFrom).join(v.emailTo);
+    return out;
+  };
+  const walk = (o) => {
+    if (Array.isArray(o)) { for (let i = 0; i < o.length; i++) { if (typeof o[i] === 'string') o[i] = fix(o[i]); else walk(o[i]); } }
+    else if (o && typeof o === 'object') { for (const k of Object.keys(o)) { if (typeof o[k] === 'string') o[k] = fix(o[k]); else walk(o[k]); } }
+  };
+  walk(team); walk(users);
+  Object.values(team.notebook || {}).forEach(n => { n.images = []; });   // the photos are of the drone
 }

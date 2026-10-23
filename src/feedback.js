@@ -7,7 +7,7 @@ import { recentErrors, buildId } from './monitor.js';
 
 const FEEDBACK_KINDS = [['bug', '🐞 Something’s broken'], ['idea', '💡 An idea'], ['question', '❓ A question'], ['other', '💬 Something else']];
 export function openFeedback(app, kind = 'bug') {
-  if (!app.user) { location.href = 'mailto:?subject=Trawpie'; return; }
+  if (!app.user) { if (window.TTFooterContact) window.TTFooterContact(kind === 'bug' ? 'report' : 'contact', true); else location.href = 'mailto:rushivibhandik.college@gmail.com?subject=Trawpie'; return; }
   const m = modal('Send feedback', { narrow: true });
   let chosen = FEEDBACK_KINDS.some(k => k[0] === kind) ? kind : 'bug';
   const kinds = el('div.fb-kinds', { role: 'radiogroup', 'aria-label': 'What is it about?' });

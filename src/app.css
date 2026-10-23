@@ -1139,3 +1139,29 @@ body.focus-mode #main-view { padding-left: 0 !important; }
   .landing .lp-cursor { display: none; }
   .landing .lp-spec th { width: 92px; }
 }
+.landing .lp-signin.lp-demo-first { padding-top: clamp(40px, 7vh, 80px); padding-bottom: clamp(40px, 7vh, 72px); }
+/* product tour: tabs + real screenshots */
+.landing .lp-tour { max-width: 1320px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 64px) clamp(80px, 12vh, 128px); scroll-margin-top: 84px; }
+.landing .lp-tour h2 { margin: 0; font-size: clamp(30px, 3.4vw, 46px); line-height: 1.06; letter-spacing: -0.045em; font-weight: 650; max-width: 20ch; }
+.landing .lp-tour-lead { margin: 12px 0 28px; color: var(--lp-muted); font-size: 16.5px; }
+.landing .lp-tour-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 5px; border: 1px solid var(--lp-line); border-radius: 12px; background: #fff; width: fit-content; max-width: 100%; }
+.landing .lp-tour-tab { font: inherit; font-size: 14.5px; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 0; background: none; color: var(--lp-muted); cursor: pointer; }
+.landing .lp-tour-tab:hover { color: var(--lp-ink); background: #f2f4f8; }
+.landing .lp-tour-tab.on { background: var(--lp-ink); color: #fff; }
+.landing .lp-tour-shot { margin: 22px 0 0; }
+.landing .lp-tour-shot figcaption { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; margin-bottom: 16px; max-width: 900px; }
+.landing .lp-tour-shot figcaption b { font-size: 18px; font-weight: 650; }
+.landing .lp-tour-shot figcaption span { color: var(--lp-muted); font-size: 15.5px; line-height: 1.55; flex: 1 1 420px; }
+.landing .lp-tour-frame { border-radius: 14px; overflow: hidden; border: 1px solid var(--lp-line); background: #fff; box-shadow: 0 40px 80px -36px rgba(30, 50, 100, .3); }
+.landing .lp-tour-frame img { display: block; width: 100%; height: auto; }
+@media (max-width: 720px) { .landing .lp-tour-tabs { width: 100%; overflow-x: auto; flex-wrap: nowrap; } .landing .lp-tour-tab { flex: none; } }
+/* demo: choose which sample team */
+.demo-kinds { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 2px; }
+.demo-kind { display: flex; align-items: flex-start; gap: 12px; padding: 11px 13px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-panel); color: var(--text-main); font: inherit; text-align: left; cursor: pointer; }
+.demo-kind b { display: block; font-size: 14.5px; }
+.demo-kind .hint { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.45; }
+.demo-kind-ico { font-size: 20px; line-height: 1.2; }
+.demo-kind:hover { border-color: var(--line-color); }
+.demo-kind.on { border-color: var(--line-color); box-shadow: 0 0 0 1px var(--line-color); background: color-mix(in srgb, var(--line-color) 6%, var(--bg-panel)); }
+#sample-section { display: flex; flex-direction: column; gap: 10px; }
+#sample-section[hidden] { display: none; }

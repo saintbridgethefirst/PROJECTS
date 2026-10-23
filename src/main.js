@@ -16,7 +16,7 @@ import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { carryRoots, cleanFeatures, TEAM_STARTS, startFeatures, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
 import { runAutos, afterCommit } from './autos.js';
-import { startI18n, setLang, currentLang, LANGS } from './i18n.js';
+import { startI18n, setLang, currentLang, LANGS, translate } from './i18n.js';
 import { startPresence, stopPresence, lookingAt, paintPresence, openPresence, refreshPresenceModal } from './presence.js';
 import { peopleRequests, needsDeleteApproval, askToDelete, approveLeave, approveDelete, declineRequest } from './requests.js';
 import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending, ghMark, offerCloseIssues } from './github-ui.js';
@@ -157,6 +157,11 @@ function renderAuth() {
 }
 // ── Public demo (/demo): no sign-up, a sample team and a guided tour ────────
 const DEMO_NEXT = 'tt_demo_next', DEMO_TOUR = 'tt_demo_tour';
+const SAMPLE_CHOICES = [
+  { key: 'drone', icon: '🛩️', name: 'Student drone team', short: 'drone team', text: '6 people building a UAV for a competition: sub-teams, parts, budget and sign-offs.' },
+  { key: 'corporate', icon: '🏭', name: 'Engineering company', short: 'company project', text: 'Launching an autonomous warehouse robot: programme, suppliers, approvals, requirements and a customer pilot.' },
+  { key: 'satellite', icon: '🛰️', name: 'Satellite mission', short: 'satellite mission', text: 'A 3U CubeSat from design reviews to the flight model: budgets, test campaigns and risks.' },
+];
 const sget = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const sset = (k, v) => { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch { /* */ } };
 function demoWelcome(box, note, wrap) {
@@ -164,8 +169,24 @@ function demoWelcome(box, note, wrap) {
   // On the demo itself, the "try the demo" links point to the guide instead.
   const tourLink = document.querySelector('#auth-screen .auth-tour'); if (tourLink) tourLink.hidden = true;
   const tryBtn = document.getElementById('try-demo'); if (tryBtn) { tryBtn.href = 'guide.html'; tryBtn.textContent = 'Read the illustrated guide →'; }
+  // The demo's own sign-in card goes to the top, so nobody has to scroll to start.
+  const card = document.getElementById('lp-signin'), hero = document.querySelector('#auth-screen .lp-hero');
+  if (card && hero && card.nextElementSibling !== hero) { hero.before(card); card.classList.add('lp-demo-first'); }
+  const ct = document.getElementById('lp-signin-title'); if (ct) ct.textContent = 'Try the live demo';
+  const cp = document.querySelector('#lp-signin .lp-signin-copy p'); if (cp) cp.textContent = 'Pick a made-up team: a student drone team, an engineering company or a satellite mission. Each opens with a 2-minute guided tour. No sign-up; everything stays in this browser.';
   const name = el('input.inp', { id: 'demo-name', placeholder: 'Your name (optional)', maxlength: 60, autocomplete: 'given-name', 'aria-label': 'Your name' });
   const go = (next) => wrap(async () => { sset(DEMO_NEXT, next); await backend.auth.signInDemo('visitor@demo.teamtrack', name.value.trim() || 'Demo visitor'); });
+  // Which made-up team to open: a student drone team, an engineering company, or a satellite mission.
+  let kind = 'drone';
+  const KINDS = SAMPLE_CHOICES;
+  const goBtn = el('button.btn.primary.block', { type: 'button', id: 'demo-go', onclick: () => go('sample:' + kind)() }, '▶ Open the ' + KINDS[0].short + ', with a 2-minute tour');
+  const kinds = el('div.demo-kinds', { role: 'radiogroup', 'aria-label': 'Which sample team' }, ...KINDS.map((k, i) => {
+    const b = el('button.demo-kind' + (i === 0 ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(i === 0), 'data-kind': k.key, onclick: () => {
+      kind = k.key; kinds.querySelectorAll('.demo-kind').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); });
+      goBtn.textContent = '▶ Open the ' + k.short + ', with a 2-minute tour';
+    } }, el('span.demo-kind-ico', { 'aria-hidden': 'true' }, k.icon), el('span', {}, el('b', {}, k.name), el('span.hint', {}, k.text)));
+    return b;
+  }));
   const many = el('details.demo-many', {}, el('summary', {}, 'Try it as several people (invites, comments, roles)'));
   const users = backend.auth.demoUsers().filter(u => u.email !== 'visitor@demo.teamtrack');
   if (users.length) { const list = el('div.demo-users'); users.forEach(u => list.append(el('button.demo-user', { type: 'button', onclick: wrap(() => backend.auth.signInDemo(u.email, u.name)) }, avatar(u), el('span', {}, el('b', {}, u.name), el('br'), el('span.muted', {}, u.email))))); many.append(el('div.hint', {}, 'Continue as:'), list); }
@@ -174,41 +195,42 @@ function demoWelcome(box, note, wrap) {
   f2.addEventListener('submit', (e) => { e.preventDefault(); if (!isValidEmail(e2.value)) { note.textContent = 'Enter an email address (it can be made up).'; return; } wrap(() => backend.auth.signInDemo(e2.value, n2.value.trim()))(); });
   many.append(el('p.hint', {}, 'Open a second tab and sign in as a teammate to see invitations, comments and live updates between people.'), f2);
   box.append(
-    el('div.demo-welcome', {}, el('b', {}, 'This is the real app with a made-up drone team.'), el('span.hint', {}, ' Everything you do stays in this browser; nothing is sent anywhere.')),
+    el('div.demo-welcome', {}, el('b', {}, 'This is the real app with a made-up team.'), el('span.hint', {}, ' Everything you do stays in this browser; nothing is sent anywhere.')),
+    kinds,
     name,
-    el('button.btn.primary.block', { type: 'button', id: 'demo-go', onclick: go('sample') }, '▶ Open the sample team, with a 2-minute tour'),
+    goBtn,
     el('button.btn.block', { type: 'button', id: 'demo-empty', onclick: go('empty') }, 'Start with an empty team'),
     many,
     el('p.hint', {}, 'Ready for real? ', el('a', { href: '/' }, 'Sign in to Trawpie →')));
 }
 /** The sample team (src/sample.js): opens your existing copy, or loads one. tour = start the guided tour once it's open. */
-async function openSampleTeam(tour) {
-  const existing = backend.data.findSample ? backend.data.findSample(user.uid) : null;
+async function openSampleTeam(tour, kind = 'drone') {
+  const existing = backend.data.findSample ? backend.data.findSample(user.uid, kind) : null;
   let id = existing;
-  if (!id) { const { buildSample } = await import('./sample.js'); const s = await buildSample(user); id = await backend.data.loadSample(s); toast('Sample team loaded: it’s yours to play with in this browser.', 5000); }
-  if (tour) sset(DEMO_TOUR, '1');
+  if (!id) { const { buildSample } = await import('./sample.js'); const s = await buildSample(user, Date.now(), kind); id = await backend.data.loadSample(s); toast('Sample team loaded: it’s yours to play with in this browser.', 5000); }
+  if (tour) sset(DEMO_TOUR, kind);
   goTeam(id);
 }
-function demoTourSteps() {
+function demoTourSteps(kind = 'drone') {
   const thisWeek = () => document.querySelector('.header-week.current-week') || document.querySelector('.header-week');
   return [
-    { title: 'Welcome to Skyhawk UAV', text: 'A made-up student drone team of 6 people, set to this week. It’s yours: click, drag and change anything. This tour points out the main parts in about two minutes.' },
+    { title: { drone: 'Welcome to Skyhawk UAV', corporate: 'Welcome to Harbourline Robotics', satellite: 'Welcome to Aurora-1' }[kind] || 'Welcome', text: { drone: 'A made-up student drone team of 6 people, set to this week.', corporate: 'A made-up engineering company launching its AGV-200 warehouse robot, set to this week.', satellite: 'A made-up team building Aurora-1, a 3U CubeSat, set to this week.' }[kind] + ' It’s yours: click, drag and change anything. This tour points out the main parts in about two minutes.' },
     { target: thisWeek, title: 'One column per week', text: 'The board runs week by week. This week is outlined. Unfinished work carries forward to next week, keeping its history, so you can see what slipped.' },
     { target: '#nodes-container .row-person', title: 'One row per person', text: 'Each person has a row, split into their own categories. Their tasks sit under the week they’re planned for; drag a card to move it to another week.' },
     { target: () => document.querySelector('.task-card .stage-bar') && document.querySelector('.task-card .stage-bar').closest('.task-card'), title: 'A task', text: 'Priority, deadline, sub-tasks, hours and comments. The coloured bar shows its stage in this team’s workflow: Design → Review → Build → Test → Done. Click any card to open it.' },
-    { target: '#subteam-bar', title: 'Sub-teams', text: 'Show just Payload, Electronics or another sub-team, with their leads. Handy when 30 people share one board.' },
-    { target: '.kb-board', before: () => window.boardSetView && window.boardSetView('kanban'), after: () => window.boardSetView && window.boardSetView('board'), title: 'Kanban: one column per stage', text: 'The same tasks by stage. Build is limited to 4 at a time so the workshop isn’t flooded with half-built parts. Drag cards between columns.' },
+    { target: '#subteam-bar', title: 'Sub-teams', text: 'Show just one sub-team, with its leads. Handy when 30 people share one board.' },
+    { target: '.kb-board', before: () => window.boardSetView && window.boardSetView('kanban'), after: () => window.boardSetView && window.boardSetView('board'), title: 'Kanban: one column per stage', text: 'The same tasks by stage. Build is limited to 4 at a time so nobody starts more than the team can finish. Drag cards between columns.' },
     { target: '#approvals-btn', title: 'Sign-offs and checklists', text: 'Review needs the sub-team lead’s sign-off before a task can move on to Build, with a short checklist. Tasks waiting for you are counted here; approve them or send them back with a note.' },
     { target: '.gt2-scroll', before: () => window.boardSetView && window.boardSetView('gantt'), after: () => window.boardSetView && window.boardSetView('board'), title: 'Gantt: plan on a timeline', text: 'Each task is a bar from its start to its deadline, with arrows for what waits on what. Drag a bar or its ends to re-plan; tasks that wait on it move along.' },
-    { target: '#share-btn', title: 'Share this week', text: 'One click turns the week into a message for your WhatsApp group: what’s done, due, late and stuck, with a link back to the board.' },
+    { target: '#share-btn', title: 'Share this week', text: 'One click turns the week into a message for your team chat: what’s done, due, late and stuck, with a link back to the board.' },
     { target: '#research-btn', title: 'Tools', text: 'Parts and orders, budget and spending, lab notebook, meetings, papers, risks and requirements. Each team switches on only what it needs.' },
-    { target: '#top-actions [onclick="openAnalytics(\'overview\')"]', title: 'Analytics', text: 'Progress, workload per person, burndown, a Gantt timeline and a printable progress report for a supervisor or sponsor.' },
+    { target: '#top-actions [onclick="openAnalytics(\'overview\')"]', title: 'Analytics', text: 'Progress, workload per person, burndown, a Gantt timeline and a printable progress report for a manager, customer or funder.' },
     { target: '#top-actions [onclick="TT.openSettings()"]', title: 'Make it yours', text: 'Settings: invite people by email, set roles and permissions, and under Workflow choose or design your own stages.' },
-    { title: 'That’s the tour', text: 'Keep exploring: nothing here can break, and it all stays in this browser. When your team is ready, set up the real thing in a couple of minutes; it’s free for students.',
+    { title: 'That’s the tour', text: 'Keep exploring: nothing here can break, and it all stays in this browser. When your team is ready, set up the real thing in a couple of minutes; it’s free for teams of up to 30.',
       action: () => el('div.row', { style: { gap: '8px', flexWrap: 'wrap' } }, el('a.btn.primary.small', { href: '/' }, 'Create your real team →'), el('a.btn.small', { href: 'guide.html' }, 'Read the full guide')) },
   ];
 }
-function startDemoTour() { if (!tourRunning()) startTour(demoTourSteps()); }
+function startDemoTour(kind) { if (!tourRunning()) startTour(demoTourSteps(['drone', 'corporate', 'satellite'].includes(kind) ? kind : 'drone')); }
 /** A small ribbon on every demo screen: it's a sandbox, the tour, the real app. */
 function demoRibbon() {
   if (!PUBLIC_DEMO || document.getElementById('demo-ribbon')) return;
@@ -217,6 +239,20 @@ function demoRibbon() {
     el('button.link-btn', { type: 'button', id: 'demo-ribbon-tour', onclick: () => { if (session && session.booted) startDemoTour(); else if (user) openSampleTeam(true); } }, 'Tour'),
     el('span.hint', {}, ' · '), el('a', { href: '/' }, 'Get Trawpie →')));
 }
+
+// Landing page: the tabs of the product tour swap the screenshot and its two lines.
+document.addEventListener('click', (e) => {
+  const tab = e.target.closest && e.target.closest('.lp-tour-tab'); if (!tab) return;
+  document.querySelectorAll('.lp-tour-tab').forEach(b => { const on = b === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+  const img = document.getElementById('lp-tour-img'); if (img) { img.src = 'landing/' + tab.dataset.shot + '.webp'; img.alt = 'Trawpie: ' + tab.dataset.title; }
+  const t = document.getElementById('lp-tour-t'), x = document.getElementById('lp-tour-x');
+  if (t) t.textContent = translate(tab.dataset.title); if (x) x.textContent = translate(tab.dataset.text);
+});
+document.addEventListener('keydown', (e) => {
+  const tab = e.target.closest && e.target.closest('.lp-tour-tab'); if (!tab || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+  const all = [...document.querySelectorAll('.lp-tour-tab')]; const i = all.indexOf(tab); const next = all.at((i + (e.key === 'ArrowRight' ? 1 : -1)) % all.length);
+  e.preventDefault(); next.focus(); next.click();
+});
 
 // Landing page: "Sign up" jumps to the sign-in card on its Create account tab; "Log in" on Sign in.
 document.addEventListener('click', (e) => {
@@ -341,20 +377,19 @@ function renderHome() {
   homeUnsubs.push(() => { homeMentionsRender = null; mentionUnsub && mentionUnsub(); });
   if (PUBLIC_DEMO) {
     const next = sget(DEMO_NEXT); sset(DEMO_NEXT, null);
-    if (next === 'sample') { openSampleTeam(true).catch(e => toast(String(e.message || e))); }
+    if (next && next.startsWith('sample')) { openSampleTeam(true, next.split(':')[1] || 'drone').catch(e => toast(String(e.message || e))); }
     else if (next === 'empty') setTimeout(() => { const i = document.querySelector('#create-team-form input[name=name]'); if (i) i.focus(); }, 100);
   }
   // Demo: one click loads a made-up team with every feature in use (src/sample.js).
   const sampleSec = $('#sample-section');
   if (sampleSec) {
     sampleSec.hidden = !(DEMO_MODE && backend.data.loadSample);
-    const sb = $('#demo-sample');
-    if (sb) sb.onclick = async () => {
+    sampleSec.querySelectorAll('[data-sample]').forEach(sb => { sb.onclick = async () => {
       sb.disabled = true;
-      try { await openSampleTeam(PUBLIC_DEMO); }
+      try { await openSampleTeam(PUBLIC_DEMO, sb.dataset.sample); }
       catch (e) { console.error(e); toast('Couldn’t load the sample team: ' + (e.message || e), 6000); }
       sb.disabled = false;
-    };
+    }; });
   }
   homeUnsubs.push(backend.data.watchMyTeams(user.uid, (teams) => {
     teamList = teams.sort((a, b) => a.name.localeCompare(b.name)); homeSearchData.teams = teamList; myTeamsCache = teamList;
@@ -816,7 +851,7 @@ function refresh() {
   if (pendingOpen && pendingOpen.teamId === s.teamId) { const id = pendingOpen.taskId; pendingOpen = null; setTimeout(() => window.boardOpenTask && window.boardOpenTask(id), 50); }
   syncMoney(s); syncResearch(s);
   refreshResearch(ctx());
-  if (!s.booted) { s.booted = true; onFirstLoad(); if (PUBLIC_DEMO && sget(DEMO_TOUR)) { sset(DEMO_TOUR, null); setTimeout(startDemoTour, 1200); } }
+  if (!s.booted) { s.booted = true; onFirstLoad(); if (PUBLIC_DEMO && sget(DEMO_TOUR)) { const k = sget(DEMO_TOUR); sset(DEMO_TOUR, null); setTimeout(() => startDemoTour(k), 1200); } }
   scheduleAutos(); maybeRaise(); if (window.boardUpdateApprovals) window.boardUpdateApprovals();
   if (window.TTSettingsRefresh) window.TTSettingsRefresh();
 }
