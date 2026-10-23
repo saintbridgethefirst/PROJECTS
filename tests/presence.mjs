@@ -44,6 +44,9 @@ try {
   await B.locator('.task-card', { hasText: 'Weld the frame' }).click(); await sleep(1200);
   await A.waitForSelector('.task-card .viewers', { timeout: 5000 }).catch(() => {});
   ok(await A.locator('.task-card', { hasText: 'Weld the frame' }).locator('.viewers').count() === 1, 'his face on the card');
+  const glow = await A.locator('.task-card', { hasText: 'Weld the frame' }).evaluate(c => ({ on: c.classList.contains('peer-open'), col: c.style.getPropertyValue('--peer'), who: c.dataset.peer, shadow: getComputedStyle(c).boxShadow }));
+  ok(glow.on && /^#[0-9a-f]{6}$/i.test(glow.col) && glow.who === 'Tom' && glow.shadow !== 'none', 'the card glows in Tom’s colour with “Tom is editing” ' + JSON.stringify(glow));
+  ok(await A.locator('.task-card.peer-open').count() === 1, 'only that card glows');
 
   step('Tom sets Busy with a note');
   await B.click('#online-btn'); await B.waitForSelector('#presence-modal');

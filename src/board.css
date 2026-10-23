@@ -120,6 +120,7 @@
 
         #nodes-container { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 40px; padding: 40px 40px 40px 0; width: max-content;}
         .row-person { display: flex; align-items: stretch; animation: popIn 0.4s ease-out backwards;}
+        .row-person.seen { animation: none; }
         .row-categories { flex-grow: 1; display: flex; flex-direction: column; gap: 24px; margin-left: 0;}
         .row-category { display: flex; align-items: stretch; min-height: 80px;}
         .row-weeks { display: flex; padding-left: 40px; padding-top: 10px; padding-bottom: 10px;}

@@ -1270,3 +1270,9 @@ body.look-pro .st-tab i, body.look-pro .lp-pill i { border-radius: 2px; }
   body.people-narrow .header-spacer { padding-left: 14px; }
   body.people-narrow .header-spacer > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 }
+
+/* A task a teammate has open: glow in their colour (src/presence.js) */
+.task-card.peer-open, .kb-card.peer-open { box-shadow: 0 0 0 2px var(--peer), 0 0 18px 2px color-mix(in srgb, var(--peer) 55%, transparent) !important; transition: box-shadow .3s ease; }
+.task-card.peer-open::before, .kb-card.peer-open::before { content: attr(data-peer) ' is editing'; position: absolute; left: 10px; top: -10px; z-index: 3; padding: 1px 7px; border-radius: 6px;
+  background: var(--peer); color: #fff; font: 600 10.5px/1.5 Inter, system-ui, sans-serif; white-space: nowrap; pointer-events: none; }
+.kb-card.peer-open { position: relative; }

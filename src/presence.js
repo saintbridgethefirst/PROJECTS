@@ -6,7 +6,7 @@
 //  while the tab is visible keeps "online" fresh (cheap: one small write).
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, modal, avatar } from './ui.js';
-import { cursorsOn, setCursorsOn } from './cursors.js';
+import { cursorsOn, setCursorsOn, colorFor } from './cursors.js';
 import { cleanPresence, isOnline, statusOf, PRESENCE_STATES, PRESENCE_LABEL } from './model.js';
 
 const BEAT_MS = 2 * 60e3;
@@ -90,11 +90,15 @@ export function paintPresence(ctx) {
   });
   // Cards someone else has open right now
   document.querySelectorAll('.task-card .viewers').forEach(n => n.remove());
+  document.querySelectorAll('.peer-open').forEach(n => { n.classList.remove('peer-open'); n.style.removeProperty('--peer'); n.removeAttribute('data-peer'); });
   const looking = new Map();
   people.filter(p => p.online && p.taskId && p.uid !== me).forEach(p => { const l = looking.get(p.taskId) || []; l.push(p); looking.set(p.taskId, l); });
   looking.forEach((list, taskId) => {
+    // A soft glow in that person's colour, on the board and in Kanban, so nobody edits it at the same time by accident.
+    const col = colorFor(list[0].uid);
+    [document.getElementById(taskId), document.getElementById('kb-' + taskId)].forEach(c => { if (!c) return; c.classList.add('peer-open'); c.style.setProperty('--peer', col); c.dataset.peer = list.map(p => p.name.split(' ')[0]).join(', '); });
     const card = document.getElementById(taskId); if (!card) return;
-    const v = el('span.viewers', { title: list.map(p => p.name).join(', ') + (list.length === 1 ? ' is' : ' are') + ' looking at this' }, ...list.slice(0, 3).map(p => avatar(p)));
+    const v = el('span.viewers', { title: list.map(p => p.name).join(', ') + (list.length === 1 ? ' has' : ' have') + ' this open' }, ...list.slice(0, 3).map(p => { const a = avatar(p); a.style.borderColor = colorFor(p.uid); return a; }));
     card.appendChild(v);
   });
 }

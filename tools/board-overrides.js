@@ -1831,9 +1831,16 @@
             else if (e.key === ']') { e.preventDefault(); toggleSidebar(); }
             else if (e.key === 'Escape' && document.body.classList.contains('focus-mode')) setFocusMode(false);
         });
+        // People rows already on screen: their entrance animation plays only the first time, so a change
+        // (yours or a teammate's) redraws the board without every row flickering in again.
+        let seenRows = new Set();
         function render() { withFrameCache(() => {
             syncSubteamView();
             _renderBase();
+            { const rows = [...document.querySelectorAll('#nodes-container > .row-person')]; const now = new Set();
+              rows.forEach(r => { const id = (r.querySelector('.node-person') || {}).id || ''; now.add(id); if (seenRows.has(id)) r.classList.add('seen'); });
+              seenRows = now; }
+            requestAnimationFrame(() => { try { drawLines(); } catch { /* lines catch up on the next draw */ } });   // before the next paint, not 50 ms after it
             // Skip painting off-screen rows only on big boards: on small ones Safari sometimes left rows blank after a change until you scrolled.
             { const nc = document.getElementById('nodes-container'); if (nc) nc.classList.toggle('big-board', nc.children.length > 40); }
             markSubteams();
