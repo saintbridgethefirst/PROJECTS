@@ -1183,3 +1183,19 @@ body.focus-mode #main-view { padding-left: 0 !important; }
 .landing .lp-org-soon { font-size: 13.5px !important; }
 .landing .lp-org-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .landing .lp-org-actions .lp-btn { min-height: 40px; font-size: 14px; padding: 0 16px; }
+
+/* Professional look (Settings ▸ General ▸ Look): line icons, no emoji, quieter chrome */
+.look-ico { display: inline-flex; align-items: center; justify-content: center; flex: none; line-height: 0; }
+.look-ico svg { width: 17px; height: 17px; }
+.look-badge { margin-right: 4px; vertical-align: -2px; opacity: .8; }
+.look-badge svg { width: 13px; height: 13px; }
+body.look-pro .task-icon { display: none !important; }
+body.look-pro #top-actions .top-btn .look-ico + .lbl-lg, body.look-pro #top-actions .top-btn .look-ico ~ span { margin-left: 6px; }
+body.look-pro .top-btn { gap: 6px; }
+body.look-pro .st-tab i, body.look-pro .lp-pill i { border-radius: 2px; }
+.look-opts { display: flex; flex-wrap: wrap; gap: 10px; }
+.look-opt { flex: 1 1 240px; display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 10px; cursor: pointer; }
+.look-opt.on { border-color: var(--line-color); box-shadow: 0 0 0 1px var(--line-color); }
+.look-opt input { margin-top: 3px; }
+.look-opt b { display: block; }
+.look-opt .hint { display: block; margin-top: 2px; }

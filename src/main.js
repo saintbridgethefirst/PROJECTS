@@ -17,6 +17,7 @@ import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFi
 import { carryRoots, cleanFeatures, TEAM_STARTS, startFeatures, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
 import { runAutos, afterCommit } from './autos.js';
 import { startI18n, setLang, currentLang, LANGS, translate } from './i18n.js';
+import { setLook } from './look.js';
 import { startPresence, stopPresence, lookingAt, paintPresence, openPresence, refreshPresenceModal } from './presence.js';
 import { peopleRequests, needsDeleteApproval, askToDelete, approveLeave, approveDelete, declineRequest } from './requests.js';
 import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending, ghMark, offerCloseIssues } from './github-ui.js';
@@ -755,7 +756,7 @@ async function openTeam(teamId) {
   session = { teamId, team: null, members: null, categories: null, tasks: null, me: null, base: null, undo: [], redo: [], pending: 0, booted: false, recent: new Map() };
   const s = session;
   const handlers = {
-    onTeam: (t) => { s.rawTeam = t; s.team = { id: t.id, ...cleanTeam(t) }; schedule(); },
+    onTeam: (t) => { s.rawTeam = t; s.team = { id: t.id, ...cleanTeam(t) }; setLook(s.team.look); schedule(); },
     onMembers: (ms) => { s.members = ms.map(m => cleanMember(m, m.uid)); schedule(); },
     onCategories: (cs) => { s.categories = cs.map(c => cleanCategory(c, c.id)); schedule(); },
     onTasks: (ts) => { s.rawTasks = ts; schedule(); },
@@ -801,6 +802,7 @@ function drawStart() {
 window.TTStartRefresh = () => drawStart();
 
 function closeTeam() {
+  setLook('friendly');
   if (!session) return;
   endTour();
   if (window.__wbClose) window.__wbClose();

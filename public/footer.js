@@ -16,6 +16,13 @@
     var n = document.createElement(tag); Object.keys(attrs || {}).forEach(function (k) { if (k === 'text') n.textContent = attrs[k]; else n.setAttribute(k, attrs[k]); });
     (kids || []).forEach(function (c) { if (c) n.appendChild(c); }); return n;
   }
+  function social(kind) {
+    var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+    var D = { linkedin: ['M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z', 'M2 9h4v12H2z', 'M4 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z'],
+      instagram: ['M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5z', 'M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z', 'M17.5 6.5h.01'] };
+    D[kind].forEach(function (d) { var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); svg.appendChild(p); });
+    return svg;
+  }
   function globe() {
     var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'ftr-globe'); svg.setAttribute('aria-hidden', 'true');
@@ -28,7 +35,10 @@
       h('a', { class: 'ftr-logo', href: app || './' }, [h('img', { src: app + 'icons/logo-96.png', alt: '', width: '28', height: '28' }), h('b', { text: 'Trawpie' })]),
       h('p', { text: 'Plan, track and review your team’s week: tasks, people, parts and budgets in one place.' }),
       h('p', { class: 'ftr-small', text: 'Technical Research And Welfare for People In Education.' }),
-      h('p', { class: 'ftr-small', text: 'Made in Bristol for student, research and engineering teams.' })]);
+      h('p', { class: 'ftr-small', text: 'Made in Bristol for student, research and engineering teams.' }),
+      h('div', { class: 'ftr-social' }, [
+        h('a', { href: 'https://www.linkedin.com/company/146756476/', target: '_blank', rel: 'noopener', 'aria-label': 'Trawpie on LinkedIn', title: 'LinkedIn' }, [social('linkedin')]),
+        h('a', { href: 'https://www.instagram.com/trawpie/', target: '_blank', rel: 'noopener', 'aria-label': 'Trawpie on Instagram', title: 'Instagram' }, [social('instagram')])])]);
     var grid = h('div', { class: 'ftr-cols' }, cols.map(function (c) {
       return h('nav', { 'aria-label': c[0] }, [h('h4', { text: c[0] })].concat(c[1].map(function (l) { return h('a', { href: l[1] }, [document.createTextNode(l[0])]); })));
     }));
@@ -81,6 +91,7 @@
     + '.site-footer .ftr-lang{display:inline-flex;align-items:center;gap:8px;margin:0;cursor:pointer}.site-footer .ftr-globe{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5}'
     + '.site-footer select{-webkit-appearance:none;appearance:none;margin:0;height:34px;min-width:150px;font:inherit;font-size:13.5px;line-height:1;padding:0 32px 0 12px;border-radius:8px;border:1px solid var(--ftr-line,var(--line,var(--border-color,#2d3748)));color:inherit;cursor:pointer;'
     + 'background:transparent url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 6%27%3E%3Cpath d=%27M1 1l4 4 4-4%27 fill=%27none%27 stroke=%27%238a94a6%27 stroke-width=%271.5%27/%3E%3C/svg%3E") no-repeat right 12px center/10px 6px}'
+    + '.site-footer .ftr-social{display:flex;gap:10px;margin-top:14px}.site-footer .ftr-social a{display:inline-flex;width:34px;height:34px;align-items:center;justify-content:center;border:1px solid var(--ftr-line,var(--line,var(--border-color,#2d3748)));border-radius:8px;color:inherit}.site-footer .ftr-social a:hover{color:var(--ftr-ink,var(--ink,var(--text-main,inherit)))}.site-footer .ftr-social svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}'
     + '.site-footer select:focus-visible{outline:2px solid var(--ftr-ink,currentColor);outline-offset:2px}'
     + '.site-footer .ftr-legal{display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right}.site-footer .ftr-suite{font-size:13.5px;color:var(--ftr-ink,var(--ink,var(--text-main,inherit)))}.site-footer .ftr-suite b{font-weight:600}'
     + '@media (max-width:760px){.site-footer .ftr-legal{align-items:flex-start;text-align:left}}'

@@ -217,4 +217,13 @@ export default {
   'Until then, Trawpie works for teams of any size': ['Mientras tanto, Trawpie sirve para equipos de cualquier tamaño', 'D’ici là, Trawpie convient aux équipes de toute taille', 'Bis dahin funktioniert Trawpie für Teams jeder Größe', '在此之前，Trawpie 适用于任何规模的团队'],
   'Tell me when it launches': ['Avísame cuando se lance', 'Prévenez-moi au lancement', 'Sag mir Bescheid, wenn es startet', '上线时通知我'],
   'Use Trawpie for now': ['Usar Trawpie por ahora', 'Utiliser Trawpie pour l’instant', 'Erstmal Trawpie nutzen', '先使用 Trawpie'],
+  'Look': ['Aspecto', 'Apparence', 'Aussehen', '外观'],
+  'Friendly': ['Cercano', 'Convivial', 'Freundlich', '友好'],
+  'Professional': ['Profesional', 'Professionnel', 'Professionell', '专业'],
+  'How the app looks for everyone in this team': ['Cómo se ve la app para todo el equipo', 'L’apparence de l’app pour toute l’équipe', 'Wie die App für das ganze Team aussieht', '整个团队看到的应用外观'],
+  'Nothing anyone wrote changes': ['No cambia nada de lo que se haya escrito', 'Rien de ce qui a été écrit ne change', 'Nichts Geschriebenes ändert sich', '不会改变任何人写的内容'],
+  'Emoji on buttons, badges and tasks': ['Emoji en botones, etiquetas y tareas', 'Emoji sur les boutons, badges et tâches', 'Emoji auf Schaltflächen, Badges und Aufgaben', '按钮、标签和任务上显示表情'],
+  'Good for student and community teams': ['Ideal para equipos estudiantiles y comunitarios', 'Idéal pour les équipes étudiantes et associatives', 'Gut für Studierenden- und Vereinsteams', '适合学生和社区团队'],
+  'Clean line icons and no emoji': ['Iconos de línea limpios y sin emoji', 'Icônes épurées, sans emoji', 'Klare Linien-Icons, keine Emoji', '简洁线条图标，无表情'],
+  'Suited to companies and clients': ['Pensado para empresas y clientes', 'Adapté aux entreprises et aux clients', 'Passend für Firmen und Kunden', '适合企业和客户'],
 };

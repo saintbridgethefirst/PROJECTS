@@ -468,12 +468,27 @@ function general(pane, ctx, { rerender } = {}) {
     el('section', {}, el('h4', {}, 'Logo'), logoBox),
     weekNamingSection(ctx, editable, rerender),
     currencySection(ctx),
+    lookSection(ctx),
     el('section', {}, el('h4', {}, 'Your role'), el('p.hint', {}, 'You are ', el('b', {}, ctx.TT.roleName(ctx.session.me.roleId)), ' in this team. ',
       ...PERMISSIONS.filter(p => can(T, ctx.session.me, p.key)).length ? ['You can: ', PERMISSIONS.filter(p => can(T, ctx.session.me, p.key)).map(p => p.label.toLowerCase()).join(', '), '.'] : ['You can view the board.']),
       leaveBox(ctx)),
   );
 }
 
+/** The team's look: Friendly (emoji) or Professional (clean line icons, no emoji), for the whole team. */
+function lookSection(ctx) {
+  const s = ctx.session, T = s.team; const editable = can(T, s.me, 'team.settings');
+  const cur = T.look === 'professional' ? 'professional' : 'friendly';
+  const opt = (key, title, text) => el('label.look-opt' + (key === cur ? '.on' : ''), {},
+    el('input', { type: 'radio', name: 'team-look', value: key, checked: key === cur, disabled: !editable, onchange: async () => {
+      await save(ctx, [{ type: 'update', path: 'team', data: { look: key } }], key === 'professional' ? 'Professional look on for everyone in the team.' : 'Friendly look on for everyone in the team.');
+    } }), el('span', {}, el('b', {}, title), el('span.hint', {}, text)));
+  return el('section', {}, el('h4', {}, 'Look'),
+    el('p.hint', {}, 'How the app looks for everyone in this team. Nothing anyone wrote changes.'),
+    el('div.look-opts', {}, opt('friendly', 'Friendly', 'Emoji on buttons, badges and tasks. Good for student and community teams.'),
+      opt('professional', 'Professional', 'Clean line icons and no emoji. Suited to companies and clients.')),
+    editable ? '' : el('p.hint', {}, 'Only roles that change team settings choose this.'));
+}
 /** The team's currency: parts, purchases, budget and reports all use it. */
 function currencySection(ctx) {
   const s = ctx.session, T = s.team; const editable = can(T, s.me, 'team.settings') || can(T, s.me, 'finance.edit');

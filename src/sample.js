@@ -145,6 +145,7 @@ export async function buildSample(user, now = Date.now(), kind = 'drone') {
   const users = {};
   Object.values(raw.users).forEach(u => { if (u.uid !== ownerUid) users[u.uid] = u; });
   if (kind !== 'drone') await reword(team, users, kind);
+  if (kind === 'corporate') team.doc.look = 'professional';   // a company would pick the clean look
   return { teamId: 't_sample_' + (kind === 'drone' ? '' : kind + '_') + newId('x').slice(-10), team, users };
 }
 const VARIANT = {

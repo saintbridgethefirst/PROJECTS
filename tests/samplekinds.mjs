@@ -24,6 +24,16 @@ try {
     if (kind !== 'drone') ok(!/Skyhawk|drone|Pixhawk|LiPo|flying field|Wing CAD|carbon tube/i.test(teams[0].json.replace(/"(c|t|wi)_[a-z0-9_]+"/g, '')), 'no drone words left');
     ok((await p.textContent('body')).includes(WANT[kind][1]), 'the tour greets: ' + WANT[kind][1]);
     ok(await p.locator('.task-card').count() > 10, 'the board is full of tasks');
+    const pro = await p.evaluate(() => document.body.classList.contains('look-pro'));
+    ok(pro === (kind === 'corporate'), 'Professional look ' + (kind === 'corporate' ? 'on for the company' : 'off for ' + kind));
+    if (kind === 'corporate') {
+      ok(!/\p{Extended_Pictographic}/u.test(await p.evaluate(() => document.getElementById('top-bar').innerText)), 'no emoji in the menu');
+      ok(await p.locator('#top-bar .look-ico').count() >= 10, 'line icons in the menu');
+      await p.evaluate(() => document.querySelectorAll('[class*=tour-]').forEach(e => e.remove()));
+      await p.evaluate(() => TT.openSettings('general')); await p.waitForSelector('.look-opts');
+      await p.click('.look-opt:has-text("Friendly") input'); await sleep(1000);
+      ok(!(await p.evaluate(() => document.body.classList.contains('look-pro'))) && /\p{Extended_Pictographic}/u.test(await p.evaluate(() => document.getElementById('top-bar').innerText)), 'switching to Friendly brings the emoji back');
+    }
     await ctx.close();
   }
 } catch (e) { fail++; console.log('  ✗ ERROR:', e.message.split('\n')[0]); }

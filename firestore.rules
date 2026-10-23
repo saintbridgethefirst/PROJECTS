@@ -50,10 +50,11 @@ service cloud.firestore {
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
     function validTeam(d) {
-      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former'])
+      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look'])
         && d.get('archiveRev', 0) is int
         && (!('former' in d) || (d.former is map && d.former.size() <= 300))
         && d.get('currency', 'GBP') in ['GBP', 'EUR', 'USD', 'INR', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD']
+        && d.get('look', 'friendly') in ['friendly', 'professional']
         && (d.get('github', null) == null || (d.github is map && d.github.keys().hasOnly(['repo', 'issues', 'done', 'owner', 'connectedAt', 'write', 'last']) && d.github.get('repo', '') is string && d.github.get('repo', '').size() <= 140))
         && (d.get('purchase', null) == null || (d.purchase is map && d.purchase.keys().hasOnly(['on', 'over']) && d.purchase.get('on', false) is bool
           && d.purchase.get('over', 0) is number && d.purchase.get('over', 0) >= 0 && d.purchase.get('over', 0) <= 100000000))
@@ -414,12 +415,12 @@ service cloud.firestore {
       allow update: if isMember(t) && validTeam(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.createdAt == resource.data.createdAt
-        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former'])
+        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look'])
         // archiveRev: changed by any save to an old week, so other devices re-read old weeks (backend/tasksync.js)
         && (!changed().hasAny(['archiveRev']) || can(t, 'tasks.editOwn') || can(t, 'tasks.editAll'))
         && (!changed().hasAny(['subteams', 'leads']) || can(t, 'team.settings') || can(t, 'members.manage'))
         && (!changed().hasAny(['weeks']) || can(t, 'weeks.manage'))
-        && (!changed().hasAny(['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features', 'workflow']) || can(t, 'team.settings'))
+        && (!changed().hasAny(['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features', 'workflow', 'look']) || can(t, 'team.settings'))
         && (!changed().hasAny(['roles']) || can(t, 'roles.manage'))
         // who used to be in the team (names stay on their past work): set when a member is removed
         && (!changed().hasAny(['former']) || can(t, 'members.manage'))

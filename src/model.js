@@ -126,6 +126,7 @@ export function cleanTeam(t) {
     autos: cleanAutos(t.autos),
     github: cleanGithub(t.github),
     currency: CURRENCIES.includes(t.currency) ? t.currency : '',
+    look: t.look === 'professional' ? 'professional' : 'friendly',
     former: cleanFormer(t.former),
     plan: cleanPlan(t.plan),
     weeks: (Array.isArray(t.weeks) ? t.weeks : []).map(cleanWeek),
