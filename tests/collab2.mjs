@@ -105,5 +105,5 @@ try {
 } catch (e) { fail++; console.log('  ✗ ERROR:', e.message.split('\n')[0]); }
 if (errors.length) { fail++; console.log('  ✗ page errors:', errors.slice(0, 5)); }
 await browser.close();
-console.log(`\n${pass} passed, ${fail} failed`);
+console.log(`RESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

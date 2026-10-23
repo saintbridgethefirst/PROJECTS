@@ -192,8 +192,8 @@ body.hide-metric .metric-badge { display: none; }
   .brand-name { font-size: 18px; }
   .account-btn span:not(.avatar) { display: none; }
   #home-theme { white-space: nowrap; }
-  #home-theme .theme-word, #crossteam-btn .theme-word, #home-search .theme-word { display: none; }
-  #crossteam-btn, #home-search { white-space: nowrap; }
+  #home-theme .theme-word, #crossteam-btn .theme-word, #joint-btn .theme-word, #home-search .theme-word { display: none; }
+  #crossteam-btn, #joint-btn, #home-search { white-space: nowrap; }
   #create-team-form { flex-wrap: wrap; }
   #create-team-form > * { flex: 1 1 100%; }
   .dialog-box { width: calc(100vw - 32px); }
@@ -1251,3 +1251,8 @@ body.look-pro .st-tab i, body.look-pro .lp-pill i { border-radius: 2px; }
 .jb-card-meta { font-size: 11px; color: var(--text-muted); }
 .jb-shared { margin-top: 10px; }
 .jb-bar select { width: auto; flex: 0 0 auto; }
+/* Phones with every home button showing (two or more teams): keep them on one line. */
+@media (max-width: 420px) {
+  #home-screen .app-header { gap: 4px; }
+  #home-screen .app-header .btn.small { padding-left: 8px; padding-right: 8px; }
+}
