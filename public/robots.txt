@@ -1,0 +1,7 @@
+# Trawpie, part of the Penteint Suite
+User-agent: *
+Allow: /
+Disallow: /blank.html
+Disallow: /__/
+
+Sitemap: https://trawpie.org/sitemap.xml

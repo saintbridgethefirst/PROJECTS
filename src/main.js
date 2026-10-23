@@ -165,6 +165,11 @@ const SAMPLE_CHOICES = [
 const sget = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const sset = (k, v) => { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch { /* */ } };
 function demoWelcome(box, note, wrap) {
+  // Search engines: the demo is its own page.
+  document.title = 'Trawpie live demo: try it with a sample team';
+  const setMeta = (sel, attr, v) => { const m = document.querySelector(sel); if (m) m.setAttribute(attr, v); };
+  setMeta('link[rel="canonical"]', 'href', 'https://trawpie.org/demo'); setMeta('meta[property="og:url"]', 'content', 'https://trawpie.org/demo');
+  setMeta('meta[name="description"]', 'content', 'Try Trawpie in your browser with no sign-up: a student drone team, an engineering company or a satellite mission, with a 2-minute guided tour.');
   const title = document.querySelector('#auth-screen .auth-title'); if (title) title.textContent = 'Try Trawpie: no sign-up, nothing to install.';
   // On the demo itself, the "try the demo" links point to the guide instead.
   const tourLink = document.querySelector('#auth-screen .auth-tour'); if (tourLink) tourLink.hidden = true;
