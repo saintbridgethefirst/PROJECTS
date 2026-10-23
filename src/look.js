@@ -17,7 +17,7 @@ const BUTTONS = [
   ['[onclick*="openAnalytics(\'timeline\')"]', 'calendar-range'], ['#research-btn', 'wrench'], ['#online-btn', 'users'], ['#activity-btn', 'bell'],
   ['#wb-btn', 'presentation'], ['#approvals-btn', 'check-check'], ['#share-btn', 'share-2'], ['[onclick*="TT.openAI"]', 'sparkles'],
   ['[onclick*="scrollToToday"]', 'crosshair'], ['[onclick="TT.openSettings()"]', 'settings'], ['#nav-collapse', 'panel-left-close'],
-  ['[onclick="toggleSidebar()"]', 'panel-right'], ['#theme-toggle-outer', 'palette'], ['#crossteam-btn', 'layers'], ['#home-search', 'search'],
+  ['[onclick="toggleSidebar()"]', 'panel-right'], ['#theme-toggle-outer', 'palette'], ['#crossteam-btn', 'users'], ['#joint-btn', 'layers'], ['#home-search', 'search'],
 ];
 // Badge emoji that carry meaning → an icon instead of nothing.
 const BADGE = { '⏱': 'timer', '🕒': 'timer', '📅': 'calendar', '📆': 'calendar', '☑': 'square-check', '✅': 'square-check', '💬': 'message-square', '⚠': 'triangle-alert',

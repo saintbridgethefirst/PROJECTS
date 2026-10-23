@@ -20,6 +20,7 @@ import { startI18n, setLang, currentLang, LANGS, translate } from './i18n.js';
 import { setLook } from './look.js';
 import { initTooltips } from './tooltip.js';
 import { startCursors, stopCursors } from './cursors.js';
+import { openJointBoard } from './joint.js';
 import { startPresence, stopPresence, lookingAt, paintPresence, openPresence, refreshPresenceModal } from './presence.js';
 import { peopleRequests, needsDeleteApproval, askToDelete, approveLeave, approveDelete, declineRequest } from './requests.js';
 import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending, ghMark, offerCloseIssues } from './github-ui.js';
@@ -429,6 +430,7 @@ function renderHome() {
   homeUnsubs.push(backend.data.watchMyTeams(user.uid, (teams) => {
     teamList = teams.sort((a, b) => a.name.localeCompare(b.name)); homeSearchData.teams = teamList; myTeamsCache = teamList;
     const cw = $('#crossteam-btn'); if (cw) cw.hidden = teamList.length < 2;
+    const jb = $('#joint-btn'); if (jb) jb.hidden = teamList.length < 2;
     const key = teamList.map(t => t.id).join(',');
     if (key !== teamIdsKey) {
       teamIdsKey = key; mentionUnsub && mentionUnsub(); mentionsByTeam = {};
@@ -752,6 +754,23 @@ const prefKey = (k) => 'tt_' + k + '_' + (session ? session.teamId : '') + '_' +
 function readPref(k, fallback) { try { return JSON.parse(localStorage.getItem(prefKey(k))) ?? fallback; } catch { return fallback; } }
 function writePref(k, v) { try { localStorage.setItem(prefKey(k), JSON.stringify(v)); } catch { /* full */ } }
 
+/** My teams (from the home screen if it's been shown, otherwise asked for once). */
+function myTeams() {
+  if (myTeamsCache.length) return Promise.resolve(myTeamsCache);
+  if (!user || !backend.data.watchMyTeams) return Promise.resolve(session ? [{ id: session.teamId, name: session.team.name }] : []);
+  return new Promise((resolve) => {
+    let unsub = null, done = false;
+    unsub = backend.data.watchMyTeams(user.uid, (teams) => { if (done) return; done = true; myTeamsCache = teams; resolve(teams); setTimeout(() => unsub && unsub(), 0); }, () => { if (!done) { done = true; resolve([]); } });
+  });
+}
+/** Open a task, switching to its team first if needed (used by the joint board). */
+async function openTaskInTeam(teamId, taskId) {
+  if (!session || session.teamId !== teamId) await openTeam(teamId);
+  for (let i = 0; i < 60; i++) {
+    if (session && session.teamId === teamId && session.booted && document.getElementById(taskId) && window.boardOpenTask) { window.boardOpenTask(taskId); return; }
+    await new Promise(r => setTimeout(r, 150));
+  }
+}
 async function openTeam(teamId) {
   closeTeam(); stopHome();
   show('board-screen');
@@ -1172,6 +1191,10 @@ window.TT = {
   },
   teamSnapshot: (teamId) => backend.data.teamSnapshot(teamId),
   openCrossTeam: () => openCrossTeam({ teams: myTeamsCache.length ? myTeamsCache : (session ? [{ id: session.teamId, name: session.team.name }] : []), load: (id) => backend.data.teamSnapshot(id), meUid: user.uid }),
+  openJointBoard: async () => {
+    const teams = await myTeams();
+    return openJointBoard({ teams, load: (id) => backend.data.teamSnapshot(id), currentTeamId: session && session.teamId, openTask: openTaskInTeam });
+  },
   openActivity: (tab) => collab.openActivity(ctx(), tab),
   parseGithub,
   githubStatus,

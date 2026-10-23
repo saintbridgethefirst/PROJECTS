@@ -1227,3 +1227,27 @@ body.look-pro .st-tab i, body.look-pro .lp-pill i { border-radius: 2px; }
 .live-cursor.idle { opacity: .55; }
 .live-cursor.gone { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .live-cursor { transition: opacity .3s ease; } }
+
+/* Joint board (src/joint.js) */
+.joint-modal { width: min(1180px, 96vw); max-width: none; }
+.jb-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0 12px; }
+.jb-teams { display: flex; flex-wrap: wrap; gap: 6px; }
+.jb-team { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 999px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.jb-team input { margin: 0; }
+.jb-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); display: inline-block; }
+.jb-nav { display: inline-flex; gap: 4px; }
+.jb-wrap { overflow: auto; max-height: 64vh; border: 1px solid var(--border-color); border-radius: 10px; }
+.jb-grid { display: grid; grid-template-columns: 170px repeat(var(--cols), minmax(150px, 1fr)); min-width: max-content; }
+.jb-corner, .jb-head { position: sticky; top: 0; z-index: 2; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); padding: 8px 10px; font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.jb-corner { left: 0; z-index: 3; }
+.jb-head.now { color: var(--line-color); }
+.jb-lane { position: sticky; left: 0; z-index: 1; background: var(--bg-panel); padding: 10px; border-bottom: 1px solid var(--border-color); border-left: 4px solid var(--c, transparent); display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.jb-cell { padding: 6px; border-bottom: 1px solid var(--border-color); border-left: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px; min-height: 56px; }
+.jb-cell.now { background: color-mix(in srgb, var(--line-color) 5%, transparent); }
+.jb-card { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border-color); border-left: 4px solid var(--c); background: var(--bg-week, var(--bg-main)); color: var(--text-main); font: inherit; cursor: pointer; }
+.jb-card:hover { border-color: var(--c); }
+.jb-card.done { opacity: .6; }
+.jb-card-name { font-size: 12.5px; font-weight: 600; line-height: 1.3; }
+.jb-card-meta { font-size: 11px; color: var(--text-muted); }
+.jb-shared { margin-top: 10px; }
+.jb-bar select { width: auto; flex: 0 0 auto; }

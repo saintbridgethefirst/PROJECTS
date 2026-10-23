@@ -93,3 +93,22 @@ test('rules: nobody in the app reads or writes the GitHub webhook secret', async
   await assertFails(getDoc(doc(dbFor('owner'), 'teams', TEAM, 'private', 'github')));
   await assertFails(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'private', 'github'), { secret: 'mine' }));
 });
+
+// Live cursors: each member writes only their own small cursor document.
+const cursor = (extra = {}) => ({ at: Date.now(), a: 't:task1', fx: 0.5, fy: 0.5, view: 'board', name: 'Mem One', ...extra });
+test('rules: a member writes their own live cursor', async () => {
+  await assertSucceeds(setDoc(doc(dbFor('mem1'), 'teams', TEAM, 'cursors', users.mem1.uid), cursor()));
+});
+test('rules: a member cannot write someone else’s cursor', async () => {
+  await assertFails(setDoc(doc(dbFor('mem1'), 'teams', TEAM, 'cursors', users.owner.uid), cursor()));
+});
+test('rules: a cursor with extra fields is refused', async () => {
+  await assertFails(setDoc(doc(dbFor('mem1'), 'teams', TEAM, 'cursors', users.mem1.uid), cursor({ email: 'x@y.com' })));
+});
+test('rules: someone outside the team cannot write a cursor', async () => {
+  await assertFails(setDoc(doc(dbFor('evil'), 'teams', TEAM, 'cursors', users.evil.uid), cursor()));
+});
+test('rules (read): members see cursors, outsiders do not', async () => {
+  await assertSucceeds(getDocs(collection(dbFor('mem1'), 'teams', TEAM, 'cursors')));
+  await assertFails(getDocs(collection(dbFor('evil'), 'teams', TEAM, 'cursors')));
+});
