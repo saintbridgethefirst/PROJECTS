@@ -59,7 +59,7 @@ Do these once; each takes a couple of minutes.
    as *verified* for a few days ▸ **Enforce**. Then the same for Authentication.
    If people suddenly can't save: App Check ▸ Cloud Firestore ▸ Unenforce, and tell Claude.
 4. **Uptime monitoring** (an email within minutes if the site or the GitHub link goes down):
-   uptimerobot.com ▸ free account ▸ Add New Monitor ▸ HTTP(s) ▸ `https://uni-teamtrack.web.app` ▸ every 5 minutes.
+   uptimerobot.com ▸ free account ▸ Add New Monitor ▸ HTTP(s) ▸ `https://trawpie.org` ▸ every 5 minutes.
    Add a second one: Keyword monitor ▸ `https://europe-west2-uni-teamtrack.cloudfunctions.net/githubWebhook`
    ▸ keyword `webhook is running` (its answer to a plain visit).
 5. **Server error emails**: Google Cloud console ▸ Error Reporting ▸ turn on notifications ▸ your email.

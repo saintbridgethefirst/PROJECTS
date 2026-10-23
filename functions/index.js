@@ -4,7 +4,7 @@
 //  First deploy asks for:
 //    RESEND_API_KEY — a SENDING-ONLY key from resend.com (paste it in the terminal, never in chat)
 //    MAIL_FROM      — e.g.  Trawpie <notifications@mail.trawpie.org>
-//    APP_URL        — e.g.  https://uni-teamtrack.web.app
+//    APP_URL        — e.g.  https://trawpie.org
 //  REGION must be your Firestore location's region (Firestore ▸ Settings), e.g. europe-west2 for London.
 // ─────────────────────────────────────────────────────────────────────────────
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
@@ -27,7 +27,7 @@ const db = getFirestore();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const MAIL_FROM = defineString('MAIL_FROM', { default: 'Trawpie <notifications@mail.trawpie.org>' });
 const APP_NAME = defineString('APP_NAME', { default: 'Trawpie' });
-const APP_URL = defineString('APP_URL', { default: 'https://uni-teamtrack.web.app' });
+const APP_URL = defineString('APP_URL', { default: 'https://trawpie.org' });
 const REGION = 'europe-west2';
 
 /** Send one email through Resend. idem = idempotency key, so a retried function never sends twice.
