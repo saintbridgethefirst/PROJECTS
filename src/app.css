@@ -810,7 +810,9 @@ button.tx-part:hover { border-color: var(--line-color); }
   body.nav-side #floating-toggles { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 2px; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--border-color); }
   body.nav-side #floating-toggles .user-display { display: inline !important; overflow: hidden; text-overflow: ellipsis; }
   body.nav-side #top-actions { margin-bottom: auto; }
-  body.nav-side #nav-collapse { display: flex; margin-top: 14px; color: var(--text-muted); }
+  /* Collapse sits at the very top of the menu, small and out of the way */
+  body.nav-side #nav-collapse { display: flex; order: -1; align-self: flex-end; width: auto !important; min-height: 28px; margin: 0 0 6px; padding: 4px 8px; font-size: 11.5px; color: var(--text-muted); }
+  body.nav-side.nav-rail #nav-collapse { align-self: center; padding: 6px; }
   /* Folded down to icons */
   body.nav-side.nav-rail #top-bar { padding: 12px 8px; }
   body.nav-side.nav-rail #top-bar :is(.lbl-md, .lbl-lg, .lbl-view, .act-lbl, .nav-lbl, .user-display) { display: none !important; }
