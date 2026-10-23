@@ -21,56 +21,100 @@
     var light = ['daylight', 'paper', 'sakura', 'mint', 'contrast-light'].indexOf(t) > -1, r = document.documentElement;
     if (light) r.setAttribute('data-theme', 'light'); if (t !== 'midnight' && t !== 'daylight') r.setAttribute('data-pack', t);
   } catch (e) {}</script>
-  <script type="module" crossorigin src="/assets/index-DUDYjqoK.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-usWfpZx0.css">
+  <script type="module" crossorigin src="/assets/index-0J6zk_Cc.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-ByzpCQj2.css">
 </head>
 <body>
   <div id="loading" class="loading-screen"><div><span class="spinner"></span></div></div>
 
   <!-- ── Sign-in ─────────────────────────────────────────────────────────── -->
-  <main id="auth-screen" class="screen" hidden>
-    <div class="auth-panel">
-      <div class="brand"><img class="brand-mark" src="/icons/logo-96.png" alt="" width="38" height="38"><span class="brand-name" data-app-name>Trawpie</span></div>
-      <div>
-        <h1 class="auth-title">See your whole team's week at a glance.</h1>
-        <p class="auth-sub" data-app-tagline>Plan, track and review team progress.</p>
-        <a class="auth-tour" href="/demo"><span aria-hidden="true">▶</span><span class="auth-tour-text">New here? <b>Try the live demo</b> · no sign-up</span><span aria-hidden="true">→</span></a>
+  <main id="auth-screen" class="screen landing" hidden>
+    <header class="lp-nav">
+      <a class="lp-brand" href="./" aria-label="Trawpie home"><svg class="lp-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2 21.8 9.3 18.1 20.8H5.9L2.2 9.3Z"/></svg><span data-app-name>Trawpie</span></a>
+      <nav class="lp-links" aria-label="Site">
+        <a href="#lp-product">Product</a><a href="guide.html">Guide</a><a href="guide.html#plans">Plans</a><a href="security.html">Security</a>
+      </nav>
+      <div class="lp-nav-actions">
+        <a class="lp-btn lp-ghost auth-tour" href="/demo"><span class="auth-tour-text">Live demo</span></a>
+        <a class="lp-btn lp-ghost" href="#lp-signin" id="lp-signin-link">Sign in</a>
       </div>
-      <div class="auth-actions" id="auth-actions"></div>
-      <p class="hint" id="auth-note"></p>
-      <p class="legal-links"><a href="guide.html">How it works</a> · <a href="/privacy.html">Privacy policy</a> · <a href="/terms.html">Terms of service</a></p>
-    </div>
-    <div class="auth-art">
-      <div class="mini-board" aria-hidden="true">
-        <div></div><div class="mini-head">Week 41</div><div class="mini-head now">Week 42 · this week</div><div class="mini-head">Week 43</div>
-        <div class="mini-person">Aisha</div>
-        <div class="mini-cell"><div class="mini-card done"><b>Literature review</b><div class="bar"><i style="--p:100%"></i></div></div></div>
-        <div class="mini-cell"><div class="mini-card late"><b>Sensor calibration</b><div class="bar"><i style="--p:55%"></i></div></div></div>
-        <div class="mini-cell"></div>
-        <div class="mini-person">Tom</div>
-        <div class="mini-cell"><div class="mini-card done"><b>CAD gripper v2</b><div class="bar"><i style="--p:100%"></i></div></div></div>
-        <div class="mini-cell"><div class="mini-card moving"><b>Motor driver test</b><div class="bar"><i style="--p:30%"></i></div></div></div>
-        <div class="mini-cell"></div>
-        <div class="mini-person">Priya</div>
-        <div class="mini-cell"></div>
-        <div class="mini-cell"><div class="mini-card"><b>Draft report</b><div class="bar"><i style="--p:70%"></i></div></div></div>
-        <div class="mini-cell"><div class="mini-card"><b>Demo video</b><div class="bar"><i style="--p:10%"></i></div></div></div>
+    </header>
+
+    <section class="lp-hero">
+      <div class="lp-copy">
+        <h1 class="auth-title">Run your engineering team’s week.</h1>
+        <p class="auth-sub">Tasks, people, parts, budgets and sign-offs on one live board. Built for research groups, student engineering teams and growing engineering companies.</p>
+        <div class="lp-ctas">
+          <a class="lp-btn lp-primary" id="try-demo" href="/demo">Try the live demo</a>
+          <a class="lp-btn lp-ghost" href="guide.html">How it works</a>
+        </div>
+        <p class="lp-note">No sign-up for the demo. Nothing leaves your browser.</p>
       </div>
-      <div class="auth-show">
-        <ul class="auth-feats">
-          <li><span aria-hidden="true">▦</span>Board &amp; Kanban</li>
-          <li><span aria-hidden="true">📊</span>Live analytics</li>
-          <li><span aria-hidden="true">🧩</span>Sub-teams</li>
-          <li><span aria-hidden="true">💷</span>Parts &amp; budget</li>
-          <li><span aria-hidden="true">📆</span>Your own week dates</li>
-          <li><span aria-hidden="true">🎯</span>Weekly metrics</li>
-          <li><span aria-hidden="true">📝</span>Meetings &amp; notes</li>
-          <li><span aria-hidden="true">🎓</span>Free for students</li>
-        </ul>
-        <a class="btn primary auth-tour-btn" id="try-demo" href="/demo">Try the live demo →</a>
-        <p class="hint">The real app with a made-up drone team and a 2-minute guided tour. No sign-up; nothing leaves your browser. Or <a href="guide.html">read the illustrated guide</a>.</p>
+      <div class="lp-glow" aria-hidden="true">
+        <svg viewBox="0 0 200 190"><path d="M100 4 196 73.6 159.3 186H40.7L4 73.6Z"/></svg>
       </div>
-    </div>
+      <div class="lp-card" id="lp-signin">
+        <h2 class="lp-card-title">Sign in to your team</h2>
+        <div class="auth-actions" id="auth-actions"></div>
+        <p class="hint" id="auth-note"></p>
+        <p class="legal-links">By continuing you agree to the <a href="/terms.html">terms</a> and <a href="/privacy.html">privacy policy</a>.</p>
+      </div>
+    </section>
+
+    <section class="lp-product" id="lp-product" aria-label="What the board looks like">
+      <div class="lp-window">
+        <div class="lp-window-bar"><i></i><i></i><i></i><span>Skyhawk UAV, week 42</span></div>
+        <div class="mini-board" aria-hidden="true">
+          <div></div><div class="mini-head">Week 41</div><div class="mini-head now">Week 42, this week</div><div class="mini-head">Week 43</div>
+          <div class="mini-person">Aisha</div>
+          <div class="mini-cell"><div class="mini-card done"><b>Literature review</b><div class="bar"><i style="--p:100%"></i></div></div></div>
+          <div class="mini-cell"><div class="mini-card late"><b>Sensor calibration</b><div class="bar"><i style="--p:55%"></i></div></div></div>
+          <div class="mini-cell"></div>
+          <div class="mini-person">Tom</div>
+          <div class="mini-cell"><div class="mini-card done"><b>CAD gripper v2</b><div class="bar"><i style="--p:100%"></i></div></div></div>
+          <div class="mini-cell"><div class="mini-card moving"><b>Motor driver test</b><div class="bar"><i style="--p:30%"></i></div></div></div>
+          <div class="mini-cell"></div>
+          <div class="mini-person">Priya</div>
+          <div class="mini-cell"></div>
+          <div class="mini-cell"><div class="mini-card"><b>Draft report</b><div class="bar"><i style="--p:70%"></i></div></div></div>
+          <div class="mini-cell"><div class="mini-card"><b>Demo video</b><div class="bar"><i style="--p:10%"></i></div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lp-for" aria-label="Who it is for">
+      <div><h3>Research groups</h3><p>Lab notebook, literature with DOIs, meetings whose actions become tasks, and a supervisor who can watch without editing.</p></div>
+      <div><h3>Student engineering teams</h3><p>Sub-teams, parts and orders, budget lines with receipts, and a weekly summary for the group chat. Free for students.</p></div>
+      <div><h3>Engineering companies, 20 to 200 people</h3><p>Roles and permissions, approvals for spending and deletions, requirements traced to tasks, GitHub linked to the work.</p></div>
+    </section>
+
+    <section class="lp-features" aria-label="What it does">
+      <h2>One board for the work, the people and the money.</h2>
+      <div class="lp-grid">
+        <div><h3>People × weeks</h3><p>Everyone’s work for each week on one board, with Kanban and Gantt views of the same tasks.</p></div>
+        <div><h3>Parts and budgets</h3><p>Components with suppliers and order status, budget lines, spending with receipts and a burn-rate forecast.</p></div>
+        <div><h3>Sign-offs and approvals</h3><p>Workflow stages with checklists. Leads sign off reviews; admins approve purchases and deletions.</p></div>
+        <div><h3>Requirements and risks</h3><p>Requirements linked to the tasks that deliver them, and a risk register scored by likelihood and impact.</p></div>
+        <div><h3>GitHub, Drive and Calendar</h3><p>Pull requests and issues link to tasks by reference. Files stay in your own Drive or OneDrive.</p></div>
+        <div><h3>Live for the whole team</h3><p>Changes appear for everyone within a second. See who is online and what they are looking at.</p></div>
+      </div>
+    </section>
+
+    <section class="lp-trust" aria-label="Security">
+      <h2>Your data stays in London.</h2>
+      <ul>
+        <li><b>UK GDPR</b><span>Stored in Google Cloud, europe-west2</span></li>
+        <li><b>Rules in the database</b><span>Every request checked against team and role</span></li>
+        <li><b>Daily backups</b><span>Kept 30 days, weekly kept 14 weeks</span></li>
+        <li><b>Yours to take</b><span>Export or delete everything, any time</span></li>
+      </ul>
+      <a class="lp-text-link" href="security.html">Read how Trawpie protects your data</a>
+    </section>
+
+    <section class="lp-final">
+      <h2>See it with a real team’s week.</h2>
+      <div class="lp-ctas"><a class="lp-btn lp-primary" href="/demo">Try the live demo</a><a class="lp-btn lp-ghost" href="#lp-signin">Sign in</a></div>
+    </section>
   </main>
   <footer data-site-footer class="auth-footer"></footer>
 
