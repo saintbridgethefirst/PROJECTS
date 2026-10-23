@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { startFlag } from './start.js';
 import { APP_NAME, GOOGLE_CLIENT_ID, MS_CLIENT_ID, DEMO_MODE, LIMITS, STUDENT_EMAIL_CHECK, SERVER_EMAILS } from './config.js';
-import { PERMISSIONS, can, roleList, normEmail, isValidEmail } from './permissions.js';
+import { PERMISSIONS, can, roleList, normEmail, isValidEmail, DEFAULT_ROLES, GUEST_HELP } from './permissions.js';
 import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS, storedWorkflow, leadsIndex, cleanWorkflow, cleanPurchase, cleanAutos, currencyOf, CURRENCIES, CURRENCY_NAMES, cleanBudget } from './model.js';
 import { el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { githubSection } from './github-ui.js';
@@ -535,18 +535,23 @@ function members(pane, ctx, { invites, getInvites, focusUid, rerender }) {
   const s = ctx.session, T = s.team, me = s.me;
   const manage = can(T, me, 'members.manage');
   const roles = roleList(T).filter(r => r.id !== 'owner');
-  const roleSelect = (value, onchange) => {
-    const sel = el('select', { 'aria-label': 'Role' }); roles.forEach(r => sel.append(el('option', { value: r.id, selected: r.id === value }, r.name)));
+  // Teams made before guests existed don't have the Guest role yet: offer it, and add it on the first guest invite.
+  const guestMissing = !(T.roles && T.roles.guest);
+  const inviteRoles = guestMissing ? roles.concat([{ id: 'guest', name: 'Guest', missing: true }]) : roles;
+  const roleSelect = (value, onchange, list = roles) => {
+    const sel = el('select', { 'aria-label': 'Role' }); list.forEach(r => sel.append(el('option', { value: r.id, selected: r.id === value }, r.name + (r.id === 'guest' ? ' (from outside the team)' : ''))));
     if (onchange) sel.addEventListener('change', () => onchange(sel.value)); return sel;
   };
 
   if (manage) {
     const emails = el('textarea', { rows: 3, placeholder: 'name@uni.ac.uk, another@gmail.com', style: { resize: 'vertical' } });
-    const role = roleSelect('member');
+    const role = roleSelect('member', null, inviteRoles); role.id = 'invite-role';
+    const guestNote = el('p.hint.guest-note', { hidden: true }, GUEST_HELP);
+    role.addEventListener('change', () => { guestNote.hidden = role.value !== 'guest'; });
     const result = el('div');
     if (lastInviteNotice && lastInviteNotice.teamId === s.teamId && Date.now() - lastInviteNotice.at < 120000) result.append(lastInviteNotice.node);
     const form = el('form', {}, el('label.field', {}, el('span', {}, 'Email addresses (separate with commas or new lines)'), emails),
-      el('div.row', {}, el('label.field', { style: { margin: 0 } }, el('span', {}, 'Role'), role), el('span.spacer'), el('button.btn.primary', { type: 'submit' }, SERVER_EMAILS ? 'Invite & email' : 'Invite')), result);
+      el('div.row', {}, el('label.field', { style: { margin: 0 } }, el('span', {}, 'Role'), role), el('span.spacer'), el('button.btn.primary', { type: 'submit' }, SERVER_EMAILS ? 'Invite & email' : 'Invite')), guestNote, result);
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const list = [...new Set(emails.value.split(/[\s,;]+/).map(normEmail).filter(Boolean))];
@@ -558,6 +563,10 @@ function members(pane, ctx, { invites, getInvites, focusUid, rerender }) {
       if (!todo.length) return toast('Everyone listed is already in the team.');
       const room = memberRoom(T, s.members.length, pending().filter(i => !todo.includes(i.email)).length);
       if (todo.length > room.left) return toast(room.left ? 'The ' + planOf(T).label + ' plan has room for ' + room.left + ' more ' + (room.left === 1 ? 'person' : 'people') + ' (members and pending invitations count). See Settings ▸ Plan.' : 'The team is full on the ' + planOf(T).label + ' plan (' + room.limit + ' members, counting pending invitations). See Settings ▸ Plan to move to Pro.', 7000);
+      if (role.value === 'guest' && guestMissing) {
+        if (!can(T, me, 'roles.manage')) return toast('Guests need the Guest role, which the team owner adds. Ask the owner to send the first guest invitation.', 7000);
+        if (!(await save(ctx, [{ type: 'update', path: 'team', data: { roles: { ...T.roles, guest: { ...DEFAULT_ROLES.guest } } } }]))) return;
+      }
       const ops = todo.map(x => ({ type: 'set', path: 'invites/' + x, data: { email: x, roleId: role.value, teamName: T.name, invitedBy: ctx.user.uid, invitedByName: ctx.user.name, createdAt: Date.now() } }));
       if (!(await save(ctx, ops))) return;
       emails.value = '';

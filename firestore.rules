@@ -573,6 +573,18 @@ service cloud.firestore {
           && request.resource.data.until is number && request.resource.data.taskId is string && request.resource.data.taskId.size() <= 64;
         allow delete: if isMember(t) && (uid == request.auth.uid || can(t, 'members.manage'));
       }
+      // Live cursors: where each person is pointing on the board. Only your own, small and short-lived.
+      match /cursors/{uid} {
+        allow read: if isMember(t);
+        allow create, update: if isMember(t) && uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['at', 'a', 'fx', 'fy', 'view', 'name'])
+          && request.resource.data.at is number && request.resource.data.at <= request.time.toMillis() + 120000
+          && request.resource.data.a is string && request.resource.data.a.size() <= 66
+          && request.resource.data.fx is number && request.resource.data.fy is number
+          && request.resource.data.view is string && request.resource.data.view.size() <= 12
+          && request.resource.data.name is string && request.resource.data.name.size() <= 60;
+        allow delete: if isMember(t) && (uid == request.auth.uid || can(t, 'members.manage'));
+      }
       match /profiles/{uid} {
         allow read: if isMember(t);
         allow create, update: if isMember(t) && (uid == request.auth.uid || can(t, 'members.manage')) && validProfile(request.resource.data);

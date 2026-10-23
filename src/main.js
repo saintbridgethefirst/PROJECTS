@@ -19,6 +19,7 @@ import { runAutos, afterCommit } from './autos.js';
 import { startI18n, setLang, currentLang, LANGS, translate } from './i18n.js';
 import { setLook } from './look.js';
 import { initTooltips } from './tooltip.js';
+import { startCursors, stopCursors } from './cursors.js';
 import { startPresence, stopPresence, lookingAt, paintPresence, openPresence, refreshPresenceModal } from './presence.js';
 import { peopleRequests, needsDeleteApproval, askToDelete, approveLeave, approveDelete, declineRequest } from './requests.js';
 import { githubOf, refOf, branchName, newIssueUrl, openRaiseIssue, createIssue, linkIssueDialog, closeIssueDialog, reopenIssue, ghPending, ghMark, offerCloseIssues } from './github-ui.js';
@@ -812,7 +813,7 @@ function closeTeam() {
   session.unsub && session.unsub();
   session.unsubComments && session.unsubComments();
   session.unsubTemplates && session.unsubTemplates();
-  stopPresence(); (session.unsubResearch || []).forEach(u => u && u()); stopMoney(session);
+  stopPresence(); stopCursors(); (session.unsubResearch || []).forEach(u => u && u()); stopMoney(session);
   window.removeEventListener('online', session.onOnline); window.removeEventListener('offline', session.onOnline);
   session = null;
   if (window.boardReset) window.boardReset();
@@ -941,12 +942,13 @@ function scheduleAutos() {
 }
 async function onFirstLoad() {
   const s = session;
-  startPresence(ctx);
+  startPresence(ctx); startCursors(ctx);
   if (sget(PRACTICE) === s.teamId) { sset(PRACTICE, null); setTimeout(() => addPracticeTasks(s), 600); }
   // Teams made before a permission existed: give the built-in roles that permission's default, once.
   if (can(s.team, s.me, 'roles.manage')) {
     const roles = JSON.parse(JSON.stringify(s.team.roles || {})); let changed = false;
     Object.entries(BUILTIN_ROLES).forEach(([id, def]) => {
+      if (!roles[id] && id === 'guest') { roles.guest = JSON.parse(JSON.stringify(def)); changed = true; return; }   // teams made before guests existed
       const r = roles[id]; if (!r || id === 'owner') return;
       Object.entries(def.perms).forEach(([k, v]) => { if (s.rawTeam && s.rawTeam.roles && s.rawTeam.roles[id] && s.rawTeam.roles[id].perms && !(k in s.rawTeam.roles[id].perms)) { r.perms[k] = v; changed = true; } });
     });
