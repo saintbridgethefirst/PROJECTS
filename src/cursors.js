@@ -14,18 +14,21 @@
 
 const SEND_MS = 250;          // at most four updates a second while moving
 const STALE_MS = 12000;       // hide a cursor that hasn't moved for this long
-const PREF = 'tt_live_cursors';
+const PREF = 'tt_live_cursors';      // on the board: off until turned on
+const PREF_WB = 'tt_wb_cursors';      // on whiteboards: on until turned off (drawing together is what they're for)
 const COLORS = ['#e8590c', '#2f9e44', '#1c7ed6', '#ae3ec9', '#d6336c', '#0c8599', '#f08c00', '#5f3dc4'];
 
 let st = { getCtx: null, unsub: null, teamId: '', others: new Map(), layer: null, raf: 0, last: 0, pending: null, timer: 0, shown: false, bound: false, sim: 0 };
 
 // Off until each person turns it on (Who's here panel).
-export function cursorsOn() { try { return localStorage.getItem(PREF) === 'on'; } catch (e) { return false; } }
-export function setCursorsOn(on) {
-  try { localStorage.setItem(PREF, on ? 'on' : 'off'); } catch (e) { /* private window: just for this visit */ }
-  if (!on) { hideMine(); st.others.clear(); clearInterval(st.sim); st.sim = 0; paint(); return; }
-  const ctx = st.getCtx && st.getCtx();
-  if (ctx && ctx.TT && ctx.TT.isDemo && !navigator.webdriver && !st.sim) simulate();
+const onWhiteboard = () => !!(window.TTWhiteboard && window.TTWhiteboard.boardId());
+export function cursorsOn(where = onWhiteboard() ? 'wb' : 'board') {
+  try { return where === 'wb' ? localStorage.getItem(PREF_WB) !== 'off' : localStorage.getItem(PREF) === 'on'; } catch (e) { return where === 'wb'; }
+}
+export function setCursorsOn(on, where = 'board') {
+  try { localStorage.setItem(where === 'wb' ? PREF_WB : PREF, on ? 'on' : 'off'); } catch (e) { /* private window: just for this visit */ }
+  if (!on) { hideMine(); paint(); return; }
+  loop();
 }
 export const colorFor = (uid) => { let h = 0; for (const ch of String(uid)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; };
 
@@ -47,7 +50,7 @@ export function startCursors(getCtx) {
     document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') hideMine(); });
   }
   // The demo has nobody else in it, so a sample teammate shows what this looks like.
-  if (ctx.TT && ctx.TT.isDemo && !navigator.webdriver && cursorsOn()) simulate();
+  if (ctx.TT && ctx.TT.isDemo && !navigator.webdriver) simulate();
 }
 export function stopCursors() {
   hideMine();
@@ -69,6 +72,13 @@ function boardShowing() {
 
 /** Describe the point (x, y) by what it's over, so other screens can find the same spot. */
 export function anchorAt(x, y) {
+  const wb = window.TTWhiteboard;
+  if (wb && wb.boardId()) {
+    // On a whiteboard: the point on the canvas itself, so it lands right whatever each person's pan and zoom.
+    const cr = wb.canvasRect(); if (!cr || x < cr.left || x > cr.right || y < cr.top || y > cr.bottom) return null;
+    const hit = document.elementFromPoint(x, y); if (!hit || !hit.closest('#wb-canvas')) return null;
+    const p = wb.toWorld(x, y); return { a: 'w:' + wb.boardId(), fx: Math.round(p.x), fy: Math.round(p.y) };
+  }
   const r = region(); if (!r) return null;
   const rr = r.getBoundingClientRect();
   if (x < rr.left || x > rr.right || y < rr.top || y > rr.bottom) return null;
@@ -101,7 +111,7 @@ function flush() {
   const ctx = st.getCtx && st.getCtx(); const at = st.pending; st.pending = null;
   if (!ctx || !at || !ctx.backend.data.setCursor) return;
   st.last = Date.now(); st.shown = true;
-  const view = (window.boardView && window.boardView()) || 'board';
+  const view = at.a.startsWith('w:') ? 'wb' : (window.boardView && window.boardView()) || 'board';
   ctx.backend.data.setCursor(st.teamId, ctx.user.uid, { at: Date.now(), a: at.a.slice(0, 64), fx: at.fx, fy: at.fy, view, name: String(ctx.user.name || 'Teammate').slice(0, 60) }).catch(() => {});
 }
 function hideMine() {
@@ -134,6 +144,11 @@ export function pointFor(c) {
   else if (kind === 'p') node = document.getElementById(rest);
   else if (kind === 'h') node = document.querySelector(`.header-week[data-week-key="${CSS.escape(rest)}"]`);
   else if (kind === 'v') node = region();
+  else if (kind === 'w') {
+    const wb = window.TTWhiteboard; if (!wb || wb.boardId() !== rest) return null;
+    const pt = wb.toScreen(c.fx, c.fy), cr = wb.canvasRect();
+    return cr && pt.x >= cr.left && pt.x <= cr.right && pt.y >= cr.top && pt.y <= cr.bottom ? pt : null;
+  }
   if (!node || !node.offsetParent) return null;
   const b = node.getBoundingClientRect();
   const x = b.left + c.fx * b.width, y = b.top + c.fy * b.height;
@@ -154,8 +169,10 @@ function paint() {
   const now = Date.now(); const view = (window.boardView && window.boardView()) || 'board';
   const live = cursorsOn() && boardShowing();
   const keep = new Set();
+  st.others.forEach((c, uid) => { if (!c.at || now - c.at > STALE_MS * 3) st.others.delete(uid); });   // long gone: stop drawing
   st.others.forEach((c, uid) => {
-    const fresh = c.at && now - c.at < STALE_MS && (c.view === view || (c.a || '').startsWith('t:'));
+    const wbOpen = onWhiteboard();
+    const fresh = c.at && now - c.at < STALE_MS && (wbOpen ? (c.a || '').startsWith('w:') : (c.view === view || (c.a || '').startsWith('t:')));
     const pt = live && fresh ? pointFor(c) : null;
     let n = L.querySelector(`[data-uid="${CSS.escape(uid)}"]`);
     if (!pt) { if (n) n.classList.add('gone'); return; }
@@ -171,7 +188,7 @@ function paint() {
     n.style.transform = `translate(${Math.round(pt.x)}px, ${Math.round(pt.y)}px)`;
     n.classList.toggle('idle', now - c.at > 4000);
   });
-  L.querySelectorAll('.live-cursor.gone').forEach(n => { if (!keep.has(n.dataset.uid) && !st.others.has(n.dataset.uid)) n.remove(); });
+  L.querySelectorAll('.live-cursor').forEach(n => { if (!st.others.has(n.dataset.uid)) n.remove(); else if (!keep.has(n.dataset.uid)) n.classList.add('gone'); });
 }
 
 // For tests: feed cursors in as if they came from the database.
@@ -182,6 +199,14 @@ function simulate() {
   clearInterval(st.sim);
   const move = () => {
     if (!cursorsOn()) return;
+    const wb = window.TTWhiteboard;
+    if (wb && wb.boardId()) {
+      const its = [...document.querySelectorAll('#wb-canvas .wb-item')]; if (!its.length) return;
+      const b = its[Math.floor(Math.random() * its.length)].getBoundingClientRect();
+      const p = wb.toWorld(b.left + b.width * (0.3 + Math.random() * 0.4), b.top + b.height * (0.3 + Math.random() * 0.4));
+      st.others.set('sim:maya', { id: 'sim:maya', name: 'Maya', at: Date.now(), a: 'w:' + wb.boardId(), fx: Math.round(p.x), fy: Math.round(p.y), view: 'wb' });
+      loop(); return;
+    }
     const cards = [...document.querySelectorAll('#main-view .task-card[id]:not([id^="ghost_"]), #main-view .kb-card[data-id]')].filter(c => c.offsetParent);
     if (!cards.length) return;
     const c = cards[Math.floor(Math.random() * Math.min(cards.length, 14))];

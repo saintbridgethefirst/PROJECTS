@@ -629,7 +629,22 @@
             const panel = document.getElementById('editor-panel'); const toggleDiv = document.getElementById('floating-toggles');
             if (!panel) return;
             panel.classList.toggle('hidden', !open);
-            if (toggleDiv) toggleDiv.style.display = open ? 'none' : 'flex';
+            clearTimeout(setPanel.t); window.boardTopBarFrozen = false;
+            if (!open && !isCompact()) {
+                // Hiding slides the panel away over 0.3s. Showing the "Show panel" buttons straight away made the
+                // top bar wrap onto two rows and then hop back as the space opened up, so wait for the slide,
+                // and hold the top bar still until then.
+                window.boardTopBarFrozen = true;
+                if (toggleDiv) toggleDiv.style.display = 'none';
+                setPanel.t = setTimeout(() => { window.boardTopBarFrozen = false; if (toggleDiv && panel.classList.contains('hidden')) toggleDiv.style.display = 'flex'; if (window.boardFitTopBar) window.boardFitTopBar(); }, 320);
+            } else if (open && !isCompact()) {
+                // Opening squeezes the board over 0.3s: use the most compact top bar for the slide (it can't wrap),
+                // then settle on the roomiest one that fits once the panel is in place.
+                if (toggleDiv) toggleDiv.style.display = 'none';
+                const bar = document.getElementById('top-bar');
+                if (bar && !(document.body.classList.contains('nav-side') && window.matchMedia('(min-width: 761px)').matches)) { bar.dataset.tight = '5'; window.boardTopBarFrozen = true; }
+                setPanel.t = setTimeout(() => { window.boardTopBarFrozen = false; if (window.boardFitTopBar) window.boardFitTopBar(); }, 320);
+            } else if (toggleDiv) toggleDiv.style.display = open ? 'none' : 'flex';
             panel.style.marginRight = (!open && !isCompact()) ? (-panel.offsetWidth) + 'px' : '';
             document.body.classList.toggle('panel-open', open && isCompact());
             setTimeout(drawLines, 350);
@@ -2329,7 +2344,7 @@
             };
             let busy = false;
             const fit = () => {
-                if (busy) return;
+                if (busy || window.boardTopBarFrozen) return;
                 if (document.body.classList.contains('nav-side') && window.matchMedia('(min-width: 761px)').matches) { bar.dataset.tight = '0'; return; }
                 busy = true;
                 try { for (let lvl = 0; lvl <= 5; lvl++) { bar.dataset.tight = String(lvl); if (!wraps()) break; } } finally { busy = false; }

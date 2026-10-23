@@ -8,12 +8,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import './whiteboard.css';
 import { el, modal, toast } from './ui.js';
+import { icon as lineIcon } from './icons.js';
+import { cursorsOn, setCursorsOn } from './cursors.js';
 import { newId, cleanWbItem, cleanWhiteboard, WB_COLORS, WB_INKS, WB_SHAPES, WB_MAX_ITEMS, noteToTask } from './model.js';
 
 let W = null;   // the open whiteboard screen
 const TOOLS = [['select', '↖', 'Select and move (V). Shift-drag to select several', 'v'], ['note', '▭', 'Sticky note (N)', 'n'], ['text', 'T', 'Text (T)', 't'], ['title', 'H', 'Heading (H)', 'h'],
   ['shape-rect', '▢', 'Rectangle (R)', 'r'], ['shape-ellipse', '◯', 'Ellipse (O)', 'o'], ['shape-diamond', '◇', 'Diamond: a decision (D)', 'd'], ['pen', '✎', 'Pen: draw freehand (P)', 'p'], ['frame', '⬚', 'Frame: a titled area to group things (F)', 'f'],
   ['task', '☑', 'Add a task card (K)', 'k'], ['link', '↗', 'Arrow: click one item, then another (A)', 'a']];
+// Line icons for the tool bar (the text glyphs above are the fallback).
+const TOOL_ICON = { select: 'mouse-pointer-2', note: 'sticky-note', text: 'type', title: 'heading', 'shape-rect': 'square', 'shape-ellipse': 'circle', 'shape-diamond': 'diamond', pen: 'pencil', frame: 'square-dashed', task: 'square-check', link: 'move-up-right' };
 const PLACED = ['note', 'text', 'title', 'shape-rect', 'shape-ellipse', 'shape-diamond', 'frame'];
 const SIZES = { note: [220, 140], text: [260, 44], title: [420, 56], task: [300, 104], shape: [180, 110], frame: [640, 420], pen: [120, 80] };
 const SHAPE_LABEL = { rect: 'Rectangle', ellipse: 'Ellipse', diamond: 'Diamond', triangle: 'Triangle', pill: 'Pill' };
@@ -40,11 +44,18 @@ export function openWhiteboards(ctx, boardId) {
   if (!boards().some(b => b.id === W.boardId)) W.boardId = (boards()[0] || {}).id || '';
   renderAll();
   window.__wbRefresh = refreshWhiteboards; window.__wbClose = closeWhiteboards;
+  // For live cursors (src/cursors.js): which board is open, and how its canvas maps to the screen.
+  window.TTWhiteboard = {
+    boardId: () => (W && W.canvas ? W.boardId : ''),
+    canvasRect: () => (W && W.canvas ? W.canvas.getBoundingClientRect() : null),
+    toWorld: (cx, cy) => toWorld(cx, cy),
+    toScreen: (x, y) => { const r = W.canvas.getBoundingClientRect(); return { x: r.left + W.view.x + x * W.view.z, y: r.top + W.view.y + y * W.view.z }; },
+  };
 }
 export function closeWhiteboards() {
   if (!W) return;
   document.removeEventListener('keydown', W.onKey, true);
-  W.root.remove(); W = null; window.__wbRefresh = null; window.__wbClose = null;
+  W.root.remove(); W = null; window.__wbRefresh = null; window.__wbClose = null; window.TTWhiteboard = null;
 }
 /** Data changed (someone else drew, or our own save landed). */
 export function refreshWhiteboards() {
@@ -90,6 +101,8 @@ function drawHead() {
     canEdit() ? el('button.btn.small', { type: 'button', id: 'wb-new', onclick: newBoard }, '+ New board') : '',
     el('span.spacer'),
     b ? el('span.hint.wb-count', {}, items().filter(i => i.kind !== 'link').length + ' items') : '',
+    b ? el('label.wb-cursors', { title: 'See where teammates are pointing on this board, and show yours' },
+      el('input', { type: 'checkbox', id: 'wb-cursors', checked: cursorsOn('wb'), onchange: (e) => setCursorsOn(e.target.checked, 'wb') }), ' Live cursors') : '',
     b && canEdit() && (b.createdBy === me().uid || W.ctx.TT.can('team.settings')) ? el('button.btn.small.ghost', { type: 'button', id: 'wb-delete', onclick: () => deleteBoard(b) }, 'Delete board') : '',
     el('button.btn.small', { type: 'button', id: 'wb-close', onclick: closeWhiteboards, 'aria-label': 'Close whiteboards' }, '✕ Close'));
 }
@@ -103,7 +116,7 @@ function emptyState() {
 }
 function drawTools() {
   if (!W.toolsEl) return;
-  W.toolsEl.replaceChildren(...(canEdit() ? TOOLS : TOOLS.slice(0, 1)).map(([id, icon, label]) => el('button.wb-tool' + (W.tool === id ? '.on' : '') + (['shape-rect', 'pen', 'task'].includes(id) ? '.wb-tool-gap' : ''), { type: 'button', 'aria-label': label, title: label, 'aria-pressed': String(W.tool === id), dataset: { tool: id }, onclick: () => setTool(id) }, icon)));
+  W.toolsEl.replaceChildren(...(canEdit() ? TOOLS : TOOLS.slice(0, 1)).map(([id, icon, label]) => el('button.wb-tool' + (W.tool === id ? '.on' : '') + (['shape-rect', 'pen', 'task'].includes(id) ? '.wb-tool-gap' : ''), { type: 'button', 'aria-label': label, title: label, 'aria-pressed': String(W.tool === id), dataset: { tool: id }, onclick: () => setTool(id) }, lineIcon(TOOL_ICON[id], 'ico wb-tool-ico') || icon)));
   if (W.canvas) W.canvas.dataset.tool = W.tool;
 }
 function setTool(t) {

@@ -118,3 +118,4 @@
   .wb-tool-gap { margin-top: 0; margin-left: 6px; }
   .wb-tool-gap::before { left: -4px; right: auto; top: 8px; bottom: 8px; width: 1px; height: auto; }
 }
+.wb-tool-ico { display: inline-flex; width: 20px; height: 20px; } .wb-tool-ico svg { width: 20px; height: 20px; }

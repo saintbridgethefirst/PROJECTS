@@ -83,6 +83,39 @@ try {
   await p.evaluate(() => TT.openPresence()); await p.waitForSelector('#pr-cursors'); await p.click('#pr-cursors'); await closeModals();
   void ownUid;
 
+  step('Live cursors on a whiteboard');
+  await p.click('#wb-btn'); await p.waitForSelector('#wb-screen');
+  await p.click('.wb-empty-card button:has-text("Blank board")'); await p.waitForSelector('#wb-canvas'); await sleep(300);
+  ok(await p.locator('.wb-tool .wb-tool-ico').count() === await p.locator('.wb-tool').count(), 'every whiteboard tool has an icon');
+  ok(await p.locator('#wb-cursors').isChecked(), 'whiteboard cursors are on by default');
+  const wbId = await p.evaluate(() => window.TTWhiteboard.boardId());
+  await p.evaluate((id) => window.TTLiveCursors.receive([{ id: 'u_sam', name: 'Sam Lee', at: Date.now(), a: 'w:' + id, fx: 200, fy: 150, view: 'wb' }]), wbId); await sleep(500);
+  ok(await p.evaluate(() => window.TTLiveCursors.count()) === 1, 'a teammate’s cursor shows on the whiteboard');
+  const wbPos = await p.evaluate(() => { const c = document.querySelector('.live-cursor:not(.gone)').getBoundingClientRect(), want = window.TTWhiteboard.toScreen(200, 150); return Math.abs(c.left - want.x) < 3 && Math.abs(c.top - want.y) < 3; });
+  ok(wbPos, 'at the same spot on the canvas');
+  ok(await p.evaluate(() => getComputedStyle(document.querySelector('.live-cursors')).zIndex > getComputedStyle(document.getElementById('wb-screen')).zIndex), 'drawn above the whiteboard');
+  await shot('wb-cursor');
+  await p.click('#wb-zoom-in'); await sleep(500);
+  ok(await p.evaluate(() => { const c = document.querySelector('.live-cursor:not(.gone)').getBoundingClientRect(), want = window.TTWhiteboard.toScreen(200, 150); return Math.abs(c.left - want.x) < 3 && Math.abs(c.top - want.y) < 3; }), 'stays on the spot when I zoom');
+  await p.click('#wb-cursors'); await sleep(400);
+  ok(await p.evaluate(() => window.TTLiveCursors.count()) === 0, 'turning them off on the whiteboard hides them');
+  await p.click('#wb-cursors');
+  await p.click('#wb-close'); await sleep(300);
+
+  step('People column: top-aligned, sticky, resizable');
+  const rowInfo = await p.evaluate(() => { const n = document.querySelector('.node-person'); const r = n.getBoundingClientRect(); const [a, nm] = [n.querySelector('.avatar-circle'), n.querySelector(':scope > span')]; return { aTop: a.getBoundingClientRect().top - r.top, aPos: getComputedStyle(a).position, nPos: getComputedStyle(nm).position }; });
+  ok(rowInfo.aTop < 20 && rowInfo.aPos === 'sticky' && rowInfo.nPos === 'sticky', 'face and name at the top of the row and sticky ' + JSON.stringify(rowInfo));
+  const edge = await p.evaluate(() => { const r = document.querySelector('.node-person').getBoundingClientRect(); return { x: r.right - 3, y: r.top + 20, w: r.width }; });
+  await p.mouse.move(edge.x, edge.y); await p.mouse.down(); await p.mouse.move(edge.x - 100, edge.y, { steps: 5 }); await p.mouse.up(); await sleep(300);
+  const w1 = await p.evaluate(() => document.querySelector('.node-person').getBoundingClientRect().width);
+  ok(Math.abs(w1 - (edge.w - 100)) < 4, 'dragging the edge narrows the people column (' + edge.w + ' → ' + w1 + ')');
+  ok(await p.evaluate(() => localStorage.getItem('tt_w_person')) === String(Math.round(w1)), 'the width is remembered');
+  ok(await p.evaluate(() => document.body.classList.contains('people-narrow')) && await p.locator('.node-person > span').first().isHidden(), 'narrow enough, only faces show');
+  ok(await p.locator('#quick-menu.active').count() === 0, 'dragging doesn’t open the person’s menu');
+  const e2 = await p.evaluate(() => { const r = document.querySelector('.node-person').getBoundingClientRect(); return { x: r.right - 3, y: r.top + 20 }; });
+  await p.mouse.dblclick(e2.x, e2.y); await sleep(300);
+  ok(Math.abs(await p.evaluate(() => document.querySelector('.node-person').getBoundingClientRect().width) - edge.w) < 2, 'double-clicking the edge resets it');
+
   step('Joint board across two teams');
   await p.evaluate(() => window.boardAddTask({ ownerUid: Object.values(JSON.parse(localStorage.getItem('tt_demo_store_v1')).teams).find(x => x.doc.name === 'Rover Lab').doc.ownerUid, name: 'Chassis CAD' })); await sleep(800);
   await p.evaluate(() => TT.goHome());
