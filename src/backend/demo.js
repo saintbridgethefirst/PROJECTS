@@ -138,6 +138,9 @@ export const data = {
     ];
     return () => unsubs.forEach(u => u());
   },
+  /** Live cursors: nobody else is in the demo, so nothing is stored. */
+  async setCursor() {},
+  watchCursors(teamId, cb) { setTimeout(() => cb([]), 0); return () => {}; },
   watchInvites(teamId, cb, onError) {
     return subscribe(() => { checkRead(store, authCtx(), teamId); return Object.values(store.teams[teamId].invites); }, cb, onError);
   },

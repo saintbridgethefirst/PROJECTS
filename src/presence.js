@@ -6,6 +6,7 @@
 //  while the tab is visible keeps "online" fresh (cheap: one small write).
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, modal, avatar } from './ui.js';
+import { cursorsOn, setCursorsOn } from './cursors.js';
 import { cleanPresence, isOnline, statusOf, PRESENCE_STATES, PRESENCE_LABEL } from './model.js';
 
 const BEAT_MS = 2 * 60e3;
@@ -59,7 +60,7 @@ export function whoIsHere(s, now = Date.now()) {
   const byId = new Map((s.presence || []).map(p => [p.id, p]));
   return (s.members || []).map(m => {
     const p = cleanPresence(byId.get(m.uid) || {}, m.uid);
-    return { uid: m.uid, name: m.name || m.email || 'Member', photo: m.photo, online: isOnline(p, now), status: statusOf(p, now), note: p.until && p.until < now ? '' : p.note, until: p.until, taskId: isOnline(p, now) ? p.taskId : '' };
+    return { uid: m.uid, name: m.name || m.email || 'Member', photo: m.photo, guest: m.roleId === 'guest', online: isOnline(p, now), status: statusOf(p, now), note: p.until && p.until < now ? '' : p.note, until: p.until, taskId: isOnline(p, now) ? p.taskId : '' };
   }).sort((a, b) => (b.online - a.online) || a.name.localeCompare(b.name));
 }
 
@@ -71,7 +72,7 @@ export function paintPresence(ctx) {
   const btn = document.getElementById('online-btn');
   if (btn) {
     const on = people.filter(p => p.online);
-    const faces = el('span.online-faces', {}, ...on.slice(0, 4).map(p => { const a = avatar(p); a.classList.add('online-face'); if (DOT[p.status]) a.classList.add(DOT[p.status]); a.title = p.name + (p.status ? ' · ' + PRESENCE_LABEL[p.status] : ''); return a; }));
+    const faces = el('span.online-faces', {}, ...on.slice(0, 4).map(p => { const a = avatar(p); a.classList.add('online-face'); if (DOT[p.status]) a.classList.add(DOT[p.status]); a.title = p.name + (p.guest ? ' (guest)' : '') + (p.status ? ' · ' + PRESENCE_LABEL[p.status] : ''); return a; }));
     const mine = people.find(p => p.uid === me) || {};
     btn.replaceChildren(faces, el('span.online-count', {}, on.length > 4 ? '+' + (on.length - 4) : ''), el('span.lbl-md', {}, ' ' + on.length + ' online'));
     btn.title = on.length + ' online now' + (mine.status ? ' · you: ' + PRESENCE_LABEL[mine.status] : '') + ' · click to set your status';
@@ -81,6 +82,10 @@ export function paintPresence(ctx) {
   people.forEach(p => {
     const row = document.getElementById(p.uid); if (!row || !row.classList.contains('node-person')) return;
     row.dataset.presence = p.online ? (p.status || 'free') : (p.status === 'away' ? 'away' : 'off');
+    // Guests (people from outside the team) carry a small tag so everyone knows who can see the board.
+    const tag = row.querySelector('.guest-tag');
+    if (p.guest && !tag) (row.querySelector(':scope > span') || row).append(el('span.guest-tag', { title: 'Guest: from outside the team' }, 'Guest'));
+    else if (!p.guest && tag) tag.remove();
     row.title = p.name + ': ' + (p.online ? 'online' : 'offline') + (p.status ? ' · ' + PRESENCE_LABEL[p.status] : '') + (p.note ? ' · ' + p.note : '');
   });
   // Cards someone else has open right now
@@ -108,11 +113,14 @@ export function openPresence(ctx) {
     const list = el('div.pr-list', {}, ...people.map(p => {
       const t = p.taskId && (s.tasks || []).find(x => x.id === p.taskId);
       return el('div.pr-row', { 'data-uid': p.uid }, (() => { const a = avatar(p); a.classList.add('online-face'); if (p.online) a.classList.add(DOT[p.status] || 'pr-free'); return a; })(),
-        el('span.pr-who', {}, el('b', {}, p.name + (p.uid === ctx.user.uid ? ' (you)' : '')),
+        el('span.pr-who', {}, el('b', {}, p.name + (p.uid === ctx.user.uid ? ' (you)' : ''), p.guest ? el('span.guest-tag', {}, 'Guest') : ''),
           el('span.hint', {}, (p.online ? 'Online' : 'Offline') + (p.status ? ' · ' + PRESENCE_LABEL[p.status] : '') + (p.until && p.status ? ' until ' + new Date(p.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '') + (p.note ? ' · “' + p.note + '”' : '')),
           t ? el('button.link-btn.pr-task', { type: 'button', onclick: () => { m.close(); window.boardOpenTask && window.boardOpenTask(t.id); } }, '👀 ' + (t.name || 'a task')) : ''));
     }));
     m.body.replaceChildren(el('h4', {}, 'My status'), el('div.pr-choices', {}, ...['', ...PRESENCE_STATES].map(choose)), el('div.row', { style: { gap: '8px', marginTop: '8px', flexWrap: 'wrap' } }, untilSel, note),
+      el('label.pr-cursors', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '12px' } },
+        el('input', { type: 'checkbox', id: 'pr-cursors', checked: cursorsOn(), onchange: (e) => setCursorsOn(e.target.checked) }),
+        el('span', {}, 'Live cursors: see where teammates are pointing, and show mine')),
       el('h4', { style: { marginTop: '16px' } }, 'Team'), list);
   };
   m.box.__draw = draw; draw();

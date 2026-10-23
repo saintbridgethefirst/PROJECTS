@@ -214,6 +214,11 @@ export const data = {
     ];
     return () => { unsubs.forEach(u => u()); tasks.stop(); if (openTeams.get(teamId) === open) openTeams.delete(teamId); };
   },
+  /** Live cursors: my pointer position on the board (one small document per person). */
+  setCursor(teamId, uid, data) { return setDoc(doc(db, 'teams', teamId, 'cursors', uid), data); },
+  watchCursors(teamId, cb, onError) {
+    return onSnapshot(collection(db, 'teams', teamId, 'cursors'), (s) => cb(s.docs.map(d => ({ ...d.data(), id: d.id }))), onError);
+  },
   watchInvites(teamId, cb, onError) {
     return onSnapshot(collection(db, 'teams', teamId, 'invites'), (s) => cb(s.docs.map(d => d.data())), onError);
   },
@@ -308,7 +313,7 @@ export const data = {
   },
   async deleteTeam(teamId) {
     const ops = [];
-    for (const c of ['templates', 'comments', 'meetings', 'whiteboards', 'wbItems', 'notebook', 'parts', 'papers', 'expenses', 'finance', 'financeLog', 'requests', 'profiles', 'presence', 'risks', 'requirements', 'tasks', 'categories', 'invites']) {
+    for (const c of ['templates', 'comments', 'meetings', 'whiteboards', 'wbItems', 'notebook', 'parts', 'papers', 'expenses', 'finance', 'financeLog', 'requests', 'profiles', 'presence', 'cursors', 'risks', 'requirements', 'tasks', 'categories', 'invites']) {
       (await getDocs(collection(db, 'teams', teamId, c))).docs.forEach(d => ops.push({ type: 'delete', path: c + '/' + d.id }));
     }
     const members = (await getDocs(collection(db, 'teams', teamId, 'members'))).docs;

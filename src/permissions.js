@@ -27,7 +27,11 @@ export const DEFAULT_ROLES = {
   admin:  { name: 'Admin',  builtin: true, order: 1, perms: only('tasks.editOwn', 'tasks.editAll', 'weeks.manage', 'analytics.view', 'data.export', 'members.manage', 'team.settings', 'finance.view', 'finance.edit') },
   member: { name: 'Member', builtin: true, order: 2, perms: only('tasks.editOwn', 'weeks.manage', 'analytics.view', 'data.export') },
   viewer: { name: 'Viewer', builtin: true, order: 3, perms: only('analytics.view') },
+  // Someone from outside the team (a supplier, supervisor, another team): works on the tasks
+  // given to them and comments, but sees no analytics, money or exports.
+  guest:  { name: 'Guest',  builtin: true, order: 4, perms: only('tasks.editOwn') },
 };
+export const GUEST_HELP = 'Guests see the board, work on the tasks given to them and comment. They can’t see analytics or money, export data, or change the team.';
 
 /** Does this member have permission `perm` in `team`? The owner role always does. */
 export function can(team, member, perm) {

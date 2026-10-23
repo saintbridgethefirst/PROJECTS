@@ -97,7 +97,7 @@ const EMOJI_ICON = { '⚙': 'settings', '🧭': 'compass', '👥': 'users', '�
   '⏱': 'timer', '🔔': 'bell', '🗓': 'calendar-range', '📄': 'file-text', '📝': 'notebook-pen', '🔩': 'package', '💷': 'wallet', '📚': 'book-open',
   '🕒': 'clock', '⚠': 'triangle-alert', '📐': 'ruler', '🧩': 'puzzle', '🎨': 'palette', '👤': 'user', '🎯': 'crosshair', '✨': 'sparkles',
   '📥': 'download', '🏠': 'house', '💬': 'message-square', '📌': 'pin', '✅': 'square-check' };
-const ACTION_ICON = { 'Invite people': 'user-plus', 'Timeline': 'calendar-range', 'Add deadlines to my calendar': 'calendar', 'Turn features on or off': 'toggle-right', 'People: workload, skills, time off': 'users' };
+const ACTION_ICON = { 'Invite people': 'user-plus', 'Timeline': 'calendar-range', 'Add deadlines to my calendar': 'calendar', 'Turn features on or off': 'toggle-right', 'Joint board: all my teams': 'layers', 'People: workload, skills, time off': 'users' };
 function lineIcon(r) {
   const name = r.lico || EMOJI_ICON[String(r.icon || '').replace(/\uFE0F/g, '')] || (r.group === 'Tasks' ? 'pin' : '');
   return (name && icon(name, 'ico cmdk-lico')) || '';
@@ -155,6 +155,7 @@ export function boardSources(ctx) {
   act('🎯', 'Jump to this week', () => window.scrollToToday(), 'today current');
   act('✨', 'AI summary', () => TT.openAI(), 'chatgpt gemini claude summarise', 'data.export');
   act('📥', 'Import tasks', () => TT.importFromPicker(), 'excel csv jira trello');
+  act('🧩', 'Joint board: all my teams', () => TT.openJointBoard(), 'shared board across teams combined partner other team');
   act('🏠', 'All teams', () => TT.goHome(), 'home switch team list');
   return { items, placeholder: 'Search tasks, people, comments, phases… or type an action', empty: 'Type to search this team.' };
 }
