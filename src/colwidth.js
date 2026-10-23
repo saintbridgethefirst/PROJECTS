@@ -16,7 +16,7 @@ function apply(px) {
 }
 const saved = () => { try { return Number(localStorage.getItem(KEY)) || 0; } catch (e) { return 0; } };
 const save = (px) => { try { if (px) localStorage.setItem(KEY, String(px)); else localStorage.removeItem(KEY); } catch (e) { /* private window */ } };
-const redraw = () => { if (window.drawLines) window.drawLines(); };
+const redraw = () => { if (window.drawLines) window.drawLines(); if (window.boardClipLines) window.boardClipLines(); };
 
 export function initColumnResize() {
   apply(saved());
