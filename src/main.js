@@ -218,6 +218,16 @@ function demoRibbon() {
     el('span.hint', {}, ' · '), el('a', { href: '/' }, 'Get Trawpie →')));
 }
 
+// Landing page: "Sign up" jumps to the sign-in card on its Create account tab; "Log in" on Sign in.
+document.addEventListener('click', (e) => {
+  const up = e.target.closest && e.target.closest('#lp-signup, .lp-signup'); const inn = e.target.closest && e.target.closest('#lp-signin-link');
+  if (!up && !inn) return;
+  setTimeout(() => {
+    const tabs = document.querySelectorAll('#auth-actions .auth-tabs button'); const t = tabs[up ? 1 : 0]; if (t) t.click();
+    const f = document.querySelector('#auth-actions input'); if (f) f.focus({ preventScroll: true });
+  }, 60);
+});
+
 /** Email + password: "Sign in" and "Create account" in one form, plus "Forgot password?". */
 function passwordForm(note) {
   let mode = 'signin';
