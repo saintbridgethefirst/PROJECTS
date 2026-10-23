@@ -25,3 +25,4 @@ service-account*.json
 .DS_Store
 .fuse_hidden*
 !functions/.env.uni-teamtrack
+dist-probe/
