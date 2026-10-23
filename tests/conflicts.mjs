@@ -36,7 +36,7 @@ try {
   step('Set up: Aisha (owner) and Tom (admin) on one team');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
-  await A.fill('#create-team-form input[name=name]', 'Wing Team'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'Wing Team'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await sleep(300);
   for (const n of ['Wing build', 'Motor test', 'Spar order']) { await A.click('.col-add'); await dialog(A, n); }
   await edit(A, 'Wing build', (t) => { t.subtasks = ['Cut ribs', 'Glue spar', 'Cover'].map((title, i) => ({ id: 'st' + i, title, completed: false })); });

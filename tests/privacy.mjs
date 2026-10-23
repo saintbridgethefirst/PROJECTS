@@ -25,9 +25,9 @@ try {
   step('Set up: Aisha owns “Skyhawk” (with Tom) and “Aisha notes” (alone)');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
-  await A.fill('#create-team-form input[name=name]', 'Aisha notes'); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300);
+  await A.fill('#create-team-form input[name=name]', 'Aisha notes'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300);
   await A.goto(BASE + '#/'); await A.waitForSelector('#home-screen:not([hidden])');
-  await A.fill('#create-team-form input[name=name]', 'Skyhawk'); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300);
+  await A.fill('#create-team-form input[name=name]', 'Skyhawk'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300);
   await A.click('.col-add'); await dialog(A, 'Wing CAD');
   await A.evaluate(async () => { const t = allTaskLocs()[0].task; await TT.writeOps([{ type: 'set', path: 'comments/cm1', data: { taskId: t.id, authorUid: TT.me.uid, authorName: 'Aisha Khan', text: 'Spar first, then ribs', mentions: [], createdAt: Date.now() } }]); });
   await A.click('#top-actions button:has-text("Invite")');

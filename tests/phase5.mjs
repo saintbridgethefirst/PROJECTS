@@ -42,7 +42,7 @@ try {
   await q.goto(BASE); await q.waitForSelector('#auth-screen:not([hidden])');
   await q.fill('#auth-actions input[placeholder="Your name"]', 'Rushi Vibhandik'); await q.fill('#auth-actions input[type=email]', 'rushi@uni.ac.uk');
   await q.click('#auth-actions button:has-text("Sign in to demo")'); await q.waitForSelector('#home-screen:not([hidden])');
-  await q.fill('#create-team-form input[name=name]', 'Robot Science'); await q.click('#create-team-form button[type=submit]');
+  await q.fill('#create-team-form input[name=name]', 'Robot Science'); await q.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await q.click('#create-team-form button[type=submit]');
   await q.waitForSelector('.node-cat'); await sleep(300);
   // three weeks with dates, a task with sub-tasks, a comment
   await q.evaluate(async (m) => {

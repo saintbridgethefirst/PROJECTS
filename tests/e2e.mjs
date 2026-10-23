@@ -55,7 +55,7 @@ try {
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
   ok((await A.textContent('#teams-list')).includes('not in any team'), 'empty state for a new user');
   await A.fill('#create-team-form input[name=name]', 'Robotics Group Project');
-  await A.click('#create-team-form button[type=submit]');
+  await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('#board-screen:not([hidden])');
   await A.waitForSelector('.node-cat', { timeout: 5000 });
   let T = await theTeam(A);

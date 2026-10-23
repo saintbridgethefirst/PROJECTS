@@ -20,7 +20,7 @@ try {
   await p.goto(BASE); await p.waitForSelector('#auth-screen:not([hidden])');
   await p.fill('#auth-actions input[placeholder="Your name"]', 'Nav Tester'); await p.fill('#auth-actions input[type=email]', 'nav@uni.ac.uk');
   await p.click('#auth-actions button:has-text("Sign in to demo")'); await p.waitForSelector('#home-screen:not([hidden])');
-  await p.fill('#create-team-form input[name=name]', 'Nav Lab'); await p.click('#create-team-form button[type=submit]');
+  await p.fill('#create-team-form input[name=name]', 'Nav Lab'); await p.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await p.click('#create-team-form button[type=submit]');
   await p.waitForSelector('.node-cat'); await sleep(400);
   let bar = await p.locator('#top-bar').boundingBox();
   ok(bar.width > 900 && bar.y < 5 && bar.height < 120, 'the tools run along the top');

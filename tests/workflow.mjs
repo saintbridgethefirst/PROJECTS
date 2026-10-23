@@ -25,7 +25,7 @@ try {
   step('A team with the classic stages is unchanged');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
-  await A.fill('#create-team-form input[name=name]', 'Drone Soc'); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300);
+  await A.fill('#create-team-form input[name=name]', 'Drone Soc'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300);
   for (const n of ['Landing gear v2', 'Payload mount', 'Wiring loom']) { await A.click('.col-add'); await dialog(A, n); }
   await A.evaluate(() => { const l = allTaskLocs().find(x => x.task.name === 'Wiring loom'); setTaskStage(l.task, 'doing'); });
   ok(!(await A.locator('.stage-bar').count()) && (await card(A, 'Wiring loom').textContent()).includes('Doing'), 'no stage bars; the old “Doing” chip');

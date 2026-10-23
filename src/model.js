@@ -832,6 +832,17 @@ export const FEATURES = [
 export const FEATURE_KEYS = FEATURES.map(f => f.key);
 /** What a brand-new team starts with: the standard set on, advanced off. */
 export const NEW_TEAM_FEATURES = Object.fromEntries(FEATURES.map(f => [f.key, f.group === 'standard']));
+/** What a new team can start with (chosen when it's made; any feature can be switched on or off later). */
+export const TEAM_STARTS = [
+  { key: 'simple', name: 'Simple', help: 'Just the board: weeks, people and tasks. Turn on more when you need it.' },
+  { key: 'standard', name: 'Research team', help: 'The board plus planning, meetings, lab notebook, literature and whiteboards.' },
+  { key: 'full', name: 'Everything', help: 'Every feature on, including sub-teams, parts, finance, capacity, time, risks and requirements.' },
+];
+export function startFeatures(key) {
+  if (key === 'simple') return Object.fromEntries(FEATURE_KEYS.map(k => [k, false]));
+  if (key === 'full') return Object.fromEntries(FEATURE_KEYS.map(k => [k, true]));
+  return { ...NEW_TEAM_FEATURES };
+}
 /** Teams made before feature switches keep everything they could already use. */
 const LEGACY_FEATURES = { ...NEW_TEAM_FEATURES, parts: true, finance: true };
 export function cleanFeatures(f) {

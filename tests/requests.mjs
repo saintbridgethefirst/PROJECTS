@@ -25,7 +25,7 @@ const closeModals = (p) => p.evaluate(() => document.querySelectorAll('.modal-ov
 try {
   step('A team: Tom (member) has an old task, a new one, a finished one and a GitHub-linked one');
   const A = await tab('Aisha'); await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
-  await A.fill('#create-team-form input[name=name]', 'Rover Lab'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'Rover Lab'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await sleep(300);
   await A.evaluate(() => {
     const k = 'tt_demo_store_v1'; const s = JSON.parse(localStorage.getItem(k)); const T = Object.values(s.teams)[0]; const wk = T.doc.weeks[0].key;

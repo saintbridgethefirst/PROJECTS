@@ -776,7 +776,7 @@
         .time-add #time-note { grid-column: 1 / -1; } .time-add .btn { grid-column: 1 / -1; justify-self: start; }
         .time-chip.over { color: var(--blocker) !important; border-color: color-mix(in srgb, var(--blocker) 50%, transparent) !important; }
         .skill-chip { color: var(--text-main); }
-        .skill-input { width: 100% !important; margin: 0 !important; }
+        .skill-row { flex-direction: column; align-items: stretch; gap: 8px; } .skill-select, .skill-other { width: 100% !important; margin: 0 !important; }
         .sugg-assign { margin-left: auto; }
         .fin-bar { height: 8px; border-radius: 4px; background: var(--progress-bg); overflow: hidden; } .fin-bar i { display: block; height: 100%; background: var(--line-color); } .fin-bar.over i { background: var(--blocker); }
 

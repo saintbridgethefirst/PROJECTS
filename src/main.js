@@ -14,7 +14,7 @@ import { cleanTeam, cleanMember, cleanCategory, cleanTask, DEFAULT_LABELS, newId
 import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mergeChanges, invert } from './sync.js';
 import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
-import { carryRoots, cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
+import { carryRoots, cleanFeatures, TEAM_STARTS, startFeatures, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
 import { runAutos, afterCommit } from './autos.js';
 import { startI18n, setLang, currentLang, LANGS } from './i18n.js';
 import { startPresence, stopPresence, lookingAt, paintPresence, openPresence, refreshPresenceModal } from './presence.js';
@@ -378,6 +378,8 @@ function renderHome() {
 
   const form = $('#create-team-form');
   if (form.currency && !form.currency.dataset.set) { form.currency.value = guessCurrency(navigator.language); form.currency.dataset.set = '1'; }
+  const startHint = $('#create-start-hint');
+  if (form.start) form.start.onchange = () => { const st = TEAM_STARTS.find(x => x.key === form.start.value); if (startHint && st) startHint.textContent = st.help; };
   form.onsubmit = async (e) => {
     e.preventDefault();
     const name = form.name.value.trim(); if (!name) return;
@@ -386,11 +388,26 @@ function renderHome() {
     if (ownFree >= PLANS.free.ownTeams) { toast('On the Free plan you can own up to ' + PLANS.free.ownTeams + ' teams. Delete one you no longer use, or move a team to Pro (Settings ▸ Plan).', 7000); return; }
     const btn = form.querySelector('button'); btn.disabled = true;
     try {
-      const teamDoc = { name: name.slice(0, 80), logo: '', ownerUid: user.uid, createdAt: Date.now(), roles: DEFAULT_ROLES, fields: [], labels: DEFAULT_LABELS, weekNaming: 'sequence', phases: [], features: { ...NEW_TEAM_FEATURES }, weeks: [firstWeek()], currency: CURRENCIES.includes(form.currency && form.currency.value) ? form.currency.value : guessCurrency(navigator.language) };
+      const teamDoc = { name: name.slice(0, 80), logo: '', ownerUid: user.uid, createdAt: Date.now(), roles: DEFAULT_ROLES, fields: [], labels: DEFAULT_LABELS, weekNaming: 'sequence', phases: [], features: startFeatures(form.start ? form.start.value : 'standard'), weeks: [firstWeek()], currency: CURRENCIES.includes(form.currency && form.currency.value) ? form.currency.value : guessCurrency(navigator.language) };
       const id = await backend.data.createTeam(teamDoc, newMemberDoc('owner'));
-      form.reset(); goTeam(id);
+      if (!form.practice || form.practice.checked) sset(PRACTICE, id);
+      form.reset(); if (form.start) form.start.onchange(); goTeam(id);
     } catch (err) { toast(friendlyError(err)); } finally { btn.disabled = false; }
   };
+}
+
+// A brand-new team can start with three practice tasks, so the board isn't a blank page.
+const PRACTICE = 'tt_practice_team';
+export const PRACTICE_TASKS = [
+  { name: '👋 Press ⋮ on me (or right-click) for quick actions', subtasks: ['Change my priority', 'Give me a deadline'] },
+  { name: '↔️ Drag me into next week, or onto someone else', subtasks: [] },
+  { name: '✅ Tick my sub-tasks, then mark me done', subtasks: ['Open me with a click', 'Tick this box'] },
+];
+function addPracticeTasks(s) {
+  if (session !== s || !window.boardAddTask) return;
+  let n = 0;
+  PRACTICE_TASKS.forEach(t => { const r = window.boardAddTask({ ownerUid: s.me.uid, name: t.name, subtasks: t.subtasks, note: 'Practice task: delete it when you’re done' }); if (r && !r.error) n++; });
+  if (n) toast('Three practice tasks to try the board. Delete them whenever you like.', 6000);
 }
 
 /** My student status and this year's Pro Education claims (both are top-level documents about me). */
@@ -845,6 +862,7 @@ function scheduleAutos() {
 async function onFirstLoad() {
   const s = session;
   startPresence(ctx);
+  if (sget(PRACTICE) === s.teamId) { sset(PRACTICE, null); setTimeout(() => addPracticeTasks(s), 600); }
   // Teams made before a permission existed: give the built-in roles that permission's default, once.
   if (can(s.team, s.me, 'roles.manage')) {
     const roles = JSON.parse(JSON.stringify(s.team.roles || {})); let changed = false;

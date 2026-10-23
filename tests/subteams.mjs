@@ -29,7 +29,7 @@ try {
   step('Team of three; turn on sub-teams');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
-  await A.fill('#create-team-form input[name=name]', 'Drone Challenge'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'Drone Challenge'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await sleep(300);
   for (const e of ['tom@uni.ac.uk', 'priya@uni.ac.uk']) { await A.click('#top-actions button:has-text("Invite")'); await A.fill('.settings-pane textarea', e); await A.click('.settings-pane button:has-text("Invite")'); await sleep(200); await A.keyboard.press('Escape'); await sleep(150); }
   const B = await tab('Tom'); await signIn(B, 'Tom Reed', 'tom@uni.ac.uk'); await B.click('#invites-list button:has-text("Join team")'); await B.waitForSelector('.node-cat');

@@ -24,7 +24,7 @@ try {
   step('A crash is reported, without personal data');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha@gmail.com');
-  await A.fill('#create-team-form input[name=name]', 'Drone Challenge'); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300);
+  await A.fill('#create-team-form input[name=name]', 'Drone Challenge'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300);
   await A.evaluate(() => { setTimeout(() => { throw new Error('Test crash for aisha@gmail.com in task 12345678'); }, 0); });
   await sleep(500);
   let r = await reports(A);

@@ -32,7 +32,7 @@ try {
   step('Set up a team: 3 dated weeks, a Build phase, four tasks');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
-  await A.fill('#create-team-form input[name=name]', 'Robot Science'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'Robot Science'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await sleep(300);
   const m = monday();
   await A.evaluate(async ({ m, d }) => {
@@ -203,7 +203,7 @@ try {
   const phone = await browser.newContext({ ...devices['iPhone 13'] });
   const P = await phone.newPage(); P.on('pageerror', e => errors.push('phone: ' + e.message)); P.on('dialog', d => d.accept());
   await signIn(P, 'Sam Lee', 'sam@uni.ac.uk');
-  await P.fill('#create-team-form input[name=name]', 'Phone team'); await P.click('#create-team-form button[type=submit]'); await P.waitForSelector('.node-cat'); await sleep(300);
+  await P.fill('#create-team-form input[name=name]', 'Phone team'); await P.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await P.click('#create-team-form button[type=submit]'); await P.waitForSelector('.node-cat'); await sleep(300);
   await P.evaluate(() => { const c = db.find(x => x.id === TT.me.uid).categories[0]; c[weeksData[0].key] = [1, 2, 3].map(i => ({ id: 'p' + i, type: 'task', name: 'Phone task ' + i, priority: 'Minor', status: i === 2 ? 'Doing' : '', flag: i === 3 ? 'completed' : 'none', subtasks: [], history: [], effort: i })); saveDatabase(); render(); });
   await P.evaluate(() => boardSetView('kanban')); await sleep(400);
   const dims = await P.evaluate(() => { const b = document.querySelector('.kb-board'); return { sw: b.scrollWidth, cw: b.clientWidth, page: document.documentElement.scrollWidth, vw: innerWidth }; });

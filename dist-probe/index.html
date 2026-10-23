@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="google-site-verification" content="BVM3yZE_YeJl8wEnXDhk2TLw6niliEMOzYyrz2JqXjo" />
+  <title>Trawpie</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0b0f19">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Trawpie">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Plan, track and review your team's weekly progress.">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48.png">
+  <script>/* Apply the saved theme pack before anything is drawn (no flash of the wrong colours). Full logic: src/themes.js */
+  try { var t = localStorage.getItem('tt_theme') || (localStorage.getItem('themePref') === 'light' ? 'daylight' : 'midnight');
+    if (t === 'auto') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'midnight' : 'daylight';
+    var light = ['daylight', 'paper', 'sakura', 'mint', 'contrast-light'].indexOf(t) > -1, r = document.documentElement;
+    if (light) r.setAttribute('data-theme', 'light'); if (t !== 'midnight' && t !== 'daylight') r.setAttribute('data-pack', t);
+  } catch (e) {}</script>
+  <script type="module" crossorigin src="/assets/index-DUDYjqoK.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-usWfpZx0.css">
+</head>
+<body>
+  <div id="loading" class="loading-screen"><div><span class="spinner"></span></div></div>
+
+  <!-- ── Sign-in ─────────────────────────────────────────────────────────── -->
+  <main id="auth-screen" class="screen" hidden>
+    <div class="auth-panel">
+      <div class="brand"><img class="brand-mark" src="/icons/logo-96.png" alt="" width="38" height="38"><span class="brand-name" data-app-name>Trawpie</span></div>
+      <div>
+        <h1 class="auth-title">See your whole team's week at a glance.</h1>
+        <p class="auth-sub" data-app-tagline>Plan, track and review team progress.</p>
+        <a class="auth-tour" href="/demo"><span aria-hidden="true">▶</span><span class="auth-tour-text">New here? <b>Try the live demo</b> · no sign-up</span><span aria-hidden="true">→</span></a>
+      </div>
+      <div class="auth-actions" id="auth-actions"></div>
+      <p class="hint" id="auth-note"></p>
+      <p class="legal-links"><a href="guide.html">How it works</a> · <a href="/privacy.html">Privacy policy</a> · <a href="/terms.html">Terms of service</a></p>
+    </div>
+    <div class="auth-art">
+      <div class="mini-board" aria-hidden="true">
+        <div></div><div class="mini-head">Week 41</div><div class="mini-head now">Week 42 · this week</div><div class="mini-head">Week 43</div>
+        <div class="mini-person">Aisha</div>
+        <div class="mini-cell"><div class="mini-card done"><b>Literature review</b><div class="bar"><i style="--p:100%"></i></div></div></div>
+        <div class="mini-cell"><div class="mini-card late"><b>Sensor calibration</b><div class="bar"><i style="--p:55%"></i></div></div></div>
+        <div class="mini-cell"></div>
+        <div class="mini-person">Tom</div>
+        <div class="mini-cell"><div class="mini-card done"><b>CAD gripper v2</b><div class="bar"><i style="--p:100%"></i></div></div></div>
+        <div class="mini-cell"><div class="mini-card moving"><b>Motor driver test</b><div class="bar"><i style="--p:30%"></i></div></div></div>
+        <div class="mini-cell"></div>
+        <div class="mini-person">Priya</div>
+        <div class="mini-cell"></div>
+        <div class="mini-cell"><div class="mini-card"><b>Draft report</b><div class="bar"><i style="--p:70%"></i></div></div></div>
+        <div class="mini-cell"><div class="mini-card"><b>Demo video</b><div class="bar"><i style="--p:10%"></i></div></div></div>
+      </div>
+      <div class="auth-show">
+        <ul class="auth-feats">
+          <li><span aria-hidden="true">▦</span>Board &amp; Kanban</li>
+          <li><span aria-hidden="true">📊</span>Live analytics</li>
+          <li><span aria-hidden="true">🧩</span>Sub-teams</li>
+          <li><span aria-hidden="true">💷</span>Parts &amp; budget</li>
+          <li><span aria-hidden="true">📆</span>Your own week dates</li>
+          <li><span aria-hidden="true">🎯</span>Weekly metrics</li>
+          <li><span aria-hidden="true">📝</span>Meetings &amp; notes</li>
+          <li><span aria-hidden="true">🎓</span>Free for students</li>
+        </ul>
+        <a class="btn primary auth-tour-btn" id="try-demo" href="/demo">Try the live demo →</a>
+        <p class="hint">The real app with a made-up drone team and a 2-minute guided tour. No sign-up; nothing leaves your browser. Or <a href="guide.html">read the illustrated guide</a>.</p>
+      </div>
+    </div>
+  </main>
+  <footer data-site-footer class="auth-footer"></footer>
+
+  <!-- ── Team list ───────────────────────────────────────────────────────── -->
+  <div id="self-screen" class="screen" hidden></div>
+  <div id="home-screen" class="screen" hidden>
+    <header class="app-header">
+      <div class="brand"><img class="brand-mark" src="/icons/logo-96.png" alt="" width="38" height="38"><span class="brand-name" data-app-name>Trawpie</span></div>
+      <span class="spacer"></span>
+      <a class="btn small ghost" id="home-guide" href="guide.html" title="How to use Trawpie">📘<span class="theme-word"> How to use</span></a>
+      <button class="btn small ghost" id="home-feedback" type="button" onclick="TT.openFeedback()" title="Tell us what’s broken or what you’d like">💬<span class="theme-word"> Feedback</span></button>
+      <button class="btn small ghost" id="crossteam-btn" type="button" hidden onclick="TT.openCrossTeam()" title="Estimated hours for everyone, across all your teams">👥<span class="theme-word"> Workload</span></button>
+      <button class="btn small ghost" id="home-search" type="button" aria-label="Search (Ctrl+K)" title="Search (Ctrl+K)">🔍<span class="theme-word"> Search</span></button>
+      <button class="btn small ghost" id="home-theme" type="button" aria-label="Change theme">🎨<span class="theme-word"> Theme</span></button>
+      <button class="account-btn" id="home-account" type="button"></button>
+    </header>
+    <main class="home-main">
+      <div id="verify-banner" class="banner" hidden></div>
+      <div id="demo-banner" class="banner info" hidden></div>
+      <div id="install-banner" class="banner info install-banner" hidden></div>
+      <div class="home-cols">
+        <div class="home-left">
+          <section id="invites-section" hidden>
+            <h2>Invitations</h2>
+            <div id="invites-list" class="row" style="flex-direction:column;align-items:stretch"></div>
+          </section>
+          <section id="self-section">
+            <h2>Just for you</h2>
+            <a class="self-tile" id="open-self" href="#/me">
+              <span id="self-tile-orb" aria-hidden="true"></span>
+              <span><b class="sf-logo">SelfTrack</b><span class="hint">Your own days, weekly goals, habits and skills, with the tasks your teams give you. Private: only you can see it.</span></span>
+              <span class="guide-card-go" aria-hidden="true">→</span>
+            </a>
+          </section>
+          <section>
+            <h2>Your teams</h2>
+            <div id="teams-list" class="team-grid"></div>
+          </section>
+          <section>
+            <h2>Create a team</h2>
+            <form id="create-team-form" class="create-team">
+              <label class="field" style="margin:0"><span>Team name</span><input name="name" required maxlength="80" placeholder="e.g. Robotics group project"></label>
+              <label class="field create-currency" style="margin:0"><span>Currency</span><select name="currency" id="create-currency" aria-label="The team’s currency"><option value="GBP">£ GBP</option><option value="EUR">€ EUR</option><option value="USD">$ USD</option><option value="INR">₹ INR</option><option value="CHF">CHF</option><option value="JPY">¥ JPY</option><option value="CNY">¥ CNY</option><option value="AUD">A$ AUD</option><option value="CAD">C$ CAD</option></select></label>
+              <label class="field create-start" style="margin:0"><span>Start with</span><select name="start" id="create-start" aria-label="Which features the team starts with"><option value="simple">Simple: just the board</option><option value="standard" selected>Research team</option><option value="full">Everything</option></select></label>
+              <button class="btn primary" type="submit">Create team</button>
+            </form>
+            <label class="create-practice"><input type="checkbox" name="practice" id="create-practice" checked> Add 3 practice tasks to try the board</label>
+            <p class="hint" id="create-start-hint">The board plus planning, meetings, lab notebook, literature and whiteboards.</p>
+            <p class="hint">You'll be the owner. Invite people by email once the team exists. Switch features on or off any time in Settings ▸ Features.</p>
+          </section>
+          <section id="sample-section" hidden>
+            <button class="guide-card sample-card" id="demo-sample" type="button">
+              <span class="guide-card-ico" aria-hidden="true">🛩️</span>
+              <span><b>Explore a sample team</b><span class="hint">A made-up drone team with 6 people, 40 tasks, workflow stages, sub-teams, parts, budget and notebook, all set to this week.</span></span>
+              <span class="guide-card-go" aria-hidden="true">→</span>
+            </button>
+          </section>
+          <section>
+            <a class="guide-card" href="guide.html">
+              <span class="guide-card-ico" aria-hidden="true">📘</span>
+              <span><b>New here? Take the 10-minute tour</b><span class="hint">The board, tasks, views, tools, roles and plans, explained with pictures.</span></span>
+              <span class="guide-card-go" aria-hidden="true">→</span>
+            </a>
+          </section>
+        </div>
+        <section id="mytasks-section" class="home-right" hidden>
+          <h2>My tasks</h2>
+          <div id="mytasks" class="mytasks"></div>
+        </section>
+      </div>
+      <footer data-site-footer class="home-footer"></footer>
+    </main>
+  </div>
+
+  <!-- ── Board (the v13 tracker, now multi-user) ────────────────────────── -->
+  <div id="board-screen" hidden>
+    <div id="net-pill" class="net-pill" role="status" aria-live="polite" hidden></div>
+    <div id="save-chip" class="save-chip" role="status" aria-live="polite"></div>
+    <div id="main-view">
+      <div id="top-bar">
+        <div id="top-actions">
+          <button class="team-switch" id="team-switch" type="button" title="All teams"></button>
+          <span class="nav-group" style="order:2" aria-hidden="true">Views</span>
+          <span class="nav-group" style="order:4" aria-hidden="true">Work</span>
+          <span class="nav-group" style="order:9" aria-hidden="true">Plan</span>
+          <span class="nav-group" style="order:14" aria-hidden="true">Team</span>
+          <div class="view-toggle" data-nav="3" role="group" aria-label="View">
+            <button class="top-btn on" type="button" data-view="board" aria-pressed="true" onclick="boardSetView('board')" title="Board: people × weeks" aria-label="Board view">▦<span class="lbl-view"> Board</span></button>
+            <button class="top-btn" type="button" data-view="kanban" aria-pressed="false" onclick="boardSetView('kanban')" title="Kanban: To do · Doing · Done" aria-label="Kanban view">🗂️<span class="lbl-view"> Kanban</span></button>
+            <button class="top-btn" type="button" data-view="gantt" aria-pressed="false" onclick="boardSetView('gantt')" title="Gantt: plan dates on a timeline" aria-label="Gantt view">📆<span class="lbl-view"> Gantt</span></button>
+          </div>
+          <button class="top-btn search-btn" id="search-btn" data-nav="5" onclick="TT.openSearch()" title="Search everything (Ctrl+K)" aria-label="Search">🔍<span class="act-lbl"> Search</span></button>
+          <button class="top-btn" data-perm="members.manage" onclick="TT.openSettings('members')" data-nav="15" title="Invite people by email" aria-label="Invite">➕<span class="lbl-md"> Invite</span></button>
+          <button class="top-btn accent" data-perm="analytics.view" onclick="openAnalytics('overview')" data-nav="10" title="Charts, KPIs and insights" aria-label="Analytics">📊<span class="lbl-lg"> Analytics</span></button>
+          <button class="top-btn" data-perm="analytics.view" onclick="openAnalytics('timeline')" data-nav="11" title="Deadlines on a timeline" aria-label="Timeline">📅<span class="lbl-md"> Timeline</span></button>
+          <button class="top-btn" id="research-btn" data-nav="13" onclick="TT.openResearch()" title="Tools: meetings, literature and any others your team has turned on" aria-label="Tools">🧰<span class="lbl-lg"> Tools</span></button>
+          <button class="top-btn online-btn" id="online-btn" data-nav="6" type="button" onclick="TT.openPresence()" title="Who’s online · set your status" aria-label="Who’s online">🟢<span class="lbl-md"> Online</span></button>
+          <button class="top-btn activity-btn" id="activity-btn" data-nav="6" onclick="TT.openActivity()" title="Mentions and team activity" aria-label="Activity">🔔<span class="act-lbl"> Activity</span><span class="count-badge" id="activity-badge" hidden></span></button>
+          <button class="top-btn" id="wb-btn" data-nav="12" type="button" onclick="TT.openWhiteboards()" title="Whiteboards: plan together with notes, task cards and arrows" aria-label="Whiteboards" hidden>🧭<span class="lbl-md"> Whiteboards</span></button>
+          <button class="top-btn activity-btn" id="approvals-btn" data-nav="7" type="button" onclick="openApprovals()" title="Sign-offs and purchases waiting for approval" aria-label="Approvals" hidden>✅<span class="lbl-md"> Approvals</span><span class="count-badge" id="approvals-badge" hidden></span></button>
+          <button class="top-btn" id="share-btn" data-nav="16" onclick="TT.openShare()" title="Share this week in your group chat (WhatsApp…)" aria-label="Share this week">📣<span class="lbl-md"> Share</span></button>
+          <button class="top-btn" data-perm="data.export" onclick="TT.openAI()" data-nav="17" title="Summarise the board with AI" aria-label="AI summary">✨<span class="lbl-md"> AI summary</span></button>
+          <button class="top-btn" onclick="scrollToToday()" data-nav="8" title="Jump to the current week" aria-label="Today">🎯<span class="lbl-md"> Today</span></button>
+          <button class="top-btn" onclick="TT.openSettings()" data-nav="18" title="Team settings" aria-label="Settings">⚙️<span class="lbl-lg"> Settings</span></button>
+        </div>
+        <button class="top-btn" id="nav-collapse" type="button" onclick="TT.toggleNavRail()" title="Collapse to icons" aria-label="Collapse to icons" aria-expanded="true">⇤<span class="nav-lbl"> Collapse</span></button>
+        <div id="floating-toggles" style="display: none;">
+          <button class="top-btn account-chip" onclick="TT.openAccount()" aria-label="Your account"><span class="chip-avatar" aria-hidden="true"></span><span class="user-display">…</span></button>
+          <button class="top-btn" id="theme-toggle-outer" onclick="toggleTheme()">🎨 Theme</button>
+          <button class="top-btn" onclick="toggleSidebar()" aria-label="Show panel" title="Show the side panel">👁️<span class="lbl-lg"> Show Panel</span></button>
+        </div>
+      </div>
+      <div id="canvas-container">
+        <div id="timeline-headers">
+          <div class="header-spacer" id="brand-block"></div>
+          <div id="dynamic-headers"></div>
+          <button class="btn-add-week" data-perm="weeks.manage" onclick="addWeek()">+ Add Week</button>
+        </div>
+        <svg id="lines-svg"></svg>
+        <div id="nodes-container"></div>
+      </div>
+    </div>
+
+    <div id="quick-menu" class="quick-menu"></div>
+
+    <div id="editor-panel">
+      <div class="editor-top-bar">
+        <h3>Editor</h3>
+        <div class="editor-toggles">
+          <button class="top-btn account-chip" onclick="TT.openAccount()" aria-label="Your account"><span class="chip-avatar" aria-hidden="true"></span><span class="user-display">…</span></button>
+          <button class="top-btn" id="theme-toggle-inner" onclick="toggleTheme()">🎨 Theme</button>
+          <button class="top-btn panel-close" onclick="toggleSidebar()" aria-label="Hide panel"><span class="lbl-wide">👁️ Hide Panel</span><span class="lbl-compact">✕ Close</span></button>
+        </div>
+      </div>
+      <div class="search-box"><input type="text" id="search-tasks" placeholder="🔍 Search tasks by title, ID, or badge..." oninput="performSearch()"></div>
+      <span id="sync-status" class="sync-badge" style="opacity: 0;">✓ Saved</span>
+      <div class="filter-container">
+        <div class="filter-header" onclick="toggleCustomFilter('filter-content-person', this)">Filter by Person</div>
+        <div id="filter-content-person" class="filter-content">
+          <div class="filter-actions"><span onclick="massSelect('person', true)">All</span> | <span onclick="massSelect('person', false)">None</span></div>
+          <div class="multi-select-box" id="filter-persons"></div>
+        </div>
+      </div>
+      <div class="filter-container">
+        <div class="filter-header closed" onclick="toggleCustomFilter('filter-content-week', this)">Filter by Week</div>
+        <div id="filter-content-week" class="filter-content closed">
+          <div class="filter-actions"><span onclick="massSelect('week', true)">All</span> | <span onclick="massSelect('week', false)">None</span> | <span onclick="selectLastNWeeks(4)">Last 4</span></div>
+          <div class="multi-select-box" id="filter-weeks"></div>
+        </div>
+      </div>
+      <div class="filter-container" id="filter-phase-wrap" hidden>
+        <div class="filter-header closed" onclick="toggleCustomFilter('filter-content-phase', this)">Filter by Phase</div>
+        <div id="filter-content-phase" class="filter-content closed">
+          <div class="filter-actions"><span onclick="massSelectPhases(true)">All</span> | <span onclick="massSelectPhases(false)">None</span></div>
+          <div class="multi-select-box" id="filter-phases"></div>
+        </div>
+      </div>
+      <hr style="border:0; border-bottom:1px solid var(--border-color); margin: 0 0 25px 0;">
+      <div id="no-selection" style="color: var(--text-muted); font-size: 13px; line-height: 1.6;">
+        Select a card, category or person to see details.<br><br>
+        💡 <b>Right-click</b> anything on the board for quick actions.<br>
+        💡 Hold <b>Alt</b> while dragging a task to copy it into another week.<br>
+        💡 <b>Ctrl + Z</b> / <b>Ctrl + Y</b> undo and redo your own changes.<br><br>
+        📘 <a href="guide.html" target="_blank" rel="noopener">How to use Trawpie</a> · 💬 <a href="#" onclick="TT.openFeedback(); return false;">Send feedback</a>
+      </div>
+      <div id="edit-form" class="form-section" style="display: none;"></div>
+      <div class="sync-center" style="margin-top: 30px;" id="team-data-panel">
+        <div class="sync-title"><span>Team data</span> <span id="conn-status"></span></div>
+        <div class="hint" id="team-data-note" style="margin-bottom:10px">Changes save automatically for everyone in the team.</div>
+        <div id="team-data-actions" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="footer.js" defer></script>
+</body>
+</html>

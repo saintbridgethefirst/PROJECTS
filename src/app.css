@@ -76,7 +76,7 @@ a { color: var(--line-color); }
 .team-logo img { width: 100%; height: 100%; object-fit: contain; }
 .team-tile .t-name { font-weight: 750; font-size: 15px; }
 .invite-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--line-color) 50%, var(--border-color)); background: var(--bg-panel); border-radius: var(--radius-lg); flex-wrap: wrap; }
-.create-team { display: grid; grid-template-columns: 1fr minmax(110px, auto) auto; gap: 10px; align-items: end; max-width: 560px; }
+.create-team { display: grid; grid-template-columns: 1fr minmax(110px, auto) minmax(150px, auto) auto; gap: 10px; align-items: end; max-width: 720px; }
 .empty-state { border: 1px dashed var(--border-color); border-radius: var(--radius-lg); padding: 22px; color: var(--text-muted); font-size: 14px; line-height: 1.55; }
 .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--bg-week); border: 1px solid var(--border-color); display: grid; place-items: center; font-size: 12px; font-weight: 800; color: var(--line-color); overflow: hidden; flex: 0 0 30px; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -269,7 +269,7 @@ body.hide-metric .metric-badge { display: none; }
 .home-right .mt-group { margin: 8px 0 0; }
 @media (max-width: 960px) {
   .home-cols { grid-template-columns: minmax(0, 1fr); gap: 26px; }
-  .home-left .create-team { grid-template-columns: 1fr minmax(110px, auto) auto; }
+  .home-left .create-team { grid-template-columns: 1fr minmax(110px, auto) minmax(150px, auto) auto; }
   .home-right { position: static; max-height: none; }
   .home-right .mytasks { overflow: visible; }
 }
@@ -497,7 +497,9 @@ body.hide-metric .metric-badge { display: none; }
 .heat-detail ul { margin: 6px 0 0; padding-left: 18px; }
 .sugg { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-color); margin: 2px 4px 2px 0; }
 .sugg.current { border-color: var(--line-color); }
+button.sugg-give { background: transparent; color: var(--text-main); cursor: pointer; font-family: inherit; } button.sugg-give:hover { border-color: var(--line-color); background: color-mix(in srgb, var(--line-color) 14%, transparent); }
 .pp-skills { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.pp-suggest { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-top: 6px; font-size: 13px; }
 .pp-away { margin: 0; padding-left: 18px; font-size: 13px; color: var(--text-main); font-weight: 500; }
 .research-modal .rs-inline input { font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); margin: 0; }
 .ts-people { display: flex; flex-wrap: wrap; gap: 4px; } .ts-total td { border-top: 2px solid var(--border-color); }
@@ -977,3 +979,29 @@ button.tx-part:hover { border-color: var(--line-color); }
 #auth-screen[hidden] + .auth-footer { display: none; }
 .auth-footer { --sf-bg: var(--bg-main); }
 #auth-screen:not([hidden]) { min-height: calc(100vh - 1px); }
+
+/* Create team on a phone: name across the top, then currency and start choice, then the button */
+@media (max-width: 640px) {
+  .create-team, .home-left .create-team { grid-template-columns: 1fr 1fr; }
+  .create-team > label:first-child, .create-team > button { grid-column: 1 / -1; }
+}
+
+/* ⋮ on each card: the quick-actions menu without right-clicking */
+.card-more { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; padding: 0; border-radius: 7px; border: 1px solid transparent; background: transparent;
+  color: var(--text-muted); font: 700 17px/1 inherit; cursor: pointer; opacity: 0; z-index: 4; transition: opacity .15s, background .15s; }
+.task-card:hover > .card-more, .kb-card:hover > .card-more, .task-card:focus-within > .card-more, .card-more:focus-visible { opacity: 1; }
+.card-more:hover, .card-more:focus-visible { background: var(--bg-main); border-color: var(--border-color); color: var(--text-main); }
+@media (hover: none) { .card-more { opacity: .75; } }
+.kb-card { position: relative; }
+
+/* Focus mode (F): just the board, edge to edge */
+body.focus-mode { --nav-w: 0px; }
+body.focus-mode #top-bar, body.focus-mode #floating-toggles { display: none !important; }
+body.focus-mode #main-view { padding-left: 0 !important; }
+#focus-exit { position: fixed; left: 14px; bottom: 14px; z-index: 90; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border-color);
+  background: var(--bg-panel); color: var(--text-main); font: 600 13px/1 inherit; cursor: pointer; box-shadow: 0 4px 14px var(--shadow-base, rgba(0,0,0,.25)); opacity: .85; }
+#focus-exit:hover { opacity: 1; }
+
+/* Sub-team colour down the left of each card */
+.task-card.st-stripe::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--st); opacity: .9; pointer-events: none; }
+.create-practice { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; cursor: pointer; }

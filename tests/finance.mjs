@@ -29,7 +29,7 @@ try {
   step('Set up: owner with parts and finance on, and a member');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
-  await A.fill('#create-team-form input[name=name]', 'BUDS Drone'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'BUDS Drone'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await sleep(300);
   await A.evaluate(() => TT.setFeatures({ parts: true, finance: true })); await sleep(300);
   await A.click('#top-actions button:has-text("Invite")'); await A.fill('.settings-pane textarea', 'tom@uni.ac.uk'); await A.click('.settings-pane button:has-text("Invite")'); await sleep(200); await A.keyboard.press('Escape');

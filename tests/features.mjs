@@ -34,7 +34,7 @@ try {
   step('A new team starts with the standard features');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
-  await A.fill('#create-team-form input[name=name]', 'Robot Science'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'Robot Science'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await sleep(300);
   await A.evaluate((m) => {
     const add = (n) => { const x = new Date(m); x.setDate(x.getDate() + 7 * n); return x.toLocaleDateString('en-CA'); };
@@ -114,13 +114,20 @@ try {
 
   step('A task that needs a skill suggests who could take it');
   await openCard(A, 'CAD the base plate');
-  await A.fill('#edit-skill', 'CAD'); await A.press('#edit-skill', 'Enter'); await sleep(500);
+  const skillOpts = await A.locator('#edit-skill option').allTextContents();
+  ok(skillOpts.includes('CAD · 1 person') && skillOpts.includes('Other skill…'), 'the dropdown lists the team’s skills: ' + skillOpts.join(' | '));
+  await A.selectOption('#edit-skill', '__other'); await A.fill('#edit-skill-other', 'Welding'); await A.press('#edit-skill-other', 'Enter'); await sleep(500);
+  ok(await A.inputValue('#edit-skill') === 'Welding' && /nobody yet/.test(await A.locator('#edit-skill option:checked').textContent()), 'a skill nobody has yet can be typed in');
+  await A.selectOption('#edit-skill', 'CAD'); await sleep(500);
   const t2 = Object.values((await teamNamed(A, 'Robot Science')).tasks).find(t => t.name === 'CAD the base plate');
   ok(t2.skill === 'CAD', 'skill saved on the task');
   ok(await card(A, 'CAD the base plate').locator('.skill-chip').count() === 1, 'card shows 🎯 CAD');
   ok((await A.locator('#edit-form .dep-item', { hasText: 'Tom Reed' }).textContent()).includes('10h free'), 'suggests Tom, with 10h free');
   await A.locator('#edit-form .sugg-assign').click(); await sleep(500);
   ok(Object.values((await teamNamed(A, 'Robot Science')).tasks).find(t => t.name === 'CAD the base plate').ownerUid === tomUid, '“Give to Tom” moves the task to Tom');
+  await A.click('#research-btn'); await A.waitForSelector('.research-modal'); await A.click('.rs-tab:has-text("People")'); await sleep(300);
+  const give = A.locator('.sugg-give'); ok(await give.count() === 0 || (await give.allTextContents()).every(t => !t.includes('Tom Reed')), 'People tool: Tom is shown as the current owner, not offered');
+  await A.keyboard.press('Escape'); await sleep(200);
 
   step('Time logging and the timesheet');
   await openCard(A, 'Design gripper');
@@ -176,7 +183,7 @@ try {
 
   step('Workload across teams');
   await A.evaluate(() => TT.goHome()); await A.waitForSelector('#home-screen:not([hidden])');
-  await A.fill('#create-team-form input[name=name]', 'Thesis'); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300);
+  await A.fill('#create-team-form input[name=name]', 'Thesis'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300);
   await A.evaluate((m) => { weeksData[0].startDate = m; const c = db.find(x => x.id === TT.me.uid).categories[0]; c[weeksData[0].key] = [{ id: 'th1', type: 'task', name: 'Write chapter 2', priority: 'Minor', status: '', flag: 'none', subtasks: [], history: [], effort: 5 }]; saveDatabase(); render(); }, monday());
   await sleep(400);
   await A.evaluate(() => TT.goHome()); await A.waitForSelector('#home-screen:not([hidden])'); await sleep(400);
@@ -195,6 +202,31 @@ try {
   await A.locator('.team-tile', { hasText: 'Thesis' }).click(); await A.waitForSelector('.node-cat'); await sleep(400);
   await A.click('#research-btn'); await A.waitForSelector('.research-modal');
   ok((await toolTabs(A)).join('|') === '📝 Meetings|🔩 Parts|💷 Finance|📚 Literature', 'an older team still has Parts and Finance');
+
+  step('Choosing how a new team starts: Simple or Everything');
+  for (const [start, name] of [['simple', 'Tiny Team'], ['full', 'Big Company']]) {
+    await A.click('#brand-home, .brand').catch(() => {}); await A.goto(BASE); await A.waitForSelector('#home-screen:not([hidden])');
+    await A.selectOption('#create-start', start); await sleep(100);
+    const hint = await A.textContent('#create-start-hint');
+    ok(start === 'simple' ? /Just the board/.test(hint) : /Every feature on/.test(hint), start + ': the hint explains the choice');
+    ok(await A.isChecked('#create-practice'), 'practice tasks are ticked by default');
+    if (start === 'full') await A.uncheck('#create-practice');
+    await A.fill('#create-team-form input[name=name]', name); await A.click('#create-team-form button[type=submit]');
+    await A.waitForSelector('.node-cat'); await sleep(start === 'simple' ? 1400 : 400);
+    const practice = Object.values((await teamNamed(A, name)).tasks || {}).map(t => t.name);
+    ok(start === 'simple' ? practice.length === 3 && practice.some(n => n.includes('⋮')) && (await A.locator('.task-card').count()) === 3 : practice.length === 0, start + ': practice tasks ' + practice.length);
+    if (start === 'simple') {
+      const c = A.locator('.task-card').first(); await c.hover(); await c.locator('.card-more').click(); await sleep(300);
+      ok(await A.evaluate(() => !!document.querySelector('#quick-menu.active, .radial-menu')), '⋮ opens the quick-actions menu');
+      await A.keyboard.press('Escape'); await sleep(200);
+    }
+    const f = (await teamNamed(A, name)).doc.features;
+    ok(Object.values(f).every(v => v === (start === 'full')), start + ': features saved ' + JSON.stringify(f));
+    await openFeatures(A);
+    const on = await A.locator('.feature-card.on:not(.pro-card)').count();
+    ok(on === (start === 'simple' ? 0 : 12), start + ': Settings ▸ Features shows ' + on + ' on');
+    await A.keyboard.press('Escape'); await sleep(200);
+  }
 } catch (e) { fail++; console.log('TEST CRASH:', e.message.split('\n').slice(0, 12).join('\n')); }
 console.log('\npage errors:', errors);
 console.log(`RESULT: ${pass} passed, ${fail} failed`);

@@ -31,7 +31,7 @@ try {
   step('Owner sets up a team and invites two people');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
-  await A.fill('#create-team-form input[name=name]', 'Robotics Group Project'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'Robotics Group Project'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await sleep(300);
   for (const n of ['Literature review', 'Motor test']) { await A.click('.col-add'); await dialog(A, n); }
   ok(await A.locator('#activity-btn').isVisible() && (await badge(A)) === '', 'Activity button on the top bar, no badge yet');
@@ -156,7 +156,7 @@ try {
   await sleep(400);
   // A second team that Tom owns, with an overdue task
   await B.click('#team-switch'); await B.waitForSelector('#home-screen:not([hidden])');
-  await B.fill('#create-team-form input[name=name]', 'Lab Admin'); await B.click('#create-team-form button[type=submit]');
+  await B.fill('#create-team-form input[name=name]', 'Lab Admin'); await B.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await B.click('#create-team-form button[type=submit]');
   await B.waitForSelector('.node-cat'); await sleep(300);
   await B.click('.col-add'); await dialog(B, 'Book wind tunnel');
   await B.evaluate(() => { const me = db.find(p => p.id === TT.me.uid); const t = me.categories[0][weeksData[0].key][0]; const d = new Date(); d.setDate(d.getDate() - 3); t.dueDate = d.toLocaleDateString('en-CA'); saveDatabase(); render(); });

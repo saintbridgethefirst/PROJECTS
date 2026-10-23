@@ -27,7 +27,7 @@ try {
   step('A new team is on Free');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha.khan@gmail.com');
-  await A.fill('#create-team-form input[name=name]', 'Drone Challenge'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'Drone Challenge'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await sleep(300);
   await openPlan(A);
   ok(await A.locator('#plan-name').textContent() === 'Free', 'Plan page says Free');
@@ -52,9 +52,9 @@ try {
   await A.keyboard.press('Escape'); await sleep(200);
 
   step('Free limit: 5 teams of your own');
-  for (const n of ['Lab two', 'Lab three', 'Lab four', 'Lab five']) { await A.evaluate(() => TT.goHome()); await A.waitForSelector('#home-screen:not([hidden])'); await A.fill('#create-team-form input[name=name]', n); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300); }
+  for (const n of ['Lab two', 'Lab three', 'Lab four', 'Lab five']) { await A.evaluate(() => TT.goHome()); await A.waitForSelector('#home-screen:not([hidden])'); await A.fill('#create-team-form input[name=name]', n); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300); }
   await A.evaluate(() => TT.goHome()); await A.waitForSelector('#home-screen:not([hidden])'); await sleep(300);
-  await A.fill('#create-team-form input[name=name]', 'Lab six'); await A.click('#create-team-form button[type=submit]'); await sleep(400);
+  await A.fill('#create-team-form input[name=name]', 'Lab six'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]'); await sleep(400);
   ok(!(await teamNamed(A, 'Lab six')) && (await lastToast(A)).includes('up to 5 teams'), 'a sixth team of your own is refused on Free');
   await A.click('.team-tile:has-text("Drone Challenge")'); await A.waitForSelector('.node-cat'); await sleep(400);
 
@@ -79,7 +79,7 @@ try {
 
   step('A platform admin approves it');
   const B = await tab('Rushi'); await signIn(B, 'Rushi Admin', 'rushi@trawpie.org');
-  await B.fill('#create-team-form input[name=name]', 'TRAWPIE HQ'); await B.click('#create-team-form button[type=submit]'); await B.waitForSelector('.node-cat'); await sleep(300);
+  await B.fill('#create-team-form input[name=name]', 'TRAWPIE HQ'); await B.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await B.click('#create-team-form button[type=submit]'); await B.waitForSelector('.node-cat'); await sleep(300);
   await openPlan(B);
   ok(await B.locator('.plan-admin').count() === 0, 'no admin tools for ordinary accounts');
   await B.click('#plan-demo-admin'); await sleep(500);
@@ -114,7 +114,7 @@ try {
 
   step('Students with a university email get Pro Education free, instantly');
   const C = await tab('Priya'); await signIn(C, 'Priya Shah', 'priya.shah@bristol.ac.uk');
-  await C.fill('#create-team-form input[name=name]', 'Bristol UAS'); await C.click('#create-team-form button[type=submit]'); await C.waitForSelector('.node-cat'); await sleep(300);
+  await C.fill('#create-team-form input[name=name]', 'Bristol UAS'); await C.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await C.click('#create-team-form button[type=submit]'); await C.waitForSelector('.node-cat'); await sleep(300);
   await openPlan(C);
   ok((await C.locator('.plan-edu').textContent()).includes('priya.shah@bristol.ac.uk'), 'the Plan page recognises the university email');
   await C.click('#plan-edu'); await sleep(700);
@@ -129,7 +129,7 @@ try {
   await C.keyboard.press('Escape'); await sleep(200);
   const claimed = await C.evaluate(() => TT.eduClaim);
   ok(claimed.teams.length === 1 && claimed.limit === 3, 'the claim is counted (1 of 3)');
-  for (const n of ['Rocketry', 'Rover', 'Formula']) { await C.evaluate(() => TT.goHome()); await C.waitForSelector('#home-screen:not([hidden])'); await C.fill('#create-team-form input[name=name]', n); await C.click('#create-team-form button[type=submit]'); await C.waitForSelector('.node-cat'); await sleep(300); await openPlan(C); if (n !== 'Formula') { await C.click('#plan-edu'); await sleep(600); } await C.keyboard.press('Escape'); await sleep(150); }
+  for (const n of ['Rocketry', 'Rover', 'Formula']) { await C.evaluate(() => TT.goHome()); await C.waitForSelector('#home-screen:not([hidden])'); await C.fill('#create-team-form input[name=name]', n); await C.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await C.click('#create-team-form button[type=submit]'); await C.waitForSelector('.node-cat'); await sleep(300); await openPlan(C); if (n !== 'Formula') { await C.click('#plan-edu'); await sleep(600); } await C.keyboard.press('Escape'); await sleep(150); }
   await openPlan(C);
   ok(await C.locator('#plan-edu-full').isVisible() && !(await C.locator('#plan-edu').count()), 'a fourth team gets no button: all 3 used this year');
   ok((await C.locator('#plan-edu-count').textContent()).includes('3 of 3'), 'shows 3 of 3 used');

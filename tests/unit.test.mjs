@@ -878,3 +878,12 @@ test('translator: icons, numbers, pieces and things people typed', async () => {
     }
   }
 });
+
+test('a new team can start Simple, as a Research team or with Everything', async () => {
+  const { startFeatures, FEATURE_KEYS, NEW_TEAM_FEATURES, TEAM_STARTS } = await import('../src/model.js');
+  assert.ok(FEATURE_KEYS.every(k => startFeatures('simple')[k] === false), 'simple: all off');
+  assert.ok(FEATURE_KEYS.every(k => startFeatures('full')[k] === true), 'everything: all on');
+  assert.deepEqual(startFeatures('standard'), NEW_TEAM_FEATURES);
+  assert.deepEqual(startFeatures('nonsense'), NEW_TEAM_FEATURES, 'unknown choice falls back to the usual set');
+  assert.deepEqual(TEAM_STARTS.map(s => s.key), ['simple', 'standard', 'full']);
+});

@@ -20,7 +20,7 @@ try {
   await p.goto(BASE); await p.waitForSelector('#auth-screen:not([hidden])');
   await p.fill('#auth-actions input[placeholder="Your name"]', 'Chair Person'); await p.fill('#auth-actions input[type=email]', 'chair@uni.ac.uk');
   await p.click('#auth-actions button:has-text("Sign in to demo")'); await p.waitForSelector('#home-screen:not([hidden])');
-  await p.fill('#create-team-form input[name=name]', 'SEDS'); await p.click('#create-team-form button[type=submit]');
+  await p.fill('#create-team-form input[name=name]', 'SEDS'); await p.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await p.click('#create-team-form button[type=submit]');
   await p.waitForSelector('.node-cat'); await sleep(300);
   const counts = await p.evaluate(() => {
     const k = 'tt_demo_store_v1'; const s = JSON.parse(localStorage.getItem(k)); const T = Object.values(s.teams)[0];

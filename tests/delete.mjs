@@ -33,7 +33,7 @@ try {
   step('Set up: owner, a member and a viewer; tasks in three dated weeks');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
-  await A.fill('#create-team-form input[name=name]', 'Robot Science'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'Robot Science'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await sleep(300);
   await A.evaluate(async (m) => {
     const add = (n) => { const d = new Date(m); d.setDate(d.getDate() + 7 * n); return d.toLocaleDateString('en-CA'); };
@@ -195,7 +195,7 @@ try {
   const phone = await browser.newContext({ ...devices['iPhone 13'] });
   const P = await phone.newPage(); P.on('pageerror', e => errors.push('phone: ' + e.message)); P.on('dialog', d => d.accept());
   await signIn(P, 'Sam Lee', 'sam@uni.ac.uk');
-  await P.fill('#create-team-form input[name=name]', 'Phone team'); await P.click('#create-team-form button[type=submit]');
+  await P.fill('#create-team-form input[name=name]', 'Phone team'); await P.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await P.click('#create-team-form button[type=submit]');
   await P.waitForSelector('.node-cat'); await sleep(300);
   await P.evaluate(() => { const c = db.find(x => x.id === TT.me.uid).categories[0]; c[weeksData[0].key] = [{ id: 'p1', type: 'task', name: 'Tap to delete', priority: 'Minor', status: '', flag: 'none', subtasks: [], history: [] }]; saveDatabase(); render(); });
   await sleep(400);

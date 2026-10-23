@@ -9,7 +9,7 @@
   if (!LANGS.some(function (l) { return l[0] === cur; })) cur = 'en';
   var cols = [
     ['Product', [['Live demo', 'https://uni-teamtrack.web.app/demo'], ['How it works', app + 'guide.html'], ['Plans & features', app + 'guide.html#compare'], ['Shortcuts', app + 'guide.html#keys']]],
-    ['Help', [['Contact us', 'mailto:rushivibhandik.college@gmail.com?subject=Trawpie'], ['Report a problem', 'mailto:rushivibhandik.college@gmail.com?subject=Trawpie%20problem'], ['Privacy policy', app + 'privacy.html'], ['Terms of service', app + 'terms.html']]],
+    ['Help', [['Contact us', 'mailto:rushivibhandik.college@gmail.com?subject=Trawpie'], ['Report a problem', 'mailto:rushivibhandik.college@gmail.com?subject=Trawpie%20problem'], ['Security', app + 'security.html'], ['Privacy policy', app + 'privacy.html'], ['Terms of service', app + 'terms.html']]],
     ['For teams', [['Student societies', app + 'guide.html#tools'], ['Research groups', app + 'guide.html#tools'], ['Roles & permissions', app + 'guide.html#roles'], ['Free for students', app + 'guide.html#plans']]],
   ];
   function h(tag, attrs, kids) {

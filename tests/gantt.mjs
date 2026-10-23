@@ -24,7 +24,7 @@ try {
   await A.goto(BASE); await A.waitForSelector('#auth-screen:not([hidden])');
   await A.fill('#auth-actions input[placeholder="Your name"]', 'Aisha'); await A.fill('#auth-actions input[type=email]', 'aisha@uni.ac.uk');
   await A.click('#auth-actions button:has-text("Sign in to demo")'); await A.waitForSelector('#home-screen:not([hidden])');
-  await A.fill('#create-team-form input[name=name]', 'Gantt Lab'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'Gantt Lab'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await sleep(300);
   await A.evaluate(({ M, d }) => {
     weeksData[0].startDate = M;

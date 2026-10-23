@@ -27,7 +27,7 @@ try {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message)); p.on('dialog', d => d.accept());
   const shot = async (n) => { if (SHOTS) await p.screenshot({ path: `${SHOTS}/phases-${n}.png` }); };
   await signIn(p, 'Rushi Vibhandik', 'rushi@uni.ac.uk');
-  await p.fill('#create-team-form input[name=name]', 'Robot Science and Technology'); await p.click('#create-team-form button[type=submit]');
+  await p.fill('#create-team-form input[name=name]', 'Robot Science and Technology'); await p.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await p.click('#create-team-form button[type=submit]');
   await p.waitForSelector('.node-cat'); await sleep(300);
   for (const n of ['Literature survey', 'Gripper CAD', 'Motor test']) { await p.click('.col-add'); await dialog(p, n); }
 

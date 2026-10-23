@@ -17,7 +17,7 @@ async function setup(p, tap) {
   await p.goto(BASE); await p.waitForSelector('#auth-screen:not([hidden])');
   await p.fill('#auth-actions input[placeholder="Your name"]', 'Rushi Vibhandik'); await p.fill('#auth-actions input[type=email]', 'rushi@uni.ac.uk');
   await p[tap ? 'tap' : 'click']('#auth-actions button:has-text("Sign in to demo")'); await p.waitForSelector('#home-screen:not([hidden])');
-  await p.fill('#create-team-form input[name=name]', 'Robot Science'); await p[tap ? 'tap' : 'click']('#create-team-form button[type=submit]');
+  await p.fill('#create-team-form input[name=name]', 'Robot Science'); await p.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await p[tap ? 'tap' : 'click']('#create-team-form button[type=submit]');
   await p.waitForSelector('.node-cat'); await sleep(300);
   await p.evaluate(() => { const me = db.find(x => x.id === TT.me.uid); const c = me.categories[0]; const wk = weeksData[0].key;
     c[wk] = [{ id: 'tA', type: 'task', name: 'Design gripper', priority: 'Minor', status: '', flag: 'none', subtasks: [], history: [] }, { id: 'tB', type: 'task', name: 'Order servos', priority: 'Minor', status: '', flag: 'none', subtasks: [], history: [] }];

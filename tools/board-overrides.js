@@ -1776,6 +1776,46 @@
         }
         window.boardSetView = boardSetView;
         window.boardView = () => boardView;
+        // ── ⋮ on every card: the right-click menu, for trackpads, touch and anyone who doesn't right-click ──
+        function paintCardMore() {
+            document.querySelectorAll('#main-view .task-card:not([id^="ghost_"]), #main-view .kb-card').forEach(c => {
+                if (c.querySelector(':scope > .card-more')) return;
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'card-more'; b.textContent = '⋮';
+                b.title = 'More actions (or right-click)'; b.setAttribute('aria-label', 'More actions'); c.appendChild(b);
+            });
+        }
+        ['pointerdown', 'mousedown', 'touchstart', 'dblclick'].forEach(ev => document.addEventListener(ev, (e) => { if (e.target && e.target.closest && e.target.closest('.card-more')) e.stopPropagation(); }, { capture: true, passive: true }));
+        document.addEventListener('click', (e) => {
+            const b = e.target && e.target.closest && e.target.closest('.card-more'); if (!b) return;
+            e.preventDefault(); e.stopPropagation();
+            const c = b.closest('.task-card, .kb-card'); if (!c) return; const r = b.getBoundingClientRect();
+            c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.bottom }));
+        }, true);
+        // ── Focus mode and panel keys: F hides the menus and side panel ([ and ] one at a time) ──
+        function setFocusMode(on) {
+            if (on === undefined) on = !document.body.classList.contains('focus-mode');
+            if (on === document.body.classList.contains('focus-mode')) return;
+            const panel = document.getElementById('editor-panel');
+            if (on) { setFocusMode.panelWasOpen = !!panel && !panel.classList.contains('hidden'); setPanel(false); } else if (setFocusMode.panelWasOpen) setPanel(true);
+            document.body.classList.toggle('focus-mode', on);
+            let pill = document.getElementById('focus-exit');
+            if (on && !pill) { pill = document.createElement('button'); pill.type = 'button'; pill.id = 'focus-exit'; pill.textContent = '⛶ Exit focus (F)'; pill.title = 'Show the menus and side panel again'; pill.onclick = () => setFocusMode(false); document.body.appendChild(pill); }
+            if (!on && pill) pill.remove();
+            try { localStorage.setItem('tt_focus', on ? '1' : '0'); } catch { /* */ }
+            if (window.boardFitTopBar) try { window.boardFitTopBar(); } catch { /* */ }
+            window.dispatchEvent(new Event('resize'));
+        }
+        window.boardFocus = setFocusMode;
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+            const t = e.target; if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]')) return;
+            if (document.querySelector('.modal-overlay, #dialog-overlay:not([hidden]), #quick-menu.active, #analytics-overlay.active, .radial-menu')) return;
+            if (!document.getElementById('main-view') || document.getElementById('board-screen')?.hidden) return;
+            if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setFocusMode(); }
+            else if (e.key === '[') { e.preventDefault(); if (document.body.classList.contains('focus-mode')) setFocusMode(false); else if (window.TT && TT.toggleNavRail) TT.toggleNavRail(); }
+            else if (e.key === ']') { e.preventDefault(); toggleSidebar(); }
+            else if (e.key === 'Escape' && document.body.classList.contains('focus-mode')) setFocusMode(false);
+        });
         function render() { withFrameCache(() => {
             syncSubteamView();
             _renderBase();
@@ -1787,6 +1827,7 @@
             renderSubteamBar();
             if (boardView === 'kanban') renderKanban();
             if (boardView === 'gantt') renderGantt();
+            paintCardMore();
             updateApprovals();
             if (window.__wbRefresh) window.__wbRefresh();
         }); }
@@ -2450,13 +2491,26 @@
         function skillSection(task, editable) {
             const s = section('Skill needed');
             const loc = locateTask(task.id); const week = loc ? weeksData.find(w => w.key === loc.weekKey) : null;
-            const skills = [...new Set(TT.profiles.flatMap(p => p.skills))].sort();
-            const row = document.createElement('div'); row.className = 'plan-row';
-            const inp = document.createElement('input'); inp.id = 'edit-skill'; inp.maxLength = 40; inp.placeholder = skills.length ? 'e.g. ' + skills.slice(0, 3).join(', ') : 'e.g. CAD, ROS, soldering'; inp.value = task.skill || ''; inp.setAttribute('list', 'edit-skill-list'); inp.className = 'skill-input';
-            const dl = document.createElement('datalist'); dl.id = 'edit-skill-list'; skills.forEach(k => { const o = document.createElement('option'); o.value = k; dl.appendChild(o); });
-            inp.addEventListener('change', () => { const v = inp.value.trim().slice(0, 40); if ((task.skill || '') === v) return; logHistory(task, 'Skill needed', task.skill || 'none', v || 'none'); task.skill = v; saveDatabase(); render(); openEditor(task); });
-            inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
-            row.append(inp, dl); s.appendChild(row);
+            // A real dropdown of the skills people have listed (with how many have each), plus "Other skill…".
+            const skills = [...new Set(TT.profiles.flatMap(p => p.skills))].sort((a, b) => a.localeCompare(b));
+            const count = (k) => TT.profiles.filter(p => p.skills.some(x => x.toLowerCase() === k.toLowerCase())).length;
+            const cur = task.skill || ''; const known = skills.find(k => k.toLowerCase() === cur.toLowerCase());
+            const row = document.createElement('div'); row.className = 'plan-row skill-row';
+            const sel = document.createElement('select'); sel.id = 'edit-skill'; sel.className = 'skill-select'; sel.disabled = !editable; sel.setAttribute('aria-label', 'Skill this task needs');
+            const opt = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; };
+            sel.appendChild(opt('', 'No particular skill'));
+            if (skills.length) { const g = document.createElement('optgroup'); g.label = 'Skills in this team'; skills.forEach(k => { const n = count(k); g.appendChild(opt(k, k + ' · ' + n + (n === 1 ? ' person' : ' people'))); }); sel.appendChild(g); }
+            if (cur && !known) sel.appendChild(opt(cur, cur + ' · nobody yet'));
+            sel.appendChild(opt('__other', 'Other skill…'));
+            sel.value = known || cur;
+            const other = document.createElement('input'); other.type = 'text'; other.id = 'edit-skill-other'; other.maxLength = 40; other.placeholder = 'Type a skill, e.g. CAD, ROS, soldering'; other.hidden = true; other.className = 'skill-other';
+            const keepScroll = (fn) => { let sc = s.parentElement; while (sc && !(sc.scrollHeight > sc.clientHeight && /(auto|scroll)/.test(window.getComputedStyle(sc).overflowY))) sc = sc.parentElement; const top = sc ? sc.scrollTop : 0; fn(); if (sc) requestAnimationFrame(() => { const again = document.getElementById('edit-skill'); let n = again; while (n && !(n.scrollHeight > n.clientHeight && /(auto|scroll)/.test(window.getComputedStyle(n).overflowY))) n = n.parentElement; (n || sc).scrollTop = top; }); };
+            const setSkill = (v) => { v = String(v || '').trim().slice(0, 40); if ((task.skill || '') === v) return; logHistory(task, 'Skill needed', task.skill || 'none', v || 'none'); task.skill = v; saveDatabase(); keepScroll(() => { render(); openEditor(task); }); };
+            sel.addEventListener('change', () => { if (sel.value === '__other') { other.hidden = false; other.focus(); return; } other.hidden = true; setSkill(sel.value); });
+            other.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (other.value.trim()) setSkill(other.value); } else if (e.key === 'Escape') { e.stopPropagation(); other.hidden = true; sel.value = known || cur; } });
+            other.addEventListener('change', () => { if (other.value.trim()) setSkill(other.value); });
+            row.append(sel, other); s.appendChild(row);
+            if (!skills.length) { const h = document.createElement('div'); h.className = 'hint'; h.textContent = 'Nobody has listed skills yet. Each person adds theirs in Tools ▸ People (or an admin does it for them).'; s.appendChild(h); }
             if (!task.skill) { const h = document.createElement('div'); h.className = 'hint'; h.textContent = 'Say what this task needs and Trawpie suggests who has the skill and the hours.'; s.appendChild(h); return s; }
             const used = (uid) => allTaskLocs().filter(l => l.person.id === uid && loc && l.weekKey === loc.weekKey && l.task.flag !== 'completed' && l.task.id !== task.id).reduce((a, l) => a + (l.task.effort || 0), 0);
             const people = db.filter(p => !p.former).map(p => { const prof = TT.profileOf(p.id); const has = prof.skills.some(k => k.toLowerCase() === task.skill.toLowerCase()); const cap = TT.capacityFor(p.id, week && week.startDate ? week.startDate : ''); return { p, has, cap, free: Math.max(0, cap - used(p.id)) }; }).filter(x => x.has);
@@ -2591,8 +2645,20 @@
             };
         }
         /** Coloured tags on each person: the sub-teams they're in (★ = lead). */
+        /** A thin stripe in the sub-team's colour down each card, so the balance of work shows at a glance. */
+        function stripeSubteams(list) {
+            if (!list.length) return;
+            const colourOf = new Map(); db.forEach(p => { const st = list.find(s => s.members.includes(p.id)); if (st && st.color) colourOf.set(p.id, st); });
+            if (!colourOf.size) return;
+            const catOwner = new Map(); db.forEach(p => p.categories.forEach(c => catOwner.set(c.id, p.id)));
+            document.querySelectorAll('#main-view .col-week[data-cat-id]').forEach(col => {
+                const st = colourOf.get(catOwner.get(col.dataset.catId)); if (!st) return;
+                col.querySelectorAll('.task-card').forEach(card => { card.classList.add('st-stripe'); card.style.setProperty('--st', st.color); card.dataset.subteam = st.name; });
+            });
+        }
         function markSubteams() {
             const list = subteamList(); if (!list.length) return;
+            stripeSubteams(list);
             db.forEach(p => {
                 const node = document.getElementById(p.id); if (!node || !node.classList.contains('node-person')) return;
                 const mine = list.filter(s => s.members.includes(p.id)); if (!mine.length) return;

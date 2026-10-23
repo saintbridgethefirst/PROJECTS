@@ -32,7 +32,7 @@ try {
   await p.goto(BASE); await p.waitForSelector('#auth-screen:not([hidden])');
   await p.fill('#auth-actions input[placeholder="Your name"]', 'Rushi Vibhandik'); await p.fill('#auth-actions input[type=email]', 'rushi@uni.ac.uk');
   await p.click('#auth-actions button:has-text("Sign in to demo")'); await p.waitForSelector('#home-screen:not([hidden])');
-  await p.fill('#create-team-form input[name=name]', 'Robot Science'); await p.click('#create-team-form button[type=submit]');
+  await p.fill('#create-team-form input[name=name]', 'Robot Science'); await p.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await p.click('#create-team-form button[type=submit]');
   await p.waitForSelector('.node-cat'); await sleep(300);
   const tasks = () => p.evaluate(() => Object.values(Object.values(JSON.parse(localStorage.getItem('tt_demo_store_v1')).teams)[0].tasks));
   const importFile = async (name, mimeType, text) => {

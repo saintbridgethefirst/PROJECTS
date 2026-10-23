@@ -52,7 +52,7 @@ try {
   await p.waitForSelector('#home-screen:not([hidden])');
 
   step('Every pack on the board');
-  await p.fill('#create-team-form input[name=name]', 'Robot Science and Technology'); await p.click('#create-team-form button[type=submit]');
+  await p.fill('#create-team-form input[name=name]', 'Robot Science and Technology'); await p.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await p.click('#create-team-form button[type=submit]');
   await p.waitForSelector('.node-cat'); await sleep(300);
   await p.evaluate(() => { const me = db.find(x => x.id === TT.me.uid); const c = me.categories[0]; const wk = weeksData[0].key; const d = new Date(); d.setDate(d.getDate() + 3);
     c[wk] = [{ id: 'ta', type: 'task', name: 'Design gripper', priority: 'Critical', status: 'CAD', flag: 'none', dueDate: d.toLocaleDateString('en-CA'), subtasks: [{ id: 's1', title: 'Sketch', completed: true }, { id: 's2', title: 'Model', completed: false }], history: [] },

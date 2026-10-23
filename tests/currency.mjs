@@ -26,7 +26,7 @@ try {
   const A = await tab('Aisha'); await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
   ok(await A.inputValue('#create-currency') === 'EUR', 'a German browser starts on euros');
   await A.selectOption('#create-currency', 'USD');
-  await A.fill('#create-team-form input[name=name]', 'Rover Lab'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'Rover Lab'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await sleep(300);
   ok((await team(A)).doc.currency === 'USD', 'saved on the team');
 

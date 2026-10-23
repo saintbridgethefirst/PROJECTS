@@ -23,7 +23,7 @@ try {
   step('A new team shows the Start here checklist to its owner');
   const A = await tab('Aisha');
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');
-  await A.fill('#create-team-form input[name=name]', 'Bristol Drone Society'); await A.click('#create-team-form button[type=submit]');
+  await A.fill('#create-team-form input[name=name]', 'Bristol Drone Society'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]');
   await A.waitForSelector('.node-cat'); await A.waitForSelector('#start-card'); await sleep(300);
   ok((await steps(A)).join(',') === 'tasks,invite,tools,share', 'four steps, none done: ' + (await steps(A)).join(','));
   ok((await A.locator('#start-card .start-count').textContent()) === '0 of 4', 'counter 0 of 4');

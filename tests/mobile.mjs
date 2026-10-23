@@ -37,7 +37,7 @@ async function run(label, device) {
   await p.tap('#auth-actions button:has-text("Sign in to demo")'); await p.waitForSelector('#home-screen:not([hidden])');
   ok(await noSideScroll(), 'team list fits the width');
   ok((await p.locator('#home-theme').boundingBox()).height < 50, 'theme button stays on one line');
-  await p.fill('#create-team-form input[name=name]', 'Robot Science and Technology'); await p.tap('#create-team-form button[type=submit]');
+  await p.fill('#create-team-form input[name=name]', 'Robot Science and Technology'); await p.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await p.tap('#create-team-form button[type=submit]');
   await p.waitForSelector('.node-cat'); await sleep(400);
 
   // Board layout
