@@ -16,6 +16,12 @@
     var n = document.createElement(tag); Object.keys(attrs || {}).forEach(function (k) { if (k === 'text') n.textContent = attrs[k]; else n.setAttribute(k, attrs[k]); });
     (kids || []).forEach(function (c) { if (c) n.appendChild(c); }); return n;
   }
+  function globe() {
+    var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'ftr-globe'); svg.setAttribute('aria-hidden', 'true');
+    ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3Z'].forEach(function (d) { var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); svg.appendChild(p); });
+    return svg;
+  }
   function render(el) {
     el.classList.add('site-footer');
     var brand = h('div', { class: 'ftr-brand' }, [
@@ -29,8 +35,10 @@
     var sel = h('select', { 'aria-label': 'Language', id: 'ftr-lang' }, LANGS.map(function (l) { var o = h('option', { value: l[0], text: l[1] }); if (l[0] === cur) o.selected = true; return o; }));
     sel.addEventListener('change', function () { try { localStorage.setItem('tt_lang', sel.value); } catch (e) { /* */ } location.reload(); });
     var bottom = h('div', { class: 'ftr-bottom' }, [
-      h('label', { class: 'ftr-lang' }, [h('span', { 'aria-hidden': 'true', text: '🌐' }), sel]),
-      h('span', { class: 'ftr-small', text: '© ' + new Date().getFullYear() + ' Trawpie, part of Penteint · Data stored in London (Google Cloud europe-west2) · UK GDPR' })]);
+      h('label', { class: 'ftr-lang' }, [globe(), sel]),
+      h('div', { class: 'ftr-legal' }, [
+        h('span', { class: 'ftr-suite' }, [document.createTextNode('© ' + new Date().getFullYear() + ' Trawpie, part of the '), h('b', { text: 'Penteint Suite' })]),
+        h('span', { class: 'ftr-small', text: 'Data stored in London (Google Cloud, europe-west2) under UK GDPR' })])]);
     el.replaceChildren(h('div', { class: 'ftr-wrap' }, [h('div', { class: 'ftr-top' }, [brand, grid]), bottom]));
   }
   var EMAIL = 'rushivibhandik.college@gmail.com';
@@ -70,7 +78,12 @@
     + '.site-footer .ftr-logo{display:inline-flex;align-items:center;gap:8px;color:var(--ftr-ink,var(--ink,var(--text-main,inherit)));text-decoration:none;font-size:17px}.site-footer .ftr-logo img{border-radius:7px}'
     + '.site-footer .ftr-brand{display:block;max-width:340px}.site-footer .ftr-brand>*{display:block}.site-footer .ftr-brand .ftr-logo{display:inline-flex}.site-footer p{margin:10px 0 0;line-height:1.5}.site-footer .ftr-small{font-size:12.5px}'
     + '.site-footer .ftr-bottom{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;margin-top:28px;padding-top:18px;border-top:1px solid var(--ftr-line,var(--line,var(--border-color,#2d3748)))}'
-    + '.site-footer .ftr-lang{display:inline-flex;align-items:center;gap:6px}.site-footer select{font:inherit;font-size:13px;padding:5px 8px;border-radius:8px;border:1px solid var(--ftr-line,var(--line,var(--border-color,#2d3748)));background:transparent;color:inherit}'
+    + '.site-footer .ftr-lang{display:inline-flex;align-items:center;gap:8px;margin:0;cursor:pointer}.site-footer .ftr-globe{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5}'
+    + '.site-footer select{-webkit-appearance:none;appearance:none;margin:0;height:34px;min-width:150px;font:inherit;font-size:13.5px;line-height:1;padding:0 32px 0 12px;border-radius:8px;border:1px solid var(--ftr-line,var(--line,var(--border-color,#2d3748)));color:inherit;cursor:pointer;'
+    + 'background:transparent url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 6%27%3E%3Cpath d=%27M1 1l4 4 4-4%27 fill=%27none%27 stroke=%27%238a94a6%27 stroke-width=%271.5%27/%3E%3C/svg%3E") no-repeat right 12px center/10px 6px}'
+    + '.site-footer select:focus-visible{outline:2px solid var(--ftr-ink,currentColor);outline-offset:2px}'
+    + '.site-footer .ftr-legal{display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right}.site-footer .ftr-suite{font-size:13.5px;color:var(--ftr-ink,var(--ink,var(--text-main,inherit)))}.site-footer .ftr-suite b{font-weight:600}'
+    + '@media (max-width:760px){.site-footer .ftr-legal{align-items:flex-start;text-align:left}}'
     + '.ftr-modal{position:fixed;inset:0;z-index:2000;background:rgba(10,15,25,.45);display:grid;place-items:center;padding:16px}'
     + '.ftr-box{position:relative;width:min(420px,100%);background:#fff;color:#0f1729;border-radius:14px;padding:24px;box-shadow:0 30px 70px rgba(0,0,0,.35);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}'
     + '.ftr-box h3{margin:0 0 8px;font-size:19px}.ftr-box p{margin:0 0 14px;color:#56607a}.ftr-addr{display:block;padding:10px 12px;border:1px solid #e3e7ef;border-radius:8px;background:#f7f8fb;font-size:14px;word-break:break-all;user-select:all}'

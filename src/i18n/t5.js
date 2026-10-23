@@ -203,4 +203,6 @@ export default {
   'Explore a satellite mission': ['Explorar una misión de satélite', 'Explorer une mission satellite', 'Eine Satellitenmission erkunden', '查看卫星任务示例'],
   'See every part of it before you sign up.': ['Mira cada parte antes de registrarte.', 'Découvrez chaque partie avant de vous inscrire.', 'Sieh dir alles an, bevor du dich registrierst.', '注册前先看看每个部分。'],
   'These are real screens from the sample team you can open in the demo': ['Son pantallas reales del equipo de ejemplo que puedes abrir en la demo', 'Ce sont de vrais écrans de l’équipe exemple que vous pouvez ouvrir dans la démo', 'Das sind echte Bildschirme des Beispielteams, das du in der Demo öffnen kannst', '这些是演示中示例团队的真实界面'],
+  'Data stored in London (Google Cloud, europe-west2) under UK GDPR': ['Datos almacenados en Londres (Google Cloud, europe-west2) bajo el RGPD del Reino Unido', 'Données stockées à Londres (Google Cloud, europe-west2) sous le RGPD britannique', 'Daten in London gespeichert (Google Cloud, europe-west2), nach UK-DSGVO', '数据存储于伦敦（Google Cloud，europe-west2），受英国 GDPR 保护'],
+  'Penteint Suite': ['Penteint Suite', 'Penteint Suite', 'Penteint Suite', 'Penteint Suite'],
 };
