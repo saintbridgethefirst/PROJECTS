@@ -240,6 +240,32 @@ function demoRibbon() {
     el('span.hint', {}, ' · '), el('a', { href: '/' }, 'Get Trawpie →')));
 }
 
+// Landing page: organisations are pointed to Penteint Projects, the business edition (coming).
+// Shown once per browser after a few seconds, and whenever someone picks Enterprise.
+// When Penteint Projects has its own site, put its address in PENTEINT_PROJECTS_URL.
+const PENTEINT_PROJECTS_URL = '';
+const ORG_SEEN = 'tt_org_prompt';
+function orgPrompt(open, biz) {
+  const box = document.getElementById('lp-org'); if (!box) return;
+  const ask = document.getElementById('lp-org-ask'), info = document.getElementById('lp-org-bizinfo');
+  ask.hidden = !!biz; info.hidden = !biz; box.hidden = !open;
+  box.classList.toggle('wide', !!biz);
+  if (open) { try { localStorage.setItem(ORG_SEEN, '1'); } catch { /* */ } }
+}
+document.addEventListener('click', (e) => {
+  const t = e.target.closest && e.target.closest('#lp-enterprise, #lp-org-close, #lp-org-team, #lp-org-biz, #lp-org-continue, #lp-org-notify'); if (!t) return;
+  e.preventDefault();
+  if (t.id === 'lp-enterprise' || t.id === 'lp-org-biz') orgPrompt(true, true);
+  else if (t.id === 'lp-org-notify') { if (PENTEINT_PROJECTS_URL) location.href = PENTEINT_PROJECTS_URL; else if (window.TTFooterContact) window.TTFooterContact('projects', true); }
+  else orgPrompt(false);
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { const b = document.getElementById('lp-org'); if (b && !b.hidden) orgPrompt(false); } });
+setTimeout(() => {
+  const auth = document.getElementById('auth-screen'); let seen = '';
+  try { seen = localStorage.getItem(ORG_SEEN) || ''; } catch { /* */ }
+  if (!seen && !PUBLIC_DEMO && !navigator.webdriver && auth && !auth.hidden) orgPrompt(true, false);
+}, 6000);
+
 // Landing page: the tabs of the product tour swap the screenshot and its two lines.
 document.addEventListener('click', (e) => {
   const tab = e.target.closest && e.target.closest('.lp-tour-tab'); if (!tab) return;

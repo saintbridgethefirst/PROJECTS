@@ -48,8 +48,8 @@
     // In the app, the feedback form (it calls back here with panelOnly when nobody is signed in).
     if (!panelOnly && window.TT && TT.openFeedback) { TT.openFeedback(kind === 'report' ? 'bug' : 'question'); return; }
     var old = document.getElementById('ftr-contact'); if (old) old.remove();
-    var subject = kind === 'report' ? 'Trawpie: a problem' : 'Trawpie';
-    var body = kind === 'report' ? 'What did you do, what did you expect, and what happened instead?\n\nPage: ' + location.href + '\nBrowser: ' + navigator.userAgent + '\n' : '';
+    var subject = kind === 'report' ? 'Trawpie: a problem' : kind === 'projects' ? 'Penteint Projects: tell me when it launches' : 'Trawpie';
+    var body = kind === 'projects' ? 'Organisation:\nNumber of people:\nWhat you would use it for:\n' : kind === 'report' ? 'What did you do, what did you expect, and what happened instead?\n\nPage: ' + location.href + '\nBrowser: ' + navigator.userAgent + '\n' : '';
     var back = h('div', { id: 'ftr-contact', class: 'ftr-modal', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'ftr-contact-title' });
     var addr = h('code', { class: 'ftr-addr', text: EMAIL });
     var copy = h('button', { type: 'button', class: 'ftr-btn', text: 'Copy address' });
@@ -57,8 +57,8 @@
     var mail = h('a', { class: 'ftr-btn ftr-primary', href: 'mailto:' + EMAIL + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body), text: 'Open email app' });
     var close = h('button', { type: 'button', class: 'ftr-x', 'aria-label': 'Close', text: '✕' });
     var box = h('div', { class: 'ftr-box' }, [close,
-      h('h3', { id: 'ftr-contact-title', text: kind === 'report' ? 'Report a problem' : 'Contact us' }),
-      h('p', { text: kind === 'report' ? 'Email us what you did, what you expected and what happened instead. A screenshot helps. Signed in to Trawpie? The Feedback button in the app sends it straight from there.' : 'Questions, ideas or a team that wants to start: email us and we’ll reply.' }),
+      h('h3', { id: 'ftr-contact-title', text: kind === 'report' ? 'Report a problem' : kind === 'projects' ? 'Penteint Projects' : 'Contact us' }),
+      h('p', { text: kind === 'report' ? 'Email us what you did, what you expected and what happened instead. A screenshot helps. Signed in to Trawpie? The Feedback button in the app sends it straight from there.' : (kind === 'projects' ? 'Email us your organisation’s name and size, and we’ll tell you when Penteint Projects launches. We can also help you start on Trawpie today.' : 'Questions, ideas or a team that wants to start: email us and we’ll reply.') }),
       addr, h('div', { class: 'ftr-row' }, [copy, mail])]);
     back.appendChild(box); document.body.appendChild(back);
     var done = function () { back.remove(); document.removeEventListener('keydown', esc); };

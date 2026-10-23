@@ -1165,3 +1165,21 @@ body.focus-mode #main-view { padding-left: 0 !important; }
 .demo-kind.on { border-color: var(--line-color); box-shadow: 0 0 0 1px var(--line-color); background: color-mix(in srgb, var(--line-color) 6%, var(--bg-panel)); }
 #sample-section { display: flex; flex-direction: column; gap: 10px; }
 #sample-section[hidden] { display: none; }
+/* "Are you an organisation?" card: points businesses to Penteint Projects */
+.landing .lp-org { position: fixed; right: 20px; bottom: 20px; z-index: 30; width: min(360px, calc(100vw - 32px)); padding: 20px; background: #fff; border: 1px solid var(--lp-line); border-radius: 16px; box-shadow: 0 30px 70px -20px rgba(15, 23, 41, .35); animation: lpOrgIn .35s ease-out both; }
+.landing .lp-org.wide { width: min(440px, calc(100vw - 32px)); }
+.landing .lp-org[hidden] { display: none; }
+@keyframes lpOrgIn { from { opacity: 0; transform: translateY(12px); } }
+@media (prefers-reduced-motion: reduce) { .landing .lp-org { animation: none; } }
+.landing .lp-org h3 { margin: 0 24px 12px 0; font-size: 17px; letter-spacing: -0.01em; }
+.landing .lp-org p { margin: 0 0 10px; color: var(--lp-muted); font-size: 14.5px; line-height: 1.55; }
+.landing .lp-org-x { position: absolute; right: 10px; top: 8px; border: 0; background: none; font-size: 15px; color: var(--lp-muted); cursor: pointer; padding: 6px; }
+.landing .lp-org-choices { display: flex; flex-direction: column; gap: 8px; }
+.landing .lp-org-choice { display: block; width: 100%; text-align: left; font: inherit; padding: 12px 14px; border: 1px solid #d9dde6; border-radius: 10px; background: #fff; color: var(--lp-ink); cursor: pointer; }
+.landing .lp-org-choice:hover { border-color: var(--lp-blue); }
+.landing .lp-org-choice b { display: block; font-size: 14.5px; }
+.landing .lp-org-choice span { display: block; margin-top: 2px; font-size: 13px; color: var(--lp-muted); }
+.landing .lp-org-kicker { margin: 0 0 4px !important; font-size: 12.5px !important; font-weight: 600; color: var(--lp-blue) !important; }
+.landing .lp-org-soon { font-size: 13.5px !important; }
+.landing .lp-org-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.landing .lp-org-actions .lp-btn { min-height: 40px; font-size: 14px; padding: 0 16px; }
