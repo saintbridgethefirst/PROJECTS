@@ -60,7 +60,8 @@ try {
   ok(await p.locator('#presence-modal .pr-row:not([data-uid="u_sam"]) .guest-tag').count() === 0, 'members are not tagged');
 
   step('Live cursors');
-  ok(await p.locator('#pr-cursors').isChecked(), 'live cursors on by default');
+  ok(!(await p.locator('#pr-cursors').isChecked()), 'live cursors off by default');
+  await p.click('#pr-cursors'); ok(await p.evaluate(() => localStorage.getItem('tt_live_cursors')) === 'on', 'turning them on is remembered');
   await closeModals();
   const showCursor = (at) => p.evaluate((at) => window.TTLiveCursors.receive([{ id: 'u_sam', name: 'Sam Lee', at, a: 'v:', fx: 0.5, fy: 0.5, view: 'board' }]), at);
   await showCursor(Date.now()); await sleep(500);

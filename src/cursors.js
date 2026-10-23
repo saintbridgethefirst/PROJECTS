@@ -7,6 +7,7 @@
 //  cell…) rather than screen pixels, so they land in the right place on screens
 //  of any size, and the same card even lines up between the board and Kanban.
 //
+//  It's off by default: each person turns it on in the Who's here panel.
 //  To keep it cheap we only send while someone else is online, at most a few
 //  times a second, and stop as soon as the pointer leaves the board.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,10 +19,13 @@ const COLORS = ['#e8590c', '#2f9e44', '#1c7ed6', '#ae3ec9', '#d6336c', '#0c8599'
 
 let st = { getCtx: null, unsub: null, teamId: '', others: new Map(), layer: null, raf: 0, last: 0, pending: null, timer: 0, shown: false, bound: false, sim: 0 };
 
-export function cursorsOn() { try { return localStorage.getItem(PREF) !== 'off'; } catch (e) { return true; } }
+// Off until each person turns it on (Who's here panel).
+export function cursorsOn() { try { return localStorage.getItem(PREF) === 'on'; } catch (e) { return false; } }
 export function setCursorsOn(on) {
   try { localStorage.setItem(PREF, on ? 'on' : 'off'); } catch (e) { /* private window: just for this visit */ }
-  if (!on) { hideMine(); st.others.clear(); paint(); }
+  if (!on) { hideMine(); st.others.clear(); clearInterval(st.sim); st.sim = 0; paint(); return; }
+  const ctx = st.getCtx && st.getCtx();
+  if (ctx && ctx.TT && ctx.TT.isDemo && !navigator.webdriver && !st.sim) simulate();
 }
 export const colorFor = (uid) => { let h = 0; for (const ch of String(uid)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; };
 
@@ -43,7 +47,7 @@ export function startCursors(getCtx) {
     document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') hideMine(); });
   }
   // The demo has nobody else in it, so a sample teammate shows what this looks like.
-  if (ctx.TT && ctx.TT.isDemo && !navigator.webdriver) simulate();
+  if (ctx.TT && ctx.TT.isDemo && !navigator.webdriver && cursorsOn()) simulate();
 }
 export function stopCursors() {
   hideMine();
