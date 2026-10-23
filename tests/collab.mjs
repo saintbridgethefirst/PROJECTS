@@ -169,7 +169,7 @@ try {
   await B.click('#team-switch'); await B.waitForSelector('#mytasks-section:not([hidden])'); await sleep(600);
   const mt = await B.locator('#mytasks').textContent();
   ok(mt.includes('Order servos') && mt.includes('Book wind tunnel'), 'My tasks lists Tom’s tasks from both teams');
-  ok(mt.indexOf('Book wind tunnel') < mt.indexOf('Order servos') && mt.includes('Overdue · 1') && mt.includes('3 days overdue'), 'overdue first, with how late it is');
+  ok(mt.indexOf('Book wind tunnel') < mt.indexOf('Order servos') && mt.includes('Overdue · 1') && mt.includes('3 days overdue'), 'overdue first, with how late it is: ' + mt.slice(0, 300));
   ok(mt.includes('Due in 2 days') && mt.includes('☑ 1/2'), 'shows the deadline and sub-task progress');
   ok(await B.locator('.team-tile', { hasText: 'Robotics Group Project' }).locator('.tile-badge', { hasText: '@1' }).isVisible(), 'team tile shows Tom’s unread mention');
   ok(await B.locator('.team-tile', { hasText: 'Lab Admin' }).locator('.tile-badge').count() === 0, 'no badge on the other team');

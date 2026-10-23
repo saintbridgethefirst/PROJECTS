@@ -390,7 +390,7 @@ function renderHome() {
     try {
       const teamDoc = { name: name.slice(0, 80), logo: '', ownerUid: user.uid, createdAt: Date.now(), roles: DEFAULT_ROLES, fields: [], labels: DEFAULT_LABELS, weekNaming: 'sequence', phases: [], features: startFeatures(form.start ? form.start.value : 'standard'), weeks: [firstWeek()], currency: CURRENCIES.includes(form.currency && form.currency.value) ? form.currency.value : guessCurrency(navigator.language) };
       const id = await backend.data.createTeam(teamDoc, newMemberDoc('owner'));
-      if (!form.practice || form.practice.checked) sset(PRACTICE, id);
+      const practice = document.getElementById('create-practice'); if (practice && practice.checked) sset(PRACTICE, id);
       form.reset(); if (form.start) form.start.onchange(); goTeam(id);
     } catch (err) { toast(friendlyError(err)); } finally { btn.disabled = false; }
   };
