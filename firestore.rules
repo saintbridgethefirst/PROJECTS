@@ -49,6 +49,20 @@ service cloud.firestore {
     }
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
+    // Automatic steps (Settings ▸ Workflow). Its own function, reading each field once with `let`,
+    // so validTeam stays small (Firestore caps how much one request may evaluate).
+    function validAutos(a) { return a == null || (a is map && validAutosFields(a)); }
+    function validAutosFields(a) {
+      let pt = a.get('partsTo', '');
+      let rd = a.get('remindDays', 0);
+      let cw = a.get('carryWarn', 0);
+      return a.keys().hasOnly(['partsTo', 'tellWaiting', 'remindDays', 'carry', 'carryWarn', 'carryMakeWeeks'])
+        && pt is string && pt.size() <= 40
+        && a.get('tellWaiting', false) is bool
+        && rd is int && rd >= 0 && rd <= 60
+        && a.get('carry', false) is bool && a.get('carryMakeWeeks', false) is bool
+        && cw is int && cw >= 0 && cw <= 10;
+    }
     function validTeam(d) {
       return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look'])
         && d.get('archiveRev', 0) is int
@@ -58,11 +72,7 @@ service cloud.firestore {
         && (d.get('github', null) == null || (d.github is map && d.github.keys().hasOnly(['repo', 'issues', 'done', 'owner', 'connectedAt', 'write', 'last']) && d.github.get('repo', '') is string && d.github.get('repo', '').size() <= 140))
         && (d.get('purchase', null) == null || (d.purchase is map && d.purchase.keys().hasOnly(['on', 'over']) && d.purchase.get('on', false) is bool
           && d.purchase.get('over', 0) is number && d.purchase.get('over', 0) >= 0 && d.purchase.get('over', 0) <= 100000000))
-        && (d.get('autos', null) == null || (d.autos is map && d.autos.keys().hasOnly(['partsTo', 'tellWaiting', 'remindDays', 'carry', 'carryWarn', 'carryMakeWeeks']) && d.autos.get('partsTo', '') is string
-          && d.autos.get('partsTo', '').size() <= 40 && d.autos.get('tellWaiting', false) is bool && d.autos.get('remindDays', 0) is int
-          && d.autos.get('remindDays', 0) >= 0 && d.autos.get('remindDays', 0) <= 60
-          && d.autos.get('carry', false) is bool && d.autos.get('carryMakeWeeks', false) is bool
-          && d.autos.get('carryWarn', 0) is int && d.autos.get('carryWarn', 0) >= 0 && d.autos.get('carryWarn', 0) <= 10))
+        && validAutos(d.get('autos', null))
         && d.get('leads', {}) is map && d.get('leads', {}).size() <= 300
         && (d.get('workflow', null) == null || (d.workflow is map && d.workflow.keys().hasOnly(['stages', 'moved', 'order', 'gates', 'next', 'done']) && d.workflow.stages is list && d.workflow.stages.size() >= 2 && d.workflow.stages.size() <= 10))
         && d.name is string && d.name.size() > 0 && d.name.size() <= 80
