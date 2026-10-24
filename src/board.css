@@ -925,3 +925,56 @@
 .so-chip, .effort-chip, .stage-chip, .dep-chip, .cf-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .card-title, .card-status { overflow-wrap: anywhere; }
 .del-asked-chip { color: #c53030; border-color: color-mix(in srgb, #e53e3e 45%, transparent); }
+
+        /* List view (board-overrides.js ▸ renderList): every task in one sortable table */
+        #list-view { display: none; }
+        body.view-list #canvas-container { display: none; }
+        body.view-list #list-view { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 12px 18px 16px; gap: 12px; }
+        .lt-toolbar { align-items: center; }
+        .lt-sp { flex: 1 1 auto; }
+        .lt-btn { width: auto !important; flex: 0 0 auto; min-height: 34px; padding: 6px 14px !important; font-size: 13px !important; border-radius: 8px !important; margin: 0 !important; }
+        .lt-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-panel); }
+        .lt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; color: var(--text-main); }
+        .lt-table thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-panel); text-align: left; padding: 0; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+        .lt-sort { display: inline-flex; align-items: center; gap: 4px; width: 100%; height: 38px; padding: 0 12px; border: 0; background: none; cursor: pointer; font: inherit; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); text-align: left; }
+        .lt-sort:hover, .lt-sort.on { color: var(--text-main); }
+        .lt-arrow { color: var(--line-color); font-size: 12px; }
+        .lt-table td { padding: 6px 12px; border-bottom: 1px solid var(--border-color); vertical-align: middle; height: 44px; box-sizing: border-box; }
+        .lt-row { cursor: pointer; transition: background .12s; }
+        .lt-row:hover td { background: color-mix(in srgb, var(--line-color) 6%, transparent); }
+        .lt-row.selected td { background: color-mix(in srgb, var(--line-color) 12%, transparent); }
+        .lt-row:focus-visible { outline: 2px solid var(--line-color); outline-offset: -2px; }
+        .lt-row td:first-child { border-left: 3px solid transparent; }
+        .lt-row.prio-blocker td:first-child { border-left-color: var(--blocker, #e53e3e); }
+        .lt-row.prio-critical td:first-child { border-left-color: #dd6b20; }
+        .lt-row.prio-major td:first-child { border-left-color: #d69e2e; }
+        .lt-done .lt-name { text-decoration: line-through; color: var(--text-muted); }
+        .lt-c-name { min-width: 240px; }
+        .lt-name { font-weight: 600; margin-right: 8px; }
+        .lt-ref { white-space: nowrap; font-size: 11.5px; color: var(--text-muted); margin-right: 6px; font-variant-numeric: tabular-nums; }
+        .lt-chip { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--text-muted) 14%, transparent); color: var(--text-muted); margin-right: 4px; white-space: nowrap; }
+        .lt-owner, .lt-week { white-space: nowrap; }
+        .lt-week.is-backlog { font-weight: 700; color: var(--line-color); }
+        .lt-table select { height: 32px; box-sizing: border-box; margin: 0 !important; padding: 0 30px 0 10px !important; font: inherit; font-size: 13px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--bg-main); color: var(--text-main); width: auto !important; min-width: 120px; }
+        .lt-stage { border-left: 4px solid var(--stage-color, var(--border-color)) !important; }
+        .lt-table select:disabled { opacity: .75; cursor: default; }
+        .lt-due { white-space: nowrap; font-size: 12.5px; font-weight: 600; }
+        .lt-due.due-over { color: var(--blocker, #e53e3e); } .lt-due.due-soon { color: #d69e2e; } .lt-due.lt-none, .lt-due.due-done { color: var(--text-muted); font-weight: 500; }
+        .lt-subs { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+        .lt-bar { display: inline-block; width: 44px; height: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--text-muted) 22%, transparent); }
+        .lt-bar i { display: block; height: 100%; background: #48bb78; border-radius: 3px; }
+        .lt-group td { position: sticky; top: 38px; z-index: 1; background: color-mix(in srgb, var(--bg-main) 85%, var(--bg-panel)); font-weight: 800; font-size: 12.5px; height: 34px; padding: 0 12px; color: var(--text-main); }
+        .lt-group .stage-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+        .lt-count { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--text-muted) 18%, transparent); color: var(--text-muted); font-size: 11px; text-align: center; margin-left: 4px; }
+        .lt-empty { text-align: center; color: var(--text-muted); padding: 40px 12px !important; height: auto !important; }
+        @media (max-width: 760px) {
+            body.view-list #list-view { padding: 8px 8px 10px; }
+            .lt-c-subs, .lt-c-week { display: none; }
+            .lt-c-name { min-width: 180px; }
+        }
+
+        /* The backlog column: tasks without a week */
+        .header-week[data-week-key="backlog"] { background: repeating-linear-gradient(135deg, transparent 0 8px, color-mix(in srgb, var(--line-color) 6%, transparent) 8px 16px); }
+        .header-week[data-week-key="backlog"] .week-title { color: var(--line-color); }
+        .header-week[data-week-key="backlog"] .metric-badge, .header-week[data-week-key="backlog"] .week-dates { display: none; }
+        .col-week[data-week-key="backlog"] { background-image: repeating-linear-gradient(135deg, transparent 0 10px, color-mix(in srgb, var(--line-color) 4%, transparent) 10px 20px); }

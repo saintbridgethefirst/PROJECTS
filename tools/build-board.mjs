@@ -146,7 +146,7 @@ const DROP_VARS = new Set(['DB_NAME', 'STORE_NAME', 'currentUser', 'autoSaveTime
 const RENAME = { openEditor: '_openEditorBase', createTaskCard: '_createTaskCardBase', canvasMenuItems: '_canvasMenuItemsBase',
   taskMenuItems: '_taskMenuItemsBase', renderCategoryRow: '_renderCategoryRowBase', downloadBackup: '_downloadBackupBase', openAnalytics: '_openAnalyticsBase', renderFilters: '_renderFiltersBase',
   showMenu: '_showMenuBase', closeContextMenu: '_closeContextMenuBase', onBoardContextMenu: '_onBoardContextMenuBase',
-  columnMenuItems: '_columnMenuItemsBase', render: '_renderBase', collectTasks: '_collectTasksBase', renderAnalytics: '_renderAnalyticsBase', locateTask: '_locateTaskBase', openOriginalTask: '_openOriginalTaskBase' };
+  columnMenuItems: '_columnMenuItemsBase', render: '_renderBase', collectTasks: '_collectTasksBase', renderAnalytics: '_renderAnalyticsBase', locateTask: '_locateTaskBase', openOriginalTask: '_openOriginalTaskBase', weekMenuItems: '_weekMenuItemsBase' };
 const DROP_EXPR = [/updateUIUser\(\)/, /e\.key === 's'/, /'beforeunload'/, /'storage'/, /^loadDatabase\(\)/, /^checkStoredHandle\(\)/,
   /^lastSnapshot = /, /^refreshSyncUI\(\)/, /^renderFilters\(\);?$/, /^render\(\);?$/];
 
