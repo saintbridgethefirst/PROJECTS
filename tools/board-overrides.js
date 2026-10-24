@@ -5,6 +5,9 @@
            Everything here talks to the app through window.TT (src/main.js).
            =================================================================== */
 
+        // A link's href only when it's a plain web address — never javascript: or data: from a stored URL.
+        const safeHref = (u) => /^https?:\/\//i.test(String(u || '').trim()) ? String(u).trim() : '';
+
         // ---------- Saving: every edit goes through the app's sync engine ----------
         let commitCount = 0;
         function saveDatabase(coalesceKey) {
@@ -296,7 +299,7 @@
             (task.attachments || []).forEach(a => {
                 const row = document.createElement('div'); row.className = 'att-item';
                 const ic = document.createElement('span'); ic.textContent = icons[a.provider] || '🔗';
-                const link = document.createElement('a'); link.href = a.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = a.name || a.url; link.title = (a.addedBy ? 'Added by ' + a.addedBy + ' · ' : '') + a.url;
+                const link = document.createElement('a'); const hv = safeHref(a.url); if (hv) { link.href = hv; link.target = '_blank'; link.rel = 'noopener noreferrer'; } link.textContent = a.name || a.url; link.title = (a.addedBy ? 'Added by ' + a.addedBy + ' · ' : '') + a.url;
                 row.append(ic, link);
                 if (TT.parseGithub(a.url)) {
                     const pg = TT.parseGithub(a.url); ic.textContent = ''; ic.appendChild(ghGlyph(pg.kind)); ic.className = 'att-gh-ic';

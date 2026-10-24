@@ -15,7 +15,7 @@ service cloud.firestore {
     // …or a university email proved by code (verifiedStudents/{uid} is written only by the server).
     function academic() {
       return (request.auth.token.email_verified == true
-        && request.auth.token.email.lower().matches('.*@([a-z0-9-]+[.])+(ac[.][a-z]{2}|edu([.][a-z]{2})?)$|.*@([a-z0-9-]+[.])*(ethz|epfl)[.]ch$'))
+        && request.auth.token.email.lower().matches('^(.*@([a-z0-9-]+[.])+(ac[.][a-z]{2}|edu([.][a-z]{2})?)|.*@([a-z0-9-]+[.])*(ethz|epfl)[.]ch)$'))
         || (exists(/databases/$(database)/documents/verifiedStudents/$(request.auth.uid))
           && get(/databases/$(database)/documents/verifiedStudents/$(request.auth.uid)).data.until > request.time.toMillis());
     }
@@ -104,6 +104,7 @@ service cloud.firestore {
         && d.get('extras', []) is list && d.get('extras', []).size() <= 10
         && d.qty is number && d.qty >= 0 && d.qty <= 100000 && d.unitCost is number && d.unitCost >= 0 && d.unitCost <= 100000000
         && d.status in ['needed', 'ordered', 'received', 'cancelled'] && d.notes is string && d.notes.size() <= 2000
+        && (d.get('url', '') == '' || (d.get('url', '') is string && d.get('url', '').matches('^https?://.*$')))
         && d.createdBy is string && d.createdAt is number;
     }
     // Purchase approvals (workflow step 3): a part's approval request and its decision.
@@ -142,6 +143,7 @@ service cloud.firestore {
         && d.kind in ['expense', 'income'] && d.amount is number && d.amount >= 0 && d.amount <= 100000000
         && d.date is string && d.date.size() <= 10 && d.description is string && d.description.size() <= 300
         && d.get('receiptImage', '') is string && d.get('receiptImage', '').size() <= 200000
+        && (d.get('receiptUrl', '') == '' || (d.get('receiptUrl', '') is string && d.get('receiptUrl', '').matches('^https?://.*$')))
         && d.get('partIds', []) is list && d.get('partIds', []).size() <= 30
         && d.createdBy is string && d.createdAt is number;
     }
@@ -153,6 +155,7 @@ service cloud.firestore {
       return d.keys().hasOnly(['title', 'authors', 'year', 'venue', 'doi', 'url', 'notes', 'tags', 'status', 'taskIds', 'addedBy', 'addedByName', 'createdAt', 'updatedAt'])
         && d.title is string && d.title.size() > 0 && d.title.size() <= 500 && d.authors is string && d.authors.size() <= 500
         && d.notes is string && d.notes.size() <= 5000 && d.tags is list && d.tags.size() <= 20
+        && (d.get('url', '') == '' || (d.get('url', '') is string && d.get('url', '').matches('^https?://.*$')))
         && d.status in ['to-read', 'reading', 'read'] && d.taskIds is list && d.taskIds.size() <= 20
         && d.addedBy is string && d.createdAt is number;
     }
@@ -169,7 +172,10 @@ service cloud.firestore {
       return d.keys().hasOnly(['boardId', 'kind', 'x', 'y', 'w', 'h', 'text', 'color', 'taskId', 'from', 'to', 'z', 'createdBy', 'updatedAt', 'shape', 'path'])
         && d.boardId is string && d.boardId.size() > 0 && d.boardId.size() <= 64
         && d.kind in ['note', 'text', 'title', 'task', 'link', 'shape', 'pen', 'frame']
-        && d.get('shape', '') is string && d.get('shape', '').size() <= 12 && d.get('path', '') is string && d.get('path', '').size() <= 6000
+        && d.get('shape', '') is string && d.get('shape', '').size() <= 12
+        // path is a pen drawing: only the characters that make up "x,y x,y …" coordinates, so a stored
+        // value can never carry markup into the SVG that draws it.
+        && d.get('path', '') is string && d.get('path', '').size() <= 6000 && d.get('path', '').matches('^[0-9 .,-]*$')
         && d.x is number && d.y is number && d.w is number && d.h is number
         && d.text is string && d.text.size() <= 2000
         && d.get('color', '') is string && d.get('color', '').size() <= 20
@@ -469,6 +475,7 @@ service cloud.firestore {
         allow create: if signedIn() && uid == request.auth.uid
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.keys().hasOnly(['uid', 'email', 'name', 'photo', 'roleId', 'joinedAt'])
+          && request.resource.data.name is string && request.resource.data.name.size() <= 80
           && validPhoto(request.resource.data)
           && (
             // founder: created in the same batch as a brand-new team they own
@@ -486,7 +493,8 @@ service cloud.firestore {
               && resource.data.roleId != 'owner' && request.resource.data.roleId != 'owner'
               && request.resource.data.roleId in get(teamPath(t)).data.roles)
             // anyone updates their own display name / photo
-            || (uid == request.auth.uid && changed().hasOnly(['name', 'photo']) && validPhoto(request.resource.data))
+            || (uid == request.auth.uid && changed().hasOnly(['name', 'photo'])
+              && request.resource.data.name is string && request.resource.data.name.size() <= 80 && validPhoto(request.resource.data))
           );
         allow delete: if isMember(t) && (
             // leaving needs approval: only someone who manages members removes a membership (their own included)

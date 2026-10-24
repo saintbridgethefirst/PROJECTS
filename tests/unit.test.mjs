@@ -888,3 +888,25 @@ test('a new team can start Simple, as a Research team or with Everything', async
   assert.deepEqual(startFeatures('nonsense'), NEW_TEAM_FEATURES, 'unknown choice falls back to the usual set');
   assert.deepEqual(TEAM_STARTS.map(s => s.key), ['simple', 'standard', 'full']);
 });
+
+// ── Security: input sanitizers (XSS defences) ───────────────────────────────
+import { cleanWbItem, cleanWbPath } from '../src/model.js';
+import { safeUrl } from '../src/ui.js';
+
+test('security: a whiteboard pen path keeps only coordinate characters', () => {
+  const evil = '0,0"><image href=x onerror=alert(1)>';
+  assert.equal(cleanWbPath(evil), '', 'a markup payload is dropped, not stored');
+  assert.match(cleanWbPath('12,34 56,78'), /^[0-9 .,-]*$/, 'real coordinates survive');
+  const item = cleanWbItem({ kind: 'pen', path: evil, x: 0, y: 0, w: 100, h: 80 }, 'i1');
+  assert.ok(!/[<>"]/.test(item.path), 'cleanWbItem never stores markup in a path');
+});
+
+test('security: safeUrl allows only web and mail links', () => {
+  assert.equal(safeUrl('https://example.com/x'), 'https://example.com/x');
+  assert.equal(safeUrl('http://example.com'), 'http://example.com');
+  assert.equal(safeUrl('mailto:a@b.com'), 'mailto:a@b.com');
+  assert.equal(safeUrl('javascript:alert(1)'), '', 'javascript: is refused');
+  assert.equal(safeUrl('data:text/html,<script>'), '', 'data: is refused');
+  assert.equal(safeUrl(' JavaScript:alert(1)'), '', 'case and whitespace tricks are refused');
+  assert.equal(safeUrl(undefined), '');
+});

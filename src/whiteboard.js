@@ -10,7 +10,7 @@ import './whiteboard.css';
 import { el, modal, toast } from './ui.js';
 import { icon as lineIcon } from './icons.js';
 import { cursorsOn, setCursorsOn } from './cursors.js';
-import { newId, cleanWbItem, cleanWhiteboard, WB_COLORS, WB_INKS, WB_SHAPES, WB_MAX_ITEMS, noteToTask } from './model.js';
+import { newId, cleanWbItem, cleanWbPath, cleanWhiteboard, WB_COLORS, WB_INKS, WB_SHAPES, WB_MAX_ITEMS, noteToTask } from './model.js';
 
 let W = null;   // the open whiteboard screen
 const TOOLS = [['select', '↖', 'Select and move (V). Shift-drag to select several', 'v'], ['note', '▭', 'Sticky note (N)', 'n'], ['text', 'T', 'Text (T)', 't'], ['title', 'H', 'Heading (H)', 'h'],
@@ -224,7 +224,16 @@ function itemEl(i) {
         (info.t.subtasks || []).length ? el('span', {}, '☑ ' + info.t.subtasks.filter(x => x.completed).length + '/' + info.t.subtasks.length) : ''));
   } else if (i.kind === 'pen') {
     n.setAttribute('aria-label', 'Drawing');
-    n.innerHTML = '<svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" stroke-width="3" points="' + (i.path || '') + '"/></svg>';
+    // Build the SVG with setAttribute (never innerHTML): a stored `path` string can then never
+    // break out of the attribute into markup, whatever a raw database write put there.
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 1000 1000'); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('aria-hidden', 'true');
+    const line = document.createElementNS(NS, 'polyline');
+    line.setAttribute('fill', 'none'); line.setAttribute('stroke-linecap', 'round'); line.setAttribute('stroke-linejoin', 'round');
+    line.setAttribute('vector-effect', 'non-scaling-stroke'); line.setAttribute('stroke-width', '3');
+    line.setAttribute('points', cleanWbPath(i.path || ''));
+    svg.append(line); n.append(svg);
     n.style.setProperty('--ink', i.color || 'var(--text-main)');
   } else if (i.kind === 'shape') {
     n.setAttribute('aria-label', (SHAPE_LABEL[i.shape] || 'Shape') + ': ' + (i.text || 'empty'));

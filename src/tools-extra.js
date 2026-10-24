@@ -139,8 +139,8 @@ export function timesheet(pane, kit) {
     rows.map(e => el('tr', {}, el('td', {}, kit.fmtDate(e.date)), el('td', {}, e.name), el('td', {}, el('button.link-btn', { type: 'button', onclick: () => { R.m.close(); window.boardOpenTask(e.taskId); } }, e.taskName)), el('td.num', {}, hrs(e.hours)), el('td', {}, e.note))),
     el('tr.ts-total', {}, el('td', {}, el('b', {}, 'Total')), el('td'), el('td'), el('td.num', {}, el('b', {}, hrs(total))), el('td')))));
 }
-function exportTimesheet(rows, s, from, to) {
-  if (!window.XLSX) { toast('Export isn’t ready yet — try again in a moment.'); return; }
+async function exportTimesheet(rows, s, from, to) {
+  try { await window.ensureXLSX(); } catch { toast('Couldn’t load the spreadsheet tools. Check your connection and try again.'); return; }
   const X = window.XLSX; const wb = X.utils.book_new();
   X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['Date', 'Person', 'Task', 'Hours', 'Note', 'Task estimate (h)'], ...rows.map(e => [e.date, e.name, e.taskName, e.hours, e.note, e.effort ?? ''])]), 'Timesheet');
   const by = new Map(); rows.forEach(e => by.set(e.name, (by.get(e.name) || 0) + e.hours));
@@ -261,8 +261,8 @@ function reqForm(kit, q) {
       q.id && (q.createdBy === kit.me().uid || kit.perm('team.settings')) ? el('button.btn.small.danger', { type: 'button', onclick: async () => { if (!confirm('Delete ' + q.ref + '?')) return; if (await kit.write([{ type: 'delete', path: 'requirements/' + q.id }])) { R.reqEdit = null; kit.render(); } } }, 'Delete') : '',
       el('span.spacer'), el('button.btn.small.ghost', { type: 'button', onclick: () => { R.reqEdit = null; kit.render(); } }, 'Cancel'), el('button.btn.small.primary', { type: 'submit' }, 'Save')));
 }
-function exportTrace(all, s, kit) {
-  if (!window.XLSX) { toast('Export isn’t ready yet — try again in a moment.'); return; }
+async function exportTrace(all, s, kit) {
+  try { await window.ensureXLSX(); } catch { toast('Couldn’t load the spreadsheet tools. Check your connection and try again.'); return; }
   const X = window.XLSX; const wb = X.utils.book_new();
   X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['Ref', 'Requirement', 'Details', 'Priority', 'Status', 'Delivered by (tasks)', 'Task status', 'Verification', 'Verified', 'Verified by', 'Verified on'],
     ...all.map(q => [q.ref, q.title, q.detail, PRIO_LABEL[q.priority], REQ_LABEL[q.status], q.taskIds.map(id => (kit.taskById(id) || {}).name || 'deleted task').join('; '),

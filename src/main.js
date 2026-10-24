@@ -747,11 +747,23 @@ function openAccount() {
     } }, 'Save'));
 }
 
+// SheetJS (Excel import/export), loaded on demand from the publisher's own patched build —
+// the npm package is no longer maintained. Lazy, so a blocked network never stops the board
+// loading; the Excel actions show a message instead. window.ensureXLSX() resolves window.XLSX.
+let xlsxPromise = null;
+window.ensureXLSX = function ensureXLSX() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (!xlsxPromise) {
+    const url = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
+    xlsxPromise = import(/* @vite-ignore */ url).then(m => { window.XLSX = m; return m; }).catch(e => { xlsxPromise = null; throw e; });
+  }
+  return xlsxPromise;
+};
+
 // ── Team board ──────────────────────────────────────────────────────────────
 function loadBoard() {
   if (boardLoaded) return boardLoaded;
   boardLoaded = (async () => {
-    window.XLSX = await import('xlsx');
     await new Promise((res, rej) => { const s = document.createElement('script'); s.src = (import.meta.env.BASE_URL || '/') + 'board/board.js?v=' + (typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'); s.onload = res; s.onerror = () => rej(new Error('Could not load the board')); document.body.append(s); });
   })();
   return boardLoaded;

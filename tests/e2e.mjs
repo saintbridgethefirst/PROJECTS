@@ -224,7 +224,8 @@ try {
 
   // ── 9. Import from Excel ─────────────────────────────────────────────────
   step('Import tasks from an Excel sheet');
-  const xlsxB64 = await A.evaluate(() => {
+  const xlsxB64 = await A.evaluate(async () => {
+    await window.ensureXLSX();   // SheetJS now loads on demand, not at board load
     const rows = [['Owner', 'Category', 'Week', 'Task', 'Priority', 'Deadline', 'Supervisor'],
       ['tom@uni.ac.uk', 'HARDWARE', 'WEEK 99', 'Solder encoder board', 'high', '20/11/2026', 'Dr. Lee'],
       ['Aisha Khan', 'GENERAL', '', 'Write intro', 'low', '', ''],

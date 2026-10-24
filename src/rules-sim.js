@@ -71,7 +71,7 @@ function validNote(d) {
 }
 function validPart(d) {
   return hasOnly(d, ALLOWED.part) && isStr(d.name, 200) && d.name.length > 0 && isNum(d.qty, 0, 100000) && isNum(d.unitCost, 0, 1e8) &&
-    ['needed', 'ordered', 'received', 'cancelled'].includes(d.status) && isStr(d.notes, 2000) && validApproval(d.approval) && (d.extras === undefined || (Array.isArray(d.extras) && d.extras.length <= 10)) && typeof d.createdBy === 'string' && typeof d.createdAt === 'number';
+    ['needed', 'ordered', 'received', 'cancelled'].includes(d.status) && isStr(d.notes, 2000) && webUrl(d.url) && validApproval(d.approval) && (d.extras === undefined || (Array.isArray(d.extras) && d.extras.length <= 10)) && typeof d.createdBy === 'string' && typeof d.createdAt === 'number';
 }
 /** Purchase approvals (firestore.rules ▸ validApproval / partApproval / purchaseOk / costKept). */
 function validApproval(v) {
@@ -95,12 +95,12 @@ function costKept(can, before, after) {
 }
 function validExpense(d) {
   return hasOnly(d, ALLOWED.expense) && ['expense', 'income'].includes(d.kind) && isNum(d.amount, 0, 1e8) && isStr(d.date, 10) && isStr(d.description, 300) &&
-    (d.receiptImage === undefined || isStr(d.receiptImage, 200000)) && (d.partIds === undefined || (Array.isArray(d.partIds) && d.partIds.length <= 30)) && typeof d.createdBy === 'string' && typeof d.createdAt === 'number';
+    (d.receiptImage === undefined || isStr(d.receiptImage, 200000)) && webUrl(d.receiptUrl) && (d.partIds === undefined || (Array.isArray(d.partIds) && d.partIds.length <= 30)) && typeof d.createdBy === 'string' && typeof d.createdAt === 'number';
 }
 function validBudget(d) { return hasOnly(d, ALLOWED.budget) && isStr(d.currency, 3) && Array.isArray(d.lines) && d.lines.length <= 50; }
 function validPaper(d) {
   return hasOnly(d, ALLOWED.paper) && isStr(d.title, 500) && d.title.length > 0 && isStr(d.authors, 500) && isStr(d.notes, 5000) &&
-    Array.isArray(d.tags) && d.tags.length <= 20 && ['to-read', 'reading', 'read'].includes(d.status) && Array.isArray(d.taskIds) && d.taskIds.length <= 20 &&
+    Array.isArray(d.tags) && d.tags.length <= 20 && webUrl(d.url) && ['to-read', 'reading', 'read'].includes(d.status) && Array.isArray(d.taskIds) && d.taskIds.length <= 20 &&
     typeof d.addedBy === 'string' && typeof d.createdAt === 'number';
 }
 function validProfile(d) {
@@ -152,9 +152,10 @@ const validLog = (d) => hasOnly(d, ALLOWED.log) && typeof d.at === 'number' && t
   ['budget', 'spending', 'income', 'parts'].includes(d.kind) && typeof d.text === 'string' && d.text.length > 0 && d.text.length <= 600;
 
 const validWhiteboard = (d) => hasOnly(d, ['name', 'createdBy', 'createdByName', 'createdAt', 'updatedAt']) && typeof d.name === 'string' && d.name.length > 0 && d.name.length <= 80 && typeof d.createdBy === 'string' && typeof d.createdAt === 'number';
+const webUrl = (v) => v === undefined || v === '' || (typeof v === 'string' && /^https?:\/\/.*$/.test(v));
 const validWbItem = (d) => hasOnly(d, ['boardId', 'kind', 'x', 'y', 'w', 'h', 'text', 'color', 'taskId', 'from', 'to', 'z', 'createdBy', 'updatedAt', 'shape', 'path']) &&
   typeof d.boardId === 'string' && d.boardId.length > 0 && d.boardId.length <= 64 && ['note', 'text', 'title', 'task', 'link', 'shape', 'pen', 'frame'].includes(d.kind) &&
-  (d.shape === undefined || isStr(d.shape, 12)) && (d.path === undefined || isStr(d.path, 6000)) &&
+  (d.shape === undefined || isStr(d.shape, 12)) && (d.path === undefined || (isStr(d.path, 6000) && /^[0-9 .,-]*$/.test(d.path))) &&
   ['x', 'y', 'w', 'h'].every(k => typeof d[k] === 'number') && isStr(d.text, 2000) &&
   ['color', 'taskId', 'from', 'to'].every(k => d[k] === undefined || isStr(d[k], k === 'color' ? 20 : 64)) && typeof d.createdBy === 'string';
 /** SelfTrack items (firestore.rules ▸ validSelf). */
@@ -285,7 +286,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
     }
     case 'members': {
       if (isCreate) {
-        if (id !== auth.uid || after.uid !== auth.uid || !hasOnly(after, ALLOWED.member) || !validPhoto(after)) deny('member create');
+        if (id !== auth.uid || after.uid !== auth.uid || !hasOnly(after, ALLOWED.member) || !isStr(after.name, 80) || !validPhoto(after)) deny('member create');
         const founder = after.roleId === 'owner' && !T0 && T1 && T1.doc.ownerUid === auth.uid;
         const inv = T0 && auth.emailVerified && T0.invites[myEmail];
         const invited = !!inv && after.roleId === inv.roleId && after.roleId !== 'owner' && after.email === myEmail;
@@ -300,7 +301,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
       }
       const ch = changedKeys(before, after);
       const roleChange = can('members.manage') && id !== auth.uid && ch.every(k => k === 'roleId') && before.roleId !== 'owner' && after.roleId !== 'owner' && !!T0.doc.roles?.[after.roleId];
-      const selfEdit = id === auth.uid && ch.every(k => ['name', 'photo'].includes(k)) && validPhoto(after);
+      const selfEdit = id === auth.uid && ch.every(k => ['name', 'photo'].includes(k)) && isStr(after.name, 80) && validPhoto(after);
       if (!roleChange && !selfEdit) deny('edit member');
       return;
     }
