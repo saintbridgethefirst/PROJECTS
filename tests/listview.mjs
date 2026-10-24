@@ -45,7 +45,7 @@ try {
   await p.click('.lt-sort[data-sort="name"]'); await sleep(200);
   ok((await names()).join('|') === 'Alpha frame|Bravo wiring|Charlie report', 'A → Z by task');
   await p.click('.lt-sort[data-sort="name"]'); await sleep(200);
-  ok((await names()).join('|') === 'Charlie report|Bravo wiring|Alpha frame', 'Z → A on a second click');
+  ok((await names()).join('|') === 'Bravo wiring|Alpha frame|Charlie report', 'Z → A on a second click (finished work stays at the bottom)');
   ok(await p.locator('th[aria-sort="descending"] .lt-sort[data-sort="name"]').count() === 1, 'the header says how it is sorted');
   await p.click('.lt-sort[data-sort="priority"]'); await sleep(200);
   ok((await names())[0] === 'Alpha frame', 'Blocker first when sorted by priority');
