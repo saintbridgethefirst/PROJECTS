@@ -212,7 +212,13 @@ function demoWelcome(box, note, wrap) {
     goBtn,
     el('button.btn.block', { type: 'button', id: 'demo-empty', onclick: go('empty') }, 'Start with an empty team'),
     many,
-    el('p.hint', {}, 'Ready for real? ', el('a', { href: '/' }, 'Sign in to Trawpie →')));
+    el('details.demo-new', {}, el('summary', {}, 'New: working together'),
+      el('ul', {}, ['Live cursors: see where teammates point, on the board and on whiteboards (open a whiteboard to see a sample teammate, Maya)',
+        'A glow in someone’s colour on the task they’re editing',
+        'Guests: invite a supplier or supervisor with limited access',
+        'Joint board: all your teams side by side',
+        'Drag the people column narrower to give tasks more room'].map(t => el('li', {}, t)))),
+    el('p.hint', {}, 'Free for student teams. Ready for real? ', el('a', { href: '/' }, 'Sign in to Trawpie →')));
 }
 /** The sample team (src/sample.js): opens your existing copy, or loads one. tour = start the guided tour once it's open. */
 async function openSampleTeam(tour, kind = 'drone') {

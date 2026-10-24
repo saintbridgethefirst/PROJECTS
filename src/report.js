@@ -238,7 +238,7 @@ export function reportHtml(R, { forWord = false } = {}) {
   return '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(R.title + ' · ' + R.team) + '</title><style>' + css + '</style></head><body>' +
     '<header>' + (R.logo && !forWord ? '<img src="' + esc(R.logo) + '" alt="">' : '') + '<div><h1>' + esc(R.title) + '</h1><div class="sub">' + esc(R.team) + ' · ' + esc(R.period.label) + ' (' + esc(fmt(R.period.from)) + ' – ' + esc(fmt(R.period.to)) + ')<br>Prepared by ' + esc(R.author) + ' on ' + esc(fmt(R.generated)) + '</div></div></header>' +
     (R.message ? '<div class="msg">' + esc(R.message) + '</div>' : '') + R.sections.map(sec).join('') +
-    '<footer>Generated with Trawpie · ' + esc(fmt(R.generated)) + '</footer></body></html>';
+    '<footer>' + esc(fmt(R.generated)) + ' · Made with <a href="https://trawpie.org">Trawpie</a>, free for student teams</footer></body></html>';
 }
 export function reportText(R) {
   const out = [R.title + ' — ' + R.team, R.period.label + ' (' + fmt(R.period.from) + ' – ' + fmt(R.period.to) + ')', 'Prepared by ' + R.author + ' on ' + fmt(R.generated), ''];
@@ -253,6 +253,7 @@ export function reportText(R) {
     if (emptyNow && s.empty) out.push(s.empty);
     out.push('');
   });
+  out.push('Made with Trawpie, free for student teams: https://trawpie.org');
   return out.join('\n').trim() + '\n';
 }
 

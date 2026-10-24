@@ -29,6 +29,9 @@ export function shareWeek(weeks, today) {
  * opts = { scopeLabel?: 'Payload', names: true }
  * Returns the message: WhatsApp formatting (*bold*), one line per task, at most MAX_ITEMS per list.
  */
+/** Every shared summary carries a small credit, so people who see it know where it came from. */
+export const MADE_WITH = 'Made with Trawpie · free for student teams · https://trawpie.org';
+
 export function buildWeekShare(data, opts = {}) {
   const { team, rows, today } = data; const names = opts.names !== false;
   const wk = shareWeek(team.weeks, today);
@@ -63,6 +66,7 @@ export function buildWeekShare(data, opts = {}) {
   ].filter(Boolean);
   if (parts.length === 1) parts.push('A quiet week: nothing finished, due or late yet.');
   parts.push((total ? '📈 ' + finished + ' of ' + total + ' tasks done (' + Math.round(100 * finished / total) + '%)' : '') + (data.url ? (total ? '\n' : '') + '👉 ' + data.url : ''));
+  if (opts.credit !== false) parts.push('_' + MADE_WITH + '_');
   return parts.filter(Boolean).join('\n\n');
 }
 

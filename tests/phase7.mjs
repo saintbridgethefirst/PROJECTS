@@ -12,6 +12,8 @@ const step = (s) => console.log('▸ ' + s);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = [];
 const iso = (d, base = new Date()) => { const x = new Date(base); x.setDate(x.getDate() + d); return x.toLocaleDateString('en-CA'); };
+// Wednesday of next week, whatever day the test runs ("9 days from today" fell in week 3 at weekends).
+const DUE2 = (() => { const m = new Date(); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return iso(9, m); })();
 const monday = () => { const x = new Date(); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.toLocaleDateString('en-CA'); };
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAKElEQVR42mNk+M9Qz0AEYBxVSF+FDP8ZGP4zMDIyMjIwMjIyAAAk6wQB9p8iGwAAAABJRU5ErkJggg==', 'base64');
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
@@ -64,17 +66,17 @@ try {
   await A.click('#mt-new'); await sleep(400);
   ok((await list(A, 'meetings')).length === 1, 'new meeting saved');
   await A.fill('#mt-title', 'Supervisor meeting'); await A.press('#mt-title', 'Tab'); await sleep(300);
-  await A.fill('#mt-notes', 'Agenda\n- gripper design\n\nActions\n- [ ] Order servos @Tom Reed by ' + iso(9) + '\nTODO: draft the methods section'); await A.locator('#mt-notes').blur(); await sleep(400);
+  await A.fill('#mt-notes', 'Agenda\n- gripper design\n\nActions\n- [ ] Order servos @Tom Reed by ' + DUE2 + '\nTODO: draft the methods section'); await A.locator('#mt-notes').blur(); await sleep(400);
   await A.click('button:has-text("Find actions in notes")'); await sleep(500);
   let mt = (await list(A, 'meetings'))[0];
   ok(mt.title === 'Supervisor meeting' && mt.notes.includes('Order servos'), 'title and notes saved');
-  ok(mt.actions.length === 2 && mt.actions[0].text === 'Order servos' && mt.actions[0].dueDate === iso(9), 'two actions found, with the due date');
+  ok(mt.actions.length === 2 && mt.actions[0].text === 'Order servos' && mt.actions[0].dueDate === DUE2, 'two actions found, with the due date');
   const tomUid = (await team(A)).members && Object.values((await team(A)).members).find(m => m.email === 'tom@uni.ac.uk').uid;
   ok(mt.actions[0].ownerUid === tomUid, '@Tom Reed made Tom the owner');
   // Aisha (owner, edits everyone's tasks) creates Tom's task
   await A.locator('.mtg-act').nth(0).locator('button:has-text("Create task")').click(); await sleep(500);
   let t = (await tasksNamed(A, 'Order servos'))[0];
-  ok(t && t.ownerUid === tomUid && t.dueDate === iso(9) && t.weekId === 'wk_two', 'task created in Tom’s row, in the week of its due date');
+  ok(t && t.ownerUid === tomUid && t.dueDate === DUE2 && t.weekId === 'wk_two', 'task created in Tom’s row, in the week of its due date');
   ok(t && t.history.some(h => h.updated.includes('From meeting “Supervisor meeting”')), 'task remembers which meeting it came from');
   mt = (await list(A, 'meetings'))[0];
   ok(mt.actions[0].taskId === t.id, 'action linked to its task');

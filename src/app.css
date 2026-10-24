@@ -1301,3 +1301,13 @@ select:not([multiple]):not([size]):hover { border-color: color-mix(in srgb, var(
 select:disabled { cursor: not-allowed; opacity: .6; }
 select::-ms-expand { display: none; }
 #landing select, .landing select, .auth-footer select { --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2356607a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+
+/* Free for students, visibly */
+.lp-free-badge { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px; padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
+  color: #1d4ed8; background: #eaf0ff; border: 1px solid #c9d7ff; }
+.lp-free-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22a55a; }
+.lp-free-note { margin-top: 12px; font-size: 13.5px; color: var(--lp-muted, #56607a); }
+
+.demo-new { margin-top: 10px; font-size: 13px; }
+.demo-new summary { cursor: pointer; font-weight: 700; color: var(--line-color); }
+.demo-new ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; color: var(--text-muted); }

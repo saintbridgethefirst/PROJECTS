@@ -795,7 +795,8 @@ test('share: done, in progress, due, overdue, waiting and carried, WhatsApp-form
   assert.ok(t.includes('• Order ESCs — Tom Reed (23 Oct)'));
   assert.ok(t.includes('⚠️ *Overdue* (1)\n• Wiring loom — Tom Reed (3 days late)') && !t.match(/In progress[^]*Wiring loom[^]*Due/), 'overdue shown once, not also as in progress');
   assert.ok(t.includes('(waits on Wiring loom)') && t.includes('↪ 1 task carried over'));
-  assert.ok(t.includes('📈 2 of 6 tasks done (33%)') && t.endsWith('👉 https://x.app/#/t/T'));
+  assert.ok(t.includes('📈 2 of 6 tasks done (33%)') && t.includes('👉 https://x.app/#/t/T'));
+  assert.ok(t.endsWith('_Made with Trawpie · free for student teams · https://trawpie.org_'), 'ends with a small credit');
   assert.ok(!buildWeekShare({ team: { name: 'D', weeks: SW }, rows, today: '2026-10-21' }, { names: false }).includes('Tom Reed'), 'names can be left out');
 });
 test('share: long lists are cut; a quiet week says so; the WhatsApp link carries the text', () => {
