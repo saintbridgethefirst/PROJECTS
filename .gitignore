@@ -26,3 +26,6 @@ service-account*.json
 .fuse_hidden*
 !functions/.env.uni-teamtrack
 dist-probe/
+
+# Session scratch (screenshots, one-off scripts)
+scratchpad/
