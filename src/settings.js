@@ -868,7 +868,46 @@ function integrations(pane, ctx, { rerender } = {}) {
     row('Google Drive & Sheets', !!GOOGLE_CLIENT_ID, GOOGLE_CLIENT_ID ? 'Attach files to tasks, export tasks to Google Sheets, and collect tasks with a shared sheet.' : 'The site administrator adds a Google OAuth client ID (see SETUP.md, step 6).'),
     row('OneDrive', !!MS_CLIENT_ID, MS_CLIENT_ID ? 'Attach files from OneDrive to tasks.' : 'The site administrator registers a Microsoft app (see SETUP.md, step 7).'),
     row('AI summaries', true, 'Copy-for-AI works with any chatbot, free. Each person can also add their own free Gemini API key in ✨ AI summary to get summaries inside the app.')));
+  pane.append(fileHealthSection(ctx));
   pane.append(githubSection(ctx, { rerender }));
+}
+
+// File health: every Drive / OneDrive file linked to a task, whether it still opens, and the ones
+// sitting in one person's own drive (or added by someone who has left), so they can be moved in time.
+function fileHealthSection(ctx) {
+  const s = ctx.session; const T = s.team;
+  const formerNames = new Set(Object.values(T.former || {}).map(f => f.name).filter(Boolean));
+  const items = []; (s.tasks || []).forEach(t => (t.attachments || []).forEach(a => { if (window.TT.fileCheckable(a)) items.push({ t, a }); }));
+  const box = el('div.fh-list');
+  const label = { broken: 'Access lost', personal: 'Personal drive', ok: '✓ Opens' };
+  const draw = () => {
+    if (!items.length) { box.replaceChildren(el('p.hint', {}, 'No Google Drive or OneDrive files are linked to tasks yet.')); return; }
+    const rank = (x) => { const h = window.TT.fileHealth(x.a.url); return h ? ({ broken: 0, personal: 1, unknown: 3, ok: 4 })[h.state] : (formerNames.has(x.a.addedBy) ? 2 : 3); };
+    const rows = items.slice().sort((x, y) => rank(x) - rank(y) || (x.a.name || '').localeCompare(y.a.name || ''));
+    const counts = { broken: 0, personal: 0, left: 0 };
+    const trs = rows.map(({ t, a }) => {
+      const h = window.TT.fileHealth(a.url); const left = formerNames.has(a.addedBy);
+      if (h && h.state === 'broken') counts.broken++; else if (h && h.state === 'personal') counts.personal++; if (left) counts.left++;
+      return el('tr', {},
+        el('td', {}, el('a', { href: /^https:\/\//.test(a.url) ? a.url : undefined, target: '_blank', rel: 'noopener noreferrer' }, a.name || 'File'), el('div.hint', {}, a.provider === 'onedrive' ? 'OneDrive' : 'Google Drive')),
+        el('td', {}, el('button.link-btn', { type: 'button', onclick: () => { document.querySelector('.modal-overlay .modal-head button[aria-label="Close"]')?.click(); window.boardOpenTask && window.boardOpenTask(t.id); } }, t.name || 'Task')),
+        el('td', {}, a.addedBy || '—', left ? el('span.fh-pill.fh-personal', { style: { marginLeft: '6px' }, title: 'They’ve left the team. If the file is in their own drive, move it to a team folder.' }, 'Left') : ''),
+        el('td', {}, h && h.state !== 'unknown' ? el('span.fh-pill.fh-' + h.state, { title: h.why || '' }, label[h.state]) : el('span.hint', {}, 'Not checked')));
+    });
+    box.replaceChildren(
+      el('p.hint', {}, items.length + (items.length === 1 ? ' file' : ' files') + (counts.broken ? ' · ' + counts.broken + ' can’t be opened' : '') + (counts.personal ? ' · ' + counts.personal + ' in someone’s own drive' : '') + (counts.left ? ' · ' + counts.left + ' added by people who’ve left' : '')),
+      el('div.rs-table-wrap', {}, el('table.rs-table.fh-table', {}, el('tr', {}, ['File', 'Task', 'Added by', 'Status'].map(x => el('th', {}, x))), ...trs)));
+  };
+  const btn = el('button.btn.small', { type: 'button', id: 'fh-check-all', onclick: async () => {
+    btn.disabled = true; btn.textContent = 'Checking…';
+    const r = await window.TT.checkFiles(items.map(x => x.a), { interactive: true, force: true }).catch(() => ({}));
+    btn.disabled = false; btn.textContent = 'Check all files'; draw();
+    if (!Object.keys(r).length) toast('Couldn’t check: sign in to Google Drive or OneDrive when asked.', 5000);
+  } }, 'Check all files');
+  draw();
+  return el('section', { id: 'fh-settings' }, el('h4', {}, 'File health'),
+    el('p.hint', {}, 'Checks that each Google Drive and OneDrive file linked to a task can still be opened, using your own sign-in. Files kept in one person’s own drive break when they leave: keep team files in a shared drive or a team (SharePoint) folder instead.'),
+    el('div.row', { style: { margin: '6px 0 10px' } }, btn), box);
 }
 
 // ── Delete team (owner only) ────────────────────────────────────────────────

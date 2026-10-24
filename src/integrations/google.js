@@ -74,6 +74,13 @@ export async function googleToken(loginHint, scope = SCOPE) {
   });
 }
 
+/** A token only if one is already on this device and still fresh: never opens a Google window. */
+export function googleTokenIfFresh(scope = SCOPE) {
+  const have = tokens.get(scope); if (have && Date.now() < have.expiry - 60_000) return have.token;
+  const saved = store.get(scope); if (saved && saved.token && Date.now() < saved.expiry - 60_000) { tokens.set(scope, { token: saved.token, expiry: saved.expiry }); return saved.token; }
+  return null;
+}
+
 export async function gfetch(url, init = {}, scope = SCOPE) {
   const t = await googleToken(undefined, scope);
   const r = await fetch(url, { ...init, headers: { Authorization: 'Bearer ' + t, ...(init.headers || {}) } });

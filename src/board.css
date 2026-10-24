@@ -978,3 +978,16 @@
         .header-week[data-week-key="backlog"] .week-title { color: var(--line-color); }
         .header-week[data-week-key="backlog"] .metric-badge, .header-week[data-week-key="backlog"] .week-dates { display: none; }
         .col-week[data-week-key="backlog"] { background-image: repeating-linear-gradient(135deg, transparent 0 10px, color-mix(in srgb, var(--line-color) 4%, transparent) 10px 20px); }
+
+        /* File health (filehealth.js): can each linked Drive / OneDrive file still be opened? */
+        .fh-pill { flex: 0 0 auto; font-size: 10.5px; font-weight: 700; line-height: 1; padding: 4px 7px; border-radius: 999px; white-space: nowrap; }
+        .fh-pill.fh-ok { color: #2f855a; background: color-mix(in srgb, #48bb78 16%, transparent); }
+        .fh-pill.fh-personal { color: #b7791f; background: color-mix(in srgb, #d69e2e 18%, transparent); }
+        .fh-pill.fh-broken { color: #c53030; background: color-mix(in srgb, #e53e3e 16%, transparent); }
+        .att-item.fh-broken { border-color: color-mix(in srgb, #e53e3e 55%, var(--border-color)); }
+        .fh-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: -2px 0 2px; padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.45;
+            color: var(--text-main); background: color-mix(in srgb, #e53e3e 8%, transparent); border: 1px solid color-mix(in srgb, #e53e3e 30%, transparent); }
+        .fh-note > span { flex: 1 1 100%; }
+        .fh-note .btn.small { margin: 0; text-decoration: none; }
+        .fh-check { margin: 0 0 10px; }
+        .att-chip.att-broken { color: #c53030; }
