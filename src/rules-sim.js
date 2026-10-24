@@ -50,8 +50,10 @@ function validTeam(d) {
     (d.currency === undefined || ['GBP', 'EUR', 'USD', 'INR', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD'].includes(d.currency)) &&
     (d.look === undefined || ['friendly', 'professional'].includes(d.look)) &&
     (d.github === undefined || d.github === null || (typeof d.github === 'object' && hasOnly(d.github, ['repo', 'issues', 'done', 'owner', 'connectedAt', 'write', 'last']) && (d.github.repo === undefined || isStr(d.github.repo, 140)))) &&
-    (d.autos === undefined || d.autos === null || (typeof d.autos === 'object' && hasOnly(d.autos, ['partsTo', 'tellWaiting', 'remindDays']) && (d.autos.partsTo === undefined || isStr(d.autos.partsTo, 40)) &&
-      (d.autos.tellWaiting === undefined || typeof d.autos.tellWaiting === 'boolean') && (d.autos.remindDays === undefined || (Number.isInteger(d.autos.remindDays) && d.autos.remindDays >= 0 && d.autos.remindDays <= 60))));
+    (d.autos === undefined || d.autos === null || (typeof d.autos === 'object' && hasOnly(d.autos, ['partsTo', 'tellWaiting', 'remindDays', 'carry', 'carryWarn', 'carryMakeWeeks']) && (d.autos.partsTo === undefined || isStr(d.autos.partsTo, 40)) &&
+      (d.autos.tellWaiting === undefined || typeof d.autos.tellWaiting === 'boolean') && (d.autos.remindDays === undefined || (Number.isInteger(d.autos.remindDays) && d.autos.remindDays >= 0 && d.autos.remindDays <= 60)) &&
+      (d.autos.carry === undefined || typeof d.autos.carry === 'boolean') && (d.autos.carryMakeWeeks === undefined || typeof d.autos.carryMakeWeeks === 'boolean') &&
+      (d.autos.carryWarn === undefined || (Number.isInteger(d.autos.carryWarn) && d.autos.carryWarn >= 0 && d.autos.carryWarn <= 10))));
 }
 function validPhoto(d) { const p = d.photo === undefined ? '' : d.photo; return typeof p === 'string' && p.length <= 60000; }
 function validComment(d) {

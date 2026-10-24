@@ -58,9 +58,11 @@ service cloud.firestore {
         && (d.get('github', null) == null || (d.github is map && d.github.keys().hasOnly(['repo', 'issues', 'done', 'owner', 'connectedAt', 'write', 'last']) && d.github.get('repo', '') is string && d.github.get('repo', '').size() <= 140))
         && (d.get('purchase', null) == null || (d.purchase is map && d.purchase.keys().hasOnly(['on', 'over']) && d.purchase.get('on', false) is bool
           && d.purchase.get('over', 0) is number && d.purchase.get('over', 0) >= 0 && d.purchase.get('over', 0) <= 100000000))
-        && (d.get('autos', null) == null || (d.autos is map && d.autos.keys().hasOnly(['partsTo', 'tellWaiting', 'remindDays']) && d.autos.get('partsTo', '') is string
+        && (d.get('autos', null) == null || (d.autos is map && d.autos.keys().hasOnly(['partsTo', 'tellWaiting', 'remindDays', 'carry', 'carryWarn', 'carryMakeWeeks']) && d.autos.get('partsTo', '') is string
           && d.autos.get('partsTo', '').size() <= 40 && d.autos.get('tellWaiting', false) is bool && d.autos.get('remindDays', 0) is int
-          && d.autos.get('remindDays', 0) >= 0 && d.autos.get('remindDays', 0) <= 60))
+          && d.autos.get('remindDays', 0) >= 0 && d.autos.get('remindDays', 0) <= 60
+          && d.autos.get('carry', false) is bool && d.autos.get('carryMakeWeeks', false) is bool
+          && d.autos.get('carryWarn', 0) is int && d.autos.get('carryWarn', 0) >= 0 && d.autos.get('carryWarn', 0) <= 10))
         && d.get('leads', {}) is map && d.get('leads', {}).size() <= 300
         && (d.get('workflow', null) == null || (d.workflow is map && d.workflow.keys().hasOnly(['stages', 'moved', 'order', 'gates', 'next', 'done']) && d.workflow.stages is list && d.workflow.stages.size() >= 2 && d.workflow.stages.size() <= 10))
         && d.name is string && d.name.size() > 0 && d.name.size() <= 80

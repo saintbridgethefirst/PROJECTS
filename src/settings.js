@@ -393,6 +393,13 @@ function autosSection(ctx, stages, { rerender } = {}) {
     el('div.row', { style: { marginTop: '10px' } }, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-remind', checked: a.remindDays > 0, disabled: !editable, onchange: (e) => { v.remindDays = e.target.checked ? (Number((document.getElementById('auto-remind-days') || {}).value) || 3) : 0; touch(); } }),
       'Remind the sign-off person when a task has waited more than'),
       el('input', { type: 'number', id: 'auto-remind-days', min: 1, max: 60, value: a.remindDays || 3, disabled: !editable, 'aria-label': 'Days', oninput: (e) => { const n = Math.max(1, Math.min(60, Math.round(Number(e.target.value) || 1))); const box = document.getElementById('auto-remind'); if (box && box.checked) v.remindDays = n; touch(); } }), el('span.hint', {}, 'days')),
+    el('div.row', { style: { marginTop: '10px' } }, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-carry', checked: a.carry, disabled: !editable, onchange: (e) => { v.carry = e.target.checked; touch(); } }),
+      'At the start of each week, carry any unfinished tasks from past weeks into the current week')),
+    el('p.hint', { style: { margin: '2px 0 6px 26px' } }, 'A linked copy that keeps its history, like the manual “Carry forward”. Only tasks each person can edit are carried.'),
+    el('div.row', { style: { marginLeft: '26px' } }, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-carry-weeks', checked: a.carryMakeWeeks, disabled: !editable, onchange: (e) => { v.carryMakeWeeks = e.target.checked; touch(); } }),
+      'Add the new week automatically if it doesn’t exist yet')),
+    el('div.row', { style: { marginLeft: '26px', marginTop: '6px' } }, el('label.chk', {}, 'Flag a task once it has carried over more than'),
+      el('input', { type: 'number', id: 'auto-carry-warn', min: 0, max: 10, value: a.carryWarn || 0, disabled: !editable, 'aria-label': 'Weeks before flagging', oninput: (e) => { v.carryWarn = Math.max(0, Math.min(10, Math.round(Number(e.target.value) || 0))); touch(); } }), el('span.hint', {}, 'weeks (0 = never)')),
     editable ? el('div.row', { style: { marginTop: '12px' } }, el('span.spacer'), btn) : el('p.hint', {}, 'Only roles that can change team settings change these.'));
 }
 
