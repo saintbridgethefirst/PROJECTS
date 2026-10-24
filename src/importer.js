@@ -126,6 +126,8 @@ async function parseFile(file, TT) {
     if (parsed && Array.isArray(parsed.cards) && Array.isArray(parsed.lists)) return { kind: 'Trello board “' + (parsed.name || 'board') + '”', rows: rowsFromTrello(parsed) };
     throw new Error('This JSON file isn’t a tracker backup or a Trello board export.');
   }
+  if (file.size > 12 * 1024 * 1024) throw new Error('That file is larger than 12 MB — split it or export a smaller range first.');
+  try { await window.ensureXLSX(); } catch { throw new Error('Couldn’t load the spreadsheet reader. Check your connection and try again.'); }
   const wb = window.XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
   if (wb.Sheets['Database_DO_NOT_EDIT']) {
     const sh = wb.Sheets['Database_DO_NOT_EDIT']; let json = ''; for (let r = 2; sh['A' + r]; r++) json += sh['A' + r].v || '';
@@ -236,8 +238,9 @@ export function importFromFile(TT) {
 }
 
 /** An Excel file with the columns the importer reads, and two example rows from this team. */
-function downloadTemplate(TT) {
-  const X = window.XLSX; if (!X) return toast('The spreadsheet tools are still loading — try again in a second.');
+async function downloadTemplate(TT) {
+  try { await window.ensureXLSX(); } catch { return toast('Couldn’t load the spreadsheet tools. Check your connection and try again.'); }
+  const X = window.XLSX;
   const people = (TT.members || []).slice(0, 2).map(m => m.email || m.name);
   const today = new Date(); const iso = (d) => d.toLocaleDateString('en-CA'); const inDays = (n) => iso(new Date(today.getTime() + n * 864e5));
   const rows = [

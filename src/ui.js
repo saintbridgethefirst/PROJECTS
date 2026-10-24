@@ -3,6 +3,13 @@
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 
+// A link's href only when it's a plain web (or mail) address — never javascript:, data:, etc.
+// Used wherever a user-supplied URL (attachment, part, receipt, paper) becomes a clickable link.
+export function safeUrl(u) {
+  const s = String(u ?? '').trim();
+  return /^(https?:\/\/|mailto:)/i.test(s) ? s : '';
+}
+
 /** el('button.btn.primary', { onclick, type: 'button' }, 'Save') */
 export function el(spec, props = {}, ...children) {
   const [tag, ...classes] = spec.split('.');

@@ -112,3 +112,36 @@ test('rules (read): members see cursors, outsiders do not', async () => {
   await assertSucceeds(getDocs(collection(dbFor('mem1'), 'teams', TEAM, 'cursors')));
   await assertFails(getDocs(collection(dbFor('evil'), 'teams', TEAM, 'cursors')));
 });
+
+// Security hardening: stored-XSS and bloat defences (added in the security-fixes pass).
+const wbItem = (extra = {}) => ({ boardId: 'b1', kind: 'pen', x: 0, y: 0, w: 100, h: 80, text: '', path: '0,0 1,1', createdBy: 'owner', ...extra });
+test('rules: a whiteboard pen path of real coordinates is allowed', async () => {
+  await assertSucceeds(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'wbItems', 'w_ok'), wbItem()));
+});
+test('rules: a whiteboard pen path carrying markup is refused', async () => {
+  await assertFails(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'wbItems', 'w_evil'), wbItem({ path: '0,0"><image href=x onerror=alert(1)>' })));
+});
+
+const part = (extra = {}) => ({ name: 'Bolt', qty: 1, unitCost: 1, status: 'needed', notes: '', createdBy: 'owner', createdAt: Date.now(), ...extra });
+test('rules: a part with an https supplier link is allowed; javascript: is refused', async () => {
+  await assertSucceeds(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'parts', 'p_ok'), part({ url: 'https://supplier.example/x' })));
+  await assertFails(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'parts', 'p_evil'), part({ url: 'javascript:alert(1)' })));
+});
+
+const paper = (extra = {}) => ({ title: 'P', authors: '', notes: '', tags: [], status: 'to-read', taskIds: [], addedBy: 'owner', createdAt: Date.now(), ...extra });
+test('rules: a paper link must be http(s)', async () => {
+  await assertSucceeds(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'papers', 'r_ok'), paper({ url: 'https://doi.org/x' })));
+  await assertFails(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'papers', 'r_evil'), paper({ url: 'javascript:alert(1)' })));
+});
+
+const expense = (extra = {}) => ({ kind: 'expense', amount: 1, date: '2026-01-01', description: 'x', createdBy: 'owner', createdAt: Date.now(), ...extra });
+test('rules: an expense receipt link must be http(s)', async () => {
+  await assertSucceeds(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'expenses', 'e_ok'), expense({ receiptUrl: 'https://r.example/x' })));
+  await assertFails(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'expenses', 'e_evil'), expense({ receiptUrl: 'data:text/html,<script>' })));
+});
+
+test('rules: a member display name over 80 characters is refused', async () => {
+  const base = { uid: 'owner', email: 'owner@x.com', name: 'owner', photo: '', roleId: 'owner', joinedAt: 1 };
+  await assertSucceeds(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'members', 'owner'), { ...base, name: 'A reasonable name' }));
+  await assertFails(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'members', 'owner'), { ...base, name: 'x'.repeat(200) }));
+});

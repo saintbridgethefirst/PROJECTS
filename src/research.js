@@ -6,7 +6,7 @@
 //    Literature – papers by DOI, reading status, notes, BibTeX in and out
 //  The lab notebook lives on each task (see notebook.js).
 // ─────────────────────────────────────────────────────────────────────────────
-import { el, modal, toast } from './ui.js';
+import { el, modal, toast, safeUrl } from './ui.js';
 import { newId, cleanMeeting, cleanPart, cleanExpense, cleanBudget, cleanPaper, partTotal, PART_STATUS, PAPER_STATUS, CURRENCIES, findMentions, cleanFeatures, paidParts, cleanLogEntry, planOf, partItems, partExtras, extraValue, EXTRA_LABELS, EXTRA_LIMIT, subteamById, carryIndexOf, uniqueChains } from './model.js';
 import { budgetChanges, expenseChanges, partChanges, removeLinePlan } from './finance-log.js';
 import { people, timesheet, risks, requirements } from './tools-extra.js';
@@ -353,7 +353,7 @@ function parts(pane) {
   const table = el('table.rs-table', {}, el('tr', {}, ['Part', 'Supplier', 'Qty', 'Each', 'Total', 'Status', ...(pay ? ['Payment'] : []), 'Dates', 'Task', ''].map(h => el('th', {}, h))),
     rows.map(p => el('tr.pt-row.st-' + p.status, { dataset: { id: p.id } },
       el('td', {}, el('b', {}, p.name), ' ', subteamChip(p.subteamId), p.partNo ? el('div.hint', {}, p.partNo) : '', p.notes ? el('div.hint.pt-notes', {}, p.notes) : ''),
-      el('td', {}, p.url ? el('a', { href: p.url, target: '_blank', rel: 'noopener noreferrer' }, p.supplier || 'Link ↗') : p.supplier),
+      el('td', {}, safeUrl(p.url) ? el('a', { href: safeUrl(p.url), target: '_blank', rel: 'noopener noreferrer' }, p.supplier || 'Link ↗') : p.supplier),
       el('td.num', {}, String(p.qty)), el('td.num', {}, p.unitCost ? fmtMoney(p.unitCost) : '–'), el('td.num', {}, el('b', {}, partTotal(p) ? fmtMoney(partTotal(p)) : '–'), p.extras.length ? el('div.hint.pt-extras', { title: p.extras.map(x => x.label + ' ' + (x.percent ? x.amount + '% = ' : '') + fmtMoney(extraValue(p, x))).join('\n') }, (partExtras(p) < 0 ? 'incl. ' : 'incl. +') + fmtMoney(partExtras(p)) + ' extras') : ''),
       el('td', {}, edit ? el('select.pt-status', { 'aria-label': 'Status of ' + p.name, onchange: (e) => savePart(p.id, { status: e.target.value }) }, PART_STATUS.map(s => el('option', { value: s, selected: p.status === s }, PART_LABEL[s]))) : el('span.rs-chip', {}, PART_LABEL[p.status]), approvalCell(p)),
       pay ? payCell(p) : '',
@@ -412,8 +412,8 @@ function extrasEditor(v) {
   setTimeout(() => { const f = box.closest('form'); if (f) f.addEventListener('input', (e) => { if (e.target.id === 'pt-qty' || e.target.id === 'pt-cost') sumUp(); }); }, 0);
   return box;
 }
-function exportParts(all) {
-  if (!window.XLSX) { toast('Export isn’t ready yet — try again in a moment.'); return; }
+async function exportParts(all) {
+  try { await window.ensureXLSX(); } catch { toast('Couldn’t load the spreadsheet tools. Check your connection and try again.'); return; }
   const money = seesMoney(S()); const lines = new Map(budget().lines.map(l => [l.id, l.name]));
   const head = ['Part', 'Part number', 'Supplier', 'Link', 'Quantity', 'Cost each', 'Items', 'Extra costs', 'Extras detail', 'Total', 'Status', 'Needed by', 'Ordered', 'Received', 'Task', ...(money ? ['Budget line'] : []), 'Notes', 'Added by'];
   const aoa = [head, ...all.map(p => [p.name, p.partNo, p.supplier, p.url, p.qty, p.unitCost, partItems(p), partExtras(p), p.extras.map(x => x.label + ' ' + (x.percent ? x.amount + '%' : x.amount)).join('; '), partTotal(p), PART_LABEL[p.status], p.neededBy, p.orderedDate, p.receivedDate, (taskById(p.taskId) || {}).name || '', ...(money ? [lines.get(p.budgetId) || ''] : []), p.notes, p.createdByName])];
@@ -501,7 +501,7 @@ function finance(pane) {
         el('td', {}, fmtDate(x.date)), el('td', {}, x.description || (x.partIds.length ? '' : '—'), x.partIds.length ? el('div.tx-parts', {}, x.partIds.map(id => el('button.rs-chip.tx-part', { type: 'button', title: 'Paid for this part — show it in Parts', onclick: () => { R.tab = 'parts'; R.filters.partStatus = 'all'; R.filters.partQ = partName(id); render(); } }, '🔩 ' + partName(id)))) : ''),
         el('td', {}, x.kind === 'income' ? el('span.rs-chip.income', {}, 'Income') : (lineName.get(x.budgetId) || el('i.hint', {}, 'Not assigned'))),
         el('td', {}, x.payer), el('td.num' + (x.kind === 'income' ? '.t-good' : ''), {}, (x.kind === 'income' ? '+' : '') + fmtMoney(x.amount)),
-        el('td', {}, x.receiptUrl ? el('a', { href: x.receiptUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Link ↗') : x.receiptImage ? el('button.link-btn', { type: 'button', onclick: () => showImage(x.receiptImage, x.description) }, '🧾 View') : ''),
+        el('td', {}, safeUrl(x.receiptUrl) ? el('a', { href: safeUrl(x.receiptUrl), target: '_blank', rel: 'noopener noreferrer' }, 'Link ↗') : x.receiptImage ? el('button.link-btn', { type: 'button', onclick: () => showImage(x.receiptImage, x.description) }, '🧾 View') : ''),
         el('td', {}, x.taskId ? taskChip(x.taskId) : ''),
         el('td', {}, edit ? el('button.btn.small.ghost', { type: 'button', onclick: () => { R.txEdit = x; render(); } }, 'Edit') : ''))))) : el('p.hint', {}, 'Nothing recorded yet.')));
   pane.append(historyCard());
@@ -661,8 +661,8 @@ function spendChart(sum, exp) {
   }
   return el('div', {}, svg, el('p.fin-forecast', {}, fc), el('div.an-legend', {}, el('span', {}, el('i.bd-key.actual'), 'Spent so far'), sum.total ? el('span', {}, el('i.bd-key.ideal'), 'Budget') : ''));
 }
-function exportFinance() {
-  if (!window.XLSX) { toast('Export isn’t ready yet — try again in a moment.'); return; }
+async function exportFinance() {
+  try { await window.ensureXLSX(); } catch { toast('Couldn’t load the spreadsheet tools. Check your connection and try again.'); return; }
   const s = S(); const b = budget(); const sum = financeSummary(b, s.expenses || [], s.parts || []); const X = window.XLSX;
   const lineName = new Map(b.lines.map(l => [l.id, l.name]));
   const wb = X.utils.book_new();
@@ -756,7 +756,7 @@ function literature(pane) {
   if (!rows.length) { pane.append(el('div.empty-state', {}, all.length ? 'Nothing matches.' : 'No papers yet. Paste a DOI above, add one by hand, or import a BibTeX file from Zotero, Mendeley or Google Scholar.')); return; }
   pane.append(el('div.lit-list', {}, rows.map(p => el('div.lit-item.st-' + p.status, { dataset: { id: p.id } },
     el('div.lit-main', {},
-      el('div.lit-title', {}, p.url || p.doi ? el('a', { href: p.url || 'https://doi.org/' + p.doi, target: '_blank', rel: 'noopener noreferrer' }, p.title) : p.title),
+      el('div.lit-title', {}, safeUrl(p.url || (p.doi ? 'https://doi.org/' + encodeURIComponent(p.doi) : '')) ? el('a', { href: safeUrl(p.url || 'https://doi.org/' + encodeURIComponent(p.doi)), target: '_blank', rel: 'noopener noreferrer' }, p.title) : p.title),
       el('div.lit-meta', {}, [p.authors, p.year, p.venue].filter(Boolean).join(' · ')),
       p.tags.length ? el('div.lit-tags', {}, p.tags.map(t => el('button.rs-chip.link', { type: 'button', onclick: () => { f.paperTag = t; render(); } }, '#' + t))) : '',
       p.notes ? el('div.lit-notes', {}, p.notes) : '',

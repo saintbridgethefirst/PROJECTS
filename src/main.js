@@ -747,11 +747,21 @@ function openAccount() {
     } }, 'Save'));
 }
 
+// SheetJS (Excel import/export), loaded on demand (not at board load, so the board never waits
+// on it and a failure degrades to a message instead of a blank screen). window.ensureXLSX()
+// resolves window.XLSX. NOTE: still the npm build — see trawpie-roadmap.md "xlsx upgrade" for the
+// patched-build migration, which needs a host where that build can be fetched and tested.
+let xlsxPromise = null;
+window.ensureXLSX = function ensureXLSX() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (!xlsxPromise) xlsxPromise = import('xlsx').then(m => { window.XLSX = m; return m; }).catch(e => { xlsxPromise = null; throw e; });
+  return xlsxPromise;
+};
+
 // ── Team board ──────────────────────────────────────────────────────────────
 function loadBoard() {
   if (boardLoaded) return boardLoaded;
   boardLoaded = (async () => {
-    window.XLSX = await import('xlsx');
     await new Promise((res, rej) => { const s = document.createElement('script'); s.src = (import.meta.env.BASE_URL || '/') + 'board/board.js?v=' + (typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'); s.onload = res; s.onerror = () => rej(new Error('Could not load the board')); document.body.append(s); });
   })();
   return boardLoaded;
