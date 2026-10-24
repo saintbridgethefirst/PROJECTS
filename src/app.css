@@ -1322,7 +1322,7 @@ select::-ms-expand { display: none; }
 .num-box { display: inline-flex; align-items: stretch; width: 104px; overflow: hidden; transition: border-color .15s; }
 .num-box:hover { border-color: color-mix(in srgb, var(--line-color) 45%, var(--border-color)); }
 .num-box.disabled { opacity: .6; }
-.wf-extra .num-box input[type=number] { flex: 1; min-width: 0; width: auto; height: 100%; margin: 0; padding: 0 4px 0 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none;
+span.num-box > input[type=number] { flex: 1; min-width: 0; width: auto; height: 100%; margin: 0; padding: 0 4px 0 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none;
   font: inherit; font-size: 14px; color: inherit; -moz-appearance: textfield; appearance: textfield; }
 .num-box input[type=number]::-webkit-inner-spin-button, .num-box input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .num-steps { display: flex; flex-direction: column; width: 28px; flex: 0 0 28px; }
@@ -1330,3 +1330,27 @@ select::-ms-expand { display: none; }
 .num-btn.up { transform: scaleY(-1); }
 .num-btn:hover:not(:disabled) { background-color: color-mix(in srgb, var(--line-color) 12%, transparent); }
 .num-btn:disabled { cursor: not-allowed; }
+
+/* Tools tables (Requirements, Risks…): every cell centred on the row; compact dropdowns the same height as buttons */
+.rs-table td { vertical-align: middle; }
+.req-table td { vertical-align: middle; }
+.rs-table td select { height: 32px; box-sizing: border-box; margin: 0; padding: 0 30px 0 10px !important; font-size: 13px; line-height: 30px; border-radius: 8px; width: auto; min-width: 110px; }
+.rs-table td .btn.small { margin: 0; }
+.rs-table td .hint { margin-top: 2px; }
+.rq-tasks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.rq-link { font: inherit; font-size: 12px; font-weight: 600; line-height: 1; padding: 5px 9px; border-radius: 999px; cursor: pointer;
+  color: var(--line-color); background: transparent; border: 1px dashed color-mix(in srgb, var(--line-color) 55%, transparent); }
+.rq-link:hover { background: color-mix(in srgb, var(--line-color) 10%, transparent); border-style: solid; }
+.rq-verified { margin-top: 4px; }
+
+/* Workflow stage rows: the limit box and the checklist summary look like the other controls, same height */
+.wf-stage .num-box { height: 34px; width: 100%; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: 8px; background-color: var(--bg-main); color: var(--text-main); }
+.wf-stage .num-box:focus-within { border-color: var(--line-color); box-shadow: 0 0 0 3px var(--shadow-glow); }
+.wf-stage span.num-box > input[type=number] { padding-left: 10px; font-size: 13px; }
+.wf-stage .num-steps { width: 22px; flex-basis: 22px; }
+.wf-stage .wf-cl > summary { list-style: none; display: flex; align-items: center; height: 34px; box-sizing: border-box; padding: 0 30px 0 10px; line-height: 1 !important;
+  border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-main) var(--select-chevron) no-repeat right 9px center / 14px 14px; font-weight: 500; color: var(--text-main); }
+.wf-stage .wf-cl > summary::-webkit-details-marker { display: none; }
+.wf-stage .wf-cl > summary:hover { border-color: color-mix(in srgb, var(--line-color) 45%, var(--border-color)); }
+.wf-stage .wf-cl[open] > summary { border-color: var(--line-color); }
+.wf-stage .wf-acts .btn.small { height: 34px; min-width: 34px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px; }

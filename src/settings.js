@@ -316,7 +316,7 @@ function workflow(pane, ctx, { rerender } = {}) {
       const name = el('input.wf-name', { value: st.name, maxlength: 30, 'aria-label': 'Stage name', disabled: !editable, oninput: (e) => { st.name = e.target.value; saveBtn.disabled = false; } });
       const kind = last ? el('span.hint.wf-kind', {}, 'Done (finished)') : el('select.wf-kind', { 'aria-label': 'Counts as', disabled: !editable, onchange: (e) => { st.kind = e.target.value; touch(); } },
         el('option', { value: 'todo', selected: st.kind === 'todo' }, 'To do'), el('option', { value: 'doing', selected: st.kind === 'doing' }, 'Doing'));
-      const limit = last ? el('span.hint', {}, '—') : el('input.wf-limit', { type: 'number', min: 0, max: 99, value: st.limit || '', placeholder: 'none', 'aria-label': 'Most tasks at once in ' + st.name, disabled: !editable, oninput: (e) => { st.limit = Math.max(0, Math.min(99, Math.round(Number(e.target.value) || 0))); saveBtn.disabled = false; } });
+      const limit = last ? el('span.hint', {}, '—') : numBox(el('input.wf-limit', { type: 'number', min: 0, max: 99, value: st.limit || '', placeholder: 'none', 'aria-label': 'Most tasks at once in ' + st.name, disabled: !editable, oninput: (e) => { st.limit = Math.max(0, Math.min(99, Math.round(Number(e.target.value) || 0))); saveBtn.disabled = false; } }));
       // Who signs off before a task moves on from this stage, and its checklist (workflow step 2).
       const people = (s.members || []).slice().sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''));
       const so = last ? el('span.hint', {}, '—') : el('div.wf-so', {},
