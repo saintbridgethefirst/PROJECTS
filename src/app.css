@@ -1313,3 +1313,20 @@ select::-ms-expand { display: none; }
 .demo-new { margin-top: 10px; font-size: 13px; }
 .demo-new summary { cursor: pointer; font-weight: 700; color: var(--line-color); }
 .demo-new ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; color: var(--text-muted); }
+
+/* Settings ▸ Workflow: dropdowns and number boxes share one look and one height, centred on the label */
+.wf-extra .row { align-items: center; min-height: 40px; }
+.wf-extra select, .wf-extra .num-box { height: 38px; box-sizing: border-box; margin: 0; border: 1px solid var(--border-color); border-radius: 10px; background-color: var(--bg-main); color: var(--text-main); }
+.wf-extra select { padding: 0 34px 0 12px !important; font: inherit; font-size: 14px; line-height: 36px; min-width: 160px; }
+.wf-extra select:focus, .num-box:focus-within { border-color: var(--line-color); outline: none; box-shadow: 0 0 0 3px var(--shadow-glow); }
+.num-box { display: inline-flex; align-items: stretch; width: 104px; overflow: hidden; transition: border-color .15s; }
+.num-box:hover { border-color: color-mix(in srgb, var(--line-color) 45%, var(--border-color)); }
+.num-box.disabled { opacity: .6; }
+.wf-extra .num-box input[type=number] { flex: 1; min-width: 0; width: auto; height: 100%; margin: 0; padding: 0 4px 0 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none;
+  font: inherit; font-size: 14px; color: inherit; -moz-appearance: textfield; appearance: textfield; }
+.num-box input[type=number]::-webkit-inner-spin-button, .num-box input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.num-steps { display: flex; flex-direction: column; width: 28px; flex: 0 0 28px; }
+.num-btn { flex: 1; margin: 0; padding: 0; border: 0; background: transparent var(--select-chevron) no-repeat center / 13px 13px; cursor: pointer; }
+.num-btn.up { transform: scaleY(-1); }
+.num-btn:hover:not(:disabled) { background-color: color-mix(in srgb, var(--line-color) 12%, transparent); }
+.num-btn:disabled { cursor: not-allowed; }
