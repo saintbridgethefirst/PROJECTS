@@ -747,16 +747,14 @@ function openAccount() {
     } }, 'Save'));
 }
 
-// SheetJS (Excel import/export), loaded on demand from the publisher's own patched build —
-// the npm package is no longer maintained. Lazy, so a blocked network never stops the board
-// loading; the Excel actions show a message instead. window.ensureXLSX() resolves window.XLSX.
+// SheetJS (Excel import/export), loaded on demand (not at board load, so the board never waits
+// on it and a failure degrades to a message instead of a blank screen). window.ensureXLSX()
+// resolves window.XLSX. NOTE: still the npm build — see trawpie-roadmap.md "xlsx upgrade" for the
+// patched-build migration, which needs a host where that build can be fetched and tested.
 let xlsxPromise = null;
 window.ensureXLSX = function ensureXLSX() {
   if (window.XLSX) return Promise.resolve(window.XLSX);
-  if (!xlsxPromise) {
-    const url = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
-    xlsxPromise = import(/* @vite-ignore */ url).then(m => { window.XLSX = m; return m; }).catch(e => { xlsxPromise = null; throw e; });
-  }
+  if (!xlsxPromise) xlsxPromise = import('xlsx').then(m => { window.XLSX = m; return m; }).catch(e => { xlsxPromise = null; throw e; });
   return xlsxPromise;
 };
 
