@@ -106,3 +106,20 @@ footer { border-top: 1px solid var(--line); margin-top: 40px; }
 .foot-in { max-width: 1040px; margin: 0 auto; padding: 28px 20px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
 .foot-in a { color: var(--ink-2); font-weight: 600; }
 .foot-sp { flex: 1; }
+
+/* Timeline tables in posts */
+.tbl-wrap { overflow-x: auto; margin: 22px 0 28px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); }
+table.tl { width: 100%; border-collapse: collapse; font-size: 15px; line-height: 1.5; }
+table.tl th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 12px 16px; border-bottom: 1px solid var(--line); }
+table.tl td { padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-2); }
+table.tl tr:last-child td { border-bottom: 0; }
+table.tl td:first-child { white-space: nowrap; font-weight: 700; color: var(--ink); }
+table.tl td:nth-child(2) { font-weight: 600; color: var(--ink); min-width: 150px; }
+@media (max-width: 600px) {
+  table.tl thead { display: none; }
+  table.tl tr { display: block; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  table.tl tr:last-child { border-bottom: 0; }
+  table.tl td { display: block; padding: 0; border: 0; min-width: 0 !important; }
+  table.tl td:first-child { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--blue); }
+  table.tl td:nth-child(2) { margin: 2px 0 4px; }
+}
