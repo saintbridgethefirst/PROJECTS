@@ -3914,9 +3914,11 @@
         function carryChip(task) {
             const ch = carryChain(task); if (!ch) return null;
             const i = ch.findIndex(l => l.task.id === task.id);
-            const c = document.createElement('span'); c.className = 'effort-chip carry-chip';
+            const warn = ((TT.team && TT.team.autos) || {}).carryWarn || 0;
+            const stuck = warn > 0 && ch.length > warn && task.flag !== 'completed';
+            const c = document.createElement('span'); c.className = 'effort-chip carry-chip' + (stuck ? ' carry-stuck' : '');
             c.textContent = '↪ week ' + (i + 1) + ' of ' + ch.length;
-            c.title = 'Carried forward: ' + ch.map(l => weekTitle(l.weekKey)).join(' → ') + '. Changes flow into later weeks.';
+            c.title = (stuck ? 'Stuck: carried over ' + ch.length + ' weeks — re-plan, split or drop it. ' : '') + 'Carried forward: ' + ch.map(l => weekTitle(l.weekKey)).join(' → ') + '. Changes flow into later weeks.';
             return c;
         }
         function carryNote(task) {

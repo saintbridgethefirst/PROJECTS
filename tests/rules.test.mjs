@@ -3,7 +3,7 @@
 import test, { before, after, beforeEach } from 'node:test';
 import fs from 'node:fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, setDoc, getDoc, getDocs, collection, writeBatch, query, where, collectionGroup } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection, writeBatch, query, where, collectionGroup, updateDoc } from 'firebase/firestore';
 import { fixture, users, writeScenarios, readScenarios, TEAM } from './scenarios.mjs';
 
 let env;
@@ -144,4 +144,15 @@ test('rules: a member display name over 80 characters is refused', async () => {
   const base = { uid: 'owner', email: 'owner@x.com', name: 'owner', photo: '', roleId: 'owner', joinedAt: 1 };
   await assertSucceeds(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'members', 'owner'), { ...base, name: 'A reasonable name' }));
   await assertFails(setDoc(doc(dbFor('owner'), 'teams', TEAM, 'members', 'owner'), { ...base, name: 'x'.repeat(200) }));
+});
+
+// Auto carry-over settings on the team doc (added in the carry-over feature).
+test('rules: the owner can turn on auto carry-over', async () => {
+  await assertSucceeds(updateDoc(doc(dbFor('owner'), 'teams', TEAM), { autos: { partsTo: '', tellWaiting: false, remindDays: 0, carry: true, carryWarn: 3, carryMakeWeeks: true } }));
+});
+test('rules: a carryWarn out of range is refused', async () => {
+  await assertFails(updateDoc(doc(dbFor('owner'), 'teams', TEAM), { autos: { partsTo: '', tellWaiting: false, remindDays: 0, carry: true, carryWarn: 99, carryMakeWeeks: false } }));
+});
+test('rules: a member without team.settings cannot change autos', async () => {
+  await assertFails(updateDoc(doc(dbFor('mem1'), 'teams', TEAM), { autos: { partsTo: '', tellWaiting: false, remindDays: 0, carry: true, carryWarn: 3, carryMakeWeeks: false } }));
 });

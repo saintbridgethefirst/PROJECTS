@@ -7,8 +7,55 @@
 //  There's no server doing this: the app of someone allowed to make the change does it, so it is
 //  checked by the same security rules as a change made by hand, and shows in the task's history.
 // ─────────────────────────────────────────────────────────────────────────────
-import { newId, cleanAutos, cleanComment, cleanFeatures, carryIndexOf, workflowOf, stageIdOf, partsReadyMoves, waitingOn, signersFor } from './model.js';
+import { newId, cleanAutos, cleanComment, cleanFeatures, cleanTask, carryIndexOf, workflowOf, stageIdOf, partsReadyMoves, waitingOn, signersFor, nextWeekTitle } from './model.js';
 import { can, canEditOwnedBy } from './permissions.js';
+import { toast } from './ui.js';
+
+const localISO = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const addDaysISO = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return localISO(d); };
+
+// Carry unfinished tasks forward into the current week (Settings ▸ Automatic steps).
+// Done by the app of whoever can make the change, so it's checked by the same rules and shows in
+// each task's history. Each person carries the tasks they're allowed to; together the board catches up.
+function carryOps(ctx, a) {
+  const s = ctx.session; if (!a.carry) return { ops: [], n: 0, title: '' };
+  const dated = (s.team.weeks || []).filter(w => w.startDate).sort((x, y) => x.startDate.localeCompare(y.startDate));
+  if (dated.length < 1) return { ops: [], n: 0, title: '' };
+  const today = localISO(new Date());
+  let curIdx = -1; dated.forEach((w, i) => { if (w.startDate <= today) curIdx = i; });
+  if (curIdx < 0) return { ops: [], n: 0, title: '' };   // every week is still in the future
+  const ops = []; let targetKey = dated[curIdx].key, targetStart = dated[curIdx].startDate, targetTitle = dated[curIdx].title;
+  // The latest dated week has ended and the team lets Trawpie add weeks: catch up to this week.
+  if (a.carryMakeWeeks && curIdx === dated.length - 1 && addDaysISO(targetStart, 7) <= today && can(s.team, s.me, 'weeks.manage')) {
+    const add = []; let start = targetStart; let guard = 0;
+    while (addDaysISO(start, 7) <= today && guard++ < 60) {
+      start = addDaysISO(start, 7);
+      add.push({ key: newId('wk'), title: nextWeekTitle(s.team.weekNaming, [...(s.team.weeks || []), ...add], start), metric: '', startDate: start });
+    }
+    if (add.length) {
+      ops.push({ type: 'update', path: 'team', data: { weeks: [...(s.team.weeks || []), ...add] } });
+      const last = add[add.length - 1]; targetKey = last.key; targetStart = last.startDate; targetTitle = last.title;
+    }
+  }
+  const ix = carryIndexOf(s); const did = seen(s); const now = Date.now();
+  const weekStart = new Map((s.team.weeks || []).map(w => [w.key, w.startDate || '']));
+  (s.tasks || []).forEach(t => {
+    if (t.flag === 'completed' || t.weekId === targetKey) return;
+    const ws = weekStart.get(t.weekId); if (!ws || ws >= targetStart) return;      // only weeks before the current one
+    const l = ix.latest(t.id); if (l && l.id !== t.id) return;                     // only the latest copy in a chain
+    if (!canEditOwnedBy(s.team, s.me, t.ownerUid) || did.has('carry:' + t.id)) return;
+    did.add('carry:' + t.id);
+    const nid = newId('t'); const root = t.carryOf || t.id;
+    const history = [{ time: stamp(), user: ctx.user.name || 'Someone', field: 'Action', original: '', updated: 'Carried forward to ' + targetTitle + ' (automatic)' }]
+      .concat(Array.isArray(t.history) ? t.history : []).slice(0, 100);
+    // A fresh copy for the new week: keep the work, but not the old week's sign-off decision or completion.
+    // cleanTask returns id/type too; the document itself must not carry them (the id is the path).
+    const { id: _id, type: _type, ...data } = cleanTask({ ...t, id: nid, weekId: targetKey, carryOf: root, flag: t.flag, signoff: null, completedDate: '', history, createdBy: ctx.user.uid, createdAt: now, updatedBy: ctx.user.name || '', updatedAt: now }, nid);
+    ops.push({ type: 'set', path: 'tasks/' + nid, data });
+  });
+  const n = ops.filter(o => o.path !== 'team').length;
+  return { ops, n, title: targetTitle };
+}
 
 const DAY = 864e5;
 const stamp = () => { const n = new Date(); let h = n.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return String(n.getDate()).padStart(2, '0') + '/' + n.toLocaleString('en-GB', { month: 'short' }) + '/' + String(n.getFullYear()).slice(-2) + ' ' + h + ':' + String(n.getMinutes()).padStart(2, '0') + ' ' + ap; };
@@ -56,8 +103,12 @@ export async function runAutos(ctx) {
       ops.push({ type: 'update', path: 'tasks/' + t.id, data: { signoff: { ...so, remindedAt: now } } });
     });
   }
+  // 4. Carry unfinished tasks into the current week
+  const carry = carryOps(ctx, a);
+  if (carry.ops.length) ops.push(...carry.ops);
   if (!ops.length) return 0;
   await ctx.writeOps(ops, { quiet: true, auto: true });
+  if (carry.n) toast(carry.n + (carry.n === 1 ? ' task' : ' tasks') + ' carried into ' + carry.title + '.', 5000);
   return ops.length;
 }
 

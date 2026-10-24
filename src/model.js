@@ -628,7 +628,11 @@ export function canApprovePurchase(team, member, part) {
 /** { partsTo: stage a task moves to once all its parts are received ('' = off), tellWaiting, remindDays (0 = off) } */
 export function cleanAutos(a) {
   a = a && typeof a === 'object' ? a : {};
-  return { partsTo: a.partsTo ? cleanStageId(a.partsTo) : '', tellWaiting: a.tellWaiting === true, remindDays: Math.max(0, Math.min(60, Math.round(Number(a.remindDays) || 0))) };
+  return { partsTo: a.partsTo ? cleanStageId(a.partsTo) : '', tellWaiting: a.tellWaiting === true, remindDays: Math.max(0, Math.min(60, Math.round(Number(a.remindDays) || 0))),
+    // Carry unfinished tasks into the current week automatically.
+    carry: a.carry === true,
+    carryWarn: Math.max(0, Math.min(10, Math.round(Number(a.carryWarn) || 0))),   // 0 = no "stuck" warning
+    carryMakeWeeks: a.carryMakeWeeks === true };
 }
 /** Tasks whose parts are all in and that should move on to `to`: [{ task, from }]. Never past a sign-off still to give. */
 export function partsReadyMoves(tasks, parts, stages, to, stageOf) {

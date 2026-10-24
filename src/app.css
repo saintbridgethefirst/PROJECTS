@@ -452,6 +452,8 @@ body.look-pro .cmdk-icon:has(.cmdk-lico) .cmdk-emoji { display: none; }
 .carry-step.on { background: var(--line-color); color: var(--on-accent, #fff); border-color: var(--line-color); }
 .carry-step.done::before { content: '✓ '; }
 .carry-chip { color: var(--line-color) !important; }
+.carry-chip.carry-stuck { color: #a8600a !important; background: #fff3d6; border-color: #f1d58c; }
+:root:not([data-theme="light"]) .carry-chip.carry-stuck { color: #ffcf7a !important; background: rgba(255,196,70,.14); border-color: rgba(255,196,70,.4); }
 .gt-carry { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--line-color) 15%, transparent); color: var(--line-color); margin-left: 4px; }
 .research-modal .rs-subhead select, .research-modal .rs-bar select, .research-modal .rs-inline select, .research-modal .lit-side select, .research-modal td select { width: auto; margin: 0; }
 .research-modal .rs-field input, .research-modal .rs-field select { width: 100%; margin: 0; }
