@@ -18,6 +18,13 @@ const BUTTONS = [
   ['#wb-btn', 'presentation'], ['#approvals-btn', 'check-check'], ['#share-btn', 'share-2'], ['[onclick*="TT.openAI"]', 'sparkles'],
   ['[onclick*="scrollToToday"]', 'crosshair'], ['[onclick="TT.openSettings()"]', 'settings'], ['#nav-collapse', 'panel-left-close'],
   ['[onclick="toggleSidebar()"]', 'panel-right'], ['#theme-toggle-outer', 'palette'], ['#crossteam-btn', 'users'], ['#joint-btn', 'layers'], ['#home-search', 'search'],
+  // Settings ▸ Features: each module's emoji becomes a line icon
+  ...Object.entries({ planning: 'calendar-range', meetings: 'clipboard-list', notebook: 'notebook-pen', literature: 'book-open', whiteboards: 'presentation',
+    subteams: 'puzzle', parts: 'package', finance: 'wallet', people: 'users', time: 'clock', risks: 'shield-alert', requirements: 'ruler' })
+    .map(([k, ic]) => ['.feature-card[data-feature="' + k + '"] .feature-icon', ic]),
+  ...Object.entries({ backups: 'life-buoy', approvals: 'check-check', notifications: 'mail', supervisor: 'eye', history: 'history', reviews: 'compass',
+    bom: 'layers', documents: 'file-text', sso: 'key-round', admin: 'landmark', dpa: 'lock' })
+    .map(([k, ic]) => ['.feature-card[data-pro="' + k + '"] .feature-icon', ic]),
 ];
 // Badge emoji that carry meaning → an icon instead of nothing.
 const BADGE = { '⏱': 'timer', '🕒': 'timer', '📅': 'calendar', '📆': 'calendar', '☑': 'square-check', '✅': 'square-check', '💬': 'message-square', '⚠': 'triangle-alert',
