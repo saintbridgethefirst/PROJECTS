@@ -19,6 +19,7 @@ import { carryRoots, cleanFeatures, TEAM_STARTS, startFeatures, cleanProfile, cl
 import { runAutos, afterCommit } from './autos.js';
 import { startI18n, setLang, currentLang, LANGS, translate } from './i18n.js';
 import { setLook, homeLook, setHomeLook } from './look.js';
+import { icon } from './icons.js';
 import { initTooltips } from './tooltip.js';
 import { startCursors, stopCursors } from './cursors.js';
 import { openJointBoard } from './joint.js';
@@ -387,6 +388,7 @@ function renderHome() {
   acc.onclick = () => openAccount();
   $('#home-theme').onclick = () => openThemes();
   if (!session) setLook(homeLook());
+  drawLookSwitch($('#home-look'));
   $('#home-search').onclick = () => startSearch();
 
   refreshInstallBanner();
@@ -540,7 +542,7 @@ function homeSources() {
   homeSearchData.teams.forEach(t => items.push({ group: 'Teams', icon: '👥', title: t.name, sub: roleLabel(t.roleId), fields: [[t.name, 3]], run: () => goTeam(t.id), suggest: true }));
   homeSearchData.work.forEach(w => (w.tasks || []).forEach(t => items.push({ group: 'My tasks', icon: t.flag === 'completed' ? '✅' : '📌', title: t.name || 'Untitled task',
     sub: [w.team.name, t.jiraId, t.dueDate && 'due ' + t.dueDate].filter(Boolean).join(' · '), fields: [[t.name, 3], [t.jiraId, 3], [w.team.name, 1], [(t.subtasks || []).map(x => x.title).join(' '), 1]], run: () => openTaskIn(w.teamId, t.id) })));
-  [['🎨', 'Change theme', () => openThemes()], ['👤', 'My account', () => openAccount()], ['➕', 'Create a team', () => { const i = $('#create-team-form input[name=name]'); if (i) i.focus(); }]]
+  [['🎨', 'Change theme', () => openThemes()], ['💼', homeLook() === 'professional' ? 'Home page look: switch to Friendly' : 'Home page look: switch to Professional', () => chooseHomeLook(homeLook() === 'professional' ? 'friendly' : 'professional')], ['👤', 'My account', () => openAccount()], ['➕', 'Create a team', () => { const i = $('#create-team-form input[name=name]'); if (i) i.focus(); }]]
     .forEach(([icon, title, run]) => items.push({ group: 'Actions', icon, title, fields: [[title, 2]], run, suggest: true }));
   return { items, placeholder: 'Search your teams and tasks…' };
 }
@@ -680,12 +682,33 @@ function themePreview(id) {
   }
   return el('span.theme-prev', { 'aria-hidden': 'true' }, ...prev(id));
 }
+// Friendly (emoji and colour) or Professional (line icons) for your home page. One switch, drawn in the
+// home page header and in Your account; the Theme panel has the same choice. Kept on this device.
+function chooseHomeLook(v) {
+  setHomeLook(v); if (!session) setLook(v);
+  document.querySelectorAll('.look-switch').forEach(drawLookSwitch);
+  toast(v === 'professional' ? 'Home page: Professional look.' : 'Home page: Friendly look.', 2500);
+}
+function drawLookSwitch(box) {
+  if (!box) return box;
+  const cur = homeLook();
+  box.replaceChildren(...[['friendly', 'smile', 'Friendly'], ['professional', 'briefcase', 'Professional']].map(([v, ic, name]) =>
+    el('button' + (cur === v ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(cur === v), dataset: { look: v },
+      title: name + ' look for your home page', 'aria-label': name, onclick: () => { if (homeLook() !== v) chooseHomeLook(v); } },
+    icon(ic, 'ico look-sw-ico'), el('span.theme-word', {}, name))));
+  return box;
+}
+function lookField() {
+  return el('div.field', {}, el('span', {}, 'Home page look'),
+    drawLookSwitch(el('div.seg-toggle.look-switch', { role: 'radiogroup', 'aria-label': 'Home page look' })),
+    el('div.hint', { style: { marginTop: '6px' } }, 'Friendly uses emoji and colour; Professional uses clean line icons. This is for your home page and team list. Each team has its own look, set by its owner in Settings ▸ General.'));
+}
 function openThemes() {
   const m = modal('Theme'); m.foot.remove();
   const draw = () => {
     // Look of your home page: emoji (Friendly) or clean line icons (Professional). Each team keeps its own look.
     const cur = homeLook();
-    const pick = (v) => { setHomeLook(v); if (!session) setLook(v); draw(); toast(v === 'professional' ? 'Home page: Professional look.' : 'Home page: Friendly look.', 2500); };
+    const pick = (v) => { chooseHomeLook(v); draw(); };
     const look = el('div.look-pick', { role: 'radiogroup', 'aria-label': 'Home page look' },
       ...[['friendly', 'Friendly', 'Emoji and colour'], ['professional', 'Professional', 'Clean line icons, no emoji']].map(([v, name, note]) =>
         el('button.look-opt' + (cur === v ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(cur === v), dataset: { look: v }, onclick: () => pick(v) }, el('b', {}, name), el('span.hint', {}, note))));
@@ -755,6 +778,7 @@ function openAccount() {
     el('label.field', {}, el('span', {}, 'Display name (shown to your teams)'), name),
     el('div.field', {}, el('span', {}, 'Theme'), el('div.row', {}, el('span', { id: 'account-theme-name' }, themeName(currentTheme())), el('span.spacer'),
       el('button.btn.small', { type: 'button', onclick: () => openThemes() }, '🎨 Change theme…'))),
+    lookField(),
     navField(),
     languageField(),
     menuStyleField(),

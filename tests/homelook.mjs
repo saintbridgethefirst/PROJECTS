@@ -32,6 +32,22 @@ try {
   ok(await p.locator('#home-guide .look-ico, #home-theme .look-ico').count() === 2, 'header buttons get line icons');
   ok(await p.locator('.mt-row .mt-prio .emo-ico').count() > 0, 'My tasks show priority as line icons');
 
+  step('The switch in the home page header');
+  ok(await p.locator('#home-look button.on').getAttribute('data-look') === 'professional', 'header switch shows Professional');
+  await p.click('#home-look [data-look="friendly"]'); await sleep(300);
+  ok(!(await pro()), 'header switch turns Friendly back on');
+  await p.click('#home-look [data-look="professional"]'); await sleep(300);
+  ok(await pro(), 'and Professional again');
+
+  step('Your account has the same switch');
+  await p.click('#home-account'); await p.waitForSelector('.modal .look-switch');
+  ok(await p.locator('.modal .look-switch button.on').getAttribute('data-look') === 'professional', 'account shows Professional');
+  await p.click('.modal .look-switch [data-look="friendly"]'); await sleep(300);
+  ok(!(await pro()), 'account switch changes the home page');
+  ok(await p.locator('#home-look button.on').getAttribute('data-look') === 'friendly', 'header switch follows');
+  await p.click('.modal .look-switch [data-look="professional"]'); await sleep(300);
+  await p.keyboard.press('Escape'); await sleep(400);
+
   step('Remembered, and teams keep their own look');
   await p.reload(); await p.waitForSelector('#home-screen:not([hidden])'); await sleep(800);
   ok(await pro(), 'still Professional after a reload');
