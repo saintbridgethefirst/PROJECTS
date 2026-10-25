@@ -179,7 +179,7 @@
                 if (titleEl) titleEl.after(row); else card.insertBefore(row, anchor);
             }
             if (task.attachments && task.attachments.length) {
-                const a = document.createElement('div'); a.className = 'att-chip'; a.textContent = '📎 ' + task.attachments.length + (task.attachments.length === 1 ? ' file' : ' files');
+                const nb = attBrokenCount(task); const a = document.createElement('div'); a.className = 'att-chip' + (nb ? ' att-broken' : ''); a.textContent = '📎 ' + task.attachments.length + (task.attachments.length === 1 ? ' file' : ' files') + (nb ? ' · ' + nb + ' can’t be opened' : '');
                 card.insertBefore(a, anchor);
             }
             if (!TT.canEditOwner(person.id)) card.setAttribute('draggable', 'false');
@@ -292,6 +292,33 @@
             });
             return s;
         }
+        // ── File health on attachments: a pill on each Drive/OneDrive file, and a note with fixes when it's broken ──
+        function fhPaint(row, a, task, editable) {
+            row.querySelectorAll('.fh-pill').forEach(x => x.remove()); const next = row.nextElementSibling; if (next && next.classList.contains('fh-note')) next.remove();
+            const h = TT.fileHealth(a.url); row.classList.toggle('fh-broken', !!h && h.state === 'broken'); if (!h || h.state === 'unknown') return;
+            const pill = document.createElement('span'); pill.className = 'fh-pill fh-' + h.state;
+            pill.textContent = h.state === 'broken' ? 'Access lost' : h.state === 'personal' ? 'Personal drive' : '✓ Opens';
+            pill.title = h.why || 'Checked: this file opens for you.';
+            const link = row.querySelector('a'); if (link) link.after(pill); else row.appendChild(pill);
+            if (h.state !== 'broken') return;
+            const note = document.createElement('div'); note.className = 'fh-note';
+            const txt = document.createElement('span'); txt.textContent = h.why + ' Ask ' + (a.addedBy || 'whoever added it') + ' to share it again, or link the file again.'; note.appendChild(txt);
+            const ask = document.createElement('a'); ask.className = 'btn small ghost'; const hv = safeHref(a.url); if (hv) ask.href = hv; ask.target = '_blank'; ask.rel = 'noopener noreferrer'; ask.textContent = 'Request access ↗'; ask.title = 'Opens the file: Google and Microsoft show a "Request access" button there'; note.appendChild(ask);
+            if (editable) { const re = document.createElement('button'); re.type = 'button'; re.className = 'btn small ghost'; re.textContent = 'Re-link…'; re.onclick = () => relinkAttachment(task, a); note.appendChild(re); }
+            row.after(note);
+        }
+        async function relinkAttachment(task, a) {
+            const v = await askText('New link for "' + String(a.name || 'file').slice(0, 40) + '"', '', 'https://…', 'url'); if (!v) return;
+            const url = String(v).trim(); if (!/^https:\/\//i.test(url) || !safeHref(url)) { toast('Enter a full web address starting with https://'); return; }
+            const before = a.url; a.url = url; logHistory(task, 'Attachment re-linked', a.name + ' (' + before + ')', url);
+            saveDatabase(); render(); if (activeNode && activeNode.id === task.id) openEditor(task); toast('Link updated.');
+        }
+        /** Cards: the 📎 chip turns red when one of the task's files can't be opened (as far as this device knows). */
+        function attBrokenCount(task) { return (task.attachments || []).filter(a => { const h = TT.fileHealth && TT.fileHealth(a.url); return h && h.state === 'broken'; }).length; }
+        function paintAttChips() {
+            document.querySelectorAll('#main-view .task-card .att-chip').forEach(c => { const card = c.closest('.task-card'); const loc = card && locateTask(card.id); if (!loc) return; const n = attBrokenCount(loc.task);
+                c.classList.toggle('att-broken', n > 0); c.textContent = '📎 ' + loc.task.attachments.length + (loc.task.attachments.length === 1 ? ' file' : ' files') + (n ? ' · ' + n + ' can’t be opened' : ''); });
+        }
         function attachmentSection(task, editable) {
             const s = section('Files & links');
             const list = document.createElement('div'); list.className = 'att-list';
@@ -316,6 +343,7 @@
                         else if (!a.state) TT.githubStatus(a.url).then(st => { if (st && st.state === 'closed' && cl.isConnected) reopen(); });
                     }
                 }
+                if (TT.fileCheckable && TT.fileCheckable(a)) { row.dataset.url = a.url; fhPaint(row, a, task, editable); }
                 if (editable) {
                     const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'btn small ghost'; rm.textContent = 'Remove'; rm.dataset.editOnly = '1';
                     rm.onclick = () => { if (!confirm('Remove "' + (a.name || 'this link') + '" from the task? The file itself stays where it is.')) return; logHistory(task, 'Attachment removed', a.name, ''); task.attachments = task.attachments.filter(x => x.id !== a.id); saveDatabase(); render(); openEditor(task); };
@@ -325,6 +353,19 @@
             });
             if (!(task.attachments || []).length) { const e = document.createElement('div'); e.className = 'hint'; e.textContent = 'No files yet.'; list.appendChild(e); }
             s.appendChild(list);
+            // File health: quietly check Drive/OneDrive files with sign-ins already on this device; "Check files" may ask you to sign in.
+            const checkable = (task.attachments || []).filter(a => TT.fileCheckable && TT.fileCheckable(a));
+            if (checkable.length) {
+                const repaint = () => list.querySelectorAll('.att-item[data-url]').forEach(r => { const a = (task.attachments || []).find(x => x.url === r.dataset.url); if (a) fhPaint(r, a, task, editable); });
+                TT.checkFiles(checkable).then(() => { if (list.isConnected) { repaint(); paintAttChips(); } }).catch(() => {});
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small ghost fh-check'; b.textContent = 'Check files';
+                b.title = 'Uses your Google / Microsoft sign-in to check each Drive or OneDrive file';
+                b.onclick = async () => { b.disabled = true; b.textContent = 'Checking…'; const r = await TT.checkFiles(checkable, { interactive: true, force: true }).catch(() => ({}));
+                    const n = Object.values(r).filter(x => x.state === 'broken').length; b.disabled = false; b.textContent = 'Check files';
+                    if (list.isConnected) repaint(); paintAttChips();
+                    toast(!Object.keys(r).length ? 'Couldn’t check: sign in to Google Drive or OneDrive when asked.' : n ? n + (n === 1 ? ' file' : ' files') + ' can’t be opened.' : 'All files open fine.', 4000); };
+                s.appendChild(b);
+            }
             // GitHub sync: the task's reference, a branch name, and a new issue already naming it.
             if (TT.githubRepo && TT.githubRepo()) {
                 const g = document.createElement('div'); g.className = 'gh-ref-row';

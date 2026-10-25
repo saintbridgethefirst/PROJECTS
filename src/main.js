@@ -10,6 +10,7 @@ import './themes.css';
 import { THEMES, SWATCH, applyTheme, currentTheme, savedTheme, themeName, isTheme } from './themes.js';
 import { APP_NAME, APP_TAGLINE, DEMO_MODE, PUBLIC_DEMO, GOOGLE_CLIENT_ID, MS_CLIENT_ID, LIMITS } from './config.js';
 import { can, canEditOwnedBy, DEFAULT_ROLES, normEmail, isValidEmail } from './permissions.js';
+import { healthOf, checkFiles, checkableBy } from './filehealth.js';
 import { cleanTeam, cleanMember, cleanCategory, cleanTask, DEFAULT_LABELS, newId, nextWeekTitle, cascadeWeekDates, carryIndexOf } from './model.js';
 import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mergeChanges, invert } from './sync.js';
 import { loadBackend } from './backend/index.js';
@@ -1239,6 +1240,10 @@ window.TT = {
   removeMember: (uid) => import('./settings.js').then(m => m.removeMember(ctx(), uid)),
   openAI: () => import('./ai.js').then(m => m.openAI(ctx())),
   openAttach: (taskId) => import('./attachments.js').then(m => m.openAttach(ctx(), taskId)),
+  /** File health (filehealth.js): is a linked Drive/OneDrive file still reachable for me? */
+  fileHealth: (url) => healthOf(url),
+  fileCheckable: (a) => !!checkableBy(a),
+  checkFiles: (atts, opts = {}) => checkFiles(atts, { ...opts, me: (user && user.name) || '' }),
   importFile: (file) => import('./importer.js').then(m => m.importFile(window.TT, file)),
   importFromPicker: () => import('./importer.js').then(m => m.importFromFile(window.TT)),
   async pickImage(maxPx, maxBytes) {

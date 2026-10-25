@@ -921,3 +921,24 @@ test('backlog: no dates, no number, skipped when weeks are renumbered or re-date
   assert.deepEqual(renumberWeeks('sequence', weeks).map(w => w.title), ['Backlog', 'WEEK 1', 'WEEK 2']);
   assert.equal(nextWeekTitle('sequence', [{ key: 'backlog', title: 'Backlog' }]), 'WEEK 1');
 });
+
+test('file health: reading links and judging Drive / OneDrive answers', async () => {
+  const { driveFileId, graphShareId, checkableBy, judgeDrive, judgeGraph } = await import('../src/filehealth.js');
+  assert.equal(driveFileId('https://docs.google.com/document/d/1AbCdEfGhIjKlMnOp/edit'), '1AbCdEfGhIjKlMnOp');
+  assert.equal(driveFileId('https://drive.google.com/open?id=1AbCdEfGhIjKlMnOp'), '1AbCdEfGhIjKlMnOp');
+  assert.equal(driveFileId('https://evil.example/file/d/1AbCdEfGhIjKlMnOp'), '', 'only Google hosts');
+  assert.equal(graphShareId('https://1drv.ms/w/s!abc'), 'u!aHR0cHM6Ly8xZHJ2Lm1zL3cvcyFhYmM');
+  assert.equal(checkableBy({ provider: 'link', url: 'https://example.com/x' }), '', 'plain links are not checked');
+  assert.equal(checkableBy({ provider: 'link', url: 'https://contoso.sharepoint.com/:w:/r/x' }), 'onedrive');
+  assert.equal(checkableBy({ provider: 'gdrive', url: 'https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view' }), 'gdrive');
+  assert.equal(judgeDrive(200, { trashed: true }).state, 'broken');
+  assert.equal(judgeDrive(200, { owners: [{ displayName: 'Priya' }] }).state, 'personal');
+  assert.equal(judgeDrive(200, { driveId: 'shared', owners: [] }).state, 'ok');
+  assert.equal(judgeDrive(404, null, { mine: true }).state, 'broken');
+  assert.equal(judgeDrive(404, null, { mine: false }).state, 'unknown', 'someone else’s Google file can’t be judged with drive.file');
+  assert.equal(judgeGraph(404, null).state, 'broken');
+  assert.equal(judgeGraph(403, null).state, 'broken');
+  assert.equal(judgeGraph(200, { parentReference: { driveType: 'business' }, createdBy: { user: { displayName: 'Leo' } } }).state, 'personal');
+  assert.equal(judgeGraph(200, { parentReference: { driveType: 'documentLibrary' } }).state, 'ok');
+  assert.equal(judgeGraph(500, null).state, 'unknown');
+});

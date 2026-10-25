@@ -29,6 +29,13 @@ async function msToken(loginHint) {
   return r.accessToken;
 }
 
+/** A Microsoft token without any window: null when this device isn't signed in to OneDrive. */
+export async function msTokenSilent() {
+  if (!MS_CLIENT_ID) return null;
+  try { const app = await client(); const account = app.getAllAccounts()[0]; if (!account) return null; return (await app.acquireTokenSilent({ scopes: SCOPES, account })).accessToken; } catch { return null; }
+}
+export { msToken };
+
 async function graph(path, init = {}) {
   const t = await msToken();
   const r = await fetch('https://graph.microsoft.com/v1.0' + path, { ...init, headers: { Authorization: 'Bearer ' + t, ...(init.headers || {}) } });
