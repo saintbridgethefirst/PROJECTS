@@ -1361,3 +1361,7 @@ span.num-box > input[type=number] { flex: 1; min-width: 0; width: auto; height: 
 body.look-pro .feature-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; color: var(--line-color); background: color-mix(in srgb, var(--line-color) 10%, transparent); }
 body.look-pro .feature-icon .look-ico svg { width: 21px; height: 21px; }
 body.look-pro .feature-card:not(.on) .feature-icon { color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 10%, transparent); }
+
+/* Tools: the tab bar sticks flush to the top of the scroll area, so nothing peeks out above it */
+.research-modal .modal-body { padding-top: 0; }
+.research-modal .rs-tabs { top: 0; margin-top: 0; padding-top: 16px; }
