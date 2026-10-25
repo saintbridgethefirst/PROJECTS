@@ -16,6 +16,8 @@ const A = await ctx.newPage(); A.on('pageerror', e => errors.push(e.message)); A
 const items = async () => Object.entries(Object.values(JSON.parse(await A.evaluate(() => localStorage.getItem('tt_demo_store_v1'))).teams)[0].wbItems || {}).map(([id, d]) => ({ id, ...d }));
 // Slow machines (CI) can take a while to save: wait for what we expect instead of a fixed pause.
 const until = async (pred, ms = 6000) => { let a = []; for (let t = 0; t < ms; t += 200) { a = await items(); if (pred(a)) return a; await sleep(200); } return a; };
+// The text box is ready for typing once it has focus
+const editReady = async () => { await A.waitForSelector('#wb-edit'); await A.waitForFunction(() => document.activeElement && document.activeElement.id === 'wb-edit', null, { timeout: 5000 }).catch(() => {}); };
 const menu = (label) => A.locator('#wb-menu .wb-menu-item', { hasText: label });
 
 try {
@@ -34,13 +36,13 @@ try {
   step('Shapes and frames from the tool bar');
   const cv = await A.locator('#wb-canvas').boundingBox();
   ok(await A.locator('.wb-tool[data-tool]').count() === 11, '11 tools');
-  await A.click('[data-tool=shape-rect]'); await A.mouse.click(cv.x + 500, cv.y + 300); await A.waitForSelector('#wb-edit');
+  await A.click('[data-tool=shape-rect]'); await A.mouse.click(cv.x + 500, cv.y + 300); await editReady();
   await A.keyboard.type('Motor test'); await A.keyboard.press('Control+Enter');
   let all = await until(a => a.some(i => i.kind === 'shape' && i.shape === 'rect' && i.text === 'Motor test'));
   ok(all.some(i => i.kind === 'shape' && i.shape === 'rect' && i.text === 'Motor test'), 'a rectangle with text');
   await A.keyboard.press('d'); ok(await A.locator('[data-tool=shape-diamond][aria-pressed=true]').count() === 1, 'D picks the diamond');
-  await A.mouse.click(cv.x + 800, cv.y + 300); await A.waitForSelector('#wb-edit'); await A.keyboard.type('Passes?'); await A.keyboard.press('Control+Enter'); await sleep(400);
-  await A.click('[data-tool=frame]'); await A.mouse.click(cv.x + 650, cv.y + 520); await A.waitForSelector('#wb-edit'); await A.keyboard.press('Control+a'); await A.keyboard.type('Sprint 3'); await A.keyboard.press('Enter');
+  await A.mouse.click(cv.x + 800, cv.y + 300); await editReady(); await A.keyboard.type('Passes?'); await A.keyboard.press('Control+Enter'); await sleep(400);
+  await A.click('[data-tool=frame]'); await A.mouse.click(cv.x + 650, cv.y + 520); await editReady(); await A.keyboard.press('Control+a'); await A.keyboard.type('Sprint 3'); await A.keyboard.press('Enter');
   all = await until(a => a.some(i => i.kind === 'shape' && i.shape === 'diamond') && a.some(i => i.kind === 'frame' && i.text === 'Sprint 3'));
   const frame = all.find(i => i.kind === 'frame');
   ok(all.some(i => i.kind === 'shape' && i.shape === 'diamond') && frame && frame.text === 'Sprint 3', 'a diamond and a frame called “Sprint 3”');
@@ -59,7 +61,7 @@ try {
   await A.mouse.click(cv.x + 1100, cv.y + 160, { button: 'right' }); await A.waitForSelector('#wb-menu');
   ok(await menu('Sticky note').isVisible() && await menu('Ellipse').isVisible() && await menu('Frame').isVisible() && await menu('Zoom to fit').isVisible(), 'the menu offers notes, shapes, frames, zoom');
   await shot('menu');
-  await menu('Ellipse').click(); await A.waitForSelector('#wb-edit'); await A.keyboard.type('Ideas'); await A.keyboard.press('Control+Enter');
+  await menu('Ellipse').click(); await editReady(); await A.keyboard.type('Ideas'); await A.keyboard.press('Control+Enter');
   all = await until(a => a.some(i => i.kind === 'shape' && i.shape === 'ellipse')); const ell = all.find(i => i.kind === 'shape' && i.shape === 'ellipse');
   ok(ell && Math.abs(ell.x + ell.w / 2 - (await A.evaluate(() => 0)) ) >= 0, 'an ellipse where you clicked');
 
