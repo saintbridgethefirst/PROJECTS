@@ -130,7 +130,12 @@ function renderAuth() {
   const wrap = (fn) => async () => { note.textContent = ''; try { await fn(); } catch (e) { console.error(e); note.textContent = friendlyError(e); } };
 
   if (P.google) box.append(el('button.btn.block', { type: 'button', onclick: wrap(() => backend.auth.signInGoogle()) }, googleIcon(), 'Continue with Google'));
-  if (P.microsoft) box.append(el('button.btn.block', { type: 'button', onclick: wrap(() => backend.auth.signInMicrosoft()) }, msIcon(), 'Continue with Microsoft'));
+  if (P.microsoft) box.append(el('button.btn.block', { type: 'button', onclick: wrap(() => backend.auth.signInMicrosoft().catch((e) => {
+    // Microsoft's own "Need admin approval" page can only be closed: say what it means and what to do instead
+    if (String(e && e.code).includes('popup-closed')) { const x = new Error('Sign-in window closed. If Microsoft said “Need admin approval”, your university hasn’t approved Trawpie yet: use your university email and a password below instead. It works the same, Pro Education included.'); x.code = 'tt/ms-closed'; throw x; }
+    if (e && e.code === 'tt/link-microsoft' && e.email) { const i = box.querySelector('input[type=email]'); if (i) i.value = e.email; }
+    throw e;
+  })) }, msIcon(), 'Continue with Microsoft'));
   if (P.password) box.append(passwordForm(note));
   if (P.emailLink) {
     box.append(el('div.auth-or', {}, P.password ? 'or get a one-time link' : 'or use your email'));

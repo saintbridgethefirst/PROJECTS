@@ -17,7 +17,10 @@ export const firebaseConfig = {
 
 // Optional integrations (leave blank to hide them)
 export const GOOGLE_CLIENT_ID = env.VITE_GOOGLE_CLIENT_ID || '';   // Google Drive, Sheets and Calendar
-export const MS_CLIENT_ID = env.VITE_MS_CLIENT_ID || '';           // OneDrive (and Microsoft sign-in via Firebase)
+export const MS_CLIENT_ID = env.VITE_MS_CLIENT_ID || '';           // Upload straight to OneDrive (Microsoft Graph). Needs user consent to Files.ReadWrite.
+// "Continue with Microsoft": turned on separately, once the Microsoft provider is set up in Firebase.
+// It only asks for basic sign-in (name and email), which most universities let students approve.
+export const ENABLE_MS_SIGNIN = env.VITE_MS_SIGNIN === 'true';
 
 export const USE_EMULATORS = env.VITE_USE_EMULATORS === 'true';
 // App Check: proves requests come from this website (reCAPTCHA Enterprise site key; public). Empty = off.

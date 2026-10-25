@@ -9,7 +9,7 @@ code. Allow about 30 minutes for parts 1 and 2. Parts 3 and 4 are optional.
 | 1. Try it on your computer | The app running in **demo mode** (data stays in your browser) | Recommended first |
 | 2. Go live with Firebase | Real accounts, teams, invites and a public web address | Yes, to share with a team |
 | 3. Google Drive, Sheets and Calendar | Upload files to Drive, export to Sheets, collect tasks through a shared Sheet, sync deadlines to Google Calendar | Optional |
-| 4. Microsoft sign-in and OneDrive | "Continue with Microsoft" and OneDrive uploads | Optional |
+| 4. Microsoft sign-in and OneDrive | "Continue with Microsoft" and uploading straight to OneDrive (OneDrive links work without it) | Optional |
 | 5. AI summaries | Nothing to set up for "Copy for AI"; optional personal Gemini key | Optional |
 
 ---
@@ -217,59 +217,76 @@ account isn't a test user (step 3).
 
 ## Part 4: Microsoft sign-in and OneDrive (optional)
 
-This adds **Continue with Microsoft** on the sign-in page and **Upload to my OneDrive**
-for attachments. One Microsoft "app registration" serves both. Outlook calendars need
-nothing extra: the calendar file from **Add deadlines to your calendar** opens in Outlook.
+**OneDrive and SharePoint files work without any of this.** People attach them by their share
+link: **Attach a file ▸ Open OneDrive ▸ Share ▸ Copy link ▸ paste**. Trawpie recognises the link,
+names the file from it when it can, and shows the OneDrive icon. Nobody has to approve anything,
+so it works with every university account.
 
-**Before you start, two things to know**
+This part adds two optional extras. Each has its own switch:
 
-- **You need a Microsoft Entra directory (tenant) to register the app.** Microsoft has
-  deprecated registering apps with a personal Microsoft account outside a directory.
-  Either create a free Azure account (it comes with a directory; Microsoft may ask for a
-  card or phone number to confirm who you are), or ask your university's IT team to
-  register it in the university's directory.
-- **University Microsoft accounts are often locked down.** Many universities block
-  students from approving outside apps, so people see "Need admin approval". Ask IT
-  first (there's a ready-made email in the roadmap doc). Personal Microsoft accounts
-  (outlook.com, hotmail.com) work straight away.
+| Extra | What it asks Microsoft for | Who can use it |
+|---|---|---|
+| **Continue with Microsoft** on the sign-in page (`VITE_MS_SIGNIN`) | Basic sign-in only: name and email | Personal accounts, and most universities. Where a university blocks it, students sign in with their university email and a password instead. |
+| **Upload to my OneDrive** from a task (`VITE_MS_CLIENT_ID`) | `Files.ReadWrite` | Personal accounts straight away. Since August 2025, Microsoft's default stops students approving outside apps that touch their files, so at most universities IT has to approve Trawpie once (for the whole university, not per student). |
 
-**Steps** (replace `uni-teamtrack` if your project is called something else)
+**Before you start:** you need a Microsoft Entra directory (tenant) to register the app.
+Microsoft no longer lets a personal account register apps outside a directory. Create a free
+Azure account (it comes with a directory; Microsoft may ask for a card or phone number to
+confirm who you are), or ask your university's IT team to register it.
 
-1. Go to <https://entra.microsoft.com> ▸ **Applications ▸ App registrations ▸ New registration**.
-   - Name: `Trawpie`.
-   - Supported account types: **Accounts in any organizational directory and personal
-     Microsoft accounts** (or only your university's directory, if IT prefers).
-   - Leave the redirect URI empty for now and click **Register**.
-   - Copy the **Application (client) ID** from the Overview page.
-2. **Authentication ▸ Add a platform ▸ Single-page application** (for OneDrive), with
-   these redirect URIs:
-   `https://uni-teamtrack.web.app/blank.html`,
-   `https://uni-teamtrack.firebaseapp.com/blank.html`,
-   `http://127.0.0.1:5173/blank.html`.
-3. **API permissions ▸ Add a permission ▸ Microsoft Graph ▸ Delegated permissions**:
-   tick **Files.ReadWrite**, and check that **User.Read** is listed (it is by default).
-   Also add **openid**, **email** and **profile**.
-4. For **Continue with Microsoft**:
-   - Firebase console ▸ **Authentication ▸ Sign-in method ▸ Add new provider ▸ Microsoft**.
-     Turn it on and copy the **callback URL** it shows
-     (`https://uni-teamtrack.firebaseapp.com/__/auth/handler`).
-   - Back in Entra: **Authentication ▸ Add a platform ▸ Web**, paste that callback URL.
-   - **Certificates & secrets ▸ New client secret** (choose 24 months), and copy the
-     secret's **Value** straight away (it's only shown once).
-   - In Firebase, paste the **Application (client) ID** and the **secret value**, then Save.
-   - Put a reminder in your calendar for when the secret expires: Microsoft sign-in stops
-     working on that day until you make a new secret and paste it into Firebase.
-5. Add the client ID to `.env`:
-   ```
-   VITE_MS_CLIENT_ID=00000000-0000-0000-0000-000000000000
-   ```
-6. Run `npm run deploy`. The sign-in page now shows **Continue with Microsoft**, and
-   **Attach a file** shows **Upload to my OneDrive**.
+**1. Register the app** (one registration serves both extras)
 
-**If something goes wrong:** "AADSTS50011 redirect URI mismatch" means a redirect URI in
-step 2 or 4 doesn't match exactly. "Need admin approval" means the university blocks
-students from approving the app: send IT the email from the roadmap doc, or use a
-personal Microsoft account.
+Go to <https://entra.microsoft.com> ▸ **Applications ▸ App registrations ▸ New registration**.
+- Name: `Trawpie`.
+- Supported account types: **Accounts in any organizational directory and personal Microsoft accounts**.
+- Leave the redirect URI empty and click **Register**.
+- Copy the **Application (client) ID** from the Overview page. It isn't secret: it ends up in the site's code.
+
+**2. Continue with Microsoft**
+
+- Firebase console ▸ **Authentication ▸ Sign-in method ▸ Add new provider ▸ Microsoft**. Turn it on
+  and copy the **callback URL** it shows (`https://uni-teamtrack.firebaseapp.com/__/auth/handler`).
+- In Entra: **Authentication ▸ Add a platform ▸ Web**, and paste that callback URL.
+- **Certificates & secrets ▸ New client secret** (choose 24 months). Copy the secret's **Value**
+  straight away (it's only shown once) and paste it into Firebase with the Application (client) ID,
+  then Save. The secret goes only into Firebase: never into `.env` files, the repo or a chat.
+- **API permissions**: check that Microsoft Graph **User.Read** is listed (it is by default), and add
+  **openid**, **email** and **profile** (Delegated). Nothing else: basic sign-in is what lets
+  students approve it themselves.
+- Set `VITE_MS_SIGNIN=true` in `.env.live` and push. The sign-in page now shows **Continue with Microsoft**.
+- Put a reminder in your calendar for when the secret expires: Microsoft sign-in stops working on
+  that day until you make a new secret and paste it into Firebase.
+
+People who already have a Trawpie account with the same email (password or Google) are asked to
+sign in that way once; Microsoft is then linked to their account and works on its own after that.
+Microsoft accounts arrive unverified in Firebase, so new Microsoft users verify their email once
+(the home page shows a **Send verification email** button).
+
+**3. Upload to my OneDrive**
+
+- In Entra: **Authentication ▸ Add a platform ▸ Single-page application**, with these redirect URIs:
+  `https://trawpie.org/blank.html`,
+  `https://uni-teamtrack.web.app/blank.html`,
+  `https://uni-teamtrack.firebaseapp.com/blank.html`,
+  `http://127.0.0.1:5173/blank.html`.
+- **API permissions ▸ Add a permission ▸ Microsoft Graph ▸ Delegated permissions**: tick **Files.ReadWrite**.
+  Trawpie only asks for it when someone uploads, never at sign-in.
+- Set `VITE_MS_CLIENT_ID=<Application (client) ID>` in `.env.live` and push. **Attach a file** now
+  also shows **Upload to my OneDrive**.
+
+**4. Helping universities say yes (optional)**
+
+- **Publisher verification** gives the app a blue *verified* badge on Microsoft's consent screen.
+  It's free, but needs a Microsoft AI Cloud Partner Program account and the `trawpie.org` domain
+  added to your Entra directory.
+- A university's IT team approves the app for everyone at once by opening
+  `https://login.microsoftonline.com/<their-university-domain>/adminconsent?client_id=<Application (client) ID>`
+  while signed in as an admin.
+
+**If something goes wrong:** "AADSTS50011 redirect URI mismatch" means a redirect URI in step 2
+or 3 doesn't match exactly. "Need admin approval" means the university blocks students from
+approving the app: students can still sign in with their university email and a password, and
+attach OneDrive files by link.
 
 ---
 

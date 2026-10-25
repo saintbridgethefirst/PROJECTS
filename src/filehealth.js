@@ -27,6 +27,36 @@ export function graphShareId(url) {
   return 'u!' + b;
 }
 export function isOneDriveUrl(url) { try { return /(^|\.)(1drv\.ms|onedrive\.live\.com|sharepoint\.com|onedrive\.com)$/.test(new URL(url).hostname); } catch { return false; } }
+// What kind of file a share link points at, for links that don't carry the file's name.
+const MS_KIND = { w: 'Word document', x: 'Excel workbook', p: 'PowerPoint', b: 'PDF', f: 'Folder', i: 'Image', v: 'Video', o: 'OneNote notebook', t: 'Text file', u: 'File' };
+const G_KIND = { document: 'Google Doc', spreadsheets: 'Google Sheet', presentation: 'Google Slides', forms: 'Google Form', drawings: 'Google Drawing', file: 'Drive file', folders: 'Drive folder' };
+const dec = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
+const FILE_NAME = /\.[A-Za-z0-9]{2,5}$/;
+/** A pasted share link → { provider: 'onedrive'|'gdrive'|'', name } (name '' when the link doesn't say).
+ *  OneDrive / SharePoint "r" links and Doc.aspx?file= links carry the file name; short links only the kind. */
+export function linkInfo(url) {
+  let u; try { u = new URL(String(url)); } catch { return { provider: '', name: '' }; }
+  if (isOneDriveUrl(u.href)) {
+    const q = u.searchParams; const parts = u.pathname.split('/').filter(Boolean).map(dec);
+    const typed = /^:([a-z]):$/.exec(parts[0] || '');
+    const last = parts[parts.length - 1] || '';
+    let name = q.get('file') || '';
+    const id = q.get('id') || '';
+    if (!name && id.includes('/')) name = dec(id).split('/').filter(Boolean).pop() || '';
+    if (!name && typed && parts[1] === 'r' && parts.length > 2 && (FILE_NAME.test(last) || typed[1] === 'f')) name = last;
+    if (!name && !typed && parts.length > 1 && FILE_NAME.test(last) && !/\.aspx$/i.test(last)) name = last;
+    if (!name) {
+      const kind = typed ? typed[1] : (/(^|\.)1drv\.ms$/.test(u.hostname) && /^[a-z]$/.test(parts[0] || '') ? parts[0] : '');
+      name = MS_KIND[kind] || '';
+    }
+    return { provider: 'onedrive', name };
+  }
+  if (driveFileId(u.href)) {
+    const m = /^\/(document|spreadsheets|presentation|forms|drawings|file)\/d\//.exec(u.pathname) || /\/(folders)\//.exec(u.pathname);
+    return { provider: 'gdrive', name: m ? G_KIND[m[1]] : '' };
+  }
+  return { provider: '', name: '' };
+}
 /** Which service can check this attachment: 'gdrive', 'onedrive' or '' (can't be checked). */
 export function checkableBy(a) {
   if (!a || !a.url) return '';

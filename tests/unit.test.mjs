@@ -942,3 +942,29 @@ test('file health: reading links and judging Drive / OneDrive answers', async ()
   assert.equal(judgeGraph(200, { parentReference: { driveType: 'documentLibrary' } }).state, 'ok');
   assert.equal(judgeGraph(500, null).state, 'unknown');
 });
+
+test('share links: OneDrive / SharePoint / Google Drive recognised and named', async () => {
+  const { linkInfo, checkableBy } = await import('../src/filehealth.js');
+  const r = (u) => linkInfo(u);
+  assert.deepEqual(r('https://uob-my.sharepoint.com/:w:/r/personal/ab_bristol_ac_uk/Documents/Team/Test%20report%20v2.docx?d=w1&csf=1&web=1'), { provider: 'onedrive', name: 'Test report v2.docx' });
+  assert.deepEqual(r('https://uob-my.sharepoint.com/:x:/g/personal/ab_bristol_ac_uk/EaBcDeF?e=xyz'), { provider: 'onedrive', name: 'Excel workbook' });
+  assert.deepEqual(r('https://1drv.ms/b/s!AbCdEf'), { provider: 'onedrive', name: 'PDF' });
+  assert.deepEqual(r('https://uob.sharepoint.com/:f:/r/sites/Drone/Shared%20Documents/CAD?csf=1'), { provider: 'onedrive', name: 'CAD' });
+  assert.equal(r('https://uob.sharepoint.com/sites/Drone/_layouts/15/Doc.aspx?sourcedoc=%7Babc%7D&file=Budget.xlsx&action=default').name, 'Budget.xlsx');
+  assert.equal(r('https://uob-my.sharepoint.com/personal/ab/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fab%2FDocuments%2FWing%20CAD.step').name, 'Wing CAD.step');
+  assert.equal(r('https://uob.sharepoint.com/sites/Drone/Shared%20Documents/Plan.pdf').name, 'Plan.pdf');
+  assert.deepEqual(r('https://onedrive.live.com/?cid=ABC&id=ABC%21123'), { provider: 'onedrive', name: '' });
+  assert.deepEqual(r('https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOp/edit'), { provider: 'gdrive', name: 'Google Sheet' });
+  assert.deepEqual(r('https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp'), { provider: 'gdrive', name: 'Drive folder' });
+  assert.deepEqual(r('https://example.com/a.pdf'), { provider: '', name: '' });
+  assert.deepEqual(r('not a link'), { provider: '', name: '' });
+  assert.equal(checkableBy({ provider: 'onedrive', url: 'https://1drv.ms/b/s!AbCdEf' }), 'onedrive', 'pasted OneDrive links can be health-checked');
+});
+
+test('friendly errors: our own messages and Microsoft approval blocks', async () => {
+  const { friendlyError } = await import('../src/ui.js');
+  const e = new Error('Custom text'); e.code = 'tt/link-microsoft';
+  assert.equal(friendlyError(e), 'Custom text');
+  assert.match(friendlyError(new Error('AADSTS65001: The user or administrator has not consented')), /hasn’t approved Trawpie/);
+  assert.match(friendlyError(Object.assign(new Error('x'), { errorCode: 'consent_required' })), /share link/);
+});

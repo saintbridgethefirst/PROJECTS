@@ -1405,3 +1405,12 @@ body.look-pro .mt-prio.p-major { color: #d69e2e; } body.look-pro .mt-prio.p-mino
 @media (max-width: 960px) { .landing .lp-signin.lp-demo-first { grid-template-columns: 1fr; } .lp-demo-first .demo-left { max-width: none; } }
 @media (max-width: 560px) { .lp-demo-first .demo-kinds { grid-template-columns: 1fr; } }
 .landing .lp-signin-copy .demo-left p.hint { font-size: 13.5px; max-width: none; color: var(--lp-muted); }
+
+/* Attach a file: the "From OneDrive" steps */
+.od-help { padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 12px; background: color-mix(in srgb, var(--line-color) 5%, transparent); }
+.od-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; line-height: 1.45; }
+.od-steps li::marker { color: var(--text-muted); font-weight: 700; }
+.od-steps .btn.small { margin-right: 2px; }
+.od-steps .hint { display: block; margin-top: 2px; }
+.link-kind:empty { display: none; }
+.link-kind { margin: -2px 0 0; font-weight: 600; color: var(--line-color); }

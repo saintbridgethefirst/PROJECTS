@@ -871,8 +871,9 @@ function integrations(pane, ctx, { rerender } = {}) {
   const row = (title, ok, text) => el('div.banner' + (ok ? '.info' : ''), { style: { marginBottom: '10px' } }, el('b', {}, title + (ok ? ' — connected' : ' — not set up')), el('div', {}, text));
   pane.append(el('section', {}, el('h4', {}, 'Integrations'),
     el('p.hint', {}, 'Files stay in each person’s own Google Drive or OneDrive; tasks keep a link. Nothing is stored on the tracker’s server except the link.'),
-    row('Google Drive & Sheets', !!GOOGLE_CLIENT_ID, GOOGLE_CLIENT_ID ? 'Attach files to tasks, export tasks to Google Sheets, and collect tasks with a shared sheet.' : 'The site administrator adds a Google OAuth client ID (see SETUP.md, step 6).'),
-    row('OneDrive', !!MS_CLIENT_ID, MS_CLIENT_ID ? 'Attach files from OneDrive to tasks.' : 'The site administrator registers a Microsoft app (see SETUP.md, step 7).'),
+    row('Google Drive & Sheets', !!GOOGLE_CLIENT_ID, GOOGLE_CLIENT_ID ? 'Attach files to tasks, export tasks to Google Sheets, and collect tasks with a shared sheet.' : 'The site administrator adds a Google OAuth client ID (see SETUP.md, part 3).'),
+    el('div.banner.info', { style: { marginBottom: '10px' } }, el('b', {}, 'OneDrive & SharePoint — ready'),
+      el('div', {}, 'Anyone can attach OneDrive or SharePoint files: Attach a file ▸ Open OneDrive ▸ Share ▸ Copy link ▸ paste. Works with university accounts, nothing to approve.' + (MS_CLIENT_ID ? ' You can also upload straight to your OneDrive from a task.' : ''))),
     row('AI summaries', true, 'Copy-for-AI works with any chatbot, free. Each person can also add their own free Gemini API key in ✨ AI summary to get summaries inside the app.')));
   pane.append(fileHealthSection(ctx));
   pane.append(githubSection(ctx, { rerender }));

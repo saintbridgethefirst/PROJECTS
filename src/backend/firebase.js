@@ -10,14 +10,14 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-ch
 import {
   getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, OAuthProvider, signOut,
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, sendEmailVerification,
-  updateProfile, connectAuthEmulator,
+  updateProfile, connectAuthEmulator, linkWithCredential,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail,
 } from 'firebase/auth';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator,
   collection, collectionGroup, doc, query, where, onSnapshot, writeBatch, getDocs, getDocsFromCache, getDoc, setDoc, orderBy, limit,
 } from 'firebase/firestore';
-import { firebaseConfig, USE_EMULATORS, MS_CLIENT_ID, ENABLE_EMAIL_LINK, APPCHECK_SITE_KEY } from '../config.js';
+import { firebaseConfig, USE_EMULATORS, ENABLE_MS_SIGNIN, ENABLE_EMAIL_LINK, APPCHECK_SITE_KEY } from '../config.js';
 import { newId } from '../model.js';
 import { normEmail } from '../permissions.js';
 
@@ -71,14 +71,20 @@ async function completeEmailLinkIfAny() {
 }
 const linkDone = completeEmailLinkIfAny().catch(e => { console.error(e); alert('Sign-in link failed: ' + e.message); });
 
+let pendingMicrosoft = null;   // a Microsoft sign-in waiting to be linked to an existing account
+async function linkPendingMicrosoft() {
+  const cred = pendingMicrosoft; pendingMicrosoft = null;
+  if (!cred || !fbAuth.currentUser) return;
+  try { await linkWithCredential(fbAuth.currentUser, cred); } catch (e) { console.warn('Couldn’t link Microsoft sign-in:', e && e.code); }
+}
 export const auth = {
   onChange(fn) { return onAuthStateChanged(fbAuth, async (u) => { await linkDone; await loadProfile(u); fn(toUser(u)); }); },
   current: () => toUser(fbAuth.currentUser),
   // Email + password is the default email option: Firebase's free plan allows only
   // 5 sign-in-link emails per day for the whole site, but 1,000 verification emails.
-  providers: { google: true, microsoft: !!MS_CLIENT_ID, password: true, emailLink: ENABLE_EMAIL_LINK, demo: false },
-  async signInGoogle() { await signInWithPopup(fbAuth, new GoogleAuthProvider()); },
-  async signInPassword(email, password) { await signInWithEmailAndPassword(fbAuth, normEmail(email), password); },
+  providers: { google: true, microsoft: ENABLE_MS_SIGNIN, password: true, emailLink: ENABLE_EMAIL_LINK, demo: false },
+  async signInGoogle() { await signInWithPopup(fbAuth, new GoogleAuthProvider()); await linkPendingMicrosoft(); },
+  async signInPassword(email, password) { await signInWithEmailAndPassword(fbAuth, normEmail(email), password); await linkPendingMicrosoft(); },
   /** Creates the account, sets the display name and sends the verification email. Returns the updated user. */
   async signUpPassword(name, email, password) {
     const cred = await createUserWithEmailAndPassword(fbAuth, normEmail(email), password);
@@ -87,10 +93,22 @@ export const auth = {
     return toUser(fbAuth.currentUser);
   },
   async resetPassword(email) { await sendPasswordResetEmail(fbAuth, normEmail(email), { url: location.origin + location.pathname }); },
+  // Basic sign-in only (name and email): no file access, so students can approve it without IT.
+  // If the email already has a Trawpie account (password or Google), we keep the Microsoft sign-in
+  // and link it the moment they sign in the usual way once; after that both work.
   async signInMicrosoft() {
     const p = new OAuthProvider('microsoft.com');
     p.setCustomParameters({ prompt: 'select_account' });
-    await signInWithPopup(fbAuth, p);
+    try { await signInWithPopup(fbAuth, p); pendingMicrosoft = null; }
+    catch (e) {
+      if (e && e.code === 'auth/account-exists-with-different-credential') {
+        pendingMicrosoft = OAuthProvider.credentialFromError(e);
+        const email = (e.customData && e.customData.email) || '';
+        const err = new Error('You already have a Trawpie account' + (email ? ' with ' + email : '') + '. Sign in the way you did before (password or Google) just this once, and Microsoft will be linked to it. Next time, Continue with Microsoft works on its own.');
+        err.code = 'tt/link-microsoft'; err.email = email; throw err;
+      }
+      throw e;
+    }
   },
   async sendEmailLink(email) {
     email = normEmail(email);
