@@ -160,7 +160,7 @@ try {
   let rq = Object.values((await teamNamed(A, 'Robot Science')).requirements || {});
   ok(rq.length === 1 && rq[0].ref === 'REQ-001' && rq[0].priority === 'must', 'requirement REQ-001 saved');
   ok((await A.locator('.rs-kpi', { hasText: 'Must' }).textContent()).includes('1'), 'one “must” not yet verified');
-  await A.locator('.req-table tr', { hasText: 'REQ-001' }).locator('button:has-text("＋")').click(); await A.waitForSelector('.cmdk-input');
+  await A.locator('.req-table tr', { hasText: 'REQ-001' }).locator('.rq-link').click(); await A.waitForSelector('.cmdk-input');
   await A.fill('.cmdk-input', 'gripper'); await sleep(150); await A.keyboard.press('Enter'); await sleep(400);
   await A.locator('.req-table tr', { hasText: 'REQ-001' }).locator('.rq-verified input').check(); await sleep(400);
   rq = Object.values((await teamNamed(A, 'Robot Science')).requirements);

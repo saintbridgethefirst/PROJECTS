@@ -316,7 +316,7 @@ function workflow(pane, ctx, { rerender } = {}) {
       const name = el('input.wf-name', { value: st.name, maxlength: 30, 'aria-label': 'Stage name', disabled: !editable, oninput: (e) => { st.name = e.target.value; saveBtn.disabled = false; } });
       const kind = last ? el('span.hint.wf-kind', {}, 'Done (finished)') : el('select.wf-kind', { 'aria-label': 'Counts as', disabled: !editable, onchange: (e) => { st.kind = e.target.value; touch(); } },
         el('option', { value: 'todo', selected: st.kind === 'todo' }, 'To do'), el('option', { value: 'doing', selected: st.kind === 'doing' }, 'Doing'));
-      const limit = last ? el('span.hint', {}, '—') : el('input.wf-limit', { type: 'number', min: 0, max: 99, value: st.limit || '', placeholder: 'none', 'aria-label': 'Most tasks at once in ' + st.name, disabled: !editable, oninput: (e) => { st.limit = Math.max(0, Math.min(99, Math.round(Number(e.target.value) || 0))); saveBtn.disabled = false; } });
+      const limit = last ? el('span.hint', {}, '—') : numBox(el('input.wf-limit', { type: 'number', min: 0, max: 99, value: st.limit || '', placeholder: 'none', 'aria-label': 'Most tasks at once in ' + st.name, disabled: !editable, oninput: (e) => { st.limit = Math.max(0, Math.min(99, Math.round(Number(e.target.value) || 0))); saveBtn.disabled = false; } }));
       // Who signs off before a task moves on from this stage, and its checklist (workflow step 2).
       const people = (s.members || []).slice().sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''));
       const so = last ? el('span.hint', {}, '—') : el('div.wf-so', {},
@@ -355,6 +355,13 @@ function workflow(pane, ctx, { rerender } = {}) {
   pane.append(purchaseSection(ctx, { rerender }), autosSection(ctx, wf.stages, { rerender }));
 }
 
+// A number box that matches the dropdowns: one rounded field with thin up/down chevrons on the right.
+function numBox(input) {
+  const step = (d) => { if (input.disabled) return; if (d > 0) input.stepUp(); else input.stepDown(); input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); };
+  const b = (d, label) => el('button.num-btn' + (d > 0 ? '.up' : '.down'), { type: 'button', tabindex: '-1', 'aria-label': label, disabled: input.disabled, onclick: () => step(d) });
+  return el('span.num-box' + (input.disabled ? '.disabled' : ''), {}, input, el('span.num-steps', {}, b(1, 'Increase'), b(-1, 'Decrease')));
+}
+
 // Workflow step 3: purchase approvals.
 function purchaseSection(ctx, { rerender } = {}) {
   const s = ctx.session, T = s.team; const editable = can(T, s.me, 'team.settings') || can(T, s.me, 'finance.edit');
@@ -367,7 +374,7 @@ function purchaseSection(ctx, { rerender } = {}) {
     el('p.hint', {}, 'Parts over a limit can’t be marked Ordered until someone who manages finances (or the team owner) approves them. Approved spending counts against its budget line straight away. Nobody approves their own request.'),
     el('div.row', {},
       el('label.chk', {}, el('input', { type: 'checkbox', id: 'pa-on', checked: pc.on, disabled: !editable, onchange: (e) => { v.on = e.target.checked; touch(); } }), 'Orders need approving when they cost more than'),
-      el('input', { type: 'number', id: 'pa-over', min: 0, step: '1', value: pc.over, disabled: !editable, 'aria-label': 'Approval limit', oninput: (e) => { v.over = Number(e.target.value) || 0; touch(); } }),
+      numBox(el('input', { type: 'number', id: 'pa-over', min: 0, step: '1', value: pc.over, disabled: !editable, 'aria-label': 'Approval limit', oninput: (e) => { v.over = Number(e.target.value) || 0; touch(); } })),
       el('span.hint', {}, '(0 = every order)'), el('span.spacer'), editable ? btn : ''),
     editable ? '' : el('p.hint', {}, 'Only roles that manage finances or team settings change this.'));
 }
@@ -392,14 +399,14 @@ function autosSection(ctx, stages, { rerender } = {}) {
       'When a task is done, tell everyone whose tasks were waiting on it (a comment that @mentions them)')),
     el('div.row', { style: { marginTop: '10px' } }, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-remind', checked: a.remindDays > 0, disabled: !editable, onchange: (e) => { v.remindDays = e.target.checked ? (Number((document.getElementById('auto-remind-days') || {}).value) || 3) : 0; touch(); } }),
       'Remind the sign-off person when a task has waited more than'),
-      el('input', { type: 'number', id: 'auto-remind-days', min: 1, max: 60, value: a.remindDays || 3, disabled: !editable, 'aria-label': 'Days', oninput: (e) => { const n = Math.max(1, Math.min(60, Math.round(Number(e.target.value) || 1))); const box = document.getElementById('auto-remind'); if (box && box.checked) v.remindDays = n; touch(); } }), el('span.hint', {}, 'days')),
+      numBox(el('input', { type: 'number', id: 'auto-remind-days', min: 1, max: 60, value: a.remindDays || 3, disabled: !editable, 'aria-label': 'Days', oninput: (e) => { const n = Math.max(1, Math.min(60, Math.round(Number(e.target.value) || 1))); const box = document.getElementById('auto-remind'); if (box && box.checked) v.remindDays = n; touch(); } })), el('span.hint', {}, 'days')),
     el('div.row', { style: { marginTop: '10px' } }, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-carry', checked: a.carry, disabled: !editable, onchange: (e) => { v.carry = e.target.checked; touch(); } }),
       'At the start of each week, carry any unfinished tasks from past weeks into the current week')),
     el('p.hint', { style: { margin: '2px 0 6px 26px' } }, 'A linked copy that keeps its history, like the manual “Carry forward”. Only tasks each person can edit are carried.'),
     el('div.row', { style: { marginLeft: '26px' } }, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-carry-weeks', checked: a.carryMakeWeeks, disabled: !editable, onchange: (e) => { v.carryMakeWeeks = e.target.checked; touch(); } }),
       'Add the new week automatically if it doesn’t exist yet')),
     el('div.row', { style: { marginLeft: '26px', marginTop: '6px' } }, el('label.chk', {}, 'Flag a task once it has carried over more than'),
-      el('input', { type: 'number', id: 'auto-carry-warn', min: 0, max: 10, value: a.carryWarn || 0, disabled: !editable, 'aria-label': 'Weeks before flagging', oninput: (e) => { v.carryWarn = Math.max(0, Math.min(10, Math.round(Number(e.target.value) || 0))); touch(); } }), el('span.hint', {}, 'weeks (0 = never)')),
+      numBox(el('input', { type: 'number', id: 'auto-carry-warn', min: 0, max: 10, value: a.carryWarn || 0, disabled: !editable, 'aria-label': 'Weeks before flagging', oninput: (e) => { v.carryWarn = Math.max(0, Math.min(10, Math.round(Number(e.target.value) || 0))); touch(); } })), el('span.hint', {}, 'weeks (0 = never)')),
     editable ? el('div.row', { style: { marginTop: '12px' } }, el('span.spacer'), btn) : el('p.hint', {}, 'Only roles that can change team settings change these.'));
 }
 
