@@ -124,17 +124,17 @@ try {
   await shot(C, 'edu');
   ok(!(await C.evaluate(() => TT.writeOps([{ type: 'update', path: 'team', data: { plan: { tier: 'org', edu: true, until: Date.now() + 864e5, by: TT.me.uid, at: 1, note: '' } } }], { quiet: true }))), 'a university email cannot give itself Organisation');
 
-  step('At most 3 teams a year per student');
+  step('Pro Education on every team a student owns (no small yearly quota)');
   await C.keyboard.press('Escape'); await sleep(200);
   const claimed = await C.evaluate(() => TT.eduClaim);
-  ok(claimed.teams.length === 1 && claimed.limit === 3, 'the claim is counted (1 of 3)');
-  for (const n of ['Rocketry', 'Rover', 'Formula']) { await C.evaluate(() => TT.goHome()); await C.waitForSelector('#home-screen:not([hidden])'); await C.fill('#create-team-form input[name=name]', n); await C.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await C.click('#create-team-form button[type=submit]'); await C.waitForSelector('.node-cat'); await sleep(300); await openPlan(C); if (n !== 'Formula') { await C.click('#plan-edu'); await sleep(600); } await C.keyboard.press('Escape'); await sleep(150); }
-  await openPlan(C);
-  ok(await C.locator('#plan-edu-full').isVisible() && !(await C.locator('#plan-edu').count()), 'a fourth team gets no button: all 3 used this year');
-  ok((await C.locator('#plan-edu-count').textContent()).includes('3 of 3'), 'shows 3 of 3 used');
-  const forced = await C.evaluate(async () => { const y = new Date().getUTCFullYear(); return TT.writeOps([{ type: 'set', path: '/eduClaims/' + TT.me.uid, data: { year: y, teams: [...TT.eduClaim.teams, TT.teamId] } }, { type: 'update', path: 'team', data: { plan: { tier: 'pro', edu: true, until: Date.now() + 300 * 864e5, by: TT.me.uid, at: 1, note: '' } } }], { quiet: true }); });
-  ok(!forced, 'the rules refuse a fourth team even if the app is bypassed');
-  await C.keyboard.press('Escape'); await sleep(150);
+  ok(claimed.teams.length === 1 && claimed.limit === 25, 'the claim is counted, with a fair-use cap of 25');
+  for (const n of ['Rocketry', 'Rover', 'Formula']) { await C.evaluate(() => TT.goHome()); await C.waitForSelector('#home-screen:not([hidden])'); await C.fill('#create-team-form input[name=name]', n); await C.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await C.click('#create-team-form button[type=submit]'); await C.waitForSelector('.node-cat'); await sleep(300); await openPlan(C); await C.click('#plan-edu'); await sleep(600); await C.keyboard.press('Escape'); await sleep(150); }
+  ok((await C.evaluate(() => TT.eduClaim)).teams.length === 4, 'a fourth team gets Pro Education too');
+  ok((await C.evaluate(() => TT.plan)).edu === true, 'the fourth team is on Pro Education');
+  const forced = await C.evaluate(async () => { const y = new Date().getUTCFullYear(); return TT.writeOps([{ type: 'set', path: '/eduClaims/' + TT.me.uid, data: { year: y, teams: [...Array.from({ length: 25 }, (_, i) => 'x' + i), TT.teamId] } }, { type: 'update', path: 'team', data: { plan: { tier: 'pro', edu: true, until: Date.now() + 864e5, by: TT.me.uid, at: 1, note: '' } } }], { quiet: true }); });
+  ok(!forced, 'the rules still refuse past the fair-use cap, even if the app is bypassed');
+  // The next step needs a team still on Free (members ask the owner to upgrade it)
+  await C.evaluate(() => TT.goHome()); await C.waitForSelector('#home-screen:not([hidden])'); await C.fill('#create-team-form input[name=name]', 'Outreach'); await C.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await C.click('#create-team-form button[type=submit]'); await C.waitForSelector('.node-cat'); await sleep(300);
 
   step('Only the owner and admins change the plan; members ask them');
   await C.click('#top-actions button:has-text("Invite")'); await C.fill('.settings-pane textarea', 'tom.reed@bristol.ac.uk'); await C.click('.settings-pane button:has-text("Invite")'); await sleep(250); await C.keyboard.press('Escape'); await sleep(150);

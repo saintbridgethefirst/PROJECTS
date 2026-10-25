@@ -1318,7 +1318,7 @@ window.TT = {
   /** The university email that makes me a student here (sign-in email, or one proved by code). */
   get studentEmail() { return !user ? '' : (user.emailVerified !== false && isAcademicEmail(user.email)) ? user.email : (studentStatus ? studentStatus.email : ''); },
   get studentUntil() { return studentStatus ? studentStatus.until : 0; },
-  /** Teams I switched Pro Education on for this calendar year (at most EDU_TEAMS_PER_YEAR). */
+  /** Teams I switched Pro Education on for this calendar year (a fair-use cap of EDU_TEAMS_PER_YEAR). */
   get eduClaim() { return { ...eduClaim, limit: EDU_TEAMS_PER_YEAR }; },
   /** Email a code to a university address (Cloud Function; in the demo the code is shown on screen). */
   async sendStudentCode(email) { return backend.data.callFunction('sendStudentCode', { email: String(email || '').trim() }); },
@@ -1327,9 +1327,9 @@ window.TT = {
   async claimEdu() {
     if (!session || !window.TT.academic || !window.TT.planAdmin) return false;
     if (planOf(session.team).tier === 'org') return false;
-    // At most EDU_TEAMS_PER_YEAR teams a year per person: the claim list is saved with the plan, and the rules check both.
+    // Every team a verified student owns can have it; the claim list (saved with the plan, checked by the rules) only enforces fair use.
     const claim = cleanEduClaim(await backend.data.myDoc('eduClaims', user.uid));
-    if (!claim.teams.includes(session.teamId) && claim.teams.length >= EDU_TEAMS_PER_YEAR) { toast('You’ve already used free Pro Education on ' + EDU_TEAMS_PER_YEAR + ' teams this year. Ask for Pro below if this team needs it too.', 7000); return false; }
+    if (!claim.teams.includes(session.teamId) && claim.teams.length >= EDU_TEAMS_PER_YEAR) { toast('You’ve switched Pro Education on for ' + EDU_TEAMS_PER_YEAR + ' teams this year, the most for now (it keeps spam out). Tell us through Feedback if you need more.', 7000); return false; }
     const teams = claim.teams.includes(session.teamId) ? claim.teams : claim.teams.concat(session.teamId);
     const plan = cleanPlan({ tier: 'pro', edu: true, until: Date.now() + EDU_DAYS * 864e5, by: user.uid, at: Date.now(), note: 'University email: ' + String(window.TT.studentEmail).split('@')[1] });
     const ok = await writeOps([{ type: 'set', path: '/eduClaims/' + user.uid, data: { year: claim.year, teams } }, { type: 'update', path: 'team', data: { plan } }]);

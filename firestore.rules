@@ -19,7 +19,7 @@ service cloud.firestore {
         || (exists(/databases/$(database)/documents/verifiedStudents/$(request.auth.uid))
           && get(/databases/$(database)/documents/verifiedStudents/$(request.auth.uid)).data.until > request.time.toMillis());
     }
-    // This year's Pro Education claims include team t (at most 3 teams a year per person).
+    // This year's Pro Education claims include team t (a fair-use cap of 25 teams a year per person).
     function eduClaimed(t) {
       let c = getAfter(/databases/$(database)/documents/eduClaims/$(request.auth.uid)).data;
       return c.year == request.time.year() && c.teams.hasAny([t]);
@@ -362,7 +362,7 @@ service cloud.firestore {
       allow create, update: if signedIn() && request.auth.uid == uid && academic()
         && request.resource.data.keys().hasOnly(['year', 'teams'])
         && request.resource.data.year == request.time.year()
-        && request.resource.data.teams is list && request.resource.data.teams.size() <= 3
+        && request.resource.data.teams is list && request.resource.data.teams.size() <= 25
         && (resource == null || resource.data.year != request.time.year() || request.resource.data.teams.hasAll(resource.data.teams));
       allow delete: if false;
     }

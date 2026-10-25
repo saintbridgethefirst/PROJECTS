@@ -262,7 +262,8 @@ export const writeScenarios = [
   // Free Pro Education with a verified university email
   ['a university-email owner turns on Pro Education', 'ownerUni', TEAM, [claim('owner', [TEAM]), upd('team', eduPlan('owner'))], 'allow'],
   ['…only with this team in their claims for the year', 'ownerUni', TEAM, [upd('team', eduPlan('owner'))], 'deny'],
-  ['…at most 3 teams a year', 'ownerUni', TEAM, [claim('owner', ['x', 'y', 'z', TEAM]), upd('team', eduPlan('owner'))], 'deny'],
+  ['…on several teams a year (no small quota)', 'ownerUni', TEAM, [claim('owner', ['x', 'y', 'z', TEAM]), upd('team', eduPlan('owner'))], 'allow'],
+  ['…up to the fair-use cap of 25 teams a year', 'ownerUni', TEAM, [claim('owner', [...Array.from({ length: 25 }, (_, i) => 'x' + i), TEAM]), upd('team', eduPlan('owner'))], 'deny'],
   ['…claims are for this year only', 'ownerUni', TEAM, [claim('owner', [TEAM], YEAR - 1), upd('team', eduPlan('owner'))], 'deny'],
   ['an admin sets the team’s workflow', 'admin1', TEAM, [{ type: 'update', path: 'team', data: { workflow: { stages: [{ id: 'design', name: 'Design', kind: 'todo', color: '#63b3ed', limit: 0 }, { id: 'done', name: 'Done', kind: 'done', color: '#68d391', limit: 0 }] } } }], 'allow'],
   ['a member can’t change the workflow', 'mem1', TEAM, [{ type: 'update', path: 'team', data: { workflow: null } }], 'deny'],

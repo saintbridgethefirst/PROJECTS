@@ -130,10 +130,10 @@ function plan(pane, ctx, { invites, rerender } = {}) {
     const sec = el('section.plan-edu', {}, el('h4', {}, '🎓 Free for students and university staff'));
     if (TT.academic) {
       sec.append(el('p', {}, 'Your university email ', el('b', {}, TT.studentEmail), ' is confirmed, so this team can have ', el('b', {}, 'Pro Education free'), ' for a year, renewable while you’re at university.'),
-        el('p.hint', { id: 'plan-edu-count' }, 'Each person can switch it on for up to ' + claim.limit + ' teams a year. You’ve used ' + claim.teams.length + ' of ' + claim.limit + (thisTeam ? ', including this team.' : '.') + ' It’s for study, research and university projects.'),
+        el('p.hint', { id: 'plan-edu-count' }, 'Every team you own can have it, for study, research and university projects.' + (left <= 3 && !thisTeam ? ' You’ve switched it on for ' + claim.teams.length + ' teams this year; the fair-use limit is ' + claim.limit + '.' : '')),
         thisTeam || left > 0
           ? el('button.btn.primary', { type: 'button', id: 'plan-edu', onclick: async () => { if (await TT.claimEdu()) { toast('Pro Education is on for this team.'); setTimeout(() => rerender && rerender(), 300); } } }, P.tier === 'free' ? 'Turn on free Pro Education' : 'Renew Pro Education for a year')
-          : el('p.hint.t-bad', { id: 'plan-edu-full' }, 'You’ve used all ' + claim.limit + ' this year. Ask for Pro below if this team needs it too.'));
+          : el('p.hint.t-bad', { id: 'plan-edu-full' }, 'You’ve switched Pro Education on for ' + claim.limit + ' teams this year, the most for now. Tell us through Feedback if you need more.'));
     } else if (STUDENT_EMAIL_CHECK || DEMO_MODE) {
       // Signed in with a personal email: prove a university address with a 6-digit code.
       const email = el('input.inp', { id: 'stu-email', type: 'email', placeholder: 'you@university.ac.uk', autocomplete: 'email', 'aria-label': 'Your university email' });

@@ -164,8 +164,8 @@ export const ACADEMIC_EMAIL = /@([a-z0-9-]+\.)+(ac\.[a-z]{2}|edu(\.[a-z]{2})?)$|
 export const isAcademicEmail = (email) => ACADEMIC_EMAIL.test(String(email || '').trim().toLowerCase());
 /** How long a free Pro Education period lasts before it is renewed (one click, same email check). */
 export const EDU_DAYS = 365;
-/** Each verified student or staff member can switch on Pro Education for this many teams per calendar year. */
-export const EDU_TEAMS_PER_YEAR = 3;
+/** Pro Education covers every team a verified student or staff member owns. The yearly claim list only enforces a fair-use cap (25). */
+export const EDU_TEAMS_PER_YEAR = 25;   // like Figma and Notion: every team a verified student owns, with the same fair-use cap as team creation
 /** This year's Pro Education claims for one person: { year, teams: [teamId] }. */
 export function cleanEduClaim(c, year = new Date().getUTCFullYear()) {
   c = c && typeof c === 'object' ? c : {};
