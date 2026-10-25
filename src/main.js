@@ -168,6 +168,7 @@ const SAMPLE_CHOICES = [
   { key: 'drone', icon: '🛩️', name: 'Student drone team', short: 'drone team', text: '6 people building a UAV for a competition: sub-teams, parts, budget and sign-offs.' },
   { key: 'corporate', icon: '🏭', name: 'Engineering company', short: 'company project', text: 'Launching an autonomous warehouse robot: programme, suppliers, approvals, requirements and a customer pilot.' },
   { key: 'satellite', icon: '🛰️', name: 'Satellite mission', short: 'satellite mission', text: 'A 3U CubeSat from design reviews to the flight model: budgets, test campaigns and risks.' },
+  { key: 'formula', icon: '🏎️', name: 'Formula Student team', short: 'Formula Student team', text: 'Building an electric race car: chassis, suspension, design freeze, dyno tests, parts and the static events.' },
 ];
 const sget = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const sset = (k, v) => { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch { /* */ } };
@@ -176,7 +177,7 @@ function demoWelcome(box, note, wrap) {
   document.title = 'Trawpie live demo: try it with a sample team';
   const setMeta = (sel, attr, v) => { const m = document.querySelector(sel); if (m) m.setAttribute(attr, v); };
   setMeta('link[rel="canonical"]', 'href', 'https://trawpie.org/demo'); setMeta('meta[property="og:url"]', 'content', 'https://trawpie.org/demo');
-  setMeta('meta[name="description"]', 'content', 'Try Trawpie in your browser with no sign-up: a student drone team, an engineering company or a satellite mission, with a 2-minute guided tour.');
+  setMeta('meta[name="description"]', 'content', 'Try Trawpie in your browser with no sign-up: a student drone team, an engineering company, a satellite mission or a Formula Student team, with a 2-minute guided tour.');
   const title = document.querySelector('#auth-screen .auth-title'); if (title) title.textContent = 'Try Trawpie: no sign-up, nothing to install.';
   // On the demo itself, the "try the demo" links point to the guide instead.
   const tourLink = document.querySelector('#auth-screen .auth-tour'); if (tourLink) tourLink.hidden = true;
@@ -185,15 +186,17 @@ function demoWelcome(box, note, wrap) {
   const card = document.getElementById('lp-signin'), hero = document.querySelector('#auth-screen .lp-hero');
   if (card && hero && card.nextElementSibling !== hero) { hero.before(card); card.classList.add('lp-demo-first'); }
   const ct = document.getElementById('lp-signin-title'); if (ct) ct.textContent = 'Try the live demo';
-  const cp = document.querySelector('#lp-signin .lp-signin-copy p'); if (cp) cp.textContent = 'Pick a made-up team: a student drone team, an engineering company or a satellite mission. Each opens with a 2-minute guided tour. No sign-up; everything stays in this browser.';
+  const cp = document.querySelector('#lp-signin .lp-signin-copy p'); if (cp) cp.textContent = 'Pick a made-up team: a student drone team, an engineering company, a satellite mission or a Formula Student team. Each opens with a 2-minute guided tour. No sign-up; everything stays in this browser.';
   const name = el('input.inp', { id: 'demo-name', placeholder: 'Your name (optional)', maxlength: 60, autocomplete: 'given-name', 'aria-label': 'Your name' });
   const go = (next) => wrap(async () => { sset(DEMO_NEXT, next); await backend.auth.signInDemo('visitor@demo.teamtrack', name.value.trim() || 'Demo visitor'); });
   // Which made-up team to open: a student drone team, an engineering company, or a satellite mission.
-  let kind = 'drone';
-  const KINDS = SAMPLE_CHOICES;
-  const goBtn = el('button.btn.primary.block', { type: 'button', id: 'demo-go', onclick: () => go('sample:' + kind)() }, '▶ Open the ' + KINDS[0].short + ', with a 2-minute tour');
+  // /demo?team=formula (or corporate, satellite) opens with that team picked, so a guide can link to its own example.
+  const asked = (() => { try { return new URLSearchParams(location.search).get('team') || ''; } catch { return ''; } })();
+  const KINDS = SAMPLE_CHOICES; const first = Math.max(0, KINDS.findIndex(k => k.key === asked));
+  let kind = KINDS[first].key;
+  const goBtn = el('button.btn.primary.block', { type: 'button', id: 'demo-go', onclick: () => go('sample:' + kind)() }, '▶ Open the ' + KINDS[first].short + ', with a 2-minute tour');
   const kinds = el('div.demo-kinds', { role: 'radiogroup', 'aria-label': 'Which sample team' }, ...KINDS.map((k, i) => {
-    const b = el('button.demo-kind' + (i === 0 ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(i === 0), 'data-kind': k.key, onclick: () => {
+    const b = el('button.demo-kind' + (i === first ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(i === first), 'data-kind': k.key, onclick: () => {
       kind = k.key; kinds.querySelectorAll('.demo-kind').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); });
       goBtn.textContent = '▶ Open the ' + k.short + ', with a 2-minute tour';
     } }, el('span.demo-kind-ico', { 'aria-hidden': 'true' }, k.icon), el('span', {}, el('b', {}, k.name), el('span.hint', {}, k.text)));
@@ -232,7 +235,7 @@ async function openSampleTeam(tour, kind = 'drone') {
 function demoTourSteps(kind = 'drone') {
   const thisWeek = () => document.querySelector('.header-week.current-week') || document.querySelector('.header-week');
   return [
-    { title: { drone: 'Welcome to Skyhawk UAV', corporate: 'Welcome to Harbourline Robotics', satellite: 'Welcome to Aurora-1' }[kind] || 'Welcome', text: { drone: 'A made-up student drone team of 6 people, set to this week.', corporate: 'A made-up engineering company launching its AGV-200 warehouse robot, set to this week.', satellite: 'A made-up team building Aurora-1, a 3U CubeSat, set to this week.' }[kind] + ' It’s yours: click, drag and change anything. This tour points out the main parts in about two minutes.' },
+    { title: { drone: 'Welcome to Skyhawk UAV', corporate: 'Welcome to Harbourline Robotics', satellite: 'Welcome to Aurora-1', formula: 'Welcome to Apex Racing' }[kind] || 'Welcome', text: { drone: 'A made-up student drone team of 6 people, set to this week.', corporate: 'A made-up engineering company launching its AGV-200 warehouse robot, set to this week.', satellite: 'A made-up team building Aurora-1, a 3U CubeSat, set to this week.', formula: 'A made-up Formula Student team of 6 building its FS26 electric race car, set to this week.' }[kind] + ' It’s yours: click, drag and change anything. This tour points out the main parts in about two minutes.' },
     { target: thisWeek, title: 'One column per week', text: 'The board runs week by week. This week is outlined. Unfinished work carries forward to next week, keeping its history, so you can see what slipped.' },
     { target: '#nodes-container .row-person', title: 'One row per person', text: 'Each person has a row, split into their own categories. Their tasks sit under the week they’re planned for; drag a card to move it to another week.' },
     { target: () => document.querySelector('.task-card .stage-bar') && document.querySelector('.task-card .stage-bar').closest('.task-card'), title: 'A task', text: 'Priority, deadline, sub-tasks, hours and comments. The coloured bar shows its stage in this team’s workflow: Design → Review → Build → Test → Done. Click any card to open it.' },
@@ -248,7 +251,7 @@ function demoTourSteps(kind = 'drone') {
       action: () => el('div.row', { style: { gap: '8px', flexWrap: 'wrap' } }, el('a.btn.primary.small', { href: '/' }, 'Create your real team →'), el('a.btn.small', { href: 'guide.html' }, 'Read the full guide')) },
   ];
 }
-function startDemoTour(kind) { if (!tourRunning()) startTour(demoTourSteps(['drone', 'corporate', 'satellite'].includes(kind) ? kind : 'drone')); }
+function startDemoTour(kind) { if (!tourRunning()) startTour(demoTourSteps(['drone', 'corporate', 'satellite', 'formula'].includes(kind) ? kind : 'drone')); }
 /** A small ribbon on every demo screen: it's a sandbox, the tour, the real app. */
 function demoRibbon() {
   if (!PUBLIC_DEMO || document.getElementById('demo-ribbon')) return;

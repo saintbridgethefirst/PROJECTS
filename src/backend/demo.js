@@ -387,7 +387,7 @@ export const data = {
     return id;
   },
   /** The sample team I already have in this browser, if any. */
-  findSample(uid, kind = 'drone') { return Object.keys(store.teams).find(id => id.startsWith('t_sample_') && store.teams[id].members && store.teams[id].members[uid] && (kind === 'drone' ? !/^t_sample_(corporate|satellite)_/.test(id) : id.startsWith('t_sample_' + kind + '_'))) || null; },
+  findSample(uid, kind = 'drone') { return Object.keys(store.teams).find(id => id.startsWith('t_sample_') && store.teams[id].members && store.teams[id].members[uid] && (kind === 'drone' ? !/^t_sample_(corporate|satellite|formula)_/.test(id) : id.startsWith('t_sample_' + kind + '_'))) || null; },
   /** Demo only: put a prepared sample team (src/sample.js) into this browser, its owner = me. */
   async loadSample({ teamId, team, users }) {
     const me = authCtx(); if (!me) throw Object.assign(new Error('Sign in first.'), { code: 'unauthenticated' });

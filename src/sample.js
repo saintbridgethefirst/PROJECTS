@@ -12,9 +12,9 @@ const DAY = 864e5;
 const mondayOf = (d) => { const x = new Date(d); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
 
 /** The sample store, shifted to now and handed to `user`. Returns { teamId, team, users }. */
-/** kind: 'drone' (a student drone team), 'corporate' (an engineering company) or 'satellite' (a CubeSat mission).
+/** kind: 'drone' (a student drone team), 'corporate' (an engineering company), 'satellite' (a CubeSat mission) or 'formula' (a Formula Student team).
  *  The other teams reuse the drone team's structure with their own words (data/sample-variants.json). */
-export const SAMPLE_KINDS = ['drone', 'corporate', 'satellite'];
+export const SAMPLE_KINDS = ['drone', 'corporate', 'satellite', 'formula'];
 export async function buildSample(user, now = Date.now(), kind = 'drone') {
   if (!SAMPLE_KINDS.includes(kind)) kind = 'drone';
   const raw = (await import('./data/sample-team.json')).default;
@@ -146,10 +146,17 @@ export async function buildSample(user, now = Date.now(), kind = 'drone') {
   Object.values(raw.users).forEach(u => { if (u.uid !== ownerUid) users[u.uid] = u; });
   if (kind !== 'drone') await reword(team, users, kind);
   if (kind === 'corporate') team.doc.look = 'professional';   // a company would pick the clean look
+  if (kind === 'formula') {   // task icons that fit a race car
+    const ICON = { 'Tyre model fit': '📈', 'Upright prototype': '🔩', 'Upright v2': '🔩', 'Upright concept': '✏️', 'Chassis welding': '🛠️', 'Traction control logic': '⚙️', 'Lap-time simulator setup': '💻',
+      'Endurance lap in simulation': '💻', 'Car telemetry': '📡', 'Motor + inverter dyno test': '⚡', 'Accumulator container': '🔋', 'Suspension assembly': '🔧', 'Skidpad setup test': '🎯', 'Chassis jig': '📐',
+      'Nose cone mould': '🛠️', 'Bodywork assembly': '🔧', 'Order chassis tubes': '🛒' };
+    Object.values(team.tasks).forEach(t => { if (ICON[t.name]) t.icon = ICON[t.name]; });
+  }
   return { teamId: 't_sample_' + (kind === 'drone' ? '' : kind + '_') + newId('x').slice(-10), team, users };
 }
 const VARIANT = {
   corporate: { repo: 'harbourline/agv-fleet', emailFrom: '@uni.ac.uk', emailTo: '@harbourline.example' },
+  formula: { repo: 'apex-racing/fs26-car', emailFrom: '@uni.ac.uk', emailTo: '@uni.ac.uk' },
   satellite: { repo: 'aurora-1/flight-software', emailFrom: '@uni.ac.uk', emailTo: '@space.uni.ac.uk' },
 };
 /** Swap every piece of drone text for the chosen team's (exact matches), plus the repository and email domain. */

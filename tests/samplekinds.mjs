@@ -1,4 +1,4 @@
-// The demo's three sample teams: a student drone team, an engineering company and a satellite mission.
+// The demo's four sample teams: a student drone team, an engineering company, a satellite mission and a Formula Student team.
 // Each opens from the demo card with its own name, words and tour, and keeps no drone text.
 // Needs the preview server: npx vite preview --port 4173
 import { chromium } from 'playwright';
@@ -10,13 +10,13 @@ const step = (s) => console.log('▸ ' + s);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = [];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
-const WANT = { drone: ['Skyhawk UAV', 'Welcome to Skyhawk UAV'], corporate: ['Harbourline AGV-200', 'Welcome to Harbourline Robotics'], satellite: ['Aurora-1 CubeSat', 'Welcome to Aurora-1'] };
+const WANT = { drone: ['Skyhawk UAV', 'Welcome to Skyhawk UAV'], corporate: ['Harbourline AGV-200', 'Welcome to Harbourline Robotics'], satellite: ['Aurora-1 CubeSat', 'Welcome to Aurora-1'], formula: ['Apex Racing FS26', 'Welcome to Apex Racing'] };
 try {
-  for (const kind of ['corporate', 'satellite', 'drone']) {
+  for (const kind of ['corporate', 'satellite', 'formula', 'drone']) {
     step('Demo: open the ' + kind + ' sample');
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }); const p = await ctx.newPage(); p.on('pageerror', e => errors.push(kind + ': ' + e.message));
     await p.goto(BASE + 'demo'); await p.waitForSelector('.demo-kind');
-    ok(await p.locator('.demo-kind').count() === 3, 'three teams to choose from');
+    ok(await p.locator('.demo-kind').count() === 4, 'four teams to choose from');
     await p.click(`.demo-kind[data-kind="${kind}"]`); await p.fill('#demo-name', 'Vee');
     await p.click('#demo-go'); await p.waitForSelector('.task-card', { timeout: 20000 }); await sleep(2000);
     const teams = await p.evaluate(() => Object.entries(JSON.parse(localStorage.getItem('tt_demo_store_v1')).teams).filter(([id]) => id.startsWith('t_sample_')).map(([id, t]) => ({ id, name: t.doc.name, json: JSON.stringify(t) })));
@@ -49,6 +49,12 @@ try {
     }
     await ctx.close();
   }
+  step('A guide can link straight to its team: /demo?team=formula');
+  { const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } }); const p = await ctx.newPage(); p.on('pageerror', e => errors.push('link: ' + e.message));
+    await p.goto(BASE + 'demo?team=formula'); await p.waitForSelector('.demo-kind.on');
+    ok(await p.locator('.demo-kind.on').getAttribute('data-kind') === 'formula', 'the Formula Student team is picked');
+    ok((await p.textContent('#demo-go')).includes('Formula Student team'), 'the button opens it');
+    await ctx.close(); }
 } catch (e) { fail++; console.log('  ✗ ERROR:', e.message.split('\n')[0]); }
 if (errors.length) { fail++; console.log('  ✗ page errors:', errors.slice(0, 5)); }
 console.log(`RESULT: ${pass} passed, ${fail} failed`);
