@@ -360,6 +360,13 @@ section.block { padding: 72px 0; }
 .plan li::before { content: "✓"; position: absolute; left: 2px; font-weight: 900; color: var(--teal); }
 .plan.edu { background: color-mix(in srgb, var(--sun) 25%, var(--card)); transform: rotate(-1deg); }
 .plan.pro { background: color-mix(in srgb, var(--violet) 12%, var(--card)); }
+.plan.org { background: color-mix(in srgb, var(--sky) 10%, var(--card)); }
+.plans.four { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1100px) { .plans.four { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .plans.four { grid-template-columns: 1fr; } }
+.pilot-note { margin: 0 0 22px; padding: 14px 18px; border: 2px dashed var(--ink); border-radius: 14px; background: var(--card); color: var(--ink); font-size: 15px; line-height: 1.5; }
+.plan .price-note { margin: -4px 0 8px; font-size: 13px; color: var(--muted); }
+.plans-why { margin: 22px 0 0; color: var(--muted); font-size: 14.5px; max-width: 70ch; }
 .plan .stk { position: absolute; top: -16px; right: 16px; transform: rotate(5deg); }
 
 /* Shortcuts & FAQ */
@@ -751,15 +758,19 @@ footer a { color: var(--ink-2); }
 <!-- ═══ 9 Plans ═══ -->
 <section class="block" id="plans" style="background:color-mix(in srgb, var(--paper-2) 70%, transparent)">
   <div class="wrap">
-    <div class="sec-head"><span class="num">10</span><div><h2>Plans, simply</h2><p>A plan belongs to a <b>team</b>, not a person: upgrade one team and everyone in it gets the extras. Owners and admins manage it in <b>Settings ▸ Plan</b>. Everyone else can ask them with one click.</p></div></div>
-    <div class="plans">
+    <div class="sec-head"><span class="num">10</span><div><h2>Plans, simply</h2><p>A plan belongs to a <b>team</b>, like a workspace: upgrade one team and everyone in it gets the extras. Make as many teams as you need. Owners and admins manage the plan in <b>Settings ▸ Plan</b>; everyone else can ask them with one click.</p></div></div>
+    <div class="pilot-note"><b>We’re in a pilot.</b> No payments yet: student teams get everything free with Pro Education, and other teams can ask for Pro in <b>Settings ▸ Plan</b>. The prices below are what we plan to charge later.</div>
+    <div class="plans four">
       <div class="plan"><h3>Free</h3><div class="price">£0 <small>forever</small></div><p>Everything you need for a real project.</p>
-        <ul><li>Up to 30 people per team</li><li>As many teams as you need</li><li>Board, Kanban, analytics, timeline</li><li>All standard &amp; advanced tools</li><li>Finance history for the last 90 days</li></ul></div>
-      <div class="plan edu"><span class="sticker stk">🎓 Students</span><h3>Pro Education</h3><div class="price">£0 <small>with a university email</small></div><p>Everything in Pro, free for a year at a time.</p>
-        <ul><li>Sign in with your university email, or add one and confirm a 6-digit code</li><li>On every team you own, renewed once a year</li><li>Up to 100 people per team</li><li>Renew yearly with the same quick check</li></ul></div>
-      <div class="plan pro"><h3>Pro</h3><div class="price">Per team <small>· ask in Settings ▸ Plan</small></div><p>For bigger teams, clubs and companies.</p>
-        <ul><li>Up to 100 people per team</li><li>📧 Email mentions &amp; Monday digest</li><li>🕘 Full change history</li><li>More coming soon: backups, approvals, supervisor view, design reviews</li></ul></div>
+        <ul><li>Up to 30 people per team</li><li>As many teams as you need</li><li>Board, Kanban, List, Gantt and analytics</li><li>All standard &amp; advanced tools</li><li>Finance history for the last 90 days</li></ul></div>
+      <div class="plan edu"><span class="sticker stk">🎓 Students</span><h3>Pro Education</h3><div class="price">£0 <small>with a university email</small></div><p>Everything in Pro, for students and university staff.</p>
+        <ul><li>Sign in with your university email, or add one and confirm a 6-digit code</li><li>On every team you own</li><li>Up to 100 people per team</li><li>Renewed once a year with the same quick check</li></ul></div>
+      <div class="plan pro"><h3>Pro</h3><div class="price">£3 <small>per member / month</small></div><p class="price-note">Billed yearly, or £4 monthly</p><p>For start-ups, labs and bigger clubs.</p>
+        <ul><li>Up to 100 people per team</li><li>📧 Email mentions &amp; Monday digest</li><li>🕘 Full change history</li><li>Coming soon: backups, approvals, supervisor view, design reviews, BOM and document control</li></ul></div>
+      <div class="plan org"><h3>Organisation</h3><div class="price">Custom <small>invoiced</small></div><p class="price-note">From £3,000 a year</p><p>For a department, society or company with many teams.</p>
+        <ul><li>One bill across all your teams</li><li>Up to 500 people per team</li><li>Coming soon: admin console, single sign-on, data agreement and UK data residency</li><li>Priority support</li></ul></div>
     </div>
+    <p class="plans-why">Why it works this way: like most team tools, you pay for the shared space and the people in it, never for how many teams you create. Students and university staff get the paid plan free.</p>
   </div>
 </section>
 

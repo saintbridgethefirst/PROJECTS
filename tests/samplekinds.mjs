@@ -21,7 +21,7 @@ try {
     await p.click('#demo-go'); await p.waitForSelector('.task-card', { timeout: 20000 }); await sleep(2000);
     const teams = await p.evaluate(() => Object.entries(JSON.parse(localStorage.getItem('tt_demo_store_v1')).teams).filter(([id]) => id.startsWith('t_sample_')).map(([id, t]) => ({ id, name: t.doc.name, json: JSON.stringify(t) })));
     ok(teams.length === 1 && teams[0].name.startsWith(WANT[kind][0]), 'team name: ' + (teams[0] && teams[0].name));
-    if (kind !== 'drone') ok(!/Skyhawk|drone|Pixhawk|LiPo|flying field|Wing CAD|carbon tube/i.test(teams[0].json.replace(/"(c|t|wi)_[a-z0-9_]+"/g, '')), 'no drone words left');
+    if (kind !== 'drone') ok(!/Skyhawk|drone|Pixhawk|LiPo|flying field|Wing CAD|carbon tube|SKY-\d/i.test(teams[0].json.replace(/"(c|t|wi)_[a-z0-9_]+"/g, '')), 'no drone words left');
     ok((await p.textContent('body')).includes(WANT[kind][1]), 'the tour greets: ' + WANT[kind][1]);
     ok(await p.locator('.task-card').count() > 10, 'the board is full of tasks');
     const pro = await p.evaluate(() => document.body.classList.contains('look-pro'));

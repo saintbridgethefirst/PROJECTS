@@ -96,7 +96,7 @@ export async function buildSample(user, now = Date.now(), kind = 'drone') {
   // Workflow steps 3 and 4: purchase approvals over £100, and the automatic steps.
   team.doc.purchase = { on: true, over: 100 };
   team.doc.currency = 'GBP';
-  team.doc.autos = { partsTo: 'build', tellWaiting: true, remindDays: 3 };
+  team.doc.autos = { partsTo: 'build', tellWaiting: true, remindDays: 3, carry: true, carryWarn: 1, carryMakeWeeks: false };   // carry-over on; flag anything carried more than once
   // GitHub sync: a (made-up) repository is connected, so Settings ▸ Integrations can simulate events.
   team.doc.github = { repo: 'skyhawk-uav/flight-software', issues: true, done: true, owner: user.uid, connectedAt: now - 10 * DAY };
   team.private = { github: { secret: 'demo-only', repo: 'skyhawk-uav/flight-software', by: user.uid, at: now - 10 * DAY, last: null } };
@@ -146,6 +146,7 @@ export async function buildSample(user, now = Date.now(), kind = 'drone') {
   Object.values(raw.users).forEach(u => { if (u.uid !== ownerUid) users[u.uid] = u; });
   if (kind !== 'drone') await reword(team, users, kind);
   if (kind === 'corporate') team.doc.look = 'professional';   // a company would pick the clean look
+  addBacklogAndFiles(team, user, kind, now, nameOf);
   if (kind === 'formula') {   // task icons that fit a race car
     const ICON = { 'Tyre model fit': '📈', 'Upright prototype': '🔩', 'Upright v2': '🔩', 'Upright concept': '✏️', 'Chassis welding': '🛠️', 'Traction control logic': '⚙️', 'Lap-time simulator setup': '💻',
       'Endurance lap in simulation': '💻', 'Car telemetry': '📡', 'Motor + inverter dyno test': '⚡', 'Accumulator container': '🔋', 'Suspension assembly': '🔧', 'Skidpad setup test': '🎯', 'Chassis jig': '📐',
@@ -174,4 +175,44 @@ async function reword(team, users, kind) {
   };
   walk(team); walk(users);
   Object.values(team.notebook || {}).forEach(n => { n.images = []; });   // the photos are of the drone
+}
+
+/** Files on sample tasks, with the file-health result the demo shows for each (filehealth.js). */
+export const SAMPLE_FILES = [
+  { url: 'https://drive.google.com/file/d/1SampleCadModelV2xYz/view', state: 'broken', why: 'You don’t have access to it any more.' },
+  { url: 'https://contoso.sharepoint.com/:w:/r/personal/sample/test-plan.docx', state: 'personal', why: 'It’s in one person’s own OneDrive. If they leave, it goes with them: move it to a team folder.' },
+  { url: 'https://docs.google.com/spreadsheets/d/1SampleMassBudgetAbc/edit', state: 'ok', why: '' },
+];
+const BACKLOG_IDEAS = {
+  drone: [['Lighter battery tray', 'Major'], ['Night flight lights', 'Minor'], ['Spare propeller order', 'Minor'], ['Ground station sun shade', 'Minor']],
+  corporate: [['Second charging dock', 'Major'], ['Fleet dashboard dark mode', 'Minor'], ['Spare wheel order', 'Minor'], ['Customer training video', 'Minor']],
+  satellite: [['Spare solar cell order', 'Major'], ['Second ground station antenna', 'Minor'], ['Outreach poster', 'Minor'], ['Thermal vacuum test booking', 'Major']],
+  formula: [['Aero undertray study', 'Major'], ['Spare rod ends order', 'Minor'], ['Driver seat foam mould', 'Minor'], ['Sponsor livery mock-up', 'Minor']],
+};
+const FILE_NAMES = {
+  drone: ['Wing CAD v2 (STEP)', 'Flight test plan', 'Mass budget'],
+  corporate: ['Chassis CAD v2 (STEP)', 'Site acceptance test plan', 'Cost roll-up'],
+  satellite: ['Structure CAD v2 (STEP)', 'Test campaign plan', 'Mass budget'],
+  formula: ['Chassis CAD v2 (STEP)', 'Shakedown test plan', 'Mass budget'],
+};
+/** Newer features in every sample: a Backlog column with a few ideas, and files on tasks (whose health the demo shows). */
+function addBacklogAndFiles(team, user, kind, now, nameOf) {
+  const weeks = team.doc.weeks || [];
+  if (!weeks.some(w => w.key === 'backlog')) weeks.unshift({ key: 'backlog', title: 'Backlog', metric: '', startDate: '' });
+  team.doc.weeks = weeks;
+  const formerUids = new Set(Object.keys(team.doc.former || {}));
+  const cats = Object.entries(team.categories || {}).filter(([, c]) => c && !formerUids.has(c.ownerUid) && team.members && team.members[c.ownerUid])
+    .sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+  const seen = new Set(); const perOwner = cats.filter(([, c]) => { if (seen.has(c.ownerUid)) return false; seen.add(c.ownerUid); return true; });
+  (BACKLOG_IDEAS[kind] || BACKLOG_IDEAS.drone).forEach(([name, priority], i) => {
+    const [catId, cat] = perOwner[i % Math.max(1, perOwner.length)] || []; if (!catId) return;
+    team.tasks['t_backlog_' + i] = { name, priority, status: '', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'none', dueDate: '', startDate: '', completedDate: '',
+      subtasks: [], history: [], custom: {}, icon: '', attachments: [], checks: {}, signoff: null, stage: 'design',
+      categoryId: catId, ownerUid: cat.ownerUid, weekId: 'backlog', order: 100 + i, createdBy: cat.ownerUid, createdAt: now - (3 + i) * 864e5, updatedBy: nameOf(cat.ownerUid), updatedAt: now - (2 + i) * 864e5 };
+  });
+  const names = FILE_NAMES[kind] || FILE_NAMES.drone; const providers = ['gdrive', 'onedrive', 'gdrive'];
+  ['t_wingcadv_28', 't_flighttest_42', 't_criticalde_33'].forEach((id, i) => {
+    const t = team.tasks[id]; if (!t) return;
+    t.attachments = (t.attachments || []).concat({ id: 'a_sample_' + i, provider: providers[i], name: names[i], url: SAMPLE_FILES[i].url, size: 0, addedBy: nameOf(t.ownerUid), addedAt: now - (4 + i) * 864e5 });
+  });
 }

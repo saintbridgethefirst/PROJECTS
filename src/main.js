@@ -235,6 +235,8 @@ async function openSampleTeam(tour, kind = 'drone') {
   const existing = backend.data.findSample ? backend.data.findSample(user.uid, kind) : null;
   let id = existing;
   if (!id) { const { buildSample } = await import('./sample.js'); const s = await buildSample(user, Date.now(), kind); id = await backend.data.loadSample(s); toast('Sample team loaded: it’s yours to play with in this browser.', 5000); }
+  // The sample's files show what file health looks like (in a real team, Trawpie checks them with your own sign-in)
+  try { const [{ SAMPLE_FILES }, fh] = await Promise.all([import('./sample.js'), import('./filehealth.js')]); SAMPLE_FILES.forEach(f => fh.setHealth(f.url, f.state, f.why)); } catch { /* the demo works without it */ }
   if (tour) sset(DEMO_TOUR, kind);
   goTeam(id);
 }
@@ -245,14 +247,17 @@ function demoTourSteps(kind = 'drone') {
     { target: thisWeek, title: 'One column per week', text: 'The board runs week by week. This week is outlined. Unfinished work carries forward to next week, keeping its history, so you can see what slipped.' },
     { target: '#nodes-container .row-person', title: 'One row per person', text: 'Each person has a row, split into their own categories. Their tasks sit under the week they’re planned for; drag a card to move it to another week.' },
     { target: () => document.querySelector('.task-card .stage-bar') && document.querySelector('.task-card .stage-bar').closest('.task-card'), title: 'A task', text: 'Priority, deadline, sub-tasks, hours and comments. The coloured bar shows its stage in this team’s workflow: Design → Review → Build → Test → Done. Click any card to open it.' },
+    { target: () => document.querySelector('.header-week[data-week-key="backlog"]'), title: 'A Backlog for later', text: 'Ideas that aren’t planned into a week yet wait in the Backlog. Drag one into a week when you’re ready; it has no dates, so it never carries over.' },
+    { target: () => { const c = document.querySelector('.task-card .att-chip.att-broken'); return c && c.closest('.task-card'); }, title: 'Files that say when they break', text: 'Files from Google Drive or OneDrive sit on the task. If one can’t be opened any more, the card says so, and the task shows who to ask and a one-click re-link.' },
     { target: '#subteam-bar', title: 'Sub-teams', text: 'Show just one sub-team, with its leads. Handy when 30 people share one board.' },
     { target: '.kb-board', before: () => window.boardSetView && window.boardSetView('kanban'), after: () => window.boardSetView && window.boardSetView('board'), title: 'Kanban: one column per stage', text: 'The same tasks by stage. Build is limited to 4 at a time so nobody starts more than the team can finish. Drag cards between columns.' },
+    { target: '.lt-table', before: () => window.boardSetView && window.boardSetView('list'), after: () => window.boardSetView && window.boardSetView('board'), title: 'List: every task in one table', text: 'Sort any column, group by person, week, stage or priority, and change stage or priority right in the row. Handy for triage and reports.' },
     { target: '#approvals-btn', title: 'Sign-offs and checklists', text: 'Review needs the sub-team lead’s sign-off before a task can move on to Build, with a short checklist. Tasks waiting for you are counted here; approve them or send them back with a note.' },
     { target: '.gt2-scroll', before: () => window.boardSetView && window.boardSetView('gantt'), after: () => window.boardSetView && window.boardSetView('board'), title: 'Gantt: plan on a timeline', text: 'Each task is a bar from its start to its deadline, with arrows for what waits on what. Drag a bar or its ends to re-plan; tasks that wait on it move along.' },
     { target: '#share-btn', title: 'Share this week', text: 'One click turns the week into a message for your team chat: what’s done, due, late and stuck, with a link back to the board.' },
     { target: '#research-btn', title: 'Tools', text: 'Parts and orders, budget and spending, lab notebook, meetings, papers, risks and requirements. Each team switches on only what it needs.' },
     { target: '#top-actions [onclick="openAnalytics(\'overview\')"]', title: 'Analytics', text: 'Progress, workload per person, burndown, a Gantt timeline and a printable progress report for a manager, customer or funder.' },
-    { target: '#top-actions [onclick="TT.openSettings()"]', title: 'Make it yours', text: 'Settings: invite people by email, set roles and permissions, and under Workflow choose or design your own stages.' },
+    { target: '#top-actions [onclick="TT.openSettings()"]', title: 'Make it yours', text: 'Settings: invite people by email, set roles and permissions, and under Workflow choose your stages and automatic steps: this team carries unfinished work into the new week on its own.' },
     { title: 'That’s the tour', text: 'Keep exploring: nothing here can break, and it all stays in this browser. When your team is ready, set up the real thing in a couple of minutes; it’s free for teams of up to 30.',
       action: () => el('div.row', { style: { gap: '8px', flexWrap: 'wrap' } }, el('a.btn.primary.small', { href: '/' }, 'Create your real team →'), el('a.btn.small', { href: 'guide.html' }, 'Read the full guide')) },
   ];
