@@ -136,11 +136,14 @@ export function cleanTeam(t) {
 // ── Plans: Free, Pro, Organisation ──────────────────────────────────────────
 /** What each plan allows. 0 = no limit. */
 export const PLANS = {
-  free: { key: 'free', name: 'Free', members: 30, ownTeams: 5, financeHistoryDays: 90, storageMB: 100, price: '£0' },
+  free: { key: 'free', name: 'Free', members: 30, ownTeams: 0, financeHistoryDays: 90, storageMB: 100, price: '£0' },
   pro: { key: 'pro', name: 'Pro', members: 100, ownTeams: 0, financeHistoryDays: 0, storageMB: 5000, price: '£3 per member a month (yearly) or £4 monthly' },
   org: { key: 'org', name: 'Organisation', members: 500, ownTeams: 0, financeHistoryDays: 0, storageMB: 50000, price: 'From £3,000 a year, invoiced' },
 };
 export const PLAN_TIERS = ['free', 'pro', 'org'];
+/** A plan belongs to a team (like a Notion or Linear workspace), so nobody is limited in how many teams they make.
+ *  This quiet fair-use cap only stops spam; it is not a plan limit and never points to a paid plan. */
+export const FAIR_USE_TEAMS = 25;
 /** Paid features, in the order they're being built. status: 'soon' until built, then 'live'. */
 export const PRO_FEATURES = [
   { key: 'backups', tier: 'pro', icon: '🛟', name: 'Daily backups and restore', help: 'Restore the whole team to any day in the last 30.', status: 'soon' },

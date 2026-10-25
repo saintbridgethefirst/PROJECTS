@@ -570,7 +570,7 @@ test('rules (read): finance history only for finance roles', () => {
 });
 
 test('plans: what is in force, expiry, Pro features and member room', () => {
-  assert.equal(planOf({}).tier, 'free'); assert.equal(planOf({}).members, 30); assert.equal(planOf({}).ownTeams, 5); assert.equal(planOf({}).label, 'Free');
+  assert.equal(planOf({}).tier, 'free'); assert.equal(planOf({}).members, 30); assert.equal(planOf({}).ownTeams, 0); assert.equal(planOf({}).label, 'Free');
   assert.equal(cleanPlan({ tier: 'gold' }).tier, 'free');
   const pro = { plan: { tier: 'pro', edu: true, until: Date.parse('2027-09-01') } };
   assert.equal(planOf(pro, Date.parse('2027-01-01')).label, 'Pro Education'); assert.equal(planOf(pro, Date.parse('2027-01-01')).members, 100);

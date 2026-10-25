@@ -11,11 +11,11 @@ import { THEMES, SWATCH, applyTheme, currentTheme, savedTheme, themeName, isThem
 import { APP_NAME, APP_TAGLINE, DEMO_MODE, PUBLIC_DEMO, GOOGLE_CLIENT_ID, MS_CLIENT_ID, LIMITS } from './config.js';
 import { can, canEditOwnedBy, DEFAULT_ROLES, normEmail, isValidEmail } from './permissions.js';
 import { healthOf, checkFiles, checkableBy } from './filehealth.js';
-import { cleanTeam, cleanMember, cleanCategory, cleanTask, DEFAULT_LABELS, newId, nextWeekTitle, cascadeWeekDates, carryIndexOf } from './model.js';
+import { cleanTeam, cleanMember, cleanCategory, cleanTask, DEFAULT_LABELS, newId, nextWeekTitle, cascadeWeekDates, carryIndexOf, FAIR_USE_TEAMS } from './model.js';
 import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mergeChanges, invert } from './sync.js';
 import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
-import { carryRoots, cleanFeatures, TEAM_STARTS, startFeatures, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
+import { carryRoots, cleanFeatures, TEAM_STARTS, startFeatures, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
 import { runAutos, afterCommit } from './autos.js';
 import { startI18n, setLang, currentLang, LANGS, translate } from './i18n.js';
 import { setLook, homeLook, setHomeLook } from './look.js';
@@ -479,9 +479,9 @@ function renderHome() {
   form.onsubmit = async (e) => {
     e.preventDefault();
     const name = form.name.value.trim(); if (!name) return;
-    // Free plan: up to 3 teams of your own (teams on Pro don't count).
-    const ownFree = teamList.filter(t => t.roleId === 'owner' && planOf(t).tier === 'free').length;
-    if (ownFree >= PLANS.free.ownTeams) { toast('On the Free plan you can own up to ' + PLANS.free.ownTeams + ' teams. Delete one you no longer use, or move a team to Pro (Settings ▸ Plan).', 7000); return; }
+    // No plan limit on how many teams you make (a plan belongs to a team); a quiet fair-use cap stops spam.
+    const owned = teamList.filter(t => t.roleId === 'owner').length;
+    if (owned >= FAIR_USE_TEAMS) { toast('You own ' + owned + ' teams, the most one person can have for now (it keeps spam out). Delete one you no longer use, or tell us through Feedback if you need more.', 8000); return; }
     const btn = form.querySelector('button'); btn.disabled = true;
     try {
       const teamDoc = { name: name.slice(0, 80), logo: '', ownerUid: user.uid, createdAt: Date.now(), roles: DEFAULT_ROLES, fields: [], labels: DEFAULT_LABELS, weekNaming: 'sequence', phases: [], features: startFeatures(form.start ? form.start.value : 'standard'), weeks: [firstWeek()], currency: CURRENCIES.includes(form.currency && form.currency.value) ? form.currency.value : guessCurrency(navigator.language) };

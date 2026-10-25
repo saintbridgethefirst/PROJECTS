@@ -92,14 +92,13 @@ function plan(pane, ctx, { invites, rerender } = {}) {
     el('div.plan-current', {}, el('span.plan-name.tier-' + P.tier, { id: 'plan-name' }, P.label), P.until ? el('span.hint', {}, 'until ' + fmtDay(P.until)) : '', P.expired ? el('span.hint.t-bad', {}, 'Your Pro period has ended; the team is back on Free. Nothing was deleted.') : ''),
     el('div.plan-usage', {},
       el('div', {}, el('div.plan-usage-l', {}, 'Members and pending invitations'), el('div.plan-usage-v', { id: 'plan-members' }, room.used + (room.limit ? ' of ' + room.limit : '')), bar(room.used, room.limit)),
-      el('div', {}, el('div.plan-usage-l', {}, 'Finance history shown'), el('div.plan-usage-v', {}, P.financeHistoryDays ? 'Last ' + P.financeHistoryDays + ' days' : 'Everything')),
-      el('div', {}, el('div.plan-usage-l', {}, 'Teams you can own'), el('div.plan-usage-v', {}, P.ownTeams ? P.ownTeams + ' on Free' : 'No limit')))));
+      el('div', {}, el('div.plan-usage-l', {}, 'Finance history shown'), el('div.plan-usage-v', {}, P.financeHistoryDays ? 'Last ' + P.financeHistoryDays + ' days' : 'Everything')))));
   // The three plans side by side
   const tierCard = (key, items) => { const t = PLANS[key]; const on = P.tier === key;
     return el('div.plan-card' + (on ? '.on' : ''), { dataset: { tier: key } }, el('div.plan-card-head', {}, el('b', {}, t.name), on ? el('span.pro-badge.on', {}, 'Your plan') : ''),
       el('div.plan-price', {}, t.price), el('ul', {}, items.map(x => el('li', {}, x)))); };
   pane.append(el('section', {}, el('h4', {}, 'Compare plans'), el('div.plan-cards', {},
-    tierCard('free', ['Everything Trawpie does today', 'Up to ' + PLANS.free.members + ' members a team', 'Up to ' + PLANS.free.ownTeams + ' teams of your own', 'Finance history for ' + PLANS.free.financeHistoryDays + ' days']),
+    tierCard('free', ['Everything Trawpie does today', 'Up to ' + PLANS.free.members + ' members a team', 'As many teams as you need', 'Finance history for ' + PLANS.free.financeHistoryDays + ' days']),
     tierCard('pro', ['Everything in Free', 'Up to ' + PLANS.pro.members + ' members', ...PRO_FEATURES.filter(f => f.tier === 'pro').map(f => f.name + (f.status === 'live' ? '' : ' (soon)')), 'Pro Education: free for students and staff with a university email']),
     tierCard('org', ['Everything in Pro', ...PRO_FEATURES.filter(f => f.tier === 'org').map(f => f.name + (f.status === 'live' ? '' : ' (soon)')), 'Priority support and an uptime commitment']))));
   // Ask for Pro (pilot: no payment yet)

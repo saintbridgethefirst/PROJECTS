@@ -51,11 +51,10 @@ try {
   ok((await lastToast(A)).includes('The team is full on the Free plan'), 'a 31st is refused');
   await A.keyboard.press('Escape'); await sleep(200);
 
-  step('Free limit: 5 teams of your own');
-  for (const n of ['Lab two', 'Lab three', 'Lab four', 'Lab five']) { await A.evaluate(() => TT.goHome()); await A.waitForSelector('#home-screen:not([hidden])'); await A.fill('#create-team-form input[name=name]', n); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300); }
+  step('No plan limit on teams: a sixth team of your own is fine');
+  for (const n of ['Lab two', 'Lab three', 'Lab four', 'Lab five', 'Lab six']) { await A.evaluate(() => TT.goHome()); await A.waitForSelector('#home-screen:not([hidden])'); await A.fill('#create-team-form input[name=name]', n); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]'); await A.waitForSelector('.node-cat'); await sleep(300); }
+  ok(!!(await teamNamed(A, 'Lab six')), 'a sixth team is created, with no upgrade prompt');
   await A.evaluate(() => TT.goHome()); await A.waitForSelector('#home-screen:not([hidden])'); await sleep(300);
-  await A.fill('#create-team-form input[name=name]', 'Lab six'); await A.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await A.click('#create-team-form button[type=submit]'); await sleep(400);
-  ok(!(await teamNamed(A, 'Lab six')) && (await lastToast(A)).includes('up to 5 teams'), 'a sixth team of your own is refused on Free');
   await A.click('.team-tile:has-text("Drone Challenge")'); await A.waitForSelector('.node-cat'); await sleep(400);
 
   step('Free limit: finance history shows 90 days');
