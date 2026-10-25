@@ -12,6 +12,9 @@ const overrides = fs.readFileSync(new URL('./board-overrides.js', import.meta.ur
 
 // 1) Text patches inside code we keep (each must match exactly once).
 const patches = [
+  // Collapsed week circle: a sensible short name for every week (BL for the backlog, initials for named weeks)
+  ["                    let shortName = 'W' + (actualIndex + 1);\n                    let match = w.title.match(/([A-Za-z])[A-Za-z]*.*?(\\d+)/);\n                    if(match) shortName = (match[1] + match[2]).toUpperCase();",
+   "                    let shortName = weekShortName(w, actualIndex);"],
   // Closing the editor: you're no longer looking at that task (Who's here)
   ["        function closeEditor() {\n            activeNode = null;",
    "        function closeEditor() {\n            activeNode = null; if (window.TT && TT.lookingAt) TT.lookingAt('');"],

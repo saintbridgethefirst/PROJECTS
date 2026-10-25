@@ -90,6 +90,11 @@ try {
   ok(await p.evaluate(() => document.querySelector('.header-week').dataset.weekKey) === 'backlog', 'backlog is the first column');
   ok(await p.locator('.header-week[data-week-key="backlog"] .week-dates').isVisible().catch(() => false) === false, 'no dates on the backlog');
   ok(await p.locator('.task-card', { hasText: 'Pick a battery' }).count() === 1, 'its task is on the board');
+  await p.evaluate(() => toggleWeekCollapse(0)); await sleep(300);
+  ok((await p.locator('.header-week.collapsed-circle[data-week-key="backlog"]').textContent()).trim() === 'BL', 'collapsed, the backlog reads BL (not W1)');
+  await p.evaluate(() => toggleWeekCollapse(1)); await sleep(300);
+  ok(/^W\d+$/.test((await p.locator('.header-week.collapsed-circle').nth(1).textContent()).trim()), 'a collapsed week still reads W1, W2…');
+  await p.evaluate(() => { toggleWeekCollapse(0); toggleWeekCollapse(1); }); await sleep(300);
 
   step('Setting all week dates skips the backlog');
   await p.evaluate(() => { autoDateWeeksFlow(); }); await p.waitForSelector('#dialog-overlay:not([hidden]) input, .dialog input');

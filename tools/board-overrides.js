@@ -128,7 +128,7 @@
             if (task.icon && title) {
                 const ic = document.createElement('span'); ic.className = 'task-icon';
                 if (task.icon.startsWith('data:image/')) { const img = document.createElement('img'); img.src = task.icon; img.alt = ''; ic.appendChild(img); }
-                else ic.textContent = task.icon;
+                else { ic.textContent = task.icon; ic.dataset.emo = task.icon; }
                 title.prepend(ic);
             }
             const ph = phaseOf(task);
@@ -246,7 +246,7 @@
             const s = section('Icon');
             const row = document.createElement('div'); row.className = 'icon-row';
             const set = (v) => { if ((task.icon || '') === v) return; logHistory(task, 'Icon', task.icon ? 'icon' : 'none', v ? 'icon' : 'none'); task.icon = v; saveDatabase(); render(); openEditor(task); };
-            ICON_CHOICES.forEach(ic => { const b = document.createElement('button'); b.type = 'button'; b.className = 'icon-pick' + (task.icon === ic ? ' on' : ''); b.textContent = ic; b.title = 'Use ' + ic; b.onclick = () => set(ic); row.appendChild(b); });
+            ICON_CHOICES.forEach(ic => { const b = document.createElement('button'); b.type = 'button'; b.className = 'icon-pick' + (task.icon === ic ? ' on' : ''); b.textContent = ic; b.dataset.emo = ic; b.title = 'Use ' + ic; b.onclick = () => set(ic); row.appendChild(b); });
             if (task.icon && task.icon.startsWith('data:image/')) { const b = document.createElement('button'); b.type = 'button'; b.className = 'icon-pick on'; const img = document.createElement('img'); img.src = task.icon; img.alt = 'Custom icon'; b.appendChild(img); row.appendChild(b); }
             s.appendChild(row);
             const actions = document.createElement('div'); actions.className = 'row'; actions.dataset.editOnly = '1';
@@ -1377,6 +1377,16 @@
             db.forEach(person => person.categories.forEach(cat => weeksData.forEach(w => (Array.isArray(cat[w.key]) ? cat[w.key] : []).forEach((task, index) => out.push({ person, cat, weekKey: w.key, index, task })))));
             return out;
         }
+        /** The short label on a collapsed week: "W3" for "WEEK 3", "BL" for the backlog, initials for a named week ("Exam week" → "EW"). */
+        function weekShortName(w, i) {
+            if (w.key === 'backlog') return 'BL';
+            const t = String(w.title || '').trim();
+            const m = t.match(/([A-Za-z])[A-Za-z]*.*?(\d+)/); if (m) return (m[1] + m[2]).toUpperCase();
+            const words = t.split(/\s+/).filter(x => /[A-Za-z0-9]/.test(x));
+            if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+            if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+            return 'W' + (i + 1);
+        }
         function weekTitle(key) { const w = weeksData.find(x => x.key === key); return w ? w.title : ''; }
 
         function setTaskStage(task, stage) {
@@ -1894,7 +1904,9 @@
             const tr = document.createElement('tr'); tr.className = 'lt-row prio-' + String(t.priority).toLowerCase() + (t.flag === 'completed' ? ' lt-done' : '') + (activeNode && activeNode.id === t.id ? ' selected' : '');
             tr.dataset.id = t.id; tr.tabIndex = 0;
             const td = (cls, ...kids) => { const c = document.createElement('td'); c.className = cls; kids.forEach(k => c.append(k)); tr.appendChild(c); return c; };
-            const name = document.createElement('span'); name.className = 'lt-name'; name.textContent = (t.icon && !t.icon.startsWith('data:') ? t.icon + ' ' : '') + (t.name || 'Untitled task');
+            const name = document.createElement('span'); name.className = 'lt-name';
+            if (t.icon && !t.icon.startsWith('data:')) { const ic = document.createElement('span'); ic.className = 'task-icon'; ic.textContent = t.icon; ic.dataset.emo = t.icon; name.appendChild(ic); }
+            name.append(t.name || 'Untitled task');
             const ref = document.createElement('span'); ref.className = 'lt-ref'; ref.textContent = TT.taskRef ? TT.taskRef(t) : '';
             const extra = []; const ch = carryChain(t); if (ch && ch.length > 1) { const c = document.createElement('span'); c.className = 'lt-chip'; c.textContent = '↪ ' + ch.length + ' wks'; c.title = 'Carried forward since ' + weekTitle(ch[0].weekKey); extra.push(c); }
             const n = TT.commentCount(t.id); if (n) { const c = document.createElement('span'); c.className = 'lt-chip'; c.textContent = '💬 ' + n; extra.push(c); }
@@ -2108,7 +2120,7 @@
             c.setAttribute('role', 'button'); c.setAttribute('aria-label', t.name + ', ' + stageNameOf(t) + (editable ? '. Alt + arrow keys move it between columns.' : ''));
             if (activeNode && activeNode.id === t.id) c.classList.add('selected');
             const title = document.createElement('div'); title.className = 'kb-title';
-            if (t.icon && !t.icon.startsWith('data:')) { const ic = document.createElement('span'); ic.className = 'task-icon'; ic.textContent = t.icon; title.appendChild(ic); }
+            if (t.icon && !t.icon.startsWith('data:')) { const ic = document.createElement('span'); ic.className = 'task-icon'; ic.textContent = t.icon; ic.dataset.emo = t.icon; title.appendChild(ic); }
             title.append(t.name || 'Untitled task'); c.appendChild(title);
             const meta = document.createElement('div'); meta.className = 'kb-meta';
             const add = (cls, text, tip) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; if (tip) s.title = tip; meta.appendChild(s); return s; };

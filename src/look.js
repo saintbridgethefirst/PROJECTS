@@ -29,6 +29,13 @@ const BUTTONS = [
 // Badge emoji that carry meaning → an icon instead of nothing.
 const BADGE = { '⏱': 'timer', '🕒': 'timer', '📅': 'calendar', '📆': 'calendar', '☑': 'square-check', '✅': 'square-check', '💬': 'message-square', '⚠': 'triangle-alert',
   '🔒': 'lock', '⏳': 'hourglass', '⏰': 'clock', '🎯': 'target', '📎': 'paperclip', '🔗': 'link', '📌': 'pin', '🔁': 'repeat', '⛓': 'link', '🔼': 'chevron-up', '🔽': 'chevron-down', '⏫': 'chevrons-up', '⛔': 'octagon-alert' };
+// Task icons (and the editor's icon picker) → a matching line icon. Emoji without a match stay hidden.
+const TASK_ICON = { '🔧': 'wrench', '🛠': 'wrench', '⚙': 'settings', '🤖': 'bot', '📐': 'ruler', '📏': 'ruler', '🧪': 'flask-conical', '📊': 'chart-column', '📈': 'chart-column',
+  '📝': 'notebook-pen', '📜': 'file-text', '📄': 'file-text', '💡': 'lightbulb', '🚀': 'rocket', '🎯': 'target', '⚡': 'zap', '🔌': 'plug', '🖥': 'monitor', '💻': 'monitor',
+  '📦': 'package', '🧠': 'cpu', '📷': 'camera', '🛒': 'shopping-cart', '🔋': 'battery', '📣': 'megaphone', '📢': 'megaphone', '📡': 'radio', '🧭': 'compass',
+  '✅': 'square-check', '📅': 'calendar', '🗓': 'calendar', '👥': 'users', '🤝': 'users', '✏': 'pencil', '🔩': 'package', '💷': 'wallet', '💰': 'wallet', '🧩': 'puzzle', '🔗': 'link', '📌': 'pin', '🚩': 'flag',
+  '✉': 'mail', '📧': 'mail', '🏛': 'landmark', '🧾': 'receipt', '🗺': 'map', '🛰': 'satellite', '🖨': 'printer', '🧵': 'plug', '📶': 'wifi', '🧮': 'calculator' };
+export const taskIconName = (emo) => TASK_ICON[String(emo || '').replace(/[\uFE0F\u200D]/g, '')] || '';
 const EMOJI = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[▦⇤⇥☰⌂])(?:️|‍(?:\p{Extended_Pictographic})|\p{Emoji_Modifier}|⃣)*/gu;
 const HAS = new RegExp(EMOJI.source, 'u');
 const LEAD = new RegExp('^(\\s*)(' + EMOJI.source + ')\\s*', 'u');
@@ -56,6 +63,7 @@ export function setLook(look) {
     while ((n = w.nextNode())) { const o = textDone.get(n); if (o !== undefined) { n.nodeValue = o; textDone.delete(n); } }
     document.querySelectorAll('[placeholder], [title]').forEach(el => { const rec = attrDone.get(el); if (rec) { Object.entries(rec).forEach(([a, v]) => el.setAttribute(a, v)); attrDone.delete(el); } });
     document.querySelectorAll('[data-look-btn]').forEach(b => b.removeAttribute('data-look-btn'));
+    document.querySelectorAll('[data-look-emo]').forEach(b => { b.removeAttribute('data-look-emo'); b.classList.remove('has-line'); });
   }
 }
 
@@ -65,6 +73,12 @@ function paintButtons() {
     const ic = icon(name, 'ico look-ico'); if (!ic) return;
     b.dataset.lookBtn = '1'; b.prepend(ic); iconsAdded.add(ic);
   }));
+  // Task icons and the icon picker carry their emoji in data-emo
+  document.querySelectorAll('[data-emo]:not([data-look-emo])').forEach(el => {
+    el.dataset.lookEmo = '1'; const name = taskIconName(el.dataset.emo); if (!name) return;
+    const ic = icon(name, 'ico look-ico emo-ico'); if (!ic) return;
+    el.classList.add('has-line'); el.prepend(ic); iconsAdded.add(ic);
+  });
 }
 
 const skip = (el) => !el || el.closest(SKIP_SELECTOR + ', script, style, textarea, input, select, option, .look-ico, svg, .task-icon');

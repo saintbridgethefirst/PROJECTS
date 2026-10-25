@@ -1365,3 +1365,11 @@ body.look-pro .feature-card:not(.on) .feature-icon { color: var(--text-muted); b
 /* Tools: the tab bar sticks flush to the top of the scroll area, so nothing peeks out above it */
 .research-modal .modal-body { padding-top: 0; }
 .research-modal .rs-tabs { top: 0; margin-top: 0; padding-top: 16px; }
+
+/* Professional look: task icons become matching line icons (uploaded images still show); emoji with no match stay hidden */
+body.look-pro .task-icon.has-line, body.look-pro .task-icon:has(img) { display: inline-grid !important; }
+body.look-pro .task-icon.has-line { font-size: 0; color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 12%, transparent); }
+body.look-pro .task-icon.has-line .look-ico svg { width: 14px; height: 14px; }
+body.look-pro .icon-pick .emo-ico svg { width: 20px; height: 20px; }
+body.look-pro .icon-pick { color: var(--text-main); }
+body.look-pro .icon-pick.on { color: var(--line-color); }
