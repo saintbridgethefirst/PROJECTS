@@ -8,6 +8,8 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ FAIL:', m); } };
 const step = (s) => console.log('▸ ' + s);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+// The text box is ready for typing once it has focus
+const editReady = async (P) => { await P.waitForSelector('#wb-edit'); await P.waitForFunction(() => document.activeElement && document.activeElement.id === 'wb-edit', null, { timeout: 5000 }).catch(() => {}); };
 const errors = [];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -45,7 +47,7 @@ try {
   step('Notes: add, write, move, colour');
   await A.click('[data-tool=note]'); ok(await A.locator('[data-tool=note][aria-pressed=true]').count() === 1, 'note tool on');
   const cv = await A.locator('#wb-canvas').boundingBox();
-  await A.mouse.click(cv.x + 700, cv.y + 520); await A.waitForSelector('#wb-edit');
+  await A.mouse.click(cv.x + 700, cv.y + 520); await editReady(A);
   await A.keyboard.type('Design ability icons'); await A.keyboard.press('Enter'); await A.keyboard.type('- Active abilities'); await A.keyboard.press('Enter'); await A.keyboard.type('- UI states');
   await A.keyboard.press('Escape');
   let note = null;   // a slow CI machine can take a while to save the note: wait for it rather than a fixed pause
@@ -65,7 +67,7 @@ try {
   await T.click('#wb-btn'); await T.waitForSelector('.wb-item'); await sleep(300);
   ok(await T.locator('.wb-item').count() === await A.locator('.wb-item').count(), 'Tom sees the same board');
   await T.click('[data-tool=title]'); const tcv = await T.locator('#wb-canvas').boundingBox();
-  await T.mouse.click(tcv.x + 300, tcv.y + 650); await T.waitForSelector('#wb-edit'); await T.keyboard.type('Tom’s section'); await T.keyboard.press('Enter'); await sleep(500);
+  await T.mouse.click(tcv.x + 300, tcv.y + 650); await editReady(T); await T.keyboard.type('Tom’s section'); await T.keyboard.press('Enter'); await sleep(500);
   ok(await A.locator('.wb-item.wb-title', { hasText: 'Tom’s section' }).count() === 1, 'Aisha sees Tom’s heading appear without reloading');
 
   step('A note becomes a task, with sub-tasks');

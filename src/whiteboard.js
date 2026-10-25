@@ -419,7 +419,9 @@ function editText(i) {
   const ta = el('textarea.wb-edit', { id: 'wb-edit', 'aria-label': 'Text', maxlength: 2000, rows: i.kind === 'note' ? 5 : 1, placeholder: i.kind === 'note' ? 'Type… “- ” lines become sub-tasks' : i.kind === 'title' ? 'Heading' : i.kind === 'frame' ? 'Frame name' : 'Text' });
   ta.value = i.text || '';
   const t = n.querySelector('.wb-text'); if (t) t.replaceWith(ta); else n.append(ta);
-  const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }; ta.addEventListener('input', grow); setTimeout(() => { grow(); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 0);
+  // Focus straight away, so the first keys typed land in the box (not on the canvas, where letters pick tools)
+  try { ta.focus({ preventScroll: true }); ta.setSelectionRange(ta.value.length, ta.value.length); } catch { /* not focusable yet: the timeout below catches up */ }
+  const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }; ta.addEventListener('input', grow); setTimeout(() => { grow(); if (document.activeElement !== ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 0);
   let done = false;
   const finish = async (saveIt) => {
     if (done) return; done = true; W.editing = '';
