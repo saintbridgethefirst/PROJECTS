@@ -192,8 +192,7 @@ body.hide-metric .metric-badge { display: none; }
   .brand-name { font-size: 18px; }
   .account-btn span:not(.avatar) { display: none; }
   #home-theme { white-space: nowrap; }
-  .app-header .look-switch button { padding: 6px 9px; }
-  #home-look .theme-word, #home-theme .theme-word, #crossteam-btn .theme-word, #joint-btn .theme-word, #home-search .theme-word { display: none; }
+  #home-theme .theme-word, #crossteam-btn .theme-word, #joint-btn .theme-word, #home-search .theme-word { display: none; }
   #crossteam-btn, #joint-btn, #home-search { white-space: nowrap; }
   #create-team-form { flex-wrap: wrap; }
   #create-team-form > * { flex: 1 1 100%; }
@@ -293,11 +292,6 @@ body.hide-metric .metric-badge { display: none; }
 .seg-toggle button { font: inherit; font-size: 13.5px; font-weight: 700; padding: 8px 16px; border: 0; background: var(--bg-panel); color: var(--text-muted); cursor: pointer; }
 .seg-toggle button + button { border-left: 1px solid var(--border-color); }
 .seg-toggle button.on { background: var(--line-color); color: var(--on-accent, #fff); }
-.look-switch button { display: inline-flex; align-items: center; gap: 6px; }
-.look-sw-ico { display: inline-flex; width: 16px; height: 16px; flex: none; }
-.look-sw-ico svg { width: 100%; height: 100%; }
-.app-header .look-switch { border-radius: 9px; }
-.app-header .look-switch button { padding: 6px 11px; font-size: 13px; }
 
 /* Installed app (home-screen): keep bars clear of the iPhone status bar / notch */
 .app-header { padding-top: max(12px, env(safe-area-inset-top, 0px)); }
