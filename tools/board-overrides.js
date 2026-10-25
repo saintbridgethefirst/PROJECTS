@@ -66,7 +66,7 @@
             const start = nextWeekStart();
             weeksData.push({ key: newKey, title: customTitle || TT.weekTitle(start, weeksData), metric: '', collapsed: false, startDate: start });
             db.forEach(p => p.categories.forEach(c => c[newKey] = []));
-            hiddenWeeks.clear(); if (weeksData.length > 2) { for (let i = 0; i < weeksData.length - 2; i++) hiddenWeeks.add(weeksData[i].key); }
+            hiddenWeeks.clear(); if (weeksData.length > 2) { for (let i = 0; i < weeksData.length - 2; i++) if (weeksData[i].key !== 'backlog') hiddenWeeks.add(weeksData[i].key); }
             saveDatabase(); renderFilters(); render();
             setTimeout(() => { const canvas = document.getElementById('canvas-container'); if (canvas) canvas.scrollTo({ left: canvas.scrollWidth, behavior: 'smooth' }); }, 100);
         }
@@ -426,6 +426,7 @@
                 { icon: '📅', label: 'Add deadlines to my calendar…', action: () => TT.openCalendar() },
                 { icon: '⚙️', label: 'Team settings…', action: () => TT.openSettings() },
             ];
+            if (TT.can('weeks.manage') && !weeksData.some(w => w.key === 'backlog')) items.splice(Math.max(0, items.findIndex(it => it && it.label === 'Add week…') + 1), 0, { icon: '📥', label: 'Add a backlog (tasks without a week)', action: () => addBacklog() });
             return items.map(it => {
                 if (!it) return it;
                 if (it.label === 'Add team member…') return TT.can('members.manage') ? { ...it, label: 'Invite team member…' } : null;
@@ -1779,21 +1780,172 @@
         }
 
         // ---------- Board ⇄ Kanban view ----------
-        let boardView = (() => { try { const v = localStorage.getItem('tt_view'); return v === 'kanban' || v === 'gantt' ? v : 'board'; } catch (e) { return 'board'; } })();
+        const VIEWS = ['kanban', 'gantt', 'list'];
+        let boardView = (() => { try { const v = localStorage.getItem('tt_view'); return VIEWS.includes(v) ? v : 'board'; } catch (e) { return 'board'; } })();
         let kbScope = (() => { try { return localStorage.getItem('tt_kb_scope') || 'visible'; } catch (e) { return 'visible'; } })();
         let kbLanes = (() => { try { return localStorage.getItem('tt_kb_lanes') || 'none'; } catch (e) { return 'none'; } })();
         let kbMine = false;
         function savePref(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* */ } }
         function boardSetView(v) {
-            boardView = v === 'kanban' || v === 'gantt' ? v : 'board'; savePref('tt_view', boardView);
+            boardView = VIEWS.includes(v) ? v : 'board'; savePref('tt_view', boardView);
             document.body.classList.toggle('view-kanban', boardView === 'kanban');
             document.body.classList.toggle('view-gantt', boardView === 'gantt');
+            document.body.classList.toggle('view-list', boardView === 'list');
             if (boardView !== 'gantt') { const g = document.getElementById('gantt-view'); if (g) g.innerHTML = ''; }
+            if (boardView !== 'list') { const g = document.getElementById('list-view'); if (g) g.innerHTML = ''; }
             document.querySelectorAll('[data-view]').forEach(b => { const on = b.dataset.view === boardView; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
             if (boardView === 'kanban') renderKanban(); else { const k = document.getElementById('kanban-view'); if (k) k.innerHTML = ''; render(); }
         }
         window.boardSetView = boardSetView;
         window.boardView = () => boardView;
+
+        // ═════════════════════════════════════════════════════════════════════
+        //  List view: every task in one sortable, filterable table, grouped by
+        //  person, week, stage or priority. No weeks needed to use it. The same
+        //  tasks as the board: switching views never moves or copies anything.
+        // ═════════════════════════════════════════════════════════════════════
+        const pref = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
+        let ltScope = pref('tt_lt_scope', 'all'), ltGroup = pref('tt_lt_group', 'none'), ltSortKey = pref('tt_lt_sort', 'due'), ltSortDir = pref('tt_lt_dir', 'asc') === 'desc' ? -1 : 1;
+        let ltHideDone = pref('tt_lt_done', '0') === '1', ltMine = false;
+        const LT_COLS = [['name', 'Task'], ['owner', 'Owner'], ['week', 'Week'], ['stage', 'Stage'], ['priority', 'Priority'], ['due', 'Due'], ['subs', 'Sub-tasks']];
+        function ltWeeks() {
+            if (ltScope === 'visible') return getVisibleWeeks();
+            if (ltScope === 'current') { const w = weeksData.find(isCurrentWeek) || weeksData.filter(x => !isBacklog(x)).slice(-1)[0]; return [w, weeksData.find(isBacklog)].filter(Boolean); }
+            return weeksData.slice();
+        }
+        function ltRows() {
+            const weeks = new Set(ltWeeks().map(w => w.key)); const q = ((document.getElementById('search-tasks') || {}).value || '').trim().toLowerCase();
+            return latestOfChains(allTaskLocs()).filter(l => weeks.has(l.weekKey) && !hiddenPersons.has(l.person.id) && !phaseHidden(l.task) && !l.task.isGhost
+                && (!ltHideDone || l.task.flag !== 'completed') && (!ltMine || l.person.id === (TT.me && TT.me.uid))
+                && (!q || [l.task.name, l.task.jiraId, TT.taskRef ? TT.taskRef(l.task) : '', l.task.status, l.person.name, l.cat.name].join(' ').toLowerCase().includes(q)));
+        }
+        function ltValue(l, key) {
+            const t = l.task;
+            if (key === 'name') return (t.name || '').toLowerCase();
+            if (key === 'owner') return (l.person.name || '').toLowerCase();
+            if (key === 'week') { const i = weekIdx(l.weekKey); return i < 0 ? 9999 : i; }
+            if (key === 'stage') { const i = wfStages().findIndex(x => x.id === TT.stageId(t)); return i < 0 ? 99 : i; }
+            if (key === 'priority') return PRIO_RANK[t.priority] ?? 9;
+            if (key === 'due') return t.dueDate || '9999-99-99';
+            if (key === 'subs') { const n = (t.subtasks || []).length; return n ? (t.subtasks.filter(x => x.completed).length / n) : -1; }
+            return '';
+        }
+        function ltCompare(a, b) {
+            // Finished work sinks to the bottom (except when sorting by stage, where Done is a stage like any other)
+            if (ltSortKey !== 'stage') { const da = a.task.flag === 'completed', db2 = b.task.flag === 'completed'; if (da !== db2) return da ? 1 : -1; }
+            const x = ltValue(a, ltSortKey), y = ltValue(b, ltSortKey);
+            return (x < y ? -1 : x > y ? 1 : 0) * ltSortDir || (a.task.name || '').localeCompare(b.task.name || '');
+        }
+        function ltGroupOf(l) {
+            if (ltGroup === 'person') return { key: l.person.id, label: l.person.name };
+            if (ltGroup === 'week') return { key: l.weekKey, label: weekTitle(l.weekKey) || 'No week', order: weekIdx(l.weekKey) };
+            if (ltGroup === 'stage') { const st = stageById(TT.stageId(l.task)); const i = wfStages().findIndex(x => x.id === TT.stageId(l.task)); return { key: st ? st.id : '?', label: st ? st.name : stageNameOf(l.task), order: i, color: st && st.color }; }
+            if (ltGroup === 'priority') return { key: l.task.priority, label: (PRIO_ICON[l.task.priority] || '') + ' ' + l.task.priority, order: PRIO_RANK[l.task.priority] ?? 9 };
+            return { key: '', label: '' };
+        }
+        function ltSelect(cls, label, opts, val, on, disabled) {
+            const s = document.createElement('select'); s.className = cls; s.setAttribute('aria-label', label); s.disabled = !!disabled;
+            opts.forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; s.appendChild(o); }); s.value = val;
+            s.addEventListener('click', e => e.stopPropagation()); s.addEventListener('change', () => on(s.value)); return s;
+        }
+        function ltRow(l) {
+            const t = l.task; const editable = TT.canEditOwner(l.person.id);
+            const tr = document.createElement('tr'); tr.className = 'lt-row prio-' + String(t.priority).toLowerCase() + (t.flag === 'completed' ? ' lt-done' : '') + (activeNode && activeNode.id === t.id ? ' selected' : '');
+            tr.dataset.id = t.id; tr.tabIndex = 0;
+            const td = (cls, ...kids) => { const c = document.createElement('td'); c.className = cls; kids.forEach(k => c.append(k)); tr.appendChild(c); return c; };
+            const name = document.createElement('span'); name.className = 'lt-name'; name.textContent = (t.icon && !t.icon.startsWith('data:') ? t.icon + ' ' : '') + (t.name || 'Untitled task');
+            const ref = document.createElement('span'); ref.className = 'lt-ref'; ref.textContent = TT.taskRef ? TT.taskRef(t) : '';
+            const extra = []; const ch = carryChain(t); if (ch && ch.length > 1) { const c = document.createElement('span'); c.className = 'lt-chip'; c.textContent = '↪ ' + ch.length + ' wks'; c.title = 'Carried forward since ' + weekTitle(ch[0].weekKey); extra.push(c); }
+            const n = TT.commentCount(t.id); if (n) { const c = document.createElement('span'); c.className = 'lt-chip'; c.textContent = '💬 ' + n; extra.push(c); }
+            td('lt-c-name', name, ref, ...extra);
+            const who = document.createElement('span'); who.className = 'lt-owner'; who.textContent = l.person.name; td('lt-c-owner', who);
+            const wk = document.createElement('span'); wk.className = 'lt-week' + (l.weekKey === BACKLOG ? ' is-backlog' : ''); wk.textContent = weekTitle(l.weekKey); td('lt-c-week', wk);
+            const stages = wfStages(); const cur = stageById(TT.stageId(t));
+            const st = ltSelect('lt-stage', 'Stage of ' + t.name, stages.map(x => [x.id, x.name]), TT.stageId(t), (v) => { if (!setTaskStage(t, v)) renderList(); }, !editable);
+            if (cur) st.style.setProperty('--stage-color', cur.color); td('lt-c-stage', st);
+            const pr = ltSelect('lt-prio', 'Priority of ' + t.name, Object.keys(PRIO_RANK).map(p => [p, document.body.classList.contains('look-pro') ? p : (PRIO_ICON[p] || '') + ' ' + p]), t.priority, (v) => setTaskPriority(t, v), !editable);
+            td('lt-c-prio', pr);
+            const di = dueInfo(t); const due = document.createElement('span'); due.className = 'lt-due ' + (di ? di.cls : 'lt-none'); due.textContent = di ? di.label : '—'; td('lt-c-due', due);
+            const subs = t.subtasks || []; const sb = document.createElement('span'); sb.className = 'lt-subs';
+            if (subs.length) { const done = subs.filter(x => x.completed).length; sb.innerHTML = '<span class="lt-bar"><i style="width:' + Math.round(done / subs.length * 100) + '%"></i></span>'; sb.title = done + ' of ' + subs.length + ' done'; sb.append(done + '/' + subs.length); } else sb.textContent = '—';
+            td('lt-c-subs', sb);
+            const open = () => { const loc = locateTask(t.id); if (!loc) return; activeNode = loc.task; openEditorForNode(loc.task); if (isCompact()) setPanel(true); document.querySelectorAll('.lt-row.selected').forEach(x => x.classList.remove('selected')); tr.classList.add('selected'); };
+            tr.addEventListener('click', open);
+            tr.addEventListener('keydown', (e) => { if (e.target === tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } });
+            tr.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); const loc = locateTask(t.id); if (loc) showMenu(e.clientX, e.clientY, taskMenuItems(loc)); });
+            return tr;
+        }
+        async function ltNewTask() {
+            const me = db.find(p => p.id === (TT.me && TT.me.uid));
+            if (!me || !me.categories.length) { toast('Add a category to your row on the board first, then add tasks here.', 5000); return; }
+            const w = weeksData.find(isBacklog) || weeksData.find(isCurrentWeek) || weeksData[weeksData.length - 1];
+            if (!w) { toast('Add a week or a backlog first.'); return; }
+            await addTaskFlow(me.categories[0], w.key);
+        }
+        function renderList() { return withFrameCache(_renderList); }
+        function _renderList() {
+            let view = document.getElementById('list-view');
+            if (!view) { const mv = document.getElementById('main-view'); if (!mv) return; view = document.createElement('div'); view.id = 'list-view'; view.setAttribute('aria-label', 'Task list'); mv.appendChild(view); }
+            const old = view.querySelector('.lt-scroll'); const keep = old ? old.scrollTop : 0;
+            const rows = ltRows().sort(ltCompare);
+            const bar = document.createElement('div'); bar.className = 'kb-toolbar lt-toolbar';
+            const ctl = (label, el) => { const w = document.createElement('label'); w.className = 'kb-ctl'; w.append(label + ' ', el); return w; };
+            bar.appendChild(ctl('Weeks', ltSelect('lt-scope', 'Which weeks', [['all', 'All weeks'], ['visible', 'Shown on the board'], ['current', 'This week + backlog']], ltScope, v => { ltScope = v; savePref('tt_lt_scope', v); renderList(); })));
+            bar.appendChild(ctl('Group by', ltSelect('lt-group', 'Group by', [['none', 'Nothing'], ['person', 'Person'], ['week', 'Week'], ['stage', 'Stage'], ['priority', 'Priority']], ltGroup, v => { ltGroup = v; savePref('tt_lt_group', v); renderList(); })));
+            const chk = (id, label, on, set) => { const w = document.createElement('label'); w.className = 'kb-ctl kb-check'; const c = document.createElement('input'); c.type = 'checkbox'; c.id = id; c.checked = on; c.onchange = () => set(c.checked); w.append(c, ' ' + label); return w; };
+            bar.appendChild(chk('lt-hide-done', 'Hide done', ltHideDone, v => { ltHideDone = v; savePref('tt_lt_done', v ? '1' : '0'); renderList(); }));
+            bar.appendChild(chk('lt-mine', 'Only my tasks', ltMine, v => { ltMine = v; renderList(); }));
+            const sum = document.createElement('span'); sum.className = 'kb-sum'; sum.textContent = rows.length + (rows.length === 1 ? ' task' : ' tasks'); bar.appendChild(sum);
+            const sp = document.createElement('span'); sp.className = 'lt-sp'; bar.appendChild(sp);
+            if (!weeksData.some(isBacklog) && TT.can('weeks.manage')) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn-secondary lt-btn'; b.id = 'lt-add-backlog'; b.textContent = '＋ Backlog'; b.title = 'A column for tasks that aren’t planned into a week yet'; b.onclick = addBacklog; bar.appendChild(b); }
+            if (TT.can('tasks.editOwn') || TT.can('tasks.editAll')) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn-primary lt-btn'; b.id = 'lt-new'; b.textContent = '＋ New task'; b.onclick = ltNewTask; bar.appendChild(b); }
+
+            const table = document.createElement('table'); table.className = 'lt-table';
+            const thead = document.createElement('thead'); const hr = document.createElement('tr');
+            LT_COLS.forEach(([k, label]) => {
+                const th = document.createElement('th'); th.className = 'lt-c-' + (k === 'priority' ? 'prio' : k === 'name' ? 'name' : k);
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'lt-sort' + (ltSortKey === k ? ' on' : ''); b.dataset.sort = k;
+                b.textContent = label; if (ltSortKey === k) { const a = document.createElement('span'); a.className = 'lt-arrow'; a.textContent = ltSortDir > 0 ? '↑' : '↓'; b.appendChild(a); }
+                th.setAttribute('aria-sort', ltSortKey === k ? (ltSortDir > 0 ? 'ascending' : 'descending') : 'none');
+                b.onclick = () => { if (ltSortKey === k) ltSortDir = -ltSortDir; else { ltSortKey = k; ltSortDir = 1; } savePref('tt_lt_sort', ltSortKey); savePref('tt_lt_dir', ltSortDir > 0 ? 'asc' : 'desc'); renderList(); };
+                th.appendChild(b); hr.appendChild(th);
+            });
+            thead.appendChild(hr); table.appendChild(thead);
+            const tbody = document.createElement('tbody');
+            if (!rows.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = LT_COLS.length; td.className = 'lt-empty'; td.textContent = weeksData.length ? 'No tasks match. Change the filters above, or add a task.' : 'No weeks yet. Add a backlog or a week, then add tasks.'; tr.appendChild(td); tbody.appendChild(tr); }
+            else if (ltGroup === 'none') rows.forEach(l => tbody.appendChild(ltRow(l)));
+            else {
+                const groups = new Map(); rows.forEach(l => { const g = ltGroupOf(l); if (!groups.has(g.key)) groups.set(g.key, { ...g, rows: [] }); groups.get(g.key).rows.push(l); });
+                [...groups.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || String(a.label).localeCompare(String(b.label))).forEach(g => {
+                    const tr = document.createElement('tr'); tr.className = 'lt-group'; const td = document.createElement('td'); td.colSpan = LT_COLS.length;
+                    if (g.color) { const d = document.createElement('i'); d.className = 'stage-dot'; d.style.background = g.color; td.appendChild(d); }
+                    td.append(g.label + ' '); const c = document.createElement('span'); c.className = 'lt-count'; c.textContent = g.rows.length; td.appendChild(c);
+                    tr.appendChild(td); tbody.appendChild(tr); g.rows.forEach(l => tbody.appendChild(ltRow(l)));
+                });
+            }
+            table.appendChild(tbody);
+            const scroll = document.createElement('div'); scroll.className = 'lt-scroll'; scroll.appendChild(table);
+            view.replaceChildren(bar, scroll); scroll.scrollTop = keep;
+        }
+        window.boardRenderList = renderList;
+
+        // ── The backlog: a week-like column with no dates, always first, for tasks not planned into a week yet ──
+        const BACKLOG = 'backlog';
+        function isBacklog(w) { return !!w && w.key === BACKLOG; }
+        function addBacklog() {
+            if (!TT.can('weeks.manage')) { toast('Your role can’t add weeks.'); return; }
+            if (weeksData.some(isBacklog)) { toast('There’s already a backlog.'); return; }
+            weeksData.unshift({ key: BACKLOG, title: 'Backlog', metric: '', collapsed: false, startDate: '' });
+            db.forEach(p => p.categories.forEach(c => { if (!Array.isArray(c[BACKLOG])) c[BACKLOG] = []; }));
+            hiddenWeeks.delete(BACKLOG);
+            saveDatabase(); renderFilters(); render();
+            toast('Backlog added: put tasks there until they’re planned into a week. Drag them into a week, or use Move to week.', 6000);
+        }
+        window.boardAddBacklog = addBacklog;
+        function weekMenuItems(i) {
+            const w = weeksData[i]; if (!isBacklog(w)) return _weekMenuItemsBase(i);
+            return _weekMenuItemsBase(i).filter(it => !it || !/^Set start date|^Rename/.test(it.label || '')).map(it => it && it.header ? { header: 'Backlog · tasks without a week' } : it);
+        }
         // ── ⋮ on every card: the right-click menu, for trackpads, touch and anyone who doesn't right-click ──
         function paintCardMore() {
             document.querySelectorAll('#main-view .task-card:not([id^="ghost_"]), #main-view .kb-card').forEach(c => {
@@ -1864,6 +2016,7 @@
             renderSubteamBar();
             if (boardView === 'kanban') renderKanban();
             if (boardView === 'gantt') renderGantt();
+            if (boardView === 'list') renderList();
             paintCardMore();
             updateApprovals();
             if (window.__wbRefresh) window.__wbRefresh();
@@ -2262,8 +2415,9 @@
             track.appendChild(box); inp.focus();
         }
         (function () { let t = null; window.addEventListener('resize', () => { if (boardView !== 'gantt') return; clearTimeout(t); t = setTimeout(renderGantt, 150); }); })();
-        (function () { const q = document.getElementById('search-tasks'); if (q) q.addEventListener('input', () => { if (boardView === 'kanban') renderKanban(); }); })();
+        (function () { const q = document.getElementById('search-tasks'); if (q) q.addEventListener('input', () => { if (boardView === 'kanban') renderKanban(); if (boardView === 'list') renderList(); }); })();
         document.body.classList.toggle('view-kanban', boardView === 'kanban');
+        document.body.classList.toggle('view-list', boardView === 'list');
         document.body.classList.toggle('view-gantt', boardView === 'gantt');
         (function () { const q = document.getElementById('search-tasks'); if (q) q.addEventListener('input', () => { if (boardView === 'gantt') renderGantt(); }); })();
         document.querySelectorAll('[data-view]').forEach(b => { const on = b.dataset.view === boardView; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
@@ -2773,6 +2927,7 @@
         }
         async function setWeekStartFlow(i) {
             const w = weeksData[i]; if (!w) return;
+            if (w.key === 'backlog') { toast('The backlog has no dates: move tasks into a week to plan them.'); return; }
             const later = weeksData.length - i - 1;
             const v = await askText('Start date of "' + w.title + '"' + (later ? ' (the ' + later + ' week' + (later === 1 ? '' : 's') + ' after it follow on, 7 days apart)' : ''), w.startDate || todayISO(), '', 'date');
             if (!v) return;
@@ -2781,7 +2936,8 @@
         }
         async function autoDateWeeksFlow() {
             if (!weeksData.length) { toast('Add a week first.'); return; }
-            const first = weeksData[0].startDate;
+            const i0 = weeksData.findIndex(w => w.key !== 'backlog'); if (i0 < 0) { toast('Add a week first.'); return; }
+            const first = weeksData[i0].startDate;
             const v = await askText('Start date of the FIRST week (later weeks follow 7 days apart)', first || todayISO(), '', 'date');
-            if (!v) return; applyWeekDates(0, v); toast('Week dates set.');
+            if (!v) return; applyWeekDates(i0, v); toast('Week dates set.');
         }

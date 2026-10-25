@@ -531,15 +531,21 @@ export function isoWeekNumber(iso) {
  * Title for a new week. 'sequence': one more than the highest "WEEK n" so far (WEEK 1 for
  * the first). 'calendar': the ISO week number of its start date.
  */
+/** The backlog: a week-like column with no dates, for tasks that aren't planned into a week yet. */
+export const BACKLOG_KEY = 'backlog';
+export const isBacklogWeek = (w) => !!w && w.key === BACKLOG_KEY;
+
 export function nextWeekTitle(mode, weeks, startISO) {
   if (mode === 'calendar' && startISO) return 'WEEK ' + isoWeekNumber(startISO);
+  weeks = (weeks || []).filter(w => !isBacklogWeek(w));
   const nums = (weeks || []).map(w => /^\s*week\s+(\d{1,4})\s*$/i.exec(w.title || '')).filter(Boolean).map(m => +m[1]);
   return 'WEEK ' + (nums.length ? Math.max(...nums) + 1 : (weeks || []).length + 1);
 }
 
 /** Rename every week to match a naming mode. Calendar mode leaves undated weeks as they are. */
 export function renumberWeeks(mode, weeks) {
-  return (weeks || []).map((w, i) => ({ ...w, title: mode === 'calendar' ? (w.startDate ? 'WEEK ' + isoWeekNumber(w.startDate) : w.title) : 'WEEK ' + (i + 1) }));
+  let n = 0;
+  return (weeks || []).map((w) => isBacklogWeek(w) ? { ...w } : ({ ...w, title: mode === 'calendar' ? (w.startDate ? 'WEEK ' + isoWeekNumber(w.startDate) : w.title) : 'WEEK ' + (++n) }));
 }
 
 /**
@@ -551,8 +557,10 @@ export function cascadeWeekDates(weeks, i, startISO, mode = 'sequence') {
   const list = (weeks || []).map(w => ({ ...w }));
   if (!list[i] || !/^\d{4}-\d{2}-\d{2}$/.test(startISO || '')) return list;
   const add = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1, d + n)); return t.toISOString().slice(0, 10); };
-  for (let j = i; j < list.length; j++) {
-    list[j].startDate = add(startISO, (j - i) * 7);
+  if (isBacklogWeek(list[i])) return list;   // the backlog has no dates
+  for (let j = i, k = 0; j < list.length; j++) {
+    if (isBacklogWeek(list[j])) continue;
+    list[j].startDate = add(startISO, (k++) * 7);
     if (mode === 'calendar' && /^\s*week\s+\d{1,4}\s*$/i.test(list[j].title || '')) list[j].title = 'WEEK ' + isoWeekNumber(list[j].startDate);
   }
   return list;

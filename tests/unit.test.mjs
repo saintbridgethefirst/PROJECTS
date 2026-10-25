@@ -910,3 +910,14 @@ test('security: safeUrl allows only web and mail links', () => {
   assert.equal(safeUrl(' JavaScript:alert(1)'), '', 'case and whitespace tricks are refused');
   assert.equal(safeUrl(undefined), '');
 });
+
+test('backlog: no dates, no number, skipped when weeks are renumbered or re-dated', async () => {
+  const { cascadeWeekDates, nextWeekTitle, renumberWeeks, isBacklogWeek } = await import('../src/model.js');
+  const weeks = [{ key: 'backlog', title: 'Backlog', startDate: '' }, { key: 'a', title: 'WEEK 1', startDate: '' }, { key: 'b', title: 'WEEK 2', startDate: '' }];
+  assert.equal(isBacklogWeek(weeks[0]), true); assert.equal(isBacklogWeek(weeks[1]), false);
+  const d = cascadeWeekDates(weeks, 1, '2026-10-19');
+  assert.deepEqual(d.map(w => w.startDate), ['', '2026-10-19', '2026-10-26']);
+  assert.deepEqual(cascadeWeekDates(weeks, 0, '2026-10-19').map(w => w.startDate), ['', '', ''], 'dating the backlog does nothing');
+  assert.deepEqual(renumberWeeks('sequence', weeks).map(w => w.title), ['Backlog', 'WEEK 1', 'WEEK 2']);
+  assert.equal(nextWeekTitle('sequence', [{ key: 'backlog', title: 'Backlog' }]), 'WEEK 1');
+});

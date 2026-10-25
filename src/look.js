@@ -12,7 +12,7 @@ import { SKIP_SELECTOR } from './i18n-skip.js';
 
 // Menu buttons → icon. Matched in order; the first emoji in the button is swapped for the icon.
 const BUTTONS = [
-  ['[data-view="board"]', 'layout-grid'], ['[data-view="kanban"]', 'square-kanban'], ['[data-view="gantt"]', 'chart-gantt'],
+  ['[data-view="board"]', 'layout-grid'], ['[data-view="kanban"]', 'square-kanban'], ['[data-view="gantt"]', 'chart-gantt'], ['[data-view="list"]', 'list'],
   ['#search-btn', 'search'], ['[onclick*="openSettings(\'members\')"]', 'user-plus'], ['[onclick*="openAnalytics(\'overview\')"]', 'chart-column'],
   ['[onclick*="openAnalytics(\'timeline\')"]', 'calendar-range'], ['#research-btn', 'wrench'], ['#online-btn', 'users'], ['#activity-btn', 'bell'],
   ['#wb-btn', 'presentation'], ['#approvals-btn', 'check-check'], ['#share-btn', 'share-2'], ['[onclick*="TT.openAI"]', 'sparkles'],
