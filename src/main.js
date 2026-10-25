@@ -199,7 +199,8 @@ function demoWelcome(box, note, wrap) {
     const b = el('button.demo-kind' + (i === first ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(i === first), 'data-kind': k.key, onclick: () => {
       kind = k.key; kinds.querySelectorAll('.demo-kind').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); });
       goBtn.textContent = '▶ Open the ' + k.short + ', with a 2-minute tour';
-    } }, el('span.demo-kind-ico', { 'aria-hidden': 'true' }, k.icon), el('span', {}, el('b', {}, k.name), el('span.hint', {}, k.text)));
+    } }, el('img.demo-kind-shot', { src: '/img/demo/' + k.key + '.jpg', alt: '', loading: 'lazy', width: 640, height: 360 }),
+      el('span.demo-kind-body', {}, el('span.demo-kind-ico', { 'aria-hidden': 'true' }, k.icon), el('span', {}, el('b', {}, k.name), el('span.hint', {}, k.text))));
     return b;
   }));
   const many = el('details.demo-many', {}, el('summary', {}, 'Try it as several people (invites, comments, roles)'));
@@ -209,14 +210,17 @@ function demoWelcome(box, note, wrap) {
   const f2 = el('form', { style: { display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' } }, n2, e2, el('button.btn', { type: 'submit' }, 'Sign in as this person'));
   f2.addEventListener('submit', (e) => { e.preventDefault(); if (!isValidEmail(e2.value)) { note.textContent = 'Enter an email address (it can be made up).'; return; } wrap(() => backend.auth.signInDemo(e2.value, n2.value.trim()))(); });
   many.append(el('p.hint', {}, 'Open a second tab and sign in as a teammate to see invitations, comments and live updates between people.'), f2);
-  box.append(
-    el('div.demo-welcome', {}, el('b', {}, 'This is the real app with a made-up team.'), el('span.hint', {}, ' Everything you do stays in this browser; nothing is sent anywhere.')),
-    kinds,
+  // Fill the page: the four sample teams on the right, and on the left everything else (start, several people, what's new).
+  document.querySelectorAll('#lp-signin .demo-left').forEach(x => x.remove());
+  const left = el('div.demo-left');
+  const copy = document.querySelector('#lp-signin .lp-signin-copy'); if (copy) copy.append(left);
+  box.append(el('div.demo-welcome', {}, el('b', {}, 'Pick a team to explore.'), el('span.hint', {}, ' This is the real app with a made-up team. Everything stays in this browser; nothing is sent anywhere.')), kinds);
+  (copy ? left : box).append(
     name,
     goBtn,
     el('button.btn.block', { type: 'button', id: 'demo-empty', onclick: go('empty') }, 'Start with an empty team'),
     many,
-    el('details.demo-new', {}, el('summary', {}, 'New in Trawpie'),
+    el('details.demo-new', { open: !!copy && window.matchMedia('(min-width: 961px)').matches }, el('summary', {}, 'New in Trawpie'),
       el('ul', {}, ['List view: every task in one table you can sort, group and edit (☰ List at the top of the board)',
         'A Backlog column for work that isn’t planned into a week yet',
         'Automatic carry-over: unfinished tasks move into the new week on their own (Settings ▸ Workflow)',

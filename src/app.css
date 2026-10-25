@@ -1384,3 +1384,24 @@ body.look-pro .icon-pick.on { color: var(--line-color); }
 body.look-pro .mt-prio .emo-ico svg { width: 18px; height: 18px; }
 body.look-pro .mt-prio.p-blocker { color: var(--blocker, #e53e3e); } body.look-pro .mt-prio.p-critical { color: #dd6b20; }
 body.look-pro .mt-prio.p-major { color: #d69e2e; } body.look-pro .mt-prio.p-minor { color: var(--text-muted); }
+
+/* Demo page: fills the width. Left: intro, start buttons and what's new. Right: the four sample teams with a preview of each board. */
+.landing .lp-signin.lp-demo-first { grid-template-columns: minmax(300px, .85fr) minmax(0, 1.35fr); max-width: 1320px; gap: clamp(28px, 4vw, 64px); }
+.lp-demo-first .demo-left { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; max-width: 480px; }
+.lp-demo-first .demo-left .inp, .lp-demo-first .demo-left .btn { width: 100%; box-sizing: border-box; }
+.lp-demo-first .demo-left .btn.primary { background: var(--lp-ink, #0f1729); border-color: var(--lp-ink, #0f1729); color: #fff; }
+.lp-demo-first .demo-left .demo-new { margin-top: 8px; font-size: 14px; }
+.lp-demo-first .demo-left .demo-new ul { gap: 6px; }
+.lp-demo-first .lp-card { padding: 22px; }
+.lp-demo-first .demo-welcome { margin-bottom: 14px; }
+.lp-demo-first .demo-kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.lp-demo-first .demo-kind { flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: hidden; border-radius: 14px; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.lp-demo-first .demo-kind:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -18px rgba(30, 50, 100, .45); }
+.lp-demo-first .demo-kind.on { box-shadow: 0 0 0 2px var(--line-color), 0 14px 30px -18px rgba(30, 50, 100, .45); }
+.demo-kind-shot { display: none; }
+.lp-demo-first .demo-kind-shot { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; object-position: top left; border-bottom: 1px solid var(--border-color); background: #f3f5fa; }
+.demo-kind-body { display: flex; align-items: flex-start; gap: 12px; }
+.lp-demo-first .demo-kind-body { padding: 12px 14px 14px; }
+@media (max-width: 960px) { .landing .lp-signin.lp-demo-first { grid-template-columns: 1fr; } .lp-demo-first .demo-left { max-width: none; } }
+@media (max-width: 560px) { .lp-demo-first .demo-kinds { grid-template-columns: 1fr; } }
+.landing .lp-signin-copy .demo-left p.hint { font-size: 13.5px; max-width: none; color: var(--lp-muted); }
