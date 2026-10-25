@@ -336,6 +336,18 @@ section.block { padding: 72px 0; }
 .sw .pv { height: 52px; border-radius: 9px; background: var(--b); display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 6px; margin-bottom: 7px; border: 1.5px solid rgba(0,0,0,.15); }
 .sw .pv i { background: var(--c); border-radius: 4px; } .sw .pv i:nth-child(2) { background: var(--d); }
 .custom-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 26px; }
+.whats-new { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.whats-new .custom-list { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 980px) { .whats-new .custom-list { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 700px) { .whats-new .custom-list { grid-template-columns: 1fr; } .whats-new .feat { box-shadow: 3px 3px 0 var(--ink); } }
+.whats-new .feat { background: var(--card); border: 2px solid var(--ink); border-radius: 14px; padding: 16px; box-shadow: 4px 4px 0 var(--ink); }
+.whats-new .feat a { color: var(--accent); font-weight: 700; }
+.lst { padding: 10px; font-size: 12px; display: grid; gap: 4px; }
+.lst .lh, .lst .lr { display: grid; grid-template-columns: 1.8fr 1fr .8fr .8fr; gap: 8px; align-items: center; }
+.lst .lh { font: 700 10px var(--mono); text-transform: uppercase; color: var(--muted); padding: 2px 8px; letter-spacing: .04em; }
+.lst .lg { font-weight: 800; font-size: 11px; color: var(--ink); padding: 6px 8px 2px; }
+.lst .lr { background: var(--card); border: 1.5px solid var(--ink); border-left: 5px solid var(--cat, var(--sky)); border-radius: 7px; padding: 6px 8px; color: var(--ink); }
+.lst .lr .late { color: var(--coral); font-weight: 700; } .lst .lr .bl { color: var(--accent); font-weight: 700; }
 @media (max-width: 700px) { .custom-list { grid-template-columns: 1fr; } }
 
 /* Plans */
@@ -378,7 +390,7 @@ footer a { color: var(--ink-2); }
   <div class="wrap">
     <a class="logo" href="./"><img src="icons/logo-96.png" alt=""><span>Trawpie</span><small>GUIDE</small></a>
     <nav class="toc" aria-label="Sections">
-      <a href="#start">Quick start</a><a href="#board">The board</a><a href="#weeks">Weeks</a><a href="#tasks">Tasks</a><a href="#views">Views</a><a href="#tools">Tools</a><a href="#roles">Roles</a><a href="#sync">Stay in sync</a><a href="#plans">Plans</a><a href="#compare">Compare</a><a href="#faq">FAQ</a><a href="security.html">Security</a>
+      <a href="#new">New</a><a href="#start">Quick start</a><a href="#board">The board</a><a href="#weeks">Weeks</a><a href="#tasks">Tasks</a><a href="#views">Views</a><a href="#tools">Tools</a><a href="#roles">Roles</a><a href="#sync">Stay in sync</a><a href="#plans">Plans</a><a href="#compare">Compare</a><a href="#faq">FAQ</a><a href="security.html">Security</a>
     </nav>
     <a class="btn primary" href="./">Open Trawpie →</a>
   </div>
@@ -423,6 +435,21 @@ footer a { color: var(--ink-2); }
         <svg class="cursor" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" fill="#fff" stroke="#14213d" stroke-width="2" stroke-linejoin="round"/></svg>
       </div>
       <span class="sticker s2">Week 42 · this week ●</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ What's new ═══ -->
+<section class="block whats-new" id="new">
+  <div class="wrap">
+    <div class="sec-head"><span class="num">★</span><div><h2>New in Trawpie</h2><p>The latest additions, and where to find them.</p></div></div>
+    <div class="custom-list">
+      <div class="feat"><span class="i">☰</span><div><h3>List view and a Backlog</h3><p>Pick <b>☰ List</b> at the top of the board: every task in one table you can sort, group (by person, week, stage or priority) and edit in place. Add a <b>Backlog</b> column for work that isn’t planned into a week yet. <a href="#views">More below ↓</a></p></div></div>
+      <div class="feat"><span class="i">↪️</span><div><h3>Automatic carry-over</h3><p>Unfinished tasks move into the new week on their own, with their history. Owners switch it on in <b>Settings ▸ Workflow ▸ Automatic steps</b>, and can flag tasks that keep rolling over.</p></div></div>
+      <div class="feat"><span class="i">📎</span><div><h3>File health</h3><p>Google Drive and OneDrive files on a task show <b>Access lost</b>, <b>Personal drive</b> or <b>✓ Opens</b>, with who to ask and a one-click re-link. The whole team’s list is in <b>Settings ▸ Integrations</b>.</p></div></div>
+      <div class="feat"><span class="i">🎨</span><div><h3>Friendly or Professional, everywhere</h3><p>Teams pick their look in <b>Settings ▸ General</b>; your home page has its own switch under <b>🎨 Theme</b>. Professional swaps emoji for clean line icons, including task icons.</p></div></div>
+      <div class="feat"><span class="i">🏎️</span><div><h3>A Formula Student demo team</h3><p>The live demo now has four made-up teams: a drone team, an engineering company, a CubeSat mission and a <a href="/demo?team=formula">Formula Student race team</a>.</p></div></div>
+      <div class="feat"><span class="i">📝</span><div><h3>Guides on the blog</h3><p>Practical write-ups on <a href="/blog/how-to-plan-a-student-engineering-project.html">planning a student project</a>, <a href="/blog/how-to-run-a-formula-student-season.html">running a Formula Student season</a> and <a href="/blog/how-to-track-parts-and-budget-for-a-student-robotics-team.html">tracking parts and budget</a>.</p></div></div>
     </div>
   </div>
 </section>
@@ -550,12 +577,13 @@ footer a { color: var(--ink-2); }
 <!-- ═══ 4 Views ═══ -->
 <section class="block" id="views" style="background:color-mix(in srgb, var(--paper-2) 70%, transparent)">
   <div class="wrap">
-    <div class="sec-head"><span class="num">05</span><div><h2>Four ways to look at the same work</h2><p>Same data, different questions answered. Switch at the top of the board.</p></div></div>
+    <div class="sec-head"><span class="num">05</span><div><h2>Five ways to look at the same work</h2><p>Same data, different questions answered. Switch at the top of the board; switching never moves or copies anything.</p></div></div>
     <div class="tabs" role="tablist" id="view-tabs">
       <button class="on" data-v="board" type="button" role="tab">▦ Board</button>
       <button data-v="kanban" type="button" role="tab">🗂️ Kanban</button>
       <button data-v="analytics" type="button" role="tab">📊 Analytics</button>
       <button data-v="timeline" type="button" role="tab">📅 Timeline</button>
+      <button data-v="list" type="button" role="tab">☰ List</button>
     </div>
 
     <div class="view on grid2" data-v="board">
@@ -598,6 +626,20 @@ footer a { color: var(--ink-2); }
           <span class="today hide-sm"></span>
         </div></div>
       <div class="view-copy"><h3>“What’s coming, and when?”</h3><p>Deadlines and project phases on one timeline.</p><ul><li>Give phases start and end dates in <b>Settings ▸ Phases</b>.</li><li>See at once if a phase is running late.</li><li>Export deadlines to your calendar as an <b>.ics</b> file, with a reminder the day before.</li></ul></div>
+    </div>
+    <div class="view grid2" data-v="list">
+      <div class="win"><div class="win-bar"><i></i><i></i><i></i><b>☰ List</b><span style="margin-left:auto">Group by: Stage</span></div>
+        <div class="lst">
+          <div class="lh"><span>Task</span><span>Owner</span><span>Week</span><span>Due</span></div>
+          <div class="lg">● Design · 2</div>
+          <div class="lr" style="--cat:var(--coral)"><b>Order servos</b><span>Ben</span><span>Wk 8</span><span class="late">2d late</span></div>
+          <div class="lr" style="--cat:var(--sun)"><b>Poster</b><span>Ben</span><span>Wk 8</span><span>Fri</span></div>
+          <div class="lg">● Review · 1</div>
+          <div class="lr" style="--cat:var(--teal)"><b>Analysis</b><span>Aisha</span><span>Wk 8</span><span>Thu</span></div>
+          <div class="lg">● Backlog</div>
+          <div class="lr" style="--cat:var(--violet)"><b>Lighter battery tray</b><span>Tom</span><span class="bl">Backlog</span><span>—</span></div>
+        </div></div>
+      <div class="view-copy"><h3>“Show me everything, sorted.”</h3><p>Every task in one table, with no weeks needed.</p><ul><li>Sort by any column; click again to reverse.</li><li>Group by person, week, stage or priority; hide done or show only yours.</li><li>Change stage and priority right in the row; click a row to open the task.</li><li>Add a <b>Backlog</b> column for work that isn’t planned into a week yet.</li></ul></div>
     </div>
   </div>
 </section>
@@ -670,6 +712,8 @@ footer a { color: var(--ink-2); }
       <div class="mc"><span class="i">🔍</span><h3>Search everything</h3><p>Press <kbd>Ctrl</kbd> + <kbd>K</kbd> (or <kbd>/</kbd>) to find any task, person, meeting or paper in a heartbeat.</p></div>
       <div class="mc"><span class="i">✨</span><h3>AI summary</h3><p>One click writes a status update from the board. Paste it into any free chatbot, or add your own free Gemini key to get answers inside the app.</p></div>
       <div class="mc"><span class="i">📊</span><h3>Reports &amp; exports</h3><p>Download an Excel report, export to Google Sheets, add deadlines to your calendar, or download a full backup.</p></div>
+      <div class="mc"><span class="i">↪️</span><h3>Unfinished work carries itself</h3><p>Switch on <b>Settings ▸ Workflow ▸ Automatic steps ▸ carry unfinished tasks</b> and anything not done moves into the new week with its history. A task that keeps rolling over gets a flag.</p></div>
+      <div class="mc"><span class="i">📎</span><h3>Files that say when they break</h3><p>Drive and OneDrive files on a task are checked with your own sign-in: <b>Access lost</b> comes with who to ask and a re-link button; <b>Personal drive</b> warns before someone leaves with the file.</p></div>
       <div class="mc"><span class="i">🖱️</span><h3>Live cursors</h3><p>See where teammates are pointing, with their name, in their own colour. On whiteboards it’s on by default; on the board, tick <b>Live cursors</b> under the online faces.</p></div>
       <div class="mc"><span class="i">🟠</span><h3>Who’s editing what</h3><p>A task someone has open glows in their colour with “Tom is editing”, so two people don’t change the same task at once.</p></div>
       <div class="mc"><span class="i">🧩</span><h3>Joint board</h3><p>In more than one team? <b>Joint board</b> on your team list shows them all side by side, week by week. Click a card to open it in its own team.</p></div>
@@ -695,6 +739,7 @@ footer a { color: var(--ink-2); }
       <button class="sw" type="button" data-acc="#8a6d3b" data-mode="light" style="--b:#f8f3e6;--c:#8a6d3b;--d:#e7dcc2">Paper</button>
     </div>
     <div class="custom-list">
+      <div class="feat"><span class="i">🎨</span><div><h3>Friendly or Professional look</h3><p>Friendly uses emoji and colour; Professional uses clean line icons. A team’s owner picks its look in <b>Settings ▸ General</b>, and you choose your own home page look under <b>🎨 Theme</b>.</p></div></div>
       <div class="feat"><span class="i">🧭</span><div><h3>Phases</h3><p>Stages of the project (Research → Design → Build → Test) with dates. Pick a task’s phase in the editor or from its right-click menu.</p></div></div>
       <div class="feat"><span class="i">📋</span><div><h3>Templates</h3><p>Save a task with its sub-tasks (“Experiment: plan, run, analyse, write up”), then add it anywhere from a column’s right-click menu.</p></div></div>
       <div class="feat"><span class="i">🏷️</span><div><h3>Custom fields &amp; labels</h3><p>Add fields like “Supervisor”, “Module code” or “Lab booked?”. Rename built-in labels to match how your team talks.</p></div></div>

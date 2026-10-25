@@ -216,12 +216,14 @@ function demoWelcome(box, note, wrap) {
     goBtn,
     el('button.btn.block', { type: 'button', id: 'demo-empty', onclick: go('empty') }, 'Start with an empty team'),
     many,
-    el('details.demo-new', {}, el('summary', {}, 'New: working together'),
-      el('ul', {}, ['Live cursors: see where teammates point, on the board and on whiteboards (open a whiteboard to see a sample teammate, Maya)',
-        'A glow in someone’s colour on the task they’re editing',
-        'Guests: invite a supplier or supervisor with limited access',
-        'Joint board: all your teams side by side',
-        'Drag the people column narrower to give tasks more room'].map(t => el('li', {}, t)))),
+    el('details.demo-new', {}, el('summary', {}, 'New in Trawpie'),
+      el('ul', {}, ['List view: every task in one table you can sort, group and edit (☰ List at the top of the board)',
+        'A Backlog column for work that isn’t planned into a week yet',
+        'Automatic carry-over: unfinished tasks move into the new week on their own (Settings ▸ Workflow)',
+        'File health: Drive and OneDrive files say when they can’t be opened, with a one-click re-link',
+        'Friendly or Professional look for each team, and for your own home page (🎨 Theme)',
+        'A Formula Student team to try, next to the drone team, company and CubeSat',
+        'Working together: live cursors, a glow on the task someone is editing, guests and the joint board'].map(t => el('li', {}, t)))),
     el('p.hint', {}, 'Free for student teams. Ready for real? ', el('a', { href: '/' }, 'Sign in to Trawpie →')));
 }
 /** The sample team (src/sample.js): opens your existing copy, or loads one. tour = start the guided tour once it's open. */
