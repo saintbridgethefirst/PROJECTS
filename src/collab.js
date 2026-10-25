@@ -329,7 +329,7 @@ export function renderMyTasks(box, work, uid, { showDone = false, onToggle, onOp
     list.forEach(r => {
       const sub = (r.t.subtasks || []); const subDone = sub.filter(s => s.completed).length;
       box.append(el('button.mt-row' + (r.done ? '.done' : ''), { type: 'button', onclick: () => onOpen(r.teamId, r.t.id) },
-        el('span.mt-prio', { title: r.t.priority }, PRIO_ICON[r.t.priority] || ''),
+        el('span.mt-prio.p-' + String(r.t.priority || '').toLowerCase(), { title: r.t.priority, dataset: { emo: PRIO_ICON[r.t.priority] || '' } }, PRIO_ICON[r.t.priority] || ''),
         el('span.mt-main', {}, el('span.mt-name', {}, r.t.name || 'Untitled task'),
           el('span.mt-meta', {}, el('span.pill', {}, r.team), r.week ? el('span', {}, r.week) : '', r.carry > 1 ? el('span.gt-carry', { title: 'Carried forward across ' + r.carry + ' weeks' }, '↪ ' + r.carry + ' wks') : '',
             r.phase ? el('span.phase-tag', { style: { '--phase': r.phase.color } }, r.phase.name) : '',

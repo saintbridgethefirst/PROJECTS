@@ -1373,3 +1373,14 @@ body.look-pro .task-icon.has-line .look-ico svg { width: 14px; height: 14px; }
 body.look-pro .icon-pick .emo-ico svg { width: 20px; height: 20px; }
 body.look-pro .icon-pick { color: var(--text-main); }
 body.look-pro .icon-pick.on { color: var(--line-color); }
+
+/* Theme panel: Friendly / Professional look for the home page */
+.look-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+.look-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-panel); color: var(--text-main); font: inherit; text-align: left; cursor: pointer; }
+.look-opt b { font-size: 14px; }
+.look-opt:hover { border-color: color-mix(in srgb, var(--line-color) 45%, var(--border-color)); }
+.look-opt.on { border-color: var(--line-color); box-shadow: 0 0 0 1px var(--line-color); background: color-mix(in srgb, var(--line-color) 7%, var(--bg-panel)); }
+/* Professional look on the home page: priority as a coloured line icon in My tasks */
+body.look-pro .mt-prio .emo-ico svg { width: 18px; height: 18px; }
+body.look-pro .mt-prio.p-blocker { color: var(--blocker, #e53e3e); } body.look-pro .mt-prio.p-critical { color: #dd6b20; }
+body.look-pro .mt-prio.p-major { color: #d69e2e; } body.look-pro .mt-prio.p-minor { color: var(--text-muted); }

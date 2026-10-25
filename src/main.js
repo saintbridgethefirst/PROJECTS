@@ -18,7 +18,7 @@ import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFi
 import { carryRoots, cleanFeatures, TEAM_STARTS, startFeatures, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, PLANS, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
 import { runAutos, afterCommit } from './autos.js';
 import { startI18n, setLang, currentLang, LANGS, translate } from './i18n.js';
-import { setLook } from './look.js';
+import { setLook, homeLook, setHomeLook } from './look.js';
 import { initTooltips } from './tooltip.js';
 import { startCursors, stopCursors } from './cursors.js';
 import { openJointBoard } from './joint.js';
@@ -375,6 +375,7 @@ function renderHome() {
   const acc = $('#home-account'); acc.replaceChildren(avatar(user), el('span', {}, user.name));
   acc.onclick = () => openAccount();
   $('#home-theme').onclick = () => openThemes();
+  if (!session) setLook(homeLook());
   $('#home-search').onclick = () => startSearch();
 
   refreshInstallBanner();
@@ -671,7 +672,18 @@ function themePreview(id) {
 function openThemes() {
   const m = modal('Theme'); m.foot.remove();
   const draw = () => {
-    m.body.replaceChildren(el('p.hint', { style: { marginTop: 0 } }, 'Pick the colours you like. Only you see your theme, and it follows you to every device you sign in on.'));
+    // Look of your home page: emoji (Friendly) or clean line icons (Professional). Each team keeps its own look.
+    const cur = homeLook();
+    const pick = (v) => { setHomeLook(v); if (!session) setLook(v); draw(); toast(v === 'professional' ? 'Home page: Professional look.' : 'Home page: Friendly look.', 2500); };
+    const look = el('div.look-pick', { role: 'radiogroup', 'aria-label': 'Home page look' },
+      ...[['friendly', 'Friendly', 'Emoji and colour'], ['professional', 'Professional', 'Clean line icons, no emoji']].map(([v, name, note]) =>
+        el('button.look-opt' + (cur === v ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(cur === v), dataset: { look: v }, onclick: () => pick(v) }, el('b', {}, name), el('span.hint', {}, note))));
+    m.body.replaceChildren(
+      el('div.theme-group', { style: { marginTop: 0 } }, 'Home page look'),
+      el('p.hint', { style: { margin: '0 0 8px' } }, 'How your home page and team list look to you. Each team has its own look, set by its owner in Settings ▸ General.'),
+      look,
+      el('div.theme-group', {}, 'Colours'),
+      el('p.hint', { style: { marginTop: 0 } }, 'Pick the colours you like. Only you see your theme, and it follows you to every device you sign in on.'));
     [['', THEMES.filter(t => t.mode === 'auto')], ['Dark', THEMES.filter(t => t.mode === 'dark')], ['Light', THEMES.filter(t => t.mode === 'light')]].forEach(([label, list]) => {
       if (label) m.body.append(el('div.theme-group', {}, label));
       m.body.append(el('div.theme-grid', { role: 'radiogroup', 'aria-label': label || 'Automatic' }, ...list.map(t => el('button.theme-card' + (t.id === currentTheme() ? '.on' : ''), {
@@ -845,7 +857,7 @@ function drawStart() {
 window.TTStartRefresh = () => drawStart();
 
 function closeTeam() {
-  setLook('friendly');
+  setLook(homeLook());   // back to your own look for the home page
   if (!session) return;
   endTour();
   if (window.__wbClose) window.__wbClose();

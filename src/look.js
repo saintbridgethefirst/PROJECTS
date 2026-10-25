@@ -17,7 +17,7 @@ const BUTTONS = [
   ['[onclick*="openAnalytics(\'timeline\')"]', 'calendar-range'], ['#research-btn', 'wrench'], ['#online-btn', 'users'], ['#activity-btn', 'bell'],
   ['#wb-btn', 'presentation'], ['#approvals-btn', 'check-check'], ['#share-btn', 'share-2'], ['[onclick*="TT.openAI"]', 'sparkles'],
   ['[onclick*="scrollToToday"]', 'crosshair'], ['[onclick="TT.openSettings()"]', 'settings'], ['#nav-collapse', 'panel-left-close'],
-  ['[onclick="toggleSidebar()"]', 'panel-right'], ['#theme-toggle-outer', 'palette'], ['#crossteam-btn', 'users'], ['#joint-btn', 'layers'], ['#home-search', 'search'],
+  ['[onclick="toggleSidebar()"]', 'panel-right'], ['#theme-toggle-outer', 'palette'], ['#crossteam-btn', 'users'], ['#joint-btn', 'layers'], ['#home-search', 'search'], ['#home-guide', 'book-open'], ['#home-feedback', 'message-square'], ['#home-theme', 'palette'],
   // Settings ▸ Features: each module's emoji becomes a line icon
   ...Object.entries({ planning: 'calendar-range', meetings: 'clipboard-list', notebook: 'notebook-pen', literature: 'book-open', whiteboards: 'presentation',
     subteams: 'puzzle', parts: 'package', finance: 'wallet', people: 'users', time: 'clock', risks: 'shield-alert', requirements: 'ruler' })
@@ -34,7 +34,8 @@ const TASK_ICON = { '🔧': 'wrench', '🛠': 'wrench', '⚙': 'settings', '🤖
   '📝': 'notebook-pen', '📜': 'file-text', '📄': 'file-text', '💡': 'lightbulb', '🚀': 'rocket', '🎯': 'target', '⚡': 'zap', '🔌': 'plug', '🖥': 'monitor', '💻': 'monitor',
   '📦': 'package', '🧠': 'cpu', '📷': 'camera', '🛒': 'shopping-cart', '🔋': 'battery', '📣': 'megaphone', '📢': 'megaphone', '📡': 'radio', '🧭': 'compass',
   '✅': 'square-check', '📅': 'calendar', '🗓': 'calendar', '👥': 'users', '🤝': 'users', '✏': 'pencil', '🔩': 'package', '💷': 'wallet', '💰': 'wallet', '🧩': 'puzzle', '🔗': 'link', '📌': 'pin', '🚩': 'flag',
-  '✉': 'mail', '📧': 'mail', '🏛': 'landmark', '🧾': 'receipt', '🗺': 'map', '🛰': 'satellite', '🖨': 'printer', '🧵': 'plug', '📶': 'wifi', '🧮': 'calculator' };
+  '✉': 'mail', '📧': 'mail', '🏛': 'landmark', '🧾': 'receipt', '🗺': 'map', '🛰': 'satellite', '🖨': 'printer', '🧵': 'plug', '📶': 'wifi', '🧮': 'calculator',
+  '⛔': 'octagon-alert', '🔴': 'chevrons-up', '🟠': 'chevron-up', '🔽': 'chevron-down', '⏫': 'chevrons-up', '🔼': 'chevron-up' };
 export const taskIconName = (emo) => TASK_ICON[String(emo || '').replace(/[\uFE0F\u200D]/g, '')] || '';
 const EMOJI = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[▦⇤⇥☰⌂])(?:️|‍(?:\p{Extended_Pictographic})|\p{Emoji_Modifier}|⃣)*/gu;
 const HAS = new RegExp(EMOJI.source, 'u');
@@ -45,6 +46,10 @@ const textDone = new WeakMap();   // text node → its original text
 const iconsAdded = new Set();     // icon spans we put in, removed when switching back
 
 export function currentLook() { return on ? 'professional' : 'friendly'; }
+/** Your own look for the home page (teams each keep the look their owner chose). Kept on this device. */
+const HOME_LOOK = 'tt_home_look';
+export function homeLook() { try { return localStorage.getItem(HOME_LOOK) === 'professional' ? 'professional' : 'friendly'; } catch { return 'friendly'; } }
+export function setHomeLook(look) { try { localStorage.setItem(HOME_LOOK, look === 'professional' ? 'professional' : 'friendly'); } catch { /* private mode: this visit only */ } }
 
 export function setLook(look) {
   const want = look === 'professional';
