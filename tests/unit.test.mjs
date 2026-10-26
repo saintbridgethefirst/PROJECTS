@@ -1031,6 +1031,24 @@ test('SEO: the dissertation Gantt chart template page, its download and its link
   ['public/dissertation.html', 'public/blog/gantt-chart-for-a-dissertation-or-final-year-project.html', 'index.html'].forEach(p => assert.match(read(p), /href="\/templates\/dissertation-gantt-chart"/, p + ' links to it'));
 });
 
+test('blog: every post is listed, in the sitemap, and its images exist', async () => {
+  const fs = await import('node:fs');
+  const read = (p) => fs.readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+  const index = read('public/blog/index.html'), sitemap = read('public/sitemap.xml');
+  const posts = fs.readdirSync(new URL('../public/blog/', import.meta.url)).filter(f => f.endsWith('.html') && f !== 'index.html');
+  assert.ok(posts.includes('how-to-plan-a-dissertation.html'));
+  posts.forEach(f => {
+    assert.ok(index.includes('href="/blog/' + f + '"'), f + ' is on the blog page');
+    assert.ok(sitemap.includes('<loc>https://trawpie.org/blog/' + f + '</loc>'), f + ' is in the sitemap');
+    const html = read('public/blog/' + f);
+    assert.match(html, new RegExp('<link rel="canonical" href="https://trawpie\\.org/blog/' + f.replace(/\./g, '\\.') + '">'), f + ' canonical');
+    (html.match(/<img src="\/[^"]+"/g) || []).forEach(m => { const src = m.slice(10, -1); assert.ok(fs.existsSync(new URL('../public' + src, import.meta.url)), f + ': ' + src); });
+    const og = (html.match(/<meta property="og:image" content="https:\/\/trawpie\.org(\/[^"]+)">/) || [])[1];
+    assert.ok(og && fs.existsSync(new URL('../public' + og, import.meta.url)), f + ': share image ' + og);
+    JSON.parse(html.match(/<script type="application\/ld\+json">([^<]+)<\/script>/)[1]);
+  });
+});
+
 test('SEO: the Formula Student page is served, listed and linked', async () => {
   const fs = await import('node:fs');
   const read = (p) => fs.readFileSync(new URL('../' + p, import.meta.url), 'utf8');
