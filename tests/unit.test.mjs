@@ -1014,6 +1014,22 @@ test('SEO: the demo page gets its own title, description and canonical; the home
   assert.equal((sm.match(/<url>/g) || []).length, (sm.match(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/g) || []).length, 'every sitemap URL has a lastmod');
 });
 
+test('SEO: the dissertation Gantt chart template page, its download and its links', async () => {
+  const fs = await import('node:fs');
+  const read = (p) => fs.readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+  const page = read('public/templates/dissertation-gantt-chart.html');
+  assert.match(page, /<link rel="canonical" href="https:\/\/trawpie\.org\/templates\/dissertation-gantt-chart">/);
+  assert.match(page, /<h1>Dissertation Gantt chart template<\/h1>/);
+  assert.ok(fs.statSync(new URL('../public/templates/dissertation-gantt-chart.xlsx', import.meta.url)).size > 20000, 'the spreadsheet is there');
+  const ld = JSON.parse(page.match(/<script type="application\/ld\+json">([^<]+)<\/script>/)[1]);
+  assert.ok(ld['@graph'].some(x => x['@type'] === 'BreadcrumbList') && ld['@graph'].some(x => x['@type'] === 'DigitalDocument'));
+  const fb = JSON.parse(read('firebase.json'));
+  const rw = (Array.isArray(fb.hosting) ? fb.hosting[0] : fb.hosting).rewrites;
+  assert.ok(rw.findIndex(r => r.source === '/templates/dissertation-gantt-chart' && r.destination === '/templates/dissertation-gantt-chart.html') < rw.findIndex(r => r.source === '**'));
+  assert.match(read('public/sitemap.xml'), /<loc>https:\/\/trawpie\.org\/templates\/dissertation-gantt-chart<\/loc>/);
+  ['public/dissertation.html', 'public/blog/gantt-chart-for-a-dissertation-or-final-year-project.html', 'index.html'].forEach(p => assert.match(read(p), /href="\/templates\/dissertation-gantt-chart"/, p + ' links to it'));
+});
+
 test('index.html: the landing footer stays right after the landing page (its CSS uses the + selector)', async () => {
   const fs = await import('node:fs');
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');

@@ -183,7 +183,18 @@ const DEMO_NEXT = 'tt_demo_next', DEMO_TOUR = 'tt_demo_tour';
 /** trawpie.org/dissertation links here with ?plan=dissertation: the create form starts as a dissertation workspace. */
 const WANT_DISS = 'tt_want_diss';
 const wantsDissertation = () => { try { return new URLSearchParams(location.search).get('plan') === 'dissertation' || sget(WANT_DISS) === '1'; } catch { return false; } };
-try { if (new URLSearchParams(location.search).get('plan') === 'dissertation') sessionStorage.setItem(WANT_DISS, '1'); } catch { /* */ }
+// The Gantt chart template page can pass the level and dates it showed: the setup starts with them.
+const DISS_PREFILL = 'tt_diss_prefill';
+try {
+  const q = new URLSearchParams(location.search);
+  if (q.get('plan') === 'dissertation') {
+    sessionStorage.setItem(WANT_DISS, '1');
+    const pre = { level: q.get('level') || '', start: q.get('start') || '', handIn: q.get('handin') || '' };
+    if (pre.level || pre.start || pre.handIn) sessionStorage.setItem(DISS_PREFILL, JSON.stringify(pre));
+  }
+} catch { /* */ }
+/** The level and dates passed in the link (once), or null. */
+const takeDissPrefill = () => { try { const v = JSON.parse(sget(DISS_PREFILL) || 'null'); sset(DISS_PREFILL, null); return v; } catch { return null; } };
 /** Fill the create form for a dissertation; `make` also creates it (the demo, where the visitor chose it). */
 function startDissertationTeam(make) {
   const form = document.getElementById('create-team-form'); if (!form || !form.start) return;
@@ -1049,7 +1060,7 @@ async function onFirstLoad() {
   const s = session;
   startPresence(ctx); startCursors(ctx);
   if (sget(PRACTICE) === s.teamId) { sset(PRACTICE, null); setTimeout(() => addPracticeTasks(s), 600); }
-  if (sget(DISS_SETUP) === s.teamId) { sset(DISS_SETUP, null); setTimeout(() => { if (session === s) import('./dissertation-ui.js').then(m => m.openDissertationSetup(ctx(), { onDone: () => openResearch(ctx(), 'dissertation') })); }, 700); }
+  if (sget(DISS_SETUP) === s.teamId) { sset(DISS_SETUP, null); setTimeout(() => { if (session === s) import('./dissertation-ui.js').then(m => m.openDissertationSetup(ctx(), { prefill: takeDissPrefill(), onDone: () => openResearch(ctx(), 'dissertation') })); }, 700); }
   // Teams made before a permission existed: give the built-in roles that permission's default, once.
   if (can(s.team, s.me, 'roles.manage')) {
     const roles = JSON.parse(JSON.stringify(s.team.roles || {})); let changed = false;

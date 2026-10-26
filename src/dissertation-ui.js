@@ -19,13 +19,16 @@ export const SUPERVISOR_ROLE = { name: 'Supervisor', builtin: false, order: 3, p
  * The setup form. Fills in from the team's saved dissertation record (to change the plan later)
  * or sensible defaults. `onDone(plan)` runs after the plan is applied.
  */
-export function openDissertationSetup(ctx, { onDone } = {}) {
+export function openDissertationSetup(ctx, { onDone, prefill } = {}) {
   const saved = dissertationOf(ctx.session) || {};
+  // A first setup can start from the level and dates in a link (the Gantt chart template page).
+  const pre = !saved.setupAt && prefill && typeof prefill === 'object' ? prefill : {};
+  const level0 = saved.level || (LEVELS[pre.level] ? pre.level : 'ug');
   const st = {
-    level: saved.level || 'ug', kind: saved.kind || 'people',
-    start: saved.start || todayISO(), handIn: saved.handIn || '',
+    level: level0, kind: saved.kind || 'people',
+    start: saved.start || (isISO(pre.start) ? pre.start : todayISO()), handIn: saved.handIn || (isISO(pre.handIn) && (!isISO(pre.start) || pre.handIn > pre.start) ? pre.handIn : ''),
     dates: { ...(saved.dates || {}) },
-    chapters: (saved.chapters && saved.chapters.length ? saved.chapters : defaultChapters(saved.level || 'ug', saved.kind || 'people')).map(c => ({ ...c })),
+    chapters: (saved.chapters && saved.chapters.length ? saved.chapters : defaultChapters(level0, saved.kind || 'people')).map(c => ({ ...c })),
     chaptersTouched: !!(saved.chapters && saved.chapters.length), supervisor: '',
   };
   if (!st.handIn) st.handIn = addMonths(st.start, LEVELS[st.level].months);

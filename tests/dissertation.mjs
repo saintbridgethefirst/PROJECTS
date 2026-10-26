@@ -200,6 +200,26 @@ try {
   await D.click('#demo-diss'); await D.waitForSelector('.modal.diss-setup', { timeout: 15000 });
   ok(Object.values((await store(D)).teams).some(t => t.doc.name === 'My dissertation' && t.doc.features.dissertation), 'the setup opens in a new dissertation workspace');
   await ctx2.close();
+
+  step('The Gantt chart template page: a live chart from your dates, the download, and a plan with the same dates');
+  const ctx3 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const G = await ctx3.newPage(); G.on('pageerror', e => errors.push('template: ' + e.message));
+  await G.goto(BASE + 'templates/dissertation-gantt-chart.html'); await G.waitForSelector('#g-chart .tr');
+  ok(await G.locator('#g-chart .tr').count() === 13 && await G.locator('#g-chart .dia').count() === 4, 'undergraduate: 9 phases and 4 milestones');
+  const xlsx = await G.evaluate(async () => { const r = await fetch('/templates/dissertation-gantt-chart.xlsx'); return { ok: r.ok, size: (await r.arrayBuffer()).byteLength }; });
+  ok(xlsx.ok && xlsx.size > 20000, 'the spreadsheet downloads');
+  await G.click('.seg button[data-level="phd"]'); await sleep(100);
+  await G.fill('#g-start', '2026-10-05'); await G.dispatchEvent('#g-start', 'change');
+  await G.fill('#g-end', '2030-03-29'); await G.dispatchEvent('#g-end', 'change'); await sleep(100);
+  ok(await G.locator('#g-chart .tr').count() === 18 && /Thesis submission/.test(await G.textContent('#g-end-l')), 'PhD: its own phases and milestones');
+  ok(/^\/demo\?plan=dissertation&level=phd&start=2026-10-05&handin=2030-03-29$/.test(await G.getAttribute('#g-make', 'href')), 'the button carries the level and dates');
+  await G.fill('#g-end', '2026-09-01'); await G.dispatchEvent('#g-end', 'change'); await sleep(100);
+  ok(/after your start date/.test(await G.textContent('#g-sum')), 'a hand-in before the start is caught');
+  await G.goto(BASE + 'demo?plan=dissertation&level=phd&start=2026-10-05&handin=2030-03-29'); await G.waitForSelector('#demo-diss');
+  await G.click('#demo-diss'); await G.waitForSelector('.modal.diss-setup', { timeout: 15000 }); await sleep(300);
+  ok(await G.locator('.diss-card[data-level="phd"].on').count() === 1, 'the setup starts as a PhD');
+  ok(await G.inputValue('input[aria-label="Start date"]') === '2026-10-05' && await G.inputValue('input[aria-label="Hand-in date"]') === '2030-03-29', 'with the same dates');
+  await ctx3.close();
 } catch (e) { fail++; console.log('  ✗ ERROR:', e.message.split('\n')[0]); }
 if (errors.length) { fail++; console.log('  ✗ page errors:', errors.slice(0, 5)); }
 await browser.close();

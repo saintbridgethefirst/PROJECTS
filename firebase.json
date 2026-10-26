@@ -23,6 +23,10 @@
         "destination": "/dissertation.html"
       },
       {
+        "source": "/templates/dissertation-gantt-chart",
+        "destination": "/templates/dissertation-gantt-chart.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
