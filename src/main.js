@@ -238,6 +238,7 @@ function demoWelcome(box, note, wrap) {
   const goBtn = el('button.btn.primary.block', { type: 'button', id: 'demo-go', onclick: () => go('sample:' + kind)() }, '▶ Open the ' + KINDS[first].short + ', with a 2-minute tour');
   // /demo?plan=dissertation (from trawpie.org/dissertation): planning a dissertation comes first.
   const dissBtn = el('button.btn.block' + (wantsDissertation() ? '.primary' : ''), { type: 'button', id: 'demo-diss', onclick: go('dissertation') }, '🎓 Plan a dissertation or thesis');
+  const dissSample = el('button.btn.block', { type: 'button', id: 'demo-diss-sample', onclick: go('sample:diss') }, '📖 See a sample dissertation');
   if (wantsDissertation()) goBtn.classList.remove('primary');
   const kinds = el('div.demo-kinds', { role: 'radiogroup', 'aria-label': 'Which sample team' }, ...KINDS.map((k, i) => {
     const b = el('button.demo-kind' + (i === first ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(i === first), 'data-kind': k.key, onclick: () => {
@@ -261,12 +262,12 @@ function demoWelcome(box, note, wrap) {
   box.append(el('div.demo-welcome', {}, el('b', {}, 'Pick a team to explore.'), el('span.hint', {}, ' This is the real app with a made-up team. Everything stays in this browser; nothing is sent anywhere.')), kinds);
   (copy ? left : box).append(
     name,
-    ...(wantsDissertation() ? [dissBtn, goBtn] : [goBtn]),
+    ...(wantsDissertation() ? [dissBtn, dissSample, goBtn] : [goBtn]),
     el('button.btn.block', { type: 'button', id: 'demo-empty', onclick: go('empty') }, 'Start with an empty team'),
-    wantsDissertation() ? '' : dissBtn,
+    ...(wantsDissertation() ? [] : [dissBtn, dissSample]),
     many,
     el('details.demo-new', { open: !!copy && window.matchMedia('(min-width: 961px)').matches }, el('summary', {}, 'New in Trawpie'),
-      el('ul', {}, ['A dissertation and thesis planner: a week-by-week plan from your hand-in date, chapter word counts, a proposal helper and supervisor meetings (🎓 Plan a dissertation)',
+      el('ul', {}, ['A dissertation and thesis planner: a week-by-week plan from your hand-in date, chapter word counts, a proposal helper, supervisor meetings and feedback on drafts (🎓 Plan a dissertation, or 📖 see a sample)',
         'List view: every task in one table you can sort, group and edit (☰ List at the top of the board)',
         'A Backlog column for work that isn’t planned into a week yet',
         'Automatic carry-over: unfinished tasks move into the new week on their own (Settings ▸ Workflow)',
@@ -280,6 +281,10 @@ function demoWelcome(box, note, wrap) {
 async function openSampleTeam(tour, kind = 'drone') {
   const existing = backend.data.findSample ? backend.data.findSample(user.uid, kind) : null;
   let id = existing;
+  if (kind === 'diss') {   // a sample dissertation: no team tour; it opens on the Dissertation overview
+    if (!id) { const { buildSampleDissertation } = await import('./sample-diss.js'); id = await backend.data.loadSample(buildSampleDissertation(user, Date.now())); }
+    sset(DISS_SAMPLE, id); goTeam(id); return;
+  }
   if (!id) { const { buildSample } = await import('./sample.js'); const s = await buildSample(user, Date.now(), kind); id = await backend.data.loadSample(s); toast('Sample team loaded: it’s yours to play with in this browser.', 5000); }
   // The sample's files show what file health looks like (in a real team, Trawpie checks them with your own sign-in)
   try { const [{ SAMPLE_FILES }, fh] = await Promise.all([import('./sample.js'), import('./filehealth.js')]); SAMPLE_FILES.forEach(f => fh.setHealth(f.url, f.state, f.why)); } catch { /* the demo works without it */ }
@@ -554,7 +559,8 @@ function renderHome() {
 
 // A brand-new team can start with three practice tasks, so the board isn't a blank page.
 const PRACTICE = 'tt_practice_team';
-const DISS_SETUP = 'tt_diss_setup';   // a new dissertation workspace opens its setup once
+const DISS_SETUP = 'tt_diss_setup';
+const DISS_SAMPLE = 'tt_diss_sample';   // the sample dissertation opens on its overview   // a new dissertation workspace opens its setup once
 export const PRACTICE_TASKS = [
   { name: '👋 Press ⋮ on me (or right-click) for quick actions', subtasks: ['Change my priority', 'Give me a deadline'] },
   { name: '↔️ Drag me into next week, or onto someone else', subtasks: [] },
@@ -1060,6 +1066,7 @@ async function onFirstLoad() {
   const s = session;
   startPresence(ctx); startCursors(ctx);
   if (sget(PRACTICE) === s.teamId) { sset(PRACTICE, null); setTimeout(() => addPracticeTasks(s), 600); }
+  if (sget(DISS_SAMPLE) === s.teamId) { sset(DISS_SAMPLE, null); setTimeout(() => { if (session !== s) return; openResearch(ctx(), 'dissertation'); toast('A sample dissertation, five weeks in. Have a look at Chapters: a draft is with the supervisor.', 7000); }, 900); }
   if (sget(DISS_SETUP) === s.teamId) { sset(DISS_SETUP, null); setTimeout(() => { if (session === s) import('./dissertation-ui.js').then(m => m.openDissertationSetup(ctx(), { prefill: takeDissPrefill(), onDone: () => openResearch(ctx(), 'dissertation') })); }, 700); }
   // Teams made before a permission existed: give the built-in roles that permission's default, once.
   if (can(s.team, s.me, 'roles.manage')) {

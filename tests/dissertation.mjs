@@ -201,6 +201,23 @@ try {
   ok(Object.values((await store(D)).teams).some(t => t.doc.name === 'My dissertation' && t.doc.features.dissertation), 'the setup opens in a new dissertation workspace');
   await ctx2.close();
 
+  step('Demo: a sample dissertation, five weeks in');
+  const ctx4 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const E = await ctx4.newPage(); E.on('pageerror', e => errors.push('sample: ' + e.message));
+  await E.goto(BASE + 'demo?plan=dissertation'); await E.waitForSelector('#demo-diss-sample');
+  await E.click('#demo-diss-sample'); await E.waitForSelector('.research-modal .diss-hero', { timeout: 20000 }); await sleep(400);
+  ok(/days to go/.test(await E.textContent('.diss-hero')) && await E.getAttribute('.diss-track', 'data-track') === 'behind', 'it opens on the overview, a little behind');
+  ok(await E.locator('.diss-soon li.late').count() === 1, 'the one slipped task is listed');
+  await E.click('[data-dview="chapters"]'); await sleep(300);
+  ok(await E.locator('.diss-draft[data-state="waiting"]').count() === 1, 'a draft is with the supervisor');
+  await E.click('[data-dview="proposal"]'); await sleep(200);
+  ok(/plans slip/.test(await E.inputValue('textarea[data-prop="question"]')), 'the proposal is filled in');
+  const S2 = Object.values((await store(E)).teams).find(t => t.doc.name === 'My dissertation (sample)');
+  ok(S2 && Object.keys(S2.meetings).length === 1 && Object.keys(S2.papers).length === 4, 'with a supervisor meeting and a reading list');
+  await E.keyboard.press('Escape'); await sleep(200);
+  ok(await E.locator('.node-cat:has-text("Reviews")').count() === 1, 'the supervisor’s review row is on the board');
+  await ctx4.close();
+
   step('The Gantt chart template page: a live chart from your dates, the download, and a plan with the same dates');
   const ctx3 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const G = await ctx3.newPage(); G.on('pageerror', e => errors.push('template: ' + e.message));

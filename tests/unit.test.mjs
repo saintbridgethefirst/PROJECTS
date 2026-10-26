@@ -42,6 +42,7 @@ test('report for one sub-team', () => {
   assert.deepEqual(s.table.rows.map(x => x[0]), ['Fuselage', 'Electronics']); assert.equal(s.table.rows[0][4], '100%');
 });
 import { budgetChanges, expenseChanges, partChanges, removeLinePlan } from '../src/finance-log.js';
+import { cleanDissertation } from '../src/model.js';
 import { cleanFeatures, NEW_TEAM_FEATURES, cleanProfile, workdaysFree, capacityFor, hasSkill, cleanTimeLog, loggedHours, cleanRisk, riskScore, cleanRequirement, nextReqRef } from '../src/model.js';
 import { heatClass, crossTeamLoad, reqCoverage, timesheetRange, riskBand } from '../src/tools-extra.js';
 import { checkWrite, checkRead, applyOps, checkProfileWrite } from '../src/rules-sim.js';
@@ -1071,6 +1072,29 @@ test('dissertation plan: master’s build project and PhD', async () => {
   assert.equal(defaultChapters('phd').reduce((s, c) => s + c.target, 0), 80000);
   const tight = buildDissertationPlan({ level: 'ug', start: '2026-10-01', handIn: '2026-10-10' });
   assert.match(tight.warnings[0], /less than three weeks/);
+});
+
+test('dissertation: the demo’s sample dissertation (five weeks in, one slip, a draft with the supervisor)', async () => {
+  const { buildSampleDissertation } = await import('../src/sample-diss.js');
+  const { scheduleStatus, draftState } = await import('../src/dissertation.js');
+  const now = new Date('2026-10-28T10:00:00').getTime();
+  const { teamId, team, users } = buildSampleDissertation({ uid: 'me1', name: 'Maya', email: 'maya@uni.ac.uk' }, now);
+  assert.match(teamId, /^t_sample_diss_/);
+  assert.equal(team.doc.weeks[0].startDate, '2026-09-21', 'started five weeks before this Monday');
+  assert.ok(team.doc.features.dissertation && team.doc.roles.supervisor && team.members.u_sample_supervisor.roleId === 'supervisor' && users.u_sample_supervisor);
+  const tasks = Object.entries(team.tasks).map(([id, t]) => cleanTask(t, id));
+  const mine = tasks.filter(t => t.ownerUid === 'me1');
+  const late = mine.filter(t => t.flag !== 'completed' && t.dueDate < '2026-10-26');
+  assert.equal(late.length, 1, 'exactly one task slipped');
+  assert.equal(scheduleStatus(mine, '2026-10-28').state, 'behind');
+  const plan = cleanDissertation(team.dissertation.plan);
+  const lit = plan.chapters.find(c => c.name === 'Literature review');
+  assert.ok(lit.status === 'supervisor' && lit.drafts.length === 1 && team.tasks[lit.drafts[0].taskId].ownerUid === 'u_sample_supervisor', 'the draft is a review task in the supervisor’s row');
+  assert.equal(draftState(cleanTask(team.tasks[lit.drafts[0].taskId], lit.drafts[0].taskId), '2026-10-28').state, 'waiting');
+  assert.ok(plan.proposal.question.endsWith('?') && plan.chapters.reduce((s, c) => s + c.target, 0) === 10000);
+  assert.ok(Object.values(team.comments).every(c => team.tasks[c.taskId]), 'comments sit on real tasks');
+  assert.ok(Object.values(team.meetings)[0].actions.every(a => !a.taskId || team.tasks[a.taskId]), 'meeting actions link to real tasks');
+  assert.equal(Object.keys(team.papers).length, 4);
 });
 
 test('dissertation: on-track signal and chapter draft states', async () => {

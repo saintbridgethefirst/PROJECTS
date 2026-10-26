@@ -47,6 +47,8 @@ export function defaultChapters(level = 'ug', kind = 'people', words) {
   big.target += total - out.reduce((s, c) => s + c.target, 0);   // rounding: the targets add up to the total exactly
   return out;
 }
+/** The role a supervisor joins with: sees everything and comments; changes only their own row (draft reviews). */
+export const SUPERVISOR_ROLE = { name: 'Supervisor', builtin: false, order: 3, perms: { 'tasks.editOwn': true, 'analytics.view': true } };
 export const CHAPTER_STATUS = [['todo', 'Not started'], ['drafting', 'Drafting'], ['supervisor', 'With supervisor'], ['revising', 'Revising'], ['final', 'Final']];
 
 const COLORS = ['#7c5cff', '#0e9f8e', '#e8590c', '#1c7ed6', '#c2255c', '#2f9e44', '#f08c00', '#5f3dc4', '#0b7285', '#868e96', '#d6336c', '#495057'];

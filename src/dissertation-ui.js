@@ -4,7 +4,7 @@
 //  in 🧰 Tools is in dissertation-tab.js.
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, modal, toast } from './ui.js';
-import { LEVELS, KINDS, defaultChapters, buildDissertationPlan, isISO } from './dissertation.js';
+import { LEVELS, KINDS, defaultChapters, buildDissertationPlan, isISO, SUPERVISOR_ROLE } from './dissertation.js';
 import { cleanDissertation, cleanAutos, newId, dissertationOf } from './model.js';
 import { isValidEmail, normEmail } from './permissions.js';
 
@@ -13,7 +13,7 @@ const addMonths = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setMont
 const fmt = (iso) => (isISO(iso) ? new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 
 /** The Supervisor role: sees everything, comments, can be given tasks (for example "Read chapter 2"), can't change the plan. */
-export const SUPERVISOR_ROLE = { name: 'Supervisor', builtin: false, order: 3, perms: { 'tasks.editOwn': true, 'analytics.view': true } };
+export { SUPERVISOR_ROLE };
 
 /**
  * The setup form. Fills in from the team's saved dissertation record (to change the plan later)

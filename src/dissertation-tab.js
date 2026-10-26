@@ -57,7 +57,7 @@ function overview(body, { kit, S, T, D, edit, openSetup }) {
         el('div', {}, (D.level === 'phd' ? 'Thesis submission ' : 'Hand-in ') + fmt(D.handIn)),
         next ? el('div.diss-next', {}, 'Next milestone: ', el('b', {}, next.name), ' · ' + fmt(next.dueDate) + (daysLeft(next.dueDate) >= 0 ? ' (' + daysLeft(next.dueDate) + ' days)' : ' (overdue)')) : '',
         trackPill(scheduleStatus(planTasks, today)),
-        overdue ? el('div.diss-warn', {}, overdue + (overdue === 1 ? ' planned task is' : ' planned tasks are') + ' past their date. Carry-over moves them into this week; re-plan if they keep slipping.') : ''),
+        overdue ? el('div.diss-warn', {}, (overdue === 1 ? '1 planned task is past its date. Carry-over moves it into this week; re-plan if it keeps slipping.' : overdue + ' planned tasks are past their date. Carry-over moves them into this week; re-plan if they keep slipping.')) : ''),
       el('div.diss-hero-act', {},
         edit ? el('button.btn.small', { type: 'button', onclick: openSetup }, 'Change the plan') : '',
         el('button.btn.small', { type: 'button', onclick: () => { kit.R.m.close(); if (window.openAnalytics) window.openAnalytics('timeline'); } }, 'See the timeline'),
