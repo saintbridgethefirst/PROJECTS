@@ -1414,3 +1414,6 @@ body.look-pro .mt-prio.p-major { color: #d69e2e; } body.look-pro .mt-prio.p-mino
 .od-steps .hint { display: block; margin-top: 2px; }
 .link-kind:empty { display: none; }
 .link-kind { margin: -2px 0 0; font-weight: 600; color: var(--line-color); }
+
+/* Sign-in errors: clearly an error, not a grey hint */
+#auth-note.auth-err { color: var(--danger, #c62828); font-weight: 600; background: color-mix(in srgb, var(--danger, #c62828) 8%, transparent); border: 1px solid color-mix(in srgb, var(--danger, #c62828) 30%, transparent); border-radius: 10px; padding: 10px 12px; margin-top: 10px; line-height: 1.45; }

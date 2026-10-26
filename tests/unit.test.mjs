@@ -968,3 +968,13 @@ test('friendly errors: our own messages and Microsoft approval blocks', async ()
   assert.match(friendlyError(new Error('AADSTS65001: The user or administrator has not consented')), /hasn’t approved Trawpie/);
   assert.match(friendlyError(Object.assign(new Error('x'), { errorCode: 'consent_required' })), /share link/);
 });
+
+test('friendly errors: Microsoft AADSTS codes explain the setup problem', async () => {
+  const { friendlyError } = await import('../src/ui.js');
+  const fb = (m) => Object.assign(new Error(m), { code: 'auth/invalid-credential' });
+  const secret = friendlyError(fb('Firebase: Error getting access token from microsoft.com, OAuth2 redirect uri is: https://uni-teamtrack.firebaseapp.com/__/auth/handler, response: OAuth2TokenResponse{params: error=invalid_client&error_description=AADSTS7000215: Invalid client secret provided.} (auth/invalid-credential).'));
+  assert.match(secret, /AADSTS7000215/); assert.match(secret, /Value \(not its Secret ID\)/); assert.doesNotMatch(secret, /password is incorrect/);
+  assert.match(friendlyError(fb('... AADSTS700016: Application not found ...')), /Application ID/);
+  assert.match(friendlyError(fb('Error getting access token from microsoft.com, response: unknown')), /Microsoft sign-in didn’t work\. Use Google/);
+  assert.equal(friendlyError(Object.assign(new Error('x'), { code: 'auth/invalid-credential' })), 'Email or password is incorrect.', 'password errors unchanged');
+});

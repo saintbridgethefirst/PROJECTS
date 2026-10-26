@@ -108,6 +108,21 @@ export function friendlyError(e) {
   if (String(code).includes('popup-blocked')) return 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.';
   if (String(code).includes('account-exists-with-different-credential')) return 'This email already has an account with a different sign-in method. Use that method instead.';
   if (String(code).includes('unavailable') || String(code).includes('network')) return 'You appear to be offline. Changes will sync when you reconnect.';
+  // Microsoft sign-in errors carry an AADSTS code from Microsoft. Most mean the site's Microsoft setup needs
+  // fixing, so say that plainly (with the code) instead of "Email or password is incorrect".
+  const aad = /AADSTS(\d+)/.exec((e && e.message) || '');
+  if (aad || (String(code).includes('invalid-credential') && /microsoft\.com/i.test((e && e.message) || ''))) {
+    const n = aad ? aad[1] : '';
+    const owner = {
+      7000215: 'the app secret saved in Firebase isn’t accepted. Paste the secret’s Value (not its Secret ID) in Firebase ▸ Authentication ▸ Microsoft.',
+      7000222: 'the app secret has expired. Make a new one in Entra ▸ Certificates & secrets and paste its Value into Firebase.',
+      700016: 'the Application ID saved in Firebase isn’t the Microsoft app’s client ID.',
+      50011: 'the redirect address isn’t on the Microsoft app. Add https://uni-teamtrack.firebaseapp.com/__/auth/handler under Authentication ▸ Web.',
+      50020: 'the Microsoft app only accepts one organisation. Set Supported account types to any organisation and personal accounts.',
+      50194: 'the Microsoft app only accepts one organisation. Set Supported account types to any organisation and personal accounts.',
+    }[n];
+    return 'Microsoft sign-in didn’t work' + (n ? ' (code AADSTS' + n + ')' : '') + '. Use Google or your email and a password for now.' + (owner ? ' Site owner: ' + owner : '');
+  }
   const AUTH = {
     'auth/invalid-credential': 'Email or password is incorrect.',
     'auth/wrong-password': 'Email or password is incorrect.',

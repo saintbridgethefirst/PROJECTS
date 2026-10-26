@@ -127,7 +127,14 @@ function renderAuth() {
   const box = $('#auth-actions'); box.replaceChildren();
   const note = $('#auth-note'); note.textContent = '';
   const P = backend.auth.providers;
-  const wrap = (fn) => async () => { note.textContent = ''; try { await fn(); } catch (e) { console.error(e); note.textContent = friendlyError(e); } };
+  // Errors from a sign-in button: red and announced, and scrolled into view (on a phone the note can sit below the fold)
+  const wrap = (fn) => async () => {
+    note.textContent = ''; note.classList.remove('auth-err'); note.removeAttribute('role');
+    try { await fn(); } catch (e) {
+      console.error(e); note.textContent = friendlyError(e); note.classList.add('auth-err'); note.setAttribute('role', 'alert');
+      try { note.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch { /* */ }
+    }
+  };
 
   if (P.google) box.append(el('button.btn.block', { type: 'button', onclick: wrap(() => backend.auth.signInGoogle()) }, googleIcon(), 'Continue with Google'));
   if (P.microsoft) box.append(el('button.btn.block', { type: 'button', onclick: wrap(() => backend.auth.signInMicrosoft().catch((e) => {
