@@ -1009,3 +1009,10 @@ test('SEO: the demo page gets its own title, description and canonical; the home
   const sm = fs.readFileSync(new URL('../public/sitemap.xml', import.meta.url), 'utf8');
   assert.equal((sm.match(/<url>/g) || []).length, (sm.match(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/g) || []).length, 'every sitemap URL has a lastmod');
 });
+
+test('index.html: the landing footer stays right after the landing page (its CSS uses the + selector)', async () => {
+  const fs = await import('node:fs');
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const end = html.indexOf('</main>', html.indexOf('<main id="auth-screen"'));
+  assert.match(html.slice(end, end + 120), /^<\/main>\s*<footer data-site-footer class="auth-footer">/);
+});
