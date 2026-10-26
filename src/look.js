@@ -20,7 +20,7 @@ const BUTTONS = [
   ['[onclick="toggleSidebar()"]', 'panel-right'], ['#theme-toggle-outer', 'palette'], ['#crossteam-btn', 'users'], ['#joint-btn', 'layers'], ['#home-search', 'search'], ['#home-guide', 'book-open'], ['#home-feedback', 'message-square'], ['#home-theme', 'palette'],
   // Settings ▸ Features: each module's emoji becomes a line icon
   ...Object.entries({ planning: 'calendar-range', meetings: 'clipboard-list', notebook: 'notebook-pen', literature: 'book-open', whiteboards: 'presentation',
-    subteams: 'puzzle', parts: 'package', finance: 'wallet', people: 'users', time: 'clock', risks: 'shield-alert', requirements: 'ruler' })
+    subteams: 'puzzle', parts: 'package', finance: 'wallet', people: 'users', time: 'clock', risks: 'shield-alert', requirements: 'ruler', dissertation: 'graduation-cap' })
     .map(([k, ic]) => ['.feature-card[data-feature="' + k + '"] .feature-icon', ic]),
   ...Object.entries({ backups: 'life-buoy', approvals: 'check-check', notifications: 'mail', supervisor: 'eye', history: 'history', reviews: 'compass',
     bom: 'layers', documents: 'file-text', sso: 'key-round', admin: 'landmark', dpa: 'lock' })
@@ -34,7 +34,7 @@ const TASK_ICON = { '🔧': 'wrench', '🛠': 'wrench', '⚙': 'settings', '🤖
   '📝': 'notebook-pen', '📜': 'file-text', '📄': 'file-text', '💡': 'lightbulb', '🚀': 'rocket', '🎯': 'target', '⚡': 'zap', '🔌': 'plug', '🖥': 'monitor', '💻': 'monitor',
   '📦': 'package', '🧠': 'cpu', '📷': 'camera', '🛒': 'shopping-cart', '🔋': 'battery', '📣': 'megaphone', '📢': 'megaphone', '📡': 'radio', '🧭': 'compass',
   '✅': 'square-check', '📅': 'calendar', '🗓': 'calendar', '👥': 'users', '🤝': 'users', '✏': 'pencil', '🔩': 'package', '💷': 'wallet', '💰': 'wallet', '🧩': 'puzzle', '🔗': 'link', '📌': 'pin', '🚩': 'flag',
-  '✉': 'mail', '📧': 'mail', '🏛': 'landmark', '🧾': 'receipt', '🗺': 'map', '🛰': 'satellite', '🖨': 'printer', '🧵': 'plug', '📶': 'wifi', '🧮': 'calculator',
+  '✉': 'mail', '📧': 'mail', '🏛': 'landmark', '🧾': 'receipt', '🗺': 'map', '🛰': 'satellite', '🖨': 'printer', '🧵': 'plug', '📶': 'wifi', '🧮': 'calculator', '🎓': 'graduation-cap', '✍': 'pencil', '❓': 'target', '🔎': 'search', '📖': 'book-open', '🎤': 'megaphone', '🦺': 'shield-alert', '🔐': 'lock', '🧹': 'wrench', '👀': 'eye', '💾': 'download',
   '⛔': 'octagon-alert', '🔴': 'chevrons-up', '🟠': 'chevron-up', '🔽': 'chevron-down', '⏫': 'chevrons-up', '🔼': 'chevron-up' };
 export const taskIconName = (emo) => TASK_ICON[String(emo || '').replace(/[\uFE0F\u200D]/g, '')] || '';
 const EMOJI = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[▦⇤⇥☰⌂])(?:️|‍(?:\p{Extended_Pictographic})|\p{Emoji_Modifier}|⃣)*/gu;

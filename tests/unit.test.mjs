@@ -883,10 +883,11 @@ test('translator: icons, numbers, pieces and things people typed', async () => {
 test('a new team can start Simple, as a Research team or with Everything', async () => {
   const { startFeatures, FEATURE_KEYS, NEW_TEAM_FEATURES, TEAM_STARTS } = await import('../src/model.js');
   assert.ok(FEATURE_KEYS.every(k => startFeatures('simple')[k] === false), 'simple: all off');
-  assert.ok(FEATURE_KEYS.every(k => startFeatures('full')[k] === true), 'everything: all on');
+  assert.ok(FEATURE_KEYS.every(k => startFeatures('full')[k] === (k !== 'dissertation')), 'everything: all on (the dissertation workspace is its own start)');
+  assert.deepEqual(Object.keys(startFeatures('dissertation')).filter(k => startFeatures('dissertation')[k]).sort(), ['dissertation', 'literature', 'meetings', 'notebook', 'planning'], 'dissertation: planning, meetings, notebook, literature and the Dissertation tab');
   assert.deepEqual(startFeatures('standard'), NEW_TEAM_FEATURES);
   assert.deepEqual(startFeatures('nonsense'), NEW_TEAM_FEATURES, 'unknown choice falls back to the usual set');
-  assert.deepEqual(TEAM_STARTS.map(s => s.key), ['simple', 'standard', 'full']);
+  assert.deepEqual(TEAM_STARTS.map(s => s.key), ['simple', 'standard', 'full', 'dissertation']);
 });
 
 // ── Security: input sanitizers (XSS defences) ───────────────────────────────
@@ -1015,4 +1016,40 @@ test('index.html: the landing footer stays right after the landing page (its CSS
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const end = html.indexOf('</main>', html.indexOf('<main id="auth-screen"'));
   assert.match(html.slice(end, end + 120), /^<\/main>\s*<footer data-site-footer class="auth-footer">/);
+});
+
+test('dissertation plan: undergraduate with people (ethics, chapters, milestones, every week)', async () => {
+  const { buildDissertationPlan, defaultChapters } = await import('../src/dissertation.js');
+  const p = buildDissertationPlan({ level: 'ug', kind: 'people', start: '2026-10-01', handIn: '2027-04-30', dates: { proposal: '2026-11-06' } });
+  assert.deepEqual(p.warnings, []);
+  assert.ok(p.phases.some(x => x.id === 'ph_ethics'), 'research with people gets an ethics phase');
+  const ms = p.tasks.filter(t => t.milestone).map(t => t.name + '@' + t.due);
+  assert.ok(ms.includes('Proposal submitted@2026-11-06'), 'proposal on the university’s date');
+  assert.ok(ms.includes('Hand in your dissertation@2027-04-30'), 'hand-in on the hand-in date');
+  assert.ok(ms.some(m => m.startsWith('Full draft to supervisor@')));
+  assert.equal(p.weeks[0].startDate, '2026-09-28', 'weeks start on the Monday of the start date');
+  assert.ok(p.weeks.at(-1).startDate <= '2027-04-30' && p.summary.later === 0, 'every task sits in a week on the board');
+  assert.ok(p.tasks.every(t => t.due >= '2026-10-01' && t.due <= '2027-04-30'), 'everything between start and hand-in');
+  defaultChapters('ug', 'people').forEach(c => assert.ok(p.tasks.some(t => t.name === 'Write: ' + c.name), 'a writing task for ' + c.name));
+  assert.equal(defaultChapters('ug', 'people').reduce((s, c) => s + c.target, 0), 10000);
+  assert.equal(defaultChapters('masters', 'lab', 15000).reduce((s, c) => s + c.target, 0), 15000, 'targets add up exactly');
+  assert.ok(p.phases.length <= 20 && p.phases.every(x => x.start <= x.end));
+});
+
+test('dissertation plan: master’s build project and PhD', async () => {
+  const { buildDissertationPlan, defaultChapters } = await import('../src/dissertation.js');
+  const m = buildDissertationPlan({ level: 'masters', kind: 'lab', start: '2027-06-01', handIn: '2027-09-10' });
+  assert.ok(!m.phases.some(x => x.id === 'ph_ethics'), 'no ethics phase for a build project');
+  assert.ok(m.tasks.some(t => /risk assessment/i.test(t.name)), 'lab safety instead');
+  assert.deepEqual(defaultChapters('masters', 'lab').map(c => c.name).slice(2, 5), ['Design', 'Implementation', 'Testing and results']);
+  const d = buildDissertationPlan({ level: 'phd', kind: 'data', start: '2026-10-01', handIn: '2030-03-31', dates: { upgrade: '2027-09-15', viva: '2030-06-01' } });
+  assert.equal(d.weeks.length, 13, 'a PhD shows its first term of weeks');
+  assert.ok(d.summary.later > 20 && d.laterFrom === '2026-12-28', 'the rest waits in the Backlog with dates');
+  const ms = d.tasks.filter(t => t.milestone).map(t => t.name);
+  ['Upgrade / confirmation review', 'Full thesis draft to supervisors', 'Submit your thesis', 'Viva'].forEach(n => assert.ok(ms.includes(n), n));
+  assert.ok(ms.includes('Annual progress review (year 2)') && !ms.includes('Annual progress review (year 1)'), 'the upgrade stands in for the first annual review');
+  assert.equal(d.tasks.find(t => t.name === 'Viva').due, '2030-06-01');
+  assert.equal(defaultChapters('phd').reduce((s, c) => s + c.target, 0), 80000);
+  const tight = buildDissertationPlan({ level: 'ug', start: '2026-10-01', handIn: '2026-10-10' });
+  assert.match(tight.warnings[0], /less than three weeks/);
 });

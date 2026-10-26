@@ -7,7 +7,7 @@ import { isAcademicEmail, EDU_TEAMS_PER_YEAR } from './model.js';
 import { PRIORITIES, FLAGS } from './model.js';
 
 const ALLOWED = {
-  team: ['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look'],
+  team: ['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look', 'dissertation'],
   user: ['photo', 'theme', 'menuStyle', 'nav', 'notify', 'updatedAt'],
   member: ['uid', 'email', 'name', 'photo', 'roleId', 'joinedAt'],
   invite: ['email', 'roleId', 'teamName', 'invitedBy', 'invitedByName', 'createdAt'],
@@ -53,7 +53,15 @@ function validTeam(d) {
     (d.autos === undefined || d.autos === null || (typeof d.autos === 'object' && hasOnly(d.autos, ['partsTo', 'tellWaiting', 'remindDays', 'carry', 'carryWarn', 'carryMakeWeeks']) && (d.autos.partsTo === undefined || isStr(d.autos.partsTo, 40)) &&
       (d.autos.tellWaiting === undefined || typeof d.autos.tellWaiting === 'boolean') && (d.autos.remindDays === undefined || (Number.isInteger(d.autos.remindDays) && d.autos.remindDays >= 0 && d.autos.remindDays <= 60)) &&
       (d.autos.carry === undefined || typeof d.autos.carry === 'boolean') && (d.autos.carryMakeWeeks === undefined || typeof d.autos.carryMakeWeeks === 'boolean') &&
-      (d.autos.carryWarn === undefined || (Number.isInteger(d.autos.carryWarn) && d.autos.carryWarn >= 0 && d.autos.carryWarn <= 10))));
+      (d.autos.carryWarn === undefined || (Number.isInteger(d.autos.carryWarn) && d.autos.carryWarn >= 0 && d.autos.carryWarn <= 10)))) &&
+    (d.dissertation === undefined || d.dissertation === null || validDissertation(d.dissertation));
+}
+const sizeOk = (v, max, list) => (v === undefined || (list ? Array.isArray(v) && v.length <= max : v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= max));
+function validDissertation(x) {
+  return !!x && typeof x === 'object' && hasOnly(x, ['level', 'kind', 'start', 'handIn', 'dates', 'chapters', 'proposal', 'checks', 'setupAt']) &&
+    ['ug', 'masters', 'phd'].includes(x.level === undefined ? 'ug' : x.level) && ['people', 'lab', 'data', 'literature'].includes(x.kind === undefined ? 'people' : x.kind) &&
+    (x.start === undefined || isStr(x.start, 10)) && (x.handIn === undefined || isStr(x.handIn, 10)) &&
+    sizeOk(x.dates, 6) && sizeOk(x.chapters, 20, true) && sizeOk(x.proposal, 9) && sizeOk(x.checks, 120) && (x.setupAt === undefined || typeof x.setupAt === 'number');
 }
 function validPhoto(d) { const p = d.photo === undefined ? '' : d.photo; return typeof p === 'string' && p.length <= 60000; }
 function validComment(d) {
@@ -274,13 +282,14 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (!meMember) deny('not a member');
       if (!validTeam(after) || after.ownerUid !== before.ownerUid || after.createdAt !== before.createdAt) deny('invalid team update');
       const ch = changedKeys(before, after);
-      if (!ch.every(k => ['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look'].includes(k))) deny('field not editable');
+      if (!ch.every(k => ['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look', 'dissertation'].includes(k))) deny('field not editable');
       if (ch.includes('archiveRev') && !(can('tasks.editOwn') || can('tasks.editAll'))) deny('archiveRev');
       if ((ch.includes('subteams') || ch.includes('leads')) && !(can('team.settings') || can('members.manage'))) deny('sub-teams');
       if (ch.includes('weeks') && !can('weeks.manage')) deny('weeks');
       if (ch.some(k => ['name', 'logo', 'fields', 'labels', 'weekNaming', 'phases', 'capacity', 'features', 'workflow', 'look'].includes(k)) && !can('team.settings')) deny('settings');
       if (ch.includes('roles') && !can('roles.manage')) deny('roles');
       if ((ch.includes('autos') || ch.includes('github')) && !can('team.settings')) deny('automatic steps');
+      if (ch.includes('dissertation') && !can('team.settings')) deny('dissertation');
       if (ch.includes('github') && after.github && ((after.github.repo || '') !== ((before.github || {}).repo || '') || !!after.github.write !== !!(before.github || {}).write)) deny('github repo and token are set by the server');
       if ((ch.includes('purchase') || ch.includes('currency')) && !(can('team.settings') || can('finance.edit'))) deny('purchase approvals / currency');
       if (ch.includes('former') && !can('members.manage')) deny('former members');

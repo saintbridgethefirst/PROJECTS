@@ -129,6 +129,7 @@ export function cleanTeam(t) {
     look: t.look === 'professional' ? 'professional' : 'friendly',
     former: cleanFormer(t.former),
     plan: cleanPlan(t.plan),
+    ...(t.dissertation ? { dissertation: cleanDissertation(t.dissertation) } : {}),
     weeks: (Array.isArray(t.weeks) ? t.weeks : []).map(cleanWeek),
   };
 }
@@ -637,6 +638,30 @@ export function canApprovePurchase(team, member, part) {
 
 // ── Automatic steps (workflow step 4) ────────────────────────────────────────
 /** { partsTo: stage a task moves to once all its parts are received ('' = off), tellWaiting, remindDays (0 = off) } */
+// ── Dissertation or thesis (Settings: the Dissertation feature) ───────────────
+export const DISS_LEVELS = ['ug', 'masters', 'phd'];
+export const DISS_KINDS = ['people', 'lab', 'data', 'literature'];
+export const DISS_DATES = ['proposal', 'ethics', 'review', 'draft', 'upgrade', 'viva'];
+export const DISS_STATUS = ['todo', 'drafting', 'supervisor', 'revising', 'final'];
+export const DISS_PROPOSAL = ['topic', 'why', 'gap', 'question', 'aims', 'methods', 'ethics', 'sources', 'notes'];
+const int0 = (v, max) => Math.max(0, Math.min(max, Math.round(Number(v) || 0)));
+/** The dissertation record on a team: level, dates, chapters with word counts, the proposal draft and ticked checks. null when unused. */
+export function cleanDissertation(d) {
+  if (!d || typeof d !== 'object') return null;
+  const dates = {}; DISS_DATES.forEach(k => { const v = isoOrEmpty(d.dates && d.dates[k]); if (v) dates[k] = v; });
+  const proposal = {}; DISS_PROPOSAL.forEach(k => { const v = str(d.proposal && d.proposal[k], 4000); if (v) proposal[k] = v; });
+  const checks = {}; Object.entries(d.checks || {}).slice(0, 120).forEach(([k, v]) => { if (v === true) checks[safeKey(k)] = true; });
+  const chapters = (Array.isArray(d.chapters) ? d.chapters : []).slice(0, 20).map((c, i) => ({
+    id: safeKey(c && c.id) || 'ch' + (i + 1), name: str(c && c.name, 80) || 'Chapter ' + (i + 1),
+    target: int0(c && c.target, 500000), words: int0(c && c.words, 500000), status: DISS_STATUS.includes(c && c.status) ? c.status : 'todo',
+  }));
+  return {
+    level: DISS_LEVELS.includes(d.level) ? d.level : 'ug', kind: DISS_KINDS.includes(d.kind) ? d.kind : 'people',
+    start: isoOrEmpty(d.start), handIn: isoOrEmpty(d.handIn), dates, chapters, proposal, checks,
+    setupAt: Number(d.setupAt) || 0,
+  };
+}
+
 export function cleanAutos(a) {
   a = a && typeof a === 'object' ? a : {};
   return { partsTo: a.partsTo ? cleanStageId(a.partsTo) : '', tellWaiting: a.tellWaiting === true, remindDays: Math.max(0, Math.min(60, Math.round(Number(a.remindDays) || 0))),
@@ -844,6 +869,7 @@ export const FEATURES = [
   { key: 'time', group: 'advanced', icon: '🕒', name: 'Time logging', help: 'Log hours actually spent on tasks, compare with estimates, export timesheets (handy for contractors).' },
   { key: 'risks', group: 'advanced', icon: '⚠️', name: 'Risk register', help: 'Risks scored by likelihood × impact, with owners, mitigation and review dates.' },
   { key: 'requirements', group: 'advanced', icon: '📐', name: 'Requirements', help: 'Requirements linked to the tasks that deliver them and how they’re verified; coverage and a traceability export.' },
+  { key: 'dissertation', group: 'study', icon: '🎓', name: 'Dissertation', help: 'A dissertation or thesis workspace: plan from your hand-in date, chapters and word counts, a proposal helper, checklists and supervisor meetings.' },
 ];
 export const FEATURE_KEYS = FEATURES.map(f => f.key);
 /** What a brand-new team starts with: the standard set on, advanced off. */
@@ -853,10 +879,12 @@ export const TEAM_STARTS = [
   { key: 'simple', name: 'Simple', help: 'Just the board: weeks, people and tasks. Turn on more when you need it.' },
   { key: 'standard', name: 'Research team', help: 'The board plus planning, meetings, lab notebook, literature and whiteboards.' },
   { key: 'full', name: 'Everything', help: 'Every feature on, including sub-teams, parts, finance, capacity, time, risks and requirements.' },
+  { key: 'dissertation', name: 'Dissertation or thesis', help: 'Your own workspace: a week-by-week plan from your hand-in date, chapters and word counts, reading and supervisor meetings.' },
 ];
 export function startFeatures(key) {
   if (key === 'simple') return Object.fromEntries(FEATURE_KEYS.map(k => [k, false]));
-  if (key === 'full') return Object.fromEntries(FEATURE_KEYS.map(k => [k, true]));
+  if (key === 'full') return Object.fromEntries(FEATURES.map(f => [f.key, f.group !== 'study']));   // the Dissertation workspace is its own kind of team
+  if (key === 'dissertation') return Object.fromEntries(FEATURE_KEYS.map(k => [k, ['planning', 'meetings', 'notebook', 'literature', 'dissertation'].includes(k)]));
   return { ...NEW_TEAM_FEATURES };
 }
 /** Teams made before feature switches keep everything they could already use. */

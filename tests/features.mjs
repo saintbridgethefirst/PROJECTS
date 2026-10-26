@@ -49,7 +49,7 @@ try {
   const T0 = await teamNamed(A, 'Robot Science');
   ok(T0.doc.features && T0.doc.features.planning === true && T0.doc.features.parts === false && T0.doc.features.people === false, 'new team: standard on, advanced off');
   await openFeatures(A);
-  ok(await A.locator('.feature-card:not(.pro-card)').count() === 12, 'Features page lists 12 features');
+  ok(await A.locator('.feature-card:not(.pro-card)').count() === 13, 'Features page lists 13 features (with Dissertation)');
   ok(await A.locator('.feature-card.on').count() === 5, 'five standard ones on (incl. Whiteboards)');
   if (SHOTS) await A.screenshot({ path: `${SHOTS}/features-settings.png` });
   await A.keyboard.press('Escape'); await sleep(200);
@@ -221,7 +221,7 @@ try {
       await A.keyboard.press('Escape'); await sleep(200);
     }
     const f = (await teamNamed(A, name)).doc.features;
-    ok(Object.values(f).every(v => v === (start === 'full')), start + ': features saved ' + JSON.stringify(f));
+    ok(Object.entries(f).every(([k, v]) => v === (start === 'full' && k !== 'dissertation')), start + ': features saved (Everything leaves out the Dissertation workspace) ' + JSON.stringify(f));
     await openFeatures(A);
     const on = await A.locator('.feature-card.on:not(.pro-card)').count();
     ok(on === (start === 'simple' ? 0 : 12), start + ': Settings ▸ Features shows ' + on + ' on');

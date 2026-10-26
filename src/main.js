@@ -180,6 +180,20 @@ function renderAuth() {
 }
 // ── Public demo (/demo): no sign-up, a sample team and a guided tour ────────
 const DEMO_NEXT = 'tt_demo_next', DEMO_TOUR = 'tt_demo_tour';
+/** trawpie.org/dissertation links here with ?plan=dissertation: the create form starts as a dissertation workspace. */
+const WANT_DISS = 'tt_want_diss';
+const wantsDissertation = () => { try { return new URLSearchParams(location.search).get('plan') === 'dissertation' || sget(WANT_DISS) === '1'; } catch { return false; } };
+try { if (new URLSearchParams(location.search).get('plan') === 'dissertation') sessionStorage.setItem(WANT_DISS, '1'); } catch { /* */ }
+/** Fill the create form for a dissertation; `make` also creates it (the demo, where the visitor chose it). */
+function startDissertationTeam(make) {
+  const form = document.getElementById('create-team-form'); if (!form || !form.start) return;
+  sset(WANT_DISS, null);
+  form.start.value = 'dissertation'; if (form.start.onchange) form.start.onchange();
+  if (!form.name.value.trim()) form.name.value = 'My dissertation';
+  if (make) { form.requestSubmit(); return; }
+  form.scrollIntoView({ block: 'center', behavior: 'smooth' }); form.name.focus(); form.name.select();
+  toast('Name your dissertation workspace, then press Create team to plan it.', 6000);
+}
 const SAMPLE_CHOICES = [
   { key: 'drone', icon: '🛩️', name: 'Student drone team', short: 'drone team', text: '6 people building a UAV for a competition: sub-teams, parts, budget and sign-offs.' },
   { key: 'corporate', icon: '🏭', name: 'Engineering company', short: 'company project', text: 'Launching an autonomous warehouse robot: programme, suppliers, approvals, requirements and a customer pilot.' },
@@ -211,6 +225,9 @@ function demoWelcome(box, note, wrap) {
   const KINDS = SAMPLE_CHOICES; const first = Math.max(0, KINDS.findIndex(k => k.key === asked));
   let kind = KINDS[first].key;
   const goBtn = el('button.btn.primary.block', { type: 'button', id: 'demo-go', onclick: () => go('sample:' + kind)() }, '▶ Open the ' + KINDS[first].short + ', with a 2-minute tour');
+  // /demo?plan=dissertation (from trawpie.org/dissertation): planning a dissertation comes first.
+  const dissBtn = el('button.btn.block' + (wantsDissertation() ? '.primary' : ''), { type: 'button', id: 'demo-diss', onclick: go('dissertation') }, '🎓 Plan a dissertation or thesis');
+  if (wantsDissertation()) goBtn.classList.remove('primary');
   const kinds = el('div.demo-kinds', { role: 'radiogroup', 'aria-label': 'Which sample team' }, ...KINDS.map((k, i) => {
     const b = el('button.demo-kind' + (i === first ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(i === first), 'data-kind': k.key, onclick: () => {
       kind = k.key; kinds.querySelectorAll('.demo-kind').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); });
@@ -233,11 +250,13 @@ function demoWelcome(box, note, wrap) {
   box.append(el('div.demo-welcome', {}, el('b', {}, 'Pick a team to explore.'), el('span.hint', {}, ' This is the real app with a made-up team. Everything stays in this browser; nothing is sent anywhere.')), kinds);
   (copy ? left : box).append(
     name,
-    goBtn,
+    ...(wantsDissertation() ? [dissBtn, goBtn] : [goBtn]),
     el('button.btn.block', { type: 'button', id: 'demo-empty', onclick: go('empty') }, 'Start with an empty team'),
+    wantsDissertation() ? '' : dissBtn,
     many,
     el('details.demo-new', { open: !!copy && window.matchMedia('(min-width: 961px)').matches }, el('summary', {}, 'New in Trawpie'),
-      el('ul', {}, ['List view: every task in one table you can sort, group and edit (☰ List at the top of the board)',
+      el('ul', {}, ['A dissertation and thesis planner: a week-by-week plan from your hand-in date, chapter word counts, a proposal helper and supervisor meetings (🎓 Plan a dissertation)',
+        'List view: every task in one table you can sort, group and edit (☰ List at the top of the board)',
         'A Backlog column for work that isn’t planned into a week yet',
         'Automatic carry-over: unfinished tasks move into the new week on their own (Settings ▸ Workflow)',
         'File health: Drive and OneDrive files say when they can’t be opened, with a one-click re-link',
@@ -455,6 +474,7 @@ function renderHome() {
     const next = sget(DEMO_NEXT); sset(DEMO_NEXT, null);
     if (next && next.startsWith('sample')) { openSampleTeam(true, next.split(':')[1] || 'drone').catch(e => toast(String(e.message || e))); }
     else if (next === 'empty') setTimeout(() => { const i = document.querySelector('#create-team-form input[name=name]'); if (i) i.focus(); }, 100);
+    else if (next === 'dissertation') setTimeout(() => startDissertationTeam(true), 100);
   }
   // Demo: one click loads a made-up team with every feature in use (src/sample.js).
   const sampleSec = $('#sample-section');
@@ -512,14 +532,18 @@ function renderHome() {
     try {
       const teamDoc = { name: name.slice(0, 80), logo: '', ownerUid: user.uid, createdAt: Date.now(), roles: DEFAULT_ROLES, fields: [], labels: DEFAULT_LABELS, weekNaming: 'sequence', phases: [], features: startFeatures(form.start ? form.start.value : 'standard'), weeks: [firstWeek()], currency: CURRENCIES.includes(form.currency && form.currency.value) ? form.currency.value : guessCurrency(navigator.language) };
       const id = await backend.data.createTeam(teamDoc, newMemberDoc('owner'));
-      const practice = document.getElementById('create-practice'); if (practice && practice.checked) sset(PRACTICE, id);
+      const practice = document.getElementById('create-practice');
+      if (form.start && form.start.value === 'dissertation') sset(DISS_SETUP, id);   // the plan comes from the setup, not practice tasks
+      else if (practice && practice.checked) sset(PRACTICE, id);
       form.reset(); if (form.start) form.start.onchange(); goTeam(id);
     } catch (err) { toast(friendlyError(err)); } finally { btn.disabled = false; }
   };
+  if (sget(WANT_DISS) === '1' && !DEMO_MODE) setTimeout(() => startDissertationTeam(false), 300);
 }
 
 // A brand-new team can start with three practice tasks, so the board isn't a blank page.
 const PRACTICE = 'tt_practice_team';
+const DISS_SETUP = 'tt_diss_setup';   // a new dissertation workspace opens its setup once
 export const PRACTICE_TASKS = [
   { name: '👋 Press ⋮ on me (or right-click) for quick actions', subtasks: ['Change my priority', 'Give me a deadline'] },
   { name: '↔️ Drag me into next week, or onto someone else', subtasks: [] },
@@ -1024,6 +1048,7 @@ async function onFirstLoad() {
   const s = session;
   startPresence(ctx); startCursors(ctx);
   if (sget(PRACTICE) === s.teamId) { sset(PRACTICE, null); setTimeout(() => addPracticeTasks(s), 600); }
+  if (sget(DISS_SETUP) === s.teamId) { sset(DISS_SETUP, null); setTimeout(() => { if (session === s) import('./dissertation-ui.js').then(m => m.openDissertationSetup(ctx(), { onDone: () => openResearch(ctx(), 'dissertation') })); }, 700); }
   // Teams made before a permission existed: give the built-in roles that permission's default, once.
   if (can(s.team, s.me, 'roles.manage')) {
     const roles = JSON.parse(JSON.stringify(s.team.roles || {})); let changed = false;

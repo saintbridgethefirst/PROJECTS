@@ -64,7 +64,7 @@ service cloud.firestore {
         && cw is int && cw >= 0 && cw <= 10;
     }
     function validTeam(d) {
-      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look'])
+      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look', 'dissertation'])
         && d.get('archiveRev', 0) is int
         && (!('former' in d) || (d.former is map && d.former.size() <= 300))
         && d.get('currency', 'GBP') in ['GBP', 'EUR', 'USD', 'INR', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD']
@@ -85,7 +85,22 @@ service cloud.firestore {
         && (d.get('capacity', 0) is number && d.get('capacity', 0) >= 0 && d.get('capacity', 0) <= 80)
         && d.get('features', {}) is map && d.get('features', {}).size() <= 30
         && d.get('subteams', []) is list && d.get('subteams', []).size() <= 20
-        && (!('plan' in d) || validPlan(d.plan));
+        && (!('plan' in d) || validPlan(d.plan))
+        && (d.get('dissertation', null) == null || validDissertation(d.dissertation));
+    }
+    // A dissertation or thesis workspace: level, dates, chapters (word counts), the proposal draft, ticked checks
+    function validDissertation(x) {
+      return x is map
+        && x.keys().hasOnly(['level', 'kind', 'start', 'handIn', 'dates', 'chapters', 'proposal', 'checks', 'setupAt'])
+        && x.get('level', 'ug') in ['ug', 'masters', 'phd']
+        && x.get('kind', 'people') in ['people', 'lab', 'data', 'literature']
+        && x.get('start', '') is string && x.get('start', '').size() <= 10
+        && x.get('handIn', '') is string && x.get('handIn', '').size() <= 10
+        && x.get('dates', {}) is map && x.get('dates', {}).size() <= 6
+        && x.get('chapters', []) is list && x.get('chapters', []).size() <= 20
+        && x.get('proposal', {}) is map && x.get('proposal', {}).size() <= 9
+        && x.get('checks', {}) is map && x.get('checks', {}).size() <= 120
+        && x.get('setupAt', 0) is number;
     }
     // Account photo: an https link or a small uploaded image (data URL)
     function validPhoto(d) { return d.get('photo', '') is string && d.get('photo', '').size() <= 60000; }
@@ -433,7 +448,7 @@ service cloud.firestore {
       allow update: if isMember(t) && validTeam(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.createdAt == resource.data.createdAt
-        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look'])
+        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look', 'dissertation'])
         // archiveRev: changed by any save to an old week, so other devices re-read old weeks (backend/tasksync.js)
         && (!changed().hasAny(['archiveRev']) || can(t, 'tasks.editOwn') || can(t, 'tasks.editAll'))
         && (!changed().hasAny(['subteams', 'leads']) || can(t, 'team.settings') || can(t, 'members.manage'))
@@ -442,7 +457,7 @@ service cloud.firestore {
         && (!changed().hasAny(['roles']) || can(t, 'roles.manage'))
         // who used to be in the team (names stay on their past work): set when a member is removed
         && (!changed().hasAny(['former']) || can(t, 'members.manage'))
-        && (!changed().hasAny(['autos', 'github']) || can(t, 'team.settings'))
+        && (!changed().hasAny(['autos', 'github', 'dissertation']) || can(t, 'team.settings'))
         // The repository itself is set by the server (githubConnect), which also keeps its secret.
         && (!changed().hasAny(['github']) || (request.resource.data.get('github', null) == null || (request.resource.data.github.get('repo', '') == resource.data.get('github', {}).get('repo', '')
           && request.resource.data.github.get('write', false) == resource.data.get('github', {}).get('write', false))))

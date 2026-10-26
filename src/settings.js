@@ -73,6 +73,7 @@ function features(pane, ctx, { rerender } = {}) {
     el('section', {}, el('h4', {}, 'Always on'), el('p.hint', {}, 'Board and Kanban, phases, comments and @mentions, My tasks, search, templates, repeating tasks, analytics and the progress report.')),
     el('section', {}, el('h4', {}, 'Standard'), el('div.feature-list', {}, FEATURES.filter(f => f.group === 'standard').map(card))),
     el('section', {}, el('h4', {}, 'Advanced'), el('p.hint', {}, 'For bigger projects, labs and engineering teams.'), el('div.feature-list', {}, FEATURES.filter(f => f.group === 'advanced').map(card))),
+    el('section', {}, el('h4', {}, 'Study'), el('p.hint', {}, 'For a dissertation, final-year project or thesis.'), el('div.feature-list', {}, FEATURES.filter(f => f.group === 'study').map(card))),
     el('section', {}, el('h4', {}, 'Pro and Organisation'), el('p.hint', {}, 'Paid features, being built now. Pilot teams get them free while they are in development — see Settings ▸ Plan.'),
       el('div.feature-list.pro-list', {}, PRO_FEATURES.map(f => el('div.feature-card.pro-card', { dataset: { pro: f.key } },
         el('span.feature-icon', { 'aria-hidden': 'true' }, f.icon), el('span.feature-text', {}, el('b', {}, f.name), el('span.hint', {}, f.help)),

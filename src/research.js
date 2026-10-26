@@ -18,7 +18,7 @@ let R = null;   // { ctx, m, tab, sel, partEdit, paperEdit, txEdit, dirty, filte
 const today = () => new Date().toLocaleDateString('en-CA');
 const fmtDate = (iso) => { if (!iso) return ''; const d = new Date(iso + 'T12:00:00'); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }); };
 // [tab, label, feature that turns it on]
-const TABS = [['meetings', '📝 Meetings', 'meetings'], ['parts', '🔩 Parts', 'parts'], ['finance', '💷 Finance', 'finance'], ['literature', '📚 Literature', 'literature'],
+const TABS = [['dissertation', '🎓 Dissertation', 'dissertation'], ['meetings', '📝 Meetings', 'meetings'], ['parts', '🔩 Parts', 'parts'], ['finance', '💷 Finance', 'finance'], ['literature', '📚 Literature', 'literature'],
   ['people', '👥 People', 'people'], ['time', '🕒 Timesheet', 'time'], ['risks', '⚠️ Risks', 'risks'], ['requirements', '📐 Requirements', 'requirements']];
 /** The tools this team has turned on (Settings ▸ Features). */
 export function toolTabs(s) { const f = cleanFeatures(s && s.team && s.team.features); return TABS.filter(t => f[t[2]]); }
@@ -64,7 +64,7 @@ export function openResearch(ctx, tab) {
   if (R) { R.tab = tab || R.tab; render(); return; }
   const m = modal('🧰 Tools', { onClose: () => { R = null; } });
   m.box.classList.add('research-modal');
-  R = { ctx, m, tab: tab || 'meetings', sel: null, partEdit: null, paperEdit: null, txEdit: null, dirty: false, filters: { partQ: '', partStatus: 'open', paperQ: '', paperStatus: 'all', paperTag: '', txKind: 'all', logKind: 'all', partTeam: '' }, logAll: false };
+  R = { ctx, m, tab: tab || (toolTabs(ctx.session)[0] || ['meetings'])[0], sel: null, partEdit: null, paperEdit: null, txEdit: null, dirty: false, filters: { partQ: '', partStatus: 'open', paperQ: '', paperStatus: 'all', paperTag: '', txKind: 'all', logKind: 'all', partTeam: '' }, logAll: false };
   m.box.addEventListener('focusout', () => setTimeout(() => { if (R && R.dirty && !typing()) { R.dirty = false; render(); } }, 0));
   render();
 }
@@ -84,7 +84,7 @@ function render() {
   if (!on.length) { m.body.replaceChildren(el('div.empty-state', {}, 'No tools are turned on for this team. ' + (perm('team.settings') ? 'Turn some on in Settings ▸ Features.' : 'Ask a team admin to turn some on in Settings ▸ Features.'))); m.foot.replaceChildren(); return; }
   const tabs = el('div.rs-tabs', { role: 'tablist' }, on.map(([k, label]) => el('button.rs-tab' + (R.tab === k ? '.on' : ''), { type: 'button', role: 'tab', 'aria-selected': String(R.tab === k), dataset: { tab: k }, onclick: () => { R.tab = k; render(); } }, label)));
   const pane = el('div.rs-pane');
-  try { ({ meetings, parts, finance, literature, people, time: timesheet, risks, requirements })[R.tab](pane, kit); }
+  try { ({ dissertation, meetings, parts, finance, literature, people, time: timesheet, risks, requirements })[R.tab](pane, kit); }
   catch (e) { console.error(e); pane.append(el('div.empty-state', {}, 'Could not show this: ' + e.message)); }
   const scroll = m.body.scrollTop;
   m.body.replaceChildren(tabs, pane); m.body.scrollTop = scroll;
@@ -139,6 +139,12 @@ export function actionsFromNotes(notes, members) {
   });
   return out;
 }
+// 🎓 Dissertation (dissertation-tab.js): loaded with the Tools, drawn with the shared kit.
+function dissertation(pane) {
+  if (!dissMod) { pane.append(el('div.empty-state', {}, 'Loading…')); import('./dissertation-tab.js').then(m => { dissMod = m; render(); }); return; }
+  dissMod.dissertationPane(pane, kit, () => import('./dissertation-ui.js').then(m => m.openDissertationSetup(R.ctx, { onDone: () => render() })));
+}
+let dissMod = null;
 function meetings(pane) {
   const list = (S().meetings || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.createdAt - a.createdAt);
   if (R.sel && !list.some(x => x.id === R.sel)) R.sel = null;
