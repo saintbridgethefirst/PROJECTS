@@ -11,7 +11,7 @@ import { THEMES, SWATCH, applyTheme, currentTheme, savedTheme, themeName, isThem
 import { APP_NAME, APP_TAGLINE, DEMO_MODE, PUBLIC_DEMO, GOOGLE_CLIENT_ID, MS_CLIENT_ID, LIMITS } from './config.js';
 import { can, canEditOwnedBy, DEFAULT_ROLES, normEmail, isValidEmail } from './permissions.js';
 import { healthOf, checkFiles, checkableBy } from './filehealth.js';
-import { cleanTeam, cleanMember, cleanCategory, cleanTask, DEFAULT_LABELS, newId, nextWeekTitle, cascadeWeekDates, carryIndexOf, FAIR_USE_TEAMS } from './model.js';
+import { cleanTeam, cleanMember, cleanCategory, cleanTask, DEFAULT_LABELS, newId, nextWeekTitle, cascadeWeekDates, carryIndexOf, FAIR_USE_TEAMS, cleanDissertation } from './model.js';
 import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mergeChanges, invert } from './sync.js';
 import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
@@ -1004,6 +1004,7 @@ const RESEARCH = [
   ['requests', (r, id) => ({ ...r, id }), 'requests', 'settings', null],
   ['presence', (p, id) => cleanPresence(p, id), 'presence', 'presence', null],
   ['whiteboards', cleanWhiteboard, 'whiteboards', 'wb', 'whiteboards'], ['wbItems', cleanWbItem, 'wbItems', 'wb', 'whiteboards'],
+  ['dissertation', (d, id) => ({ ...cleanDissertation(d), id }), 'dissertationDocs', null, 'dissertation'],   // one document, 'plan'
 ];
 function syncResearch(s) {
   const on = cleanFeatures(s.team.features);
@@ -1011,8 +1012,8 @@ function syncResearch(s) {
   RESEARCH.forEach(([coll, clean, key, after, feature]) => {
     const want = !feature || on[feature];
     if (want && !s.researchUnsubs[coll]) {
-      s.researchUnsubs[coll] = backend.data.watchCollection(s.teamId, coll, (rows) => { if (session !== s) return; s[key] = rows.map(r => clean(r, r.id)); researchChanged(after); }, (e) => console.warn(coll, e));
-    } else if (!want && s.researchUnsubs[coll]) { s.researchUnsubs[coll](); delete s.researchUnsubs[coll]; s[key] = []; }
+      s.researchUnsubs[coll] = backend.data.watchCollection(s.teamId, coll, (rows) => { if (session !== s) return; s[key] = rows.map(r => clean(r, r.id)); if (coll === 'dissertation') s.dissertation = s[key].find(r => r.id === 'plan') || null; researchChanged(after); }, (e) => console.warn(coll, e));
+    } else if (!want && s.researchUnsubs[coll]) { s.researchUnsubs[coll](); delete s.researchUnsubs[coll]; s[key] = []; if (coll === 'dissertation') s.dissertation = null; }
   });
 }
 

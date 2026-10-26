@@ -129,7 +129,6 @@ export function cleanTeam(t) {
     look: t.look === 'professional' ? 'professional' : 'friendly',
     former: cleanFormer(t.former),
     plan: cleanPlan(t.plan),
-    ...(t.dissertation ? { dissertation: cleanDissertation(t.dissertation) } : {}),
     weeks: (Array.isArray(t.weeks) ? t.weeks : []).map(cleanWeek),
   };
 }
@@ -646,6 +645,8 @@ export const DISS_STATUS = ['todo', 'drafting', 'supervisor', 'revising', 'final
 export const DISS_PROPOSAL = ['topic', 'why', 'gap', 'question', 'aims', 'methods', 'ethics', 'sources', 'notes'];
 const int0 = (v, max) => Math.max(0, Math.min(max, Math.round(Number(v) || 0)));
 /** The dissertation record on a team: level, dates, chapters with word counts, the proposal draft and ticked checks. null when unused. */
+/** The team's dissertation record (teams/{id}/dissertation/plan, synced into session.dissertation), or null. */
+export const dissertationOf = (s) => (s && s.dissertation) || null;
 export function cleanDissertation(d) {
   if (!d || typeof d !== 'object') return null;
   const dates = {}; DISS_DATES.forEach(k => { const v = isoOrEmpty(d.dates && d.dates[k]); if (v) dates[k] = v; });

@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, modal, toast } from './ui.js';
 import { LEVELS, KINDS, defaultChapters, buildDissertationPlan, isISO } from './dissertation.js';
-import { cleanDissertation, cleanAutos, newId } from './model.js';
+import { cleanDissertation, cleanAutos, newId, dissertationOf } from './model.js';
 import { isValidEmail, normEmail } from './permissions.js';
 
 const todayISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
@@ -20,7 +20,7 @@ export const SUPERVISOR_ROLE = { name: 'Supervisor', builtin: false, order: 3, p
  * or sensible defaults. `onDone(plan)` runs after the plan is applied.
  */
 export function openDissertationSetup(ctx, { onDone } = {}) {
-  const TT = ctx.TT; const saved = (TT.team && TT.team.dissertation) || {};
+  const saved = dissertationOf(ctx.session) || {};
   const st = {
     level: saved.level || 'ug', kind: saved.kind || 'people',
     start: saved.start || todayISO(), handIn: saved.handIn || '',
@@ -176,13 +176,14 @@ export async function applyDissertationPlan(ctx, plan, { supervisor = '', replac
   // The team record: phases on the Gantt, the dissertation itself, carry-over, and the Supervisor role.
   const T = TT.team;
   const autos = cleanAutos({ ...(T.autos || {}), carry: true, carryWarn: 2, carryMakeWeeks: plan.level === 'phd' || !!(T.autos && T.autos.carryMakeWeeks) });
-  const prev = T.dissertation || {};
+  const prev = dissertationOf(ctx.session) || {};
   const dissertation = cleanDissertation({ ...prev, level: plan.level, kind: plan.kind, start: plan.start, handIn: plan.handIn, dates: plan.dates || prev.dates || {},
     chapters: plan.chapters.map(c => { const old = (prev.chapters || []).find(x => x.id === c.id); return { ...c, words: old ? old.words : c.words || 0, status: old ? old.status : c.status || 'todo' }; }),
     setupAt: Date.now() });
-  const data = { phases: plan.phases, dissertation, autos };
+  const data = { phases: plan.phases, autos };
   if (!(T.roles || {}).supervisor) data.roles = { ...T.roles, supervisor: SUPERVISOR_ROLE };
-  if (!(await ctx.writeOps([{ type: 'update', path: 'team', data }]))) throw new Error('Saving the plan didn’t work. Check your connection and try again.');
+  const { id: _id, ...doc } = dissertation; void _id;
+  if (!(await ctx.writeOps([{ type: 'update', path: 'team', data }, { type: 'set', path: 'dissertation/plan', data: doc }]))) throw new Error('Saving the plan didn’t work. Check your connection and try again.');
   // The invitation is a second write: the security rules check its role against the team as saved.
   const email = normEmail(supervisor || '');
   if (email && isValidEmail(email) && email !== normEmail(TT.me.email)) await ctx.writeOps([{ type: 'set', path: 'invites/' + email, data: { email, roleId: 'supervisor', teamName: T.name, invitedBy: TT.me.uid, invitedByName: TT.me.name, createdAt: Date.now() } }]);

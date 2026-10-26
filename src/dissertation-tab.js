@@ -4,7 +4,7 @@
 //  Everything here is the student's own words: Trawpie lays out, checks and reminds.
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, toast } from './ui.js';
-import { cleanDissertation, newId, DISS_PROPOSAL } from './model.js';
+import { cleanDissertation, newId, DISS_PROPOSAL, dissertationOf } from './model.js';
 import { LEVELS, KINDS, CHAPTER_STATUS, daysLeft, isISO } from './dissertation.js';
 
 let view = 'overview'; let shownFor = null;   // the sub-view; a freshly opened Tools window starts on the overview
@@ -17,7 +17,7 @@ const bar = (p, label) => el('div.diss-bar', { role: 'progressbar', 'aria-valuen
 /** Draw the tab into `pane`. `kit` is the Tools kit (research.js); `openSetup()` opens the plan setup. */
 export function dissertationPane(pane, kit, openSetup) {
   if (shownFor !== kit.R) { shownFor = kit.R; view = 'overview'; showOutline = false; }
-  const S = kit.S(); const T = S.team; const D = T.dissertation;
+  const S = kit.S(); const T = S.team; const D = dissertationOf(S);
   const edit = kit.perm('team.settings');
   if (!D || !D.setupAt) {
     pane.append(el('div.empty-state.diss-empty', {},
@@ -26,7 +26,7 @@ export function dissertationPane(pane, kit, openSetup) {
       edit ? el('button.btn.primary', { type: 'button', id: 'diss-setup', onclick: openSetup }, 'Set up my plan') : el('p.hint', {}, 'The owner of this workspace hasn’t set up the plan yet.')));
     return;
   }
-  const save = async (patch, msg) => { const cur = kit.S().team.dissertation || {}; const ok = await kit.write([{ type: 'update', path: 'team', data: { dissertation: cleanDissertation({ ...cur, ...patch }) } }]); if (ok && msg) toast(msg); return ok; };
+  const save = async (patch, msg) => { const { id: _id, ...cur } = dissertationOf(kit.S()) || {}; void _id; const ok = await kit.write([{ type: 'set', path: 'dissertation/plan', data: cleanDissertation({ ...cur, ...patch }) }]); if (ok && msg) toast(msg); return ok; };
   const nav = el('div.diss-nav', { role: 'tablist', 'aria-label': 'Dissertation' }, VIEWS.map(([k, label]) => el('button' + (view === k ? '.on' : ''), { type: 'button', role: 'tab', 'aria-selected': String(view === k), dataset: { dview: k }, onclick: () => { view = k; kit.render(); } }, label)));
   const body = el('div.diss-body');
   pane.append(nav, body);

@@ -64,7 +64,7 @@ service cloud.firestore {
         && cw is int && cw >= 0 && cw <= 10;
     }
     function validTeam(d) {
-      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look', 'dissertation'])
+      return d.keys().hasOnly(['name', 'logo', 'ownerUid', 'createdAt', 'roles', 'fields', 'labels', 'weeks', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'plan', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look'])
         && d.get('archiveRev', 0) is int
         && (!('former' in d) || (d.former is map && d.former.size() <= 300))
         && d.get('currency', 'GBP') in ['GBP', 'EUR', 'USD', 'INR', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD']
@@ -85,8 +85,7 @@ service cloud.firestore {
         && (d.get('capacity', 0) is number && d.get('capacity', 0) >= 0 && d.get('capacity', 0) <= 80)
         && d.get('features', {}) is map && d.get('features', {}).size() <= 30
         && d.get('subteams', []) is list && d.get('subteams', []).size() <= 20
-        && (!('plan' in d) || validPlan(d.plan))
-        && (d.get('dissertation', null) == null || validDissertation(d.dissertation));
+        && (!('plan' in d) || validPlan(d.plan));
     }
     // A dissertation or thesis workspace: level, dates, chapters (word counts), the proposal draft, ticked checks
     function validDissertation(x) {
@@ -448,7 +447,7 @@ service cloud.firestore {
       allow update: if isMember(t) && validTeam(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.createdAt == resource.data.createdAt
-        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look', 'dissertation'])
+        && changed().hasOnly(['weeks', 'name', 'logo', 'fields', 'labels', 'roles', 'weekNaming', 'phases', 'capacity', 'features', 'subteams', 'archiveRev', 'workflow', 'leads', 'purchase', 'autos', 'github', 'currency', 'former', 'look'])
         // archiveRev: changed by any save to an old week, so other devices re-read old weeks (backend/tasksync.js)
         && (!changed().hasAny(['archiveRev']) || can(t, 'tasks.editOwn') || can(t, 'tasks.editAll'))
         && (!changed().hasAny(['subteams', 'leads']) || can(t, 'team.settings') || can(t, 'members.manage'))
@@ -457,7 +456,7 @@ service cloud.firestore {
         && (!changed().hasAny(['roles']) || can(t, 'roles.manage'))
         // who used to be in the team (names stay on their past work): set when a member is removed
         && (!changed().hasAny(['former']) || can(t, 'members.manage'))
-        && (!changed().hasAny(['autos', 'github', 'dissertation']) || can(t, 'team.settings'))
+        && (!changed().hasAny(['autos', 'github']) || can(t, 'team.settings'))
         // The repository itself is set by the server (githubConnect), which also keeps its secret.
         && (!changed().hasAny(['github']) || (request.resource.data.get('github', null) == null || (request.resource.data.github.get('repo', '') == resource.data.get('github', {}).get('repo', '')
           && request.resource.data.github.get('write', false) == resource.data.get('github', {}).get('write', false))))
@@ -653,6 +652,13 @@ service cloud.firestore {
         allow delete: if isMember(t) && (resource.data.createdBy == request.auth.uid || can(t, 'team.settings'));
       }
       // Literature list: shared; the person who added an item or a settings manager deletes it.
+      // A dissertation or thesis workspace (the Dissertation feature): one document, 'plan'. Kept apart
+      // from the team document so the team's own rules stay small.
+      match /dissertation/{d} {
+        allow read: if isMember(t);
+        allow create, update: if d == 'plan' && can(t, 'team.settings') && validDissertation(request.resource.data);
+        allow delete: if can(t, 'team.settings');
+      }
       match /papers/{p} {
         allow read: if isMember(t);
         allow create: if canEditAny(t) && request.resource.data.addedBy == request.auth.uid && validPaper(request.resource.data);

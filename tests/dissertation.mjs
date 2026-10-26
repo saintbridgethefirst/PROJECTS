@@ -63,7 +63,7 @@ try {
   const prop = tasks.find(t => t.name === 'Proposal submitted');
   ok(prop && prop.dueDate === '2026-11-06' && prop.priority === 'Critical', 'the proposal milestone on the university’s date');
   ok(tasks.find(t => t.name === 'Write the proposal').subtasks.length === 5, 'tasks come with checklists');
-  ok(T.doc.dissertation.level === 'ug' && T.doc.dissertation.handIn === '2027-04-30' && T.doc.dissertation.chapters.reduce((s, c) => s + c.target, 0) === 12000, 'the dissertation record is saved');
+  ok((T.dissertation || {}).plan.level === 'ug' && (T.dissertation || {}).plan.handIn === '2027-04-30' && (T.dissertation || {}).plan.chapters.reduce((s, c) => s + c.target, 0) === 12000, 'the dissertation record is saved');
   ok(T.doc.autos.carry === true, 'carry-over is on, so late tasks follow you into this week');
   ok(T.doc.roles.supervisor && T.doc.roles.supervisor.perms['tasks.editOwn'] && !T.doc.roles.supervisor.perms['team.settings'], 'a Supervisor role that comments but doesn’t change the plan');
   ok(T.invites && T.invites['dr.smith@uni.ac.uk'] && T.invites['dr.smith@uni.ac.uk'].roleId === 'supervisor', 'the supervisor is invited');
@@ -78,7 +78,7 @@ try {
   await A.fill('input[data-ch="ch2"]', '1500'); await A.dispatchEvent('input[data-ch="ch2"]', 'change'); await sleep(500);
   await A.selectOption('select[aria-label="Literature review status"]', 'drafting'); await A.click('.diss-ch-row.head'); await sleep(600);
   T = await team(A, 'My dissertation');
-  ok(T.doc.dissertation.chapters[1].words === 1500 && T.doc.dissertation.chapters[1].status === 'drafting', 'words and status saved');
+  ok((T.dissertation || {}).plan.chapters[1].words === 1500 && (T.dissertation || {}).plan.chapters[1].status === 'drafting', 'words and status saved');
   ok(/1,500/.test(await A.textContent('.diss-ch-row.total')), 'the total updates');
 
   step('Proposal helper: hints, not marks, and an outline to copy');
@@ -93,13 +93,13 @@ try {
   const outline = await A.textContent('.diss-outline');
   ok(outline.startsWith('# How student teams plan') && /## Research question/.test(outline) && /## Timeline[\s\S]*Proposal submitted/.test(outline), 'the outline has the student’s words and the timeline');
   T = await team(A, 'My dissertation');
-  ok(/plans slip/.test(T.doc.dissertation.proposal.question), 'the proposal is saved');
+  ok(/plans slip/.test((T.dissertation || {}).plan.proposal.question), 'the proposal is saved');
 
   step('Checklists');
   await A.click('[data-dview="checks"]'); await sleep(200);
   ok(await A.locator('input[data-check^="eth_"]').count() === 7 && await A.locator('input[data-check^="sub_"]').count() === 11, 'ethics and hand-in checklists');
   await A.click('input[data-check="sub_backup"]'); await sleep(400);
-  ok((await team(A, 'My dissertation')).doc.dissertation.checks.sub_backup === true, 'a tick is saved');
+  ok(((await team(A, 'My dissertation')).dissertation || {}).plan.checks.sub_backup === true, 'a tick is saved');
 
   step('Supervisor meetings use the template');
   await A.click('[data-dview="supervisor"]'); await sleep(200);
@@ -129,7 +129,7 @@ try {
   await setDate(A, 'Hand-in date', '2027-05-14');
   await A.click('.modal.diss-setup button:has-text("Update my plan")'); await sleep(1200);
   T = await team(A, 'My dissertation');
-  ok(T.doc.dissertation.handIn === '2027-05-14' && T.doc.dissertation.chapters[1].words === 1500, 'new date, word counts kept');
+  ok((T.dissertation || {}).plan.handIn === '2027-05-14' && (T.dissertation || {}).plan.chapters[1].words === 1500, 'new date, word counts kept');
 
   step('PhD: the first term on the board, the rest in the Backlog');
   while (await A.locator('.modal-overlay').count()) { await A.keyboard.press('Escape'); await sleep(200); }
@@ -145,7 +145,7 @@ try {
   ok(T.doc.autos.carryMakeWeeks === true, 'new weeks are added as time goes on');
   const names = Object.values(T.tasks).map(t => t.name);
   ['Upgrade / confirmation review', 'Submit your thesis', 'Viva', 'Annual progress review (year 2)'].forEach(n => ok(names.includes(n), 'PhD milestone: ' + n));
-  ok(T.doc.dissertation.chapters.reduce((s, c) => s + c.target, 0) === 80000, '80,000 words across the chapters');
+  ok((T.dissertation || {}).plan.chapters.reduce((s, c) => s + c.target, 0) === 80000, '80,000 words across the chapters');
 
   step('trawpie.org/dissertation ▸ "Try it without signing up" goes straight to the setup');
   const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
