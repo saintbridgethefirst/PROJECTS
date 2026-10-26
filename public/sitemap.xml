@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- lastmod = the last real change to the page's content (Google uses it to decide what to re-read). -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://trawpie.org/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://trawpie.org/demo</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://trawpie.org/guide.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://trawpie.org/blog/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://trawpie.org/blog/how-to-plan-a-student-engineering-project.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://trawpie.org/blog/how-to-run-a-formula-student-season.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://trawpie.org/blog/how-to-track-parts-and-budget-for-a-student-robotics-team.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://trawpie.org/security.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://trawpie.org/privacy.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://trawpie.org/terms.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://trawpie.org/</loc><lastmod>2026-10-26</lastmod></url>
+  <url><loc>https://trawpie.org/demo</loc><lastmod>2026-10-26</lastmod></url>
+  <url><loc>https://trawpie.org/guide.html</loc><lastmod>2026-10-26</lastmod></url>
+  <url><loc>https://trawpie.org/blog/</loc><lastmod>2026-10-25</lastmod></url>
+  <url><loc>https://trawpie.org/blog/how-to-plan-a-student-engineering-project.html</loc><lastmod>2026-10-25</lastmod></url>
+  <url><loc>https://trawpie.org/blog/how-to-run-a-formula-student-season.html</loc><lastmod>2026-10-25</lastmod></url>
+  <url><loc>https://trawpie.org/blog/how-to-track-parts-and-budget-for-a-student-robotics-team.html</loc><lastmod>2026-10-25</lastmod></url>
+  <url><loc>https://trawpie.org/security.html</loc><lastmod>2026-10-23</lastmod></url>
+  <url><loc>https://trawpie.org/privacy.html</loc><lastmod>2026-10-23</lastmod></url>
+  <url><loc>https://trawpie.org/terms.html</loc><lastmod>2026-10-23</lastmod></url>
 </urlset>

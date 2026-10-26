@@ -989,3 +989,23 @@ test('Microsoft publisher domain: trawpie.org serves the app association file', 
   assert.ok(i >= 0 && rw[i].destination === '/microsoft-identity-association.json', 'rewrite to the file');
   assert.ok(i < rw.findIndex(r => r.source === '**'), 'before the catch-all, or the app page would be served instead');
 });
+
+test('SEO: the demo page gets its own title, description and canonical; the home page keeps its own', async () => {
+  const fs = await import('node:fs');
+  const { demoHtml } = await import('../vite.config.js');
+  const home = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(home, /<title>Trawpie: project tracker for engineering and research teams<\/title>/);
+  assert.match(home, /<link rel="canonical" href="https:\/\/trawpie\.org\/">/);
+  const demo = demoHtml(home);
+  assert.match(demo, /<title>Trawpie live demo: try it with a sample team<\/title>/);
+  assert.match(demo, /<link rel="canonical" href="https:\/\/trawpie\.org\/demo">/);
+  assert.match(demo, /<meta property="og:url" content="https:\/\/trawpie\.org\/demo">/);
+  assert.doesNotMatch(demo, /href="https:\/\/trawpie\.org\/">/, 'no home canonical left in the demo page');
+  const fb = JSON.parse(fs.readFileSync(new URL('../firebase.json', import.meta.url)));
+  const rw = (Array.isArray(fb.hosting) ? fb.hosting[0] : fb.hosting).rewrites;
+  assert.ok(rw.findIndex(r => r.source === '/demo' && r.destination === '/demo.html') < rw.findIndex(r => r.source === '**'), '/demo served from demo.html');
+  const main = fs.readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(main, /^document\.title = APP_NAME;/m, 'the landing title is not overwritten on load');
+  const sm = fs.readFileSync(new URL('../public/sitemap.xml', import.meta.url), 'utf8');
+  assert.equal((sm.match(/<url>/g) || []).length, (sm.match(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/g) || []).length, 'every sitemap URL has a lastmod');
+});

@@ -64,7 +64,8 @@ let boardLoaded = null;      // Promise once board.js is loaded
 // Theme pack: the choice saved in this browser, until your account's choice arrives.
 applyTheme(savedTheme(), { save: false });
 applyNav();
-document.title = APP_NAME;
+// The public landing page keeps the title in index.html (it's what Google shows); app screens use the app name.
+const LANDING_TITLE = document.title;
 document.querySelectorAll('[data-app-name]').forEach(n => { n.textContent = APP_NAME; });
 document.querySelectorAll('[data-app-tagline]').forEach(n => { n.textContent = APP_TAGLINE + '.'; });
 
@@ -85,6 +86,8 @@ function show(screen) {
     // Google Drive/Sheets/Calendar access is remembered per person on this device.
     if (GOOGLE_CLIENT_ID) import('./integrations/google.js').then(m => m.setGoogleUser(u ? { uid: u.uid, email: u.email } : null)).catch(() => {});
     user = u;
+    // A hint for index.html: show the landing page straight away to visitors who aren't signed in
+    try { if (u) localStorage.setItem('tt_signed_in', '1'); else localStorage.removeItem('tt_signed_in'); } catch { /* */ }
     platformAdmin = false; studentStatus = null; eduClaim = cleanEduClaim(null);
     if (!u) { closeSelf(); closeTeam(); stopHome(); renderAuth(); return; }
     if (backend.data.isPlatformAdmin) backend.data.isPlatformAdmin(u.uid).then(v => { if (user === u) platformAdmin = !!v; }).catch(() => {});
@@ -124,6 +127,7 @@ const goTeam = (id) => { location.hash = '#/t/' + id; };
 // ── Sign-in screen ──────────────────────────────────────────────────────────
 function renderAuth() {
   show('auth-screen');
+  if (!/^\/demo\/?$/.test(location.pathname)) document.title = LANDING_TITLE;
   const box = $('#auth-actions'); box.replaceChildren();
   const note = $('#auth-note'); note.textContent = '';
   const P = backend.auth.providers;
@@ -393,6 +397,7 @@ function msIcon() { const s = document.createElementNS('http://www.w3.org/2000/s
 function stopHome() { homeUnsubs.forEach(u => u && u()); homeUnsubs = []; }
 
 function renderHome() {
+  document.title = APP_NAME;
   show('home-screen');
   stopHome();
   const acc = $('#home-account'); acc.replaceChildren(avatar(user), el('span', {}, user.name));

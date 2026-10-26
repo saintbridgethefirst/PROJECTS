@@ -15,6 +15,10 @@
         "destination": "/microsoft-identity-association.json"
       },
       {
+        "source": "/demo",
+        "destination": "/demo.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
