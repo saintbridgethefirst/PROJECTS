@@ -1031,6 +1031,21 @@ test('SEO: the dissertation Gantt chart template page, its download and its link
   ['public/dissertation.html', 'public/blog/gantt-chart-for-a-dissertation-or-final-year-project.html', 'index.html'].forEach(p => assert.match(read(p), /href="\/templates\/dissertation-gantt-chart"/, p + ' links to it'));
 });
 
+test('SEO: the Formula Student page is served, listed and linked', async () => {
+  const fs = await import('node:fs');
+  const read = (p) => fs.readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+  const page = read('public/formula-student.html');
+  assert.match(page, /<link rel="canonical" href="https:\/\/trawpie\.org\/formula-student">/);
+  assert.match(page, /href="\/demo\?team=formula"/, 'it opens the Formula Student demo team');
+  page.match(/<img src="([^"]+)"/g).forEach(m => { const src = m.slice(10, -1); assert.ok(fs.existsSync(new URL('../public' + src, import.meta.url)), src); });
+  JSON.parse(page.match(/<script type="application\/ld\+json">([^<]+)<\/script>/)[1]);
+  const fb = JSON.parse(read('firebase.json'));
+  const rw = (Array.isArray(fb.hosting) ? fb.hosting[0] : fb.hosting).rewrites;
+  assert.ok(rw.findIndex(r => r.source === '/formula-student' && r.destination === '/formula-student.html') < rw.findIndex(r => r.source === '**'));
+  assert.match(read('public/sitemap.xml'), /<loc>https:\/\/trawpie\.org\/formula-student<\/loc>/);
+  ['index.html', 'public/blog/how-to-run-a-formula-student-season.html'].forEach(p => assert.match(read(p), /href="\/formula-student"/, p + ' links to it'));
+});
+
 test('index.html: the landing footer stays right after the landing page (its CSS uses the + selector)', async () => {
   const fs = await import('node:fs');
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');

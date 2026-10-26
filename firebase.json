@@ -27,6 +27,10 @@
         "destination": "/templates/dissertation-gantt-chart.html"
       },
       {
+        "source": "/formula-student",
+        "destination": "/formula-student.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
