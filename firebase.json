@@ -11,6 +11,10 @@
     ],
     "rewrites": [
       {
+        "source": "/.well-known/microsoft-identity-association.json",
+        "destination": "/microsoft-identity-association.json"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

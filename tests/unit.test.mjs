@@ -978,3 +978,14 @@ test('friendly errors: Microsoft AADSTS codes explain the setup problem', async 
   assert.match(friendlyError(fb('Error getting access token from microsoft.com, response: unknown')), /Microsoft sign-in didn’t work\. Use Google/);
   assert.equal(friendlyError(Object.assign(new Error('x'), { code: 'auth/invalid-credential' })), 'Email or password is incorrect.', 'password errors unchanged');
 });
+
+test('Microsoft publisher domain: trawpie.org serves the app association file', async () => {
+  const fs = await import('node:fs');
+  const assoc = JSON.parse(fs.readFileSync(new URL('../public/microsoft-identity-association.json', import.meta.url)));
+  assert.match(assoc.associatedApplications[0].applicationId, /^[0-9a-f-]{36}$/);
+  const fb = JSON.parse(fs.readFileSync(new URL('../firebase.json', import.meta.url)));
+  const rw = (Array.isArray(fb.hosting) ? fb.hosting[0] : fb.hosting).rewrites;
+  const i = rw.findIndex(r => r.source === '/.well-known/microsoft-identity-association.json');
+  assert.ok(i >= 0 && rw[i].destination === '/microsoft-identity-association.json', 'rewrite to the file');
+  assert.ok(i < rw.findIndex(r => r.source === '**'), 'before the catch-all, or the app page would be served instead');
+});
