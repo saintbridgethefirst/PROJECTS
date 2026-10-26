@@ -219,7 +219,10 @@ test('calendar: events for deadlines and phases, valid .ics', async () => {
   assert.match(ics, /UID:task-a\.t1@teamtrack/); assert.match(ics, /DTSTART;VALUE=DATE:20261031\r\nDTEND;VALUE=DATE:20261101/);
   assert.match(ics, /X-WR-CALNAME:Trawpie – Robotics\\, Group\\; "A"/, 'commas and semicolons escaped');
   assert.ok(ics.split('\r\n').every(l => new TextEncoder().encode(l).length <= 75), 'long lines folded to 75 bytes');
-  assert.equal((ics.match(/BEGIN:VALARM/g) || []).length, 2, 'reminders on the deadline and the milestone, not the phase band');
+  assert.equal((ics.match(/BEGIN:VALARM/g) || []).length, 3, 'reminders on the deadline and the milestone (the day before, and a week ahead), not the phase band');
+  assert.equal((ics.match(/TRIGGER:-P6DT15H/g) || []).length, 1, 'only the milestone gets the week-ahead reminder');
+  const flagged = teamEvents({ ...session, tasks: [cleanTask({ ...taskDoc('u1', 'c1'), name: 'Hand in', dueDate: '2026-11-20', icon: '🚩', priority: 'Critical' }, 'h')] }, { scope: 'mine', uid: 'u1', includePhases: false });
+  assert.match(buildIcs(flagged, { calName: 'x', teamId: 't1' }), /TRIGGER:-PT15H[\s\S]*In a week: Due: Hand in[\s\S]*TRIGGER:-P6DT15H/, 'a 🚩 deadline reminds you a week ahead too');
 });
 
 test('import: Jira CSV columns, Trello board export, GitHub links', async () => {
@@ -1052,4 +1055,22 @@ test('dissertation plan: master’s build project and PhD', async () => {
   assert.equal(defaultChapters('phd').reduce((s, c) => s + c.target, 0), 80000);
   const tight = buildDissertationPlan({ level: 'ug', start: '2026-10-01', handIn: '2026-10-10' });
   assert.match(tight.warnings[0], /less than three weeks/);
+});
+
+test('dissertation: on-track signal and chapter draft states', async () => {
+  const { scheduleStatus, draftState } = await import('../src/dissertation.js');
+  const T = (due, done) => ({ dueDate: due, flag: done ? 'completed' : 'none' });
+  assert.equal(scheduleStatus([], '2027-01-10').state, 'none');
+  assert.deepEqual(scheduleStatus([T('2027-01-01', true), T('2027-01-08', true), T('2027-01-20', true)], '2027-01-10'), { state: 'ok', days: 0, ahead: 1, done: 3, due: 2 }, 'everything due is done, one ahead');
+  const b = scheduleStatus([T('2027-01-01', true), T('2027-01-04'), T('2027-01-08')], '2027-01-10');
+  assert.equal(b.state, 'behind'); assert.equal(b.days, 6, 'measured from the oldest open task');
+  assert.equal(scheduleStatus([T('2026-12-01'), T('2027-01-08')], '2027-01-10').state, 'late', 'over three weeks behind');
+  assert.equal(scheduleStatus([T('2027-01-10')], '2027-01-10').state, 'ok', 'due today is not late yet');
+  assert.equal(scheduleStatus([T(''), T('2027-02-01')], '2027-01-10').state, 'ok', 'undated tasks are ignored');
+  assert.equal(draftState(null).state, 'gone');
+  assert.equal(draftState({ flag: 'none', status: '', dueDate: '2027-01-20' }, '2027-01-10').state, 'waiting');
+  assert.equal(draftState({ flag: 'none', status: '', dueDate: '2027-01-05' }, '2027-01-10').state, 'late');
+  assert.equal(draftState({ flag: 'completed', status: 'Approved', dueDate: '2027-01-05' }, '2027-01-10').state, 'approved');
+  assert.equal(draftState({ flag: 'completed', status: 'Changes needed' }, '2027-01-10').state, 'changes');
+  assert.equal(draftState({ flag: 'completed', status: 'Done' }, '2027-01-10').state, 'reviewed');
 });

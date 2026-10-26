@@ -239,3 +239,31 @@ export function buildDissertationPlan(o = {}) {
 
 /** Days from `today` to the hand-in (negative once it has passed). */
 export const daysLeft = (handIn, today = iso(Date.now())) => (isISO(handIn) ? daysBetween(today, handIn) : null);
+
+/**
+ * Where you are against the plan, from the plan's tasks: compare how many are done with how many were
+ * due before today. Behind: how long ago the next task in date order was due ("about N days behind").
+ * @returns {{ state: 'ok'|'behind'|'late'|'none', days: number, ahead: number, done: number, due: number }}
+ */
+export function scheduleStatus(tasks, today = iso(Date.now())) {
+  const list = (tasks || []).filter(t => isISO(t.dueDate)).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  if (!list.length) return { state: 'none', days: 0, ahead: 0, done: 0, due: 0 };
+  const isDone = (t) => t.flag === 'completed';
+  const due = list.filter(t => t.dueDate < today).length;
+  const done = list.filter(isDone).length;
+  if (done >= due) return { state: 'ok', days: 0, ahead: done - due, done, due };
+  const next = list.filter(t => !isDone(t))[0];
+  const days = next ? Math.max(1, daysBetween(next.dueDate, today)) : 0;
+  return { state: days > 21 ? 'late' : 'behind', days, ahead: 0, done, due };
+}
+
+/** A chapter draft's state, read from its review task (owned by the supervisor). */
+export function draftState(task, today = iso(Date.now())) {
+  if (!task) return { state: 'gone', label: 'Review task deleted' };
+  const st = String(task.status || '').toLowerCase();
+  if (task.flag === 'completed' && st.startsWith('approved')) return { state: 'approved', label: 'Approved' };
+  if (st.startsWith('changes')) return { state: 'changes', label: 'Changes asked' };
+  if (task.flag === 'completed') return { state: 'reviewed', label: 'Reviewed' };
+  if (isISO(task.dueDate) && task.dueDate < today) return { state: 'late', label: 'Feedback overdue' };
+  return { state: 'waiting', label: 'Waiting for feedback' };
+}

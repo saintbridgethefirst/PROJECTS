@@ -3,9 +3,10 @@
 //  word counts, the proposal helper, checklists, and supervisor meetings.
 //  Everything here is the student's own words: Trawpie lays out, checks and reminds.
 // ─────────────────────────────────────────────────────────────────────────────
-import { el, toast } from './ui.js';
-import { cleanDissertation, newId, DISS_PROPOSAL, dissertationOf } from './model.js';
-import { LEVELS, KINDS, CHAPTER_STATUS, daysLeft, isISO } from './dissertation.js';
+import { el, toast, modal } from './ui.js';
+import { cleanDissertation, newId, DISS_PROPOSAL, dissertationOf, cleanUrl, carryIndexOf } from './model.js';
+import { LEVELS, KINDS, CHAPTER_STATUS, daysLeft, isISO, scheduleStatus, draftState } from './dissertation.js';
+import { linkInfo } from './filehealth.js';
 
 let view = 'overview'; let shownFor = null;   // the sub-view; a freshly opened Tools window starts on the overview
 let showOutline = false;
@@ -36,7 +37,9 @@ export function dissertationPane(pane, kit, openSetup) {
 // ── Overview ────────────────────────────────────────────────────────────────
 function overview(body, { kit, S, T, D, edit, openSetup }) {
   const left = daysLeft(D.handIn);
-  const tasks = (S.tasks || []).filter(t => !t.ghost);
+  // A task carried into later weeks is one piece of work: count only its latest copy.
+  const ix = carryIndexOf(S);
+  const tasks = (S.tasks || []).filter(t => !t.ghost && (ix.latest(t.id) || t).id === t.id);
   const done = (t) => t.flag === 'completed';
   const phases = (T.phases || []).filter(p => tasks.some(t => t.phaseId === p.id) || p.milestone);
   const today = new Date().toLocaleDateString('en-CA');
@@ -53,10 +56,13 @@ function overview(body, { kit, S, T, D, edit, openSetup }) {
         el('div.diss-level', {}, L.short + ' · ' + (KINDS[D.kind] || KINDS.people).name),
         el('div', {}, (D.level === 'phd' ? 'Thesis submission ' : 'Hand-in ') + fmt(D.handIn)),
         next ? el('div.diss-next', {}, 'Next milestone: ', el('b', {}, next.name), ' · ' + fmt(next.dueDate) + (daysLeft(next.dueDate) >= 0 ? ' (' + daysLeft(next.dueDate) + ' days)' : ' (overdue)')) : '',
+        trackPill(scheduleStatus(planTasks, today)),
         overdue ? el('div.diss-warn', {}, overdue + (overdue === 1 ? ' planned task is' : ' planned tasks are') + ' past their date. Carry-over moves them into this week; re-plan if they keep slipping.') : ''),
       el('div.diss-hero-act', {},
         edit ? el('button.btn.small', { type: 'button', onclick: openSetup }, 'Change the plan') : '',
-        el('button.btn.small', { type: 'button', onclick: () => { kit.R.m.close(); if (window.openAnalytics) window.openAnalytics('timeline'); } }, 'See the timeline'))),
+        el('button.btn.small', { type: 'button', onclick: () => { kit.R.m.close(); if (window.openAnalytics) window.openAnalytics('timeline'); } }, 'See the timeline'),
+        el('button.btn.small', { type: 'button', title: 'Your deadlines in Google Calendar, Outlook or Apple Calendar, with reminders', onclick: () => { kit.R.m.close(); window.TT.openCalendar(); } }, '📅 Reminders in my calendar'))),
+    dueSoon(kit, tasks, today),
     el('div.diss-stats', {},
       stat('Tasks done', planTasks.filter(done).length + ' of ' + planTasks.length, pct(planTasks.filter(done).length, planTasks.length)),
       stat('Words written', words.toLocaleString() + ' of ' + target.toLocaleString(), pct(words, target)),
@@ -77,23 +83,140 @@ function overview(body, { kit, S, T, D, edit, openSetup }) {
 }
 const fmtShort = (iso) => (isISO(iso) ? new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '');
 const stat = (label, value, p) => el('div.diss-stat', {}, el('span.hint', {}, label), el('b', {}, value || p + '%'), bar(p, label));
+/** "On track", or roughly how far behind the plan you are (from the plan's tasks and their dates). */
+function trackPill(st) {
+  if (st.state === 'none') return '';
+  const text = st.state === 'ok' ? (st.ahead > 0 ? 'On track, ' + st.ahead + (st.ahead === 1 ? ' task' : ' tasks') + ' ahead' : 'On track')
+    : st.days < 14 ? 'About ' + st.days + (st.days === 1 ? ' day' : ' days') + ' behind'
+    : 'About ' + Math.round(st.days / 7) + ' weeks behind';
+  const hint = st.state === 'ok' ? 'Every task due so far is done.' : st.state === 'late' ? 'Worth re-planning with your supervisor: move dates, drop or shrink tasks, and protect the buffer before hand-in.' : 'Catch up on the oldest open task first.';
+  return el('div.diss-track.' + st.state, { title: hint, dataset: { track: st.state } }, el('b', {}, text), el('span', {}, ' · ' + hint));
+}
+/** What's due in the next 7 days (and anything already late), each opening its task. */
+function dueSoon(kit, tasks, today) {
+  const week = new Date(new Date(today + 'T12:00:00').getTime() + 7 * 864e5).toLocaleDateString('en-CA');
+  const me = kit.me().uid;
+  const list = tasks.filter(t => t.flag !== 'completed' && t.dueDate && t.dueDate <= week && (t.ownerUid === me || t.supportPersonId === me))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 8);
+  if (!list.length) return '';
+  return el('div.diss-soon', {}, el('h4', {}, list.some(t => t.dueDate < today) ? 'Late, or due this week' : 'Due this week'),
+    el('ul.diss-due', {}, list.map(t => el('li' + (t.dueDate < today ? '.late' : ''), {},
+      el('button.link-btn', { type: 'button', onclick: () => { kit.R.m.close(); if (window.boardOpenTask) window.boardOpenTask(t.id); } }, t.name),
+      ' · ' + (t.dueDate < today ? 'was due ' : '') + fmtShort(t.dueDate)))));
+}
 
-// ── Chapters and word counts ────────────────────────────────────────────────
-function chapters(body, { D, edit, save }) {
-  const list = D.chapters.map(c => ({ ...c }));
+// ── Chapters, word counts and drafts ────────────────────────────────────────
+function chapters(body, { kit, S, D, edit, save }) {
+  const list = D.chapters.map(c => ({ ...c, drafts: (c.drafts || []).slice() }));
   const commit = (msg) => save({ chapters: list }, msg);
   const total = list.reduce((s, c) => s + c.words, 0), target = list.reduce((s, c) => s + c.target, 0);
+  const sups = (S.members || []).filter(m => m.roleId === 'supervisor');
+  const me = kit.me().uid;
   body.append(
-    el('p.hint', {}, 'Update your word counts as you write. A rough number is fine: it’s about seeing where you are, not counting every word.'),
+    el('p.hint', {}, edit ? 'Update your word counts as you write. A rough number is fine: it’s about seeing where you are, not counting every word. Send a chapter to your supervisor when you want feedback on it.' : 'Chapters and word counts so far. Drafts sent for feedback are listed under their chapter.'),
     el('div.diss-ch-table', {},
-      el('div.diss-ch-row.head', {}, el('span', {}, 'Chapter'), el('span', {}, 'Status'), el('span', {}, 'Words'), el('span', {}, 'Target'), el('span', {}, '')),
-      ...list.map((c, i) => {
+      el('div.diss-ch-row.head', {}, el('span', {}, 'Chapter'), el('span', {}, 'Status'), el('span', {}, 'Words'), el('span', {}, 'Target'), el('span', {}, ''), el('span', {}, '')),
+      ...list.flatMap((c, i) => {
         const status = el('select', { disabled: !edit, 'aria-label': c.name + ' status', onchange: (e) => { list[i].status = e.target.value; commit(); } }, CHAPTER_STATUS.map(([k, label]) => el('option', { value: k, selected: c.status === k }, label)));
         const words = el('input.inp', { type: 'number', min: 0, max: 500000, step: 50, value: c.words, disabled: !edit, 'aria-label': c.name + ' words written', dataset: { ch: c.id }, onchange: (e) => { list[i].words = Math.max(0, Number(e.target.value) || 0); commit(); } });
-        return el('div.diss-ch-row' + (c.status === 'final' ? '.final' : ''), {}, el('span.diss-ch-name', {}, c.name), status, words, el('span.diss-ch-target', {}, c.target.toLocaleString()), bar(pct(c.words, c.target), c.name));
+        const send = edit && sups.length ? el('button.btn.small.ghost', { type: 'button', dataset: { send: c.id }, title: 'Send this chapter to your supervisor for feedback', onclick: () => sendDraftDialog(kit, list, i, sups, commit) }, 'Send draft') : el('span');
+        const row = el('div.diss-ch-row' + (c.status === 'final' ? '.final' : ''), {}, el('span.diss-ch-name', {}, c.name), status, words, el('span.diss-ch-target', {}, c.target.toLocaleString()), bar(pct(c.words, c.target), c.name), send);
+        const drafts = c.drafts.length ? el('div.diss-drafts', {}, c.drafts.slice().reverse().map(d => draftChip(kit, c, d, me))) : null;
+        return drafts ? [row, drafts] : [row];
       }),
-      el('div.diss-ch-row.total', {}, el('b', {}, 'Total'), el('span', {}, ''), el('b', {}, total.toLocaleString()), el('b', {}, target.toLocaleString()), bar(pct(total, target), 'Total'))),
+      el('div.diss-ch-row.total', {}, el('b', {}, 'Total'), el('span', {}, ''), el('b', {}, total.toLocaleString()), el('b', {}, target.toLocaleString()), bar(pct(total, target), 'Total'), el('span'))),
+    edit && !sups.length ? el('p.hint', {}, 'To send drafts for feedback, invite your supervisor first (Supervisor tab).') : '',
     edit ? el('p.hint', {}, 'To rename, add or remove chapters, or change the targets: Overview ▸ Change the plan.') : '');
+}
+/** One sent draft: its state from the supervisor's review task, the file, and (for the supervisor) the decision buttons. */
+function draftChip(kit, c, d, me) {
+  const task = kit.taskById(d.taskId);
+  const st = draftState(task);
+  const mine = task && task.ownerUid === me && (st.state === 'waiting' || st.state === 'late');
+  const open = () => { kit.R.m.close(); if (task && window.boardOpenTask) window.boardOpenTask(task.id); };
+  return el('div.diss-draft', { dataset: { draft: d.taskId, state: st.state } },
+    el('b', {}, 'Draft ' + d.n), el('span.hint', {}, ' sent ' + fmtShort(new Date(d.sentAt).toLocaleDateString('en-CA'))),
+    el('span.diss-dstate.' + st.state, {}, st.label),
+    d.url ? el('a', { href: /^https:\/\//.test(d.url) ? d.url : undefined, target: '_blank', rel: 'noopener noreferrer' }, 'Open the draft ↗') : '',
+    task ? el('button.link-btn', { type: 'button', onclick: open }, 'Comments and feedback') : '',
+    mine ? el('span.diss-decide', {},
+      el('button.btn.small.primary', { type: 'button', dataset: { decide: 'approve' }, onclick: () => decideDialog(kit, c, d, task, true) }, 'Approve'),
+      el('button.btn.small', { type: 'button', dataset: { decide: 'changes' }, onclick: () => decideDialog(kit, c, d, task, false) }, 'Ask for changes')) : '');
+}
+const todayISO = () => new Date().toLocaleDateString('en-CA');
+const plusDays = (n) => new Date(Date.now() + n * 864e5).toLocaleDateString('en-CA');
+/** Find a task on the board model by id: { task, cat, week } or null. */
+function findInModel(model, id) {
+  for (const p of model.db) for (const c of p.categories) for (const w of model.weeksData) { const t = (c[w.key] || []).find(x => x.id === id); if (t) return { task: t, cat: c, week: w, person: p }; }
+  return null;
+}
+/** Send a chapter draft: a review task in the supervisor's row (due in two weeks), with the file and a note. */
+function sendDraftDialog(kit, list, i, sups, commit) {
+  const c = list[i]; const n = (c.drafts.length ? Math.max(...c.drafts.map(d => d.n)) : 0) + 1;
+  const m = modal('Send “' + c.name + '”, draft ' + n, { narrow: true });
+  const who = el('select.inp', { 'aria-label': 'Supervisor' }, sups.map(x => el('option', { value: x.uid }, x.name || x.email)));
+  const url = el('input.inp', { type: 'url', placeholder: 'https://… share link from OneDrive, Google Drive or SharePoint', 'aria-label': 'Link to the draft' });
+  const due = el('input.inp', { type: 'date', value: plusDays(14), 'aria-label': 'Feedback by' });
+  const note = el('textarea.inp', { rows: 3, maxlength: 2000, placeholder: 'Anything you’d like them to focus on? (optional)', 'aria-label': 'Note to your supervisor' });
+  m.body.append(
+    sups.length > 1 ? el('label.field', {}, el('span', {}, 'Send to'), who) : el('p', { style: { marginTop: 0 } }, 'To ', el('b', {}, sups[0].name || sups[0].email), '.'),
+    el('label.field', {}, el('span', {}, 'Link to the draft'), url, el('span.hint', {}, 'Share the file with your supervisor in OneDrive or Google Drive first, then paste its link.')),
+    el('label.field', {}, el('span', {}, 'Feedback by'), due),
+    el('label.field', {}, el('span', {}, 'Note'), note),
+    el('p.hint', {}, 'Your supervisor gets a review task with your note. They approve it or ask for changes, and their feedback appears here and on the task.'));
+  const go = el('button.btn.primary', { type: 'button', id: 'diss-send', onclick: async () => {
+    const link = url.value.trim() ? cleanUrl(url.value.trim()) : '';
+    if (url.value.trim() && !link) { toast('Paste a full link starting with https://'); return; }
+    go.disabled = true;
+    try {
+      const supUid = sups.length > 1 ? who.value : sups[0].uid;
+      const model = window.boardGetModel(); const sup = model.db.find(p => p.id === supUid && !p.former);
+      if (!sup) throw new Error('Your supervisor doesn’t have a row on the board yet. Ask them to open the team once.');
+      if (window.TT && window.TT.canEditOwner && !window.TT.canEditOwner(sup.id)) throw new Error('Your role can’t add tasks to your supervisor’s row.');
+      let cat = sup.categories[0];
+      if (!cat) { cat = window.newCategory('Reviews'); model.weeksData.forEach(w => { cat[w.key] = []; }); sup.categories.push(cat); }
+      const t0 = todayISO();
+      const wk = model.weeksData.find(w => w.startDate && w.key !== 'backlog' && window.daysBetweenISO(w.startDate, t0) >= 0 && window.daysBetweenISO(w.startDate, t0) <= 6)
+        || model.weeksData.filter(w => w.key !== 'backlog').slice(-1)[0] || model.weeksData[0];
+      if (!wk) throw new Error('Add a week to the board first.');
+      const me = kit.me(); const id = window.generateId();
+      const info = link ? linkInfo(link) : null;
+      cat[wk.key] = cat[wk.key] || [];
+      cat[wk.key].push({ id, type: 'task', name: ('Review: ' + c.name + ', draft ' + n).slice(0, 500), priority: 'Major', status: '', jiraId: '',
+        supportPersonId: me.uid, supportPersonId2: null, flag: 'none', dueDate: due.value || plusDays(14), completedDate: '',
+        subtasks: ['Read the draft', 'Leave comments on this task', 'Approve it or ask for changes'].map(title => ({ id: window.generateId(), title, completed: false })),
+        history: [{ time: window.getTimestamp(), user: me.name, field: 'Created', original: '', updated: 'Draft sent for review' }], custom: {}, icon: '📝',
+        attachments: link ? [{ id: newId('a'), provider: (info && info.provider) || 'link', name: c.name + ', draft ' + n, url: link, size: 0, addedBy: me.name, addedAt: Date.now() }] : [] });
+      window.boardApplyModel(model); window.boardCommit('draft-' + Date.now());
+      c.drafts.push({ n, taskId: id, url: link, sentAt: Date.now() }); c.status = 'supervisor';
+      await commit();
+      if (note.value.trim()) await kit.write([{ type: 'set', path: 'comments/' + newId('cm'), data: { taskId: id, authorUid: me.uid, authorName: (me.name || '').slice(0, 80), text: note.value.trim().slice(0, 2000), mentions: [supUid], createdAt: Date.now() } }]);
+      m.close(); toast('Draft ' + n + ' of ' + c.name + ' sent for feedback.');
+    } catch (e) { toast(e.message || String(e), 6000); go.disabled = false; }
+  } }, 'Send for feedback');
+  m.foot.append(el('button.btn.ghost', { type: 'button', onclick: m.close }, 'Cancel'), el('span.spacer'), go);
+}
+/** The supervisor's decision: approve, or ask for changes, with feedback that becomes a comment on the review task. */
+function decideDialog(kit, c, d, task, approve) {
+  const m = modal((approve ? 'Approve ' : 'Ask for changes: ') + c.name + ', draft ' + d.n, { narrow: true });
+  const fb = el('textarea.inp', { rows: 5, maxlength: 2000, placeholder: approve ? 'Anything to add? (optional)' : 'What should change? Be as specific as you can.', 'aria-label': 'Feedback' });
+  m.body.append(el('label.field', {}, el('span', {}, 'Feedback'), fb));
+  const go = el('button.btn.primary', { type: 'button', id: 'diss-decide-go', onclick: async () => {
+    if (!approve && !fb.value.trim()) { toast('Say what should change, so the student knows what to do.'); return; }
+    go.disabled = true;
+    const model = window.boardGetModel(); const hit = findInModel(model, task.id);
+    if (!hit) { toast('That review task isn’t on the board any more.'); go.disabled = false; return; }
+    const me = kit.me();
+    Object.assign(hit.task, { status: approve ? 'Approved' : 'Changes needed', flag: 'completed', completedDate: todayISO() });
+    (hit.task.subtasks || []).forEach(x => { x.completed = true; });
+    hit.task.history = (hit.task.history || []).concat({ time: window.getTimestamp(), user: me.name, field: 'Review', original: '', updated: approve ? 'Approved' : 'Changes needed' }).slice(-100);
+    window.boardApplyModel(model); window.boardCommit('review-' + Date.now());
+    const student = task.supportPersonId;
+    const text = (approve ? '✅ Approved.' : '✏️ Changes needed.') + (fb.value.trim() ? ' ' + fb.value.trim() : '');
+    await kit.write([{ type: 'set', path: 'comments/' + newId('cm'), data: { taskId: task.id, authorUid: me.uid, authorName: (me.name || '').slice(0, 80), text: text.slice(0, 2000), mentions: student ? [student] : [], createdAt: Date.now() } }]);
+    m.close(); toast(approve ? 'Approved. The student will see it straight away.' : 'Sent back with your feedback.');
+  } }, approve ? 'Approve' : 'Send feedback');
+  m.foot.append(el('button.btn.ghost', { type: 'button', onclick: m.close }, 'Cancel'), el('span.spacer'), go);
 }
 
 // ── Proposal helper ─────────────────────────────────────────────────────────

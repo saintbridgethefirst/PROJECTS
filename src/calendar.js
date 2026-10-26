@@ -58,13 +58,13 @@ export function teamEvents(session, { scope = 'mine', uid, includeDone = false, 
       t.flag === 'completed' ? 'Completed' : '', '', 'Open in ' + APP_NAME + ': ' + link,
     ].filter((x, i, a) => x || (i === a.length - 2)).join('\n');
     out.push({ id: 'task-' + ix.rootOf(t.id), kind: 'task', title: (t.flag === 'completed' ? '✓ ' : '') + 'Due: ' + t.name + (scope === 'all' ? ' (' + name(t.ownerUid) + ')' : ''),
-      start: t.dueDate, end: isoNext(t.dueDate), description: desc, url: link, alarm: t.flag !== 'completed' });
+      start: t.dueDate, end: isoNext(t.dueDate), description: desc, url: link, alarm: t.flag !== 'completed', alarmWeek: t.flag !== 'completed' && (t.icon === '🚩' || t.priority === 'Critical') });
   });
   if (includePhases) (T.phases || []).forEach(p => {
     if (p.start && p.end) out.push({ id: 'phase-' + p.id, kind: 'phase', title: 'Phase: ' + p.name + ' (' + T.name + ')', start: p.start, end: isoNext(p.end),
       description: 'Project phase in ' + T.name + (p.milestone ? '\nMilestone at the end: ' + p.milestone : '') + '\n\nOpen in ' + APP_NAME + ': ' + link, url: link, alarm: false, transparent: true });
     if (p.end && p.milestone) out.push({ id: 'milestone-' + p.id, kind: 'milestone', title: '🏁 ' + p.milestone + ' (' + p.name + ')', start: p.end, end: isoNext(p.end),
-      description: 'Milestone that ends the ' + p.name + ' phase of ' + T.name + '\n\nOpen in ' + APP_NAME + ': ' + link, url: link, alarm: true });
+      description: 'Milestone that ends the ' + p.name + ' phase of ' + T.name + '\n\nOpen in ' + APP_NAME + ': ' + link, url: link, alarm: true, alarmWeek: true });
   });
   return out.sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
 }
@@ -77,6 +77,8 @@ export function buildIcs(events, { calName, teamId }) {
     L.push('BEGIN:VEVENT', 'UID:' + e.id + '.' + teamId + '@teamtrack', 'DTSTAMP:' + now, 'DTSTART;VALUE=DATE:' + icsDate(e.start), 'DTEND;VALUE=DATE:' + icsDate(e.end),
       'SUMMARY:' + esc(e.title), 'DESCRIPTION:' + esc(e.description), 'URL:' + e.url, 'TRANSP:' + (e.transparent ? 'TRANSPARENT' : 'OPAQUE'));
     if (e.alarm) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + esc(e.title), 'TRIGGER:-PT15H', 'END:VALARM');
+    // Big deadlines (milestones and critical tasks) also remind you a week ahead, at 9am.
+    if (e.alarm && e.alarmWeek) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + esc('In a week: ' + e.title), 'TRIGGER:-P6DT15H', 'END:VALARM');
     L.push('END:VEVENT');
   });
   L.push('END:VCALENDAR');

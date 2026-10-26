@@ -72,6 +72,8 @@ try {
   ok(/days to go/.test(await A.textContent('.diss-hero')) && /Undergraduate/.test(await A.textContent('.diss-level')), 'countdown and level');
   ok(await A.locator('.diss-phase').count() === 9, 'every phase listed');
   ok(/Proposal submitted/.test(await A.textContent('.diss-ms')), 'milestones listed');
+  ok(['ok', 'behind', 'late'].includes(await A.getAttribute('.diss-track', 'data-track')), 'an on-track signal from the plan’s dates');
+  ok(await A.locator('.diss-hero-act button:has-text("Reminders in my calendar")').count() === 1, 'deadlines into your calendar, with reminders');
 
   step('Chapters: word counts');
   await A.click('[data-dview="chapters"]'); await sleep(200);
@@ -118,7 +120,50 @@ try {
   ok(await B.locator('button:has-text("Change the plan")').count() === 0, 'but can’t change the plan');
   await B.click('[data-dview="chapters"]'); await sleep(200);
   ok(await B.locator('input[data-ch="ch2"]').isDisabled(), 'or the word counts');
+  ok(await B.locator('[data-send]').count() === 0, 'or send drafts');
+  await B.keyboard.press('Escape'); await sleep(200);
+
+  step('Send a chapter draft for feedback: a review task for the supervisor');
+  await A.bringToFront();
+  await A.evaluate(() => TT.openResearch('dissertation')); await A.waitForSelector('.diss-nav'); await sleep(200);
+  await A.click('[data-dview="chapters"]'); await sleep(300);
+  await A.click('[data-send="ch2"]'); await A.waitForSelector('#diss-send');
+  ok(/Dr Sam Smith/.test(await A.textContent('.modal:has(#diss-send)')), 'it goes to the supervisor');
+  await A.fill('input[aria-label="Link to the draft"]', 'not a link'); await A.click('#diss-send'); await sleep(300);
+  ok(await A.locator('#diss-send').count() === 1, 'a bad link is caught');
+  await A.fill('input[aria-label="Link to the draft"]', 'https://1drv.ms/w/s!lit-review-draft');
+  await A.fill('textarea[aria-label="Note to your supervisor"]', 'Mostly the structure, please.');
+  await A.click('#diss-send'); await sleep(1000);
+  T = await team(A, 'My dissertation');
+  const supUid = Object.entries(T.members).find(([, m]) => m.email === 'dr.smith@uni.ac.uk')[0];
+  const meUid = Object.entries(T.members).find(([, m]) => m.email === 'maya@uni.ac.uk')[0];
+  const [reviewId, review] = Object.entries(T.tasks).find(([, t]) => t.name === 'Review: Literature review, draft 1') || [];
+  ok(review && review.ownerUid === supUid && review.supportPersonId === meUid && review.subtasks.length === 3, 'a review task in the supervisor’s row, with the student supporting');
+  ok(review && review.attachments[0] && /1drv\.ms/.test(review.attachments[0].url), 'with the draft attached');
+  const ch2 = (T.dissertation || {}).plan.chapters[1];
+  ok(ch2.status === 'supervisor' && ch2.drafts.length === 1 && ch2.drafts[0].taskId === reviewId, 'the chapter is with the supervisor, and the draft is listed');
+  ok(Object.values(T.comments || {}).some(c => c.taskId === reviewId && /structure/.test(c.text) && c.mentions.includes(supUid)), 'the note is a comment that mentions the supervisor');
+  ok(await A.locator('.diss-draft[data-state="waiting"]').count() === 1 && await A.locator('.diss-draft [data-decide]').count() === 0, 'waiting for feedback; only the supervisor decides');
+
+  step('The supervisor asks for changes');
+  await B.bringToFront();
+  await B.evaluate(() => TT.openResearch('dissertation')); await B.waitForSelector('.diss-nav'); await sleep(200);
+  await B.click('[data-dview="chapters"]'); await sleep(300);
+  await B.click('.diss-draft [data-decide="changes"]'); await B.waitForSelector('#diss-decide-go');
+  await B.click('#diss-decide-go'); await sleep(300);
+  ok(await B.locator('#diss-decide-go').count() === 1, 'asking for changes needs feedback');
+  await B.fill('textarea[aria-label="Feedback"]', 'Group the studies by method.');
+  await B.click('#diss-decide-go'); await sleep(1000);
+  T = await team(B, 'My dissertation');
+  const rv = T.tasks[reviewId] || {};
+  ok(rv.status === 'Changes needed' && rv.flag === 'completed', 'the review task is done, with the decision');
+  ok(Object.values(T.comments || {}).some(c => c.taskId === reviewId && /^✏️ Changes needed\. Group the studies/.test(c.text) && c.mentions.includes(meUid)), 'the feedback is a comment that mentions the student');
   await B.close();
+  await A.bringToFront();
+  await A.evaluate(() => TT.openResearch('dissertation')); await A.waitForSelector('.diss-nav'); await sleep(200);
+  await A.click('[data-dview="chapters"]'); await sleep(300);
+  ok(await A.locator('.diss-draft[data-state="changes"]').count() === 1, 'the student sees “Changes asked”');
+  await A.keyboard.press('Escape'); await sleep(200);
 
   step('Change the plan later: word counts are kept');
   await A.bringToFront();

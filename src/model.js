@@ -655,6 +655,8 @@ export function cleanDissertation(d) {
   const chapters = (Array.isArray(d.chapters) ? d.chapters : []).slice(0, 20).map((c, i) => ({
     id: safeKey(c && c.id) || 'ch' + (i + 1), name: str(c && c.name, 80) || 'Chapter ' + (i + 1),
     target: int0(c && c.target, 500000), words: int0(c && c.words, 500000), status: DISS_STATUS.includes(c && c.status) ? c.status : 'todo',
+    // Drafts sent to the supervisor: each one is a review task in the supervisor's row.
+    drafts: (Array.isArray(c && c.drafts) ? c.drafts : []).slice(-12).map((x, j) => ({ n: int0(x && x.n, 99) || j + 1, taskId: recordId(x && x.taskId), url: cleanUrl((x && x.url) || ''), sentAt: Number(x && x.sentAt) || 0 })).filter(x => x.taskId),
   }));
   return {
     level: DISS_LEVELS.includes(d.level) ? d.level : 'ug', kind: DISS_KINDS.includes(d.kind) ? d.kind : 'people',
