@@ -48,6 +48,8 @@
 .sf-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
 .sf-add .btn { min-height: 40px; }
 .sf-add input[type=text] { flex: 1 1 200px; }
+/* Inputs and selects carry a bottom margin everywhere else; in this row it pushed the Add button 10px lower. */
+.sf-add input, .sf-add select, .sf-add textarea, .sf-add .btn { margin: 0; }
 .sf-main input[type=text], .sf-main input[type=number], .sf-main select, .sf-main textarea,
 .sf-modal input[type=text], .sf-modal input[type=number], .sf-modal select, .sf-modal textarea {
   background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 9px 11px; font: inherit; font-size: 14px; min-height: 40px; box-sizing: border-box; max-width: 100%; width: auto; }
