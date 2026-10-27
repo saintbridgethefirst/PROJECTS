@@ -1049,6 +1049,15 @@ test('blog: every post is listed, in the sitemap, and its images exist', async (
   });
 });
 
+test('guide: who it’s for, and the dissertation section, are on the page and in its contents', async () => {
+  const fs = await import('node:fs');
+  const g = fs.readFileSync(new URL('../public/guide.html', import.meta.url), 'utf8');
+  ['who', 'dissertation'].forEach(id => { assert.match(g, new RegExp('<section class="block"[^>]* id="' + id + '"'), id + ' section'); assert.match(g, new RegExp('<nav class="toc"[^]*?href="#' + id + '"'), id + ' in the contents'); });
+  assert.match(g, /Universities and research[\s\S]*Teams and organisations/);
+  assert.match(g, /<article class="fc" data-g="study">/, 'a Dissertation card in the toolbox');
+  assert.doesNotMatch(g.split('id="feat-cards"')[0], /class="fc"/, 'the toolbox search only filters its own cards');
+});
+
 test('SEO: the Formula Student page is served, listed and linked', async () => {
   const fs = await import('node:fs');
   const read = (p) => fs.readFileSync(new URL('../' + p, import.meta.url), 'utf8');

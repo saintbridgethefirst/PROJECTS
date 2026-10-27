@@ -392,6 +392,40 @@ footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space
 footer a { color: var(--ink-2); }
 .hide-sm { } @media (max-width: 600px) { .hide-sm { display: none; } }
 @media (max-width: 600px) { .mb { grid-template-columns: 56px repeat(3, 1fr); } .anat .mb { grid-template-columns: 60px repeat(3, 1fr); } .tk { font-size: 10px; } .kpis { grid-template-columns: 1fr 1fr 1fr; } .kpi b { font-size: 18px; } section.block { padding: 52px 0; } }
+/* Who it's for */
+.aud { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.aud > div { background: var(--card); border: 2px solid var(--ink); border-radius: 18px; padding: 22px 22px 20px; box-shadow: var(--hard); display: flex; flex-direction: column; }
+.aud .big { font-size: 30px; width: 54px; height: 54px; display: grid; place-items: center; border-radius: 14px; border: 2px solid var(--ink); background: var(--tint, var(--paper-2)); margin-bottom: 12px; }
+.aud h3 { font-size: 22px; margin-bottom: 6px; }
+.aud > div > p { font-size: 15px; margin: 0 0 6px; }
+.aud ul { list-style: none; padding: 0; margin: 10px 0 18px; display: grid; gap: 10px; }
+.aud li { position: relative; padding-left: 26px; font-size: 15px; }
+.aud li::before { content: "→"; position: absolute; left: 0; top: 0; font-weight: 800; color: var(--accent); }
+.aud .links { margin-top: auto; display: flex; gap: 10px; flex-wrap: wrap; }
+.aud .links .btn { font-size: 14px; padding: 8px 14px; }
+@media (max-width: 820px) { .aud { grid-template-columns: 1fr; } }
+/* Dissertations and theses */
+.dgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.dc { background: var(--card); border: 2px solid var(--ink); border-radius: 18px; padding: 18px; box-shadow: 4px 4px 0 var(--ink); display: flex; flex-direction: column; }
+.dc .big { font-size: 26px; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 13px; border: 2px solid var(--ink); background: var(--tint, var(--paper-2)); margin-bottom: 10px; }
+.dc h3 { font-size: 17.5px; margin-bottom: 6px; }
+.dc p { font-size: 14px; margin: 0 0 8px; }
+.dc .where { margin-top: auto; display: block; font: 600 11.5px var(--mono); color: var(--muted); }
+@media (max-width: 980px) { .dgrid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .dgrid { grid-template-columns: 1fr; } }
+.flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 14px 0 0; padding: 0; list-style: none; counter-reset: f; }
+.flow li { counter-increment: f; position: relative; background: var(--paper-2); border: 1.5px solid var(--line); border-radius: 14px; padding: 30px 14px 14px; font-size: 14px; }
+.flow li::before { content: counter(f); position: absolute; top: 10px; left: 14px; font: 800 12px var(--mono); color: var(--accent); }
+.flow b { display: block; font-size: 15px; margin-bottom: 4px; color: var(--ink); }
+@media (max-width: 820px) { .flow { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 520px) { .flow { grid-template-columns: 1fr; } }
+.sup-box { margin-top: 26px; background: var(--card); border: 2px solid var(--ink); border-radius: 18px; padding: 20px 22px; box-shadow: 4px 4px 0 var(--ink); }
+.sup-box h3 { font-size: 20px; margin-bottom: 4px; }
+.sup-box > p { font-size: 15px; margin: 0; }
+.diss-cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 26px; }
+.honest { margin-top: 18px; font-size: 14.5px; color: var(--ink-2); border-left: 4px solid var(--accent); padding: 6px 0 6px 14px; }
+.tag.study { background: var(--coral); color: #fff; }
+.num.emo { font-size: 24px; font-family: var(--body); }
 </style>
 </head>
 <body>
@@ -399,7 +433,7 @@ footer a { color: var(--ink-2); }
   <div class="wrap">
     <a class="logo" href="./"><img src="icons/logo-96.png" alt=""><span>Trawpie</span><small>GUIDE</small></a>
     <nav class="toc" aria-label="Sections">
-      <a href="#new">New</a><a href="#start">Quick start</a><a href="#board">The board</a><a href="#weeks">Weeks</a><a href="#tasks">Tasks</a><a href="#views">Views</a><a href="#tools">Tools</a><a href="#roles">Roles</a><a href="#sync">Stay in sync</a><a href="#plans">Plans</a><a href="#compare">Compare</a><a href="#faq">FAQ</a><a href="security.html">Security</a>
+      <a href="#who">Who it’s for</a><a href="#new">New</a><a href="#start">Quick start</a><a href="#dissertation">Dissertations</a><a href="#board">The board</a><a href="#weeks">Weeks</a><a href="#tasks">Tasks</a><a href="#views">Views</a><a href="#tools">Tools</a><a href="#roles">Roles</a><a href="#sync">Stay in sync</a><a href="#plans">Plans</a><a href="#compare">Compare</a><a href="#faq">FAQ</a><a href="security.html">Security</a>
     </nav>
     <a class="btn primary" href="./">Open Trawpie →</a>
   </div>
@@ -413,7 +447,7 @@ footer a { color: var(--ink-2); }
     <div>
       <span class="eyebrow">📘 The field manual</span>
       <h1>Your team’s whole week, in <span class="scribble">one picture.</span></h1>
-      <p class="lead"><b>Trawpie</b> (Technical Research And Welfare for People In Education) is a shared board of <b>people × weeks</b>. Everyone can see who is doing what, what’s late and what’s next, and it updates live for the whole team. This page shows you everything it can do, one bite at a time.</p>
+      <p class="lead"><b>Trawpie</b> (Technical Research And Welfare for People In Education) is a shared board of <b>people × weeks</b>. Everyone can see who is doing what, what’s late and what’s next, and it updates live for the whole team. It’s built for <b>universities</b> (student teams, research groups, and students planning a dissertation or thesis) and for <b>engineering teams and organisations</b>. This page shows you everything it can do, one bite at a time.</p>
       <div class="cta">
         <a class="btn primary" href="/demo">Try the live demo →</a>
         <a class="btn" href="#start">Start the 5-step tour ↓</a>
@@ -448,12 +482,44 @@ footer a { color: var(--ink-2); }
   </div>
 </section>
 
+<!-- ═══ Who it's for ═══ -->
+<section class="block" id="who">
+  <div class="wrap">
+    <div class="sec-head"><span class="num emo">👋</span><div><h2>Who it’s for</h2><p>The same board works for a student writing a thesis and for a company running a product launch. Switch on the tools you need, and leave the rest off.</p></div></div>
+    <div class="aud">
+      <div>
+        <span class="big" style="--tint:color-mix(in srgb,var(--coral) 22%,transparent)">🎓</span>
+        <h3>Universities and research</h3>
+        <p>Free for students and university staff with <b>Pro Education</b>.</p>
+        <ul>
+          <li><b>Dissertations and theses:</b> undergraduate, master’s and PhD. A plan from your hand-in date, chapter word counts, a proposal helper and feedback on drafts from your supervisor. <a href="#dissertation">How it works ↓</a></li>
+          <li><b>Research groups and labs:</b> a lab notebook on every task, a reading list with DOIs and BibTeX, meeting notes whose actions become tasks, and requirements and risks.</li>
+          <li><b>Student teams and societies:</b> Formula Student, drone, rocketry and robotics teams, with sub-teams, parts, budget and design sign-offs.</li>
+        </ul>
+        <div class="links"><a class="btn primary" href="/dissertation">Plan a dissertation</a><a class="btn" href="/formula-student">Formula Student</a><a class="btn" href="/demo?team=drone">Student team demo</a></div>
+      </div>
+      <div>
+        <span class="big" style="--tint:color-mix(in srgb,var(--sky) 25%,transparent)">🏢</span>
+        <h3>Teams and organisations</h3>
+        <p>For engineering companies, R&amp;D programmes and departments with many projects.</p>
+        <ul>
+          <li><b>Stage gates and sign-offs:</b> your own workflow (Design → Review → Build → Test), with who must sign each stage off and a checklist.</li>
+          <li><b>Money and suppliers:</b> parts and orders, purchase approvals over a limit you set, budget lines and a burn-rate forecast.</li>
+          <li><b>Reporting:</b> requirements, a risk register, time logging, and a printable progress report for a manager, customer or funder.</li>
+          <li><b>People from outside:</b> invite clients, suppliers and contractors as Guests. They work on the tasks you give them and comment, and nothing else.</li>
+        </ul>
+        <div class="links"><a class="btn primary" href="/demo?team=corporate">Company demo</a><a class="btn" href="#plans">Plans for organisations</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ═══ What's new ═══ -->
 <section class="block whats-new" id="new">
   <div class="wrap">
     <div class="sec-head"><span class="num">★</span><div><h2>New in Trawpie</h2><p>The latest additions, and where to find them.</p></div></div>
     <div class="custom-list">
-      <div class="feat"><span class="i">🎓</span><div><h3>Dissertation and thesis planner</h3><p>Create a team and choose <b>Start with ▸ Dissertation or thesis</b>. Give your level (undergraduate, master’s or PhD) and hand-in date, and Trawpie lays out the whole plan week by week, with phases on the timeline and milestones. <b>🧰 Tools ▸ 🎓 Dissertation</b> then has your countdown, chapter word counts, a proposal helper, checklists and supervisor meetings. Your supervisor can follow along without changing anything. <a href="/dissertation">More about the planner</a>.</p></div></div>
+      <div class="feat"><span class="i">🎓</span><div><h3>Dissertation and thesis planner</h3><p>Create a team and choose <b>Start with ▸ Dissertation or thesis</b>. Give your level (undergraduate, master’s or PhD) and hand-in date, and Trawpie lays out the whole plan week by week, with phases on the timeline and milestones. <b>🧰 Tools ▸ 🎓 Dissertation</b> then shows whether you’re on track, your chapter word counts, a proposal helper, checklists and supervisor meetings. Send a chapter draft and your supervisor approves it or asks for changes. <a href="#dissertation">How it works ↓</a></p></div></div>
       <div class="feat"><span class="i">☰</span><div><h3>List view and a Backlog</h3><p>Pick <b>☰ List</b> at the top of the board: every task in one table you can sort, group (by person, week, stage or priority) and edit in place. Add a <b>Backlog</b> column for work that isn’t planned into a week yet. <a href="#views">More below ↓</a></p></div></div>
       <div class="feat"><span class="i">↪️</span><div><h3>Automatic carry-over</h3><p>Unfinished tasks move into the new week on their own, with their history. Owners switch it on in <b>Settings ▸ Workflow ▸ Automatic steps</b>, and can flag tasks that keep rolling over.</p></div></div>
       <div class="feat"><span class="i">📎</span><div><h3>File health</h3><p>Google Drive and OneDrive files on a task show <b>Access lost</b>, <b>Personal drive</b> or <b>✓ Opens</b>, with who to ask and a one-click re-link. The whole team’s list is in <b>Settings ▸ Integrations</b>.</p></div></div>
@@ -477,6 +543,40 @@ footer a { color: var(--ink-2); }
     </div>
     <div class="qs-bar"><span id="qs-text">0 of 5 done</span><div class="qs-track"><i id="qs-fill"></i></div><span id="qs-emoji">🌱</span></div>
     <div class="tip"><b>💡</b><span>Already have a spreadsheet, a Jira export or a Trello board? Skip step 4: <b>Team data ▸ Import tasks</b> brings it all in, and shows you a preview first.</span></div>
+  </div>
+</section>
+
+<!-- ═══ Dissertations and theses ═══ -->
+<section class="block" id="dissertation" style="background:color-mix(in srgb, var(--coral) 6%, transparent)">
+  <div class="wrap">
+    <div class="sec-head"><span class="num emo">🎓</span><div><h2>Dissertations and theses</h2><p>For undergraduate, master’s and PhD students. Tell Trawpie your hand-in date and it lays out the whole plan week by week, then keeps it up to date with you until you hand in. Your supervisor can follow along and give feedback on drafts.</p></div></div>
+    <div class="dgrid">
+      <div class="dc"><span class="big" style="--tint:color-mix(in srgb,var(--coral) 22%,transparent)">🚀</span><h3>Set it up in two minutes</h3><p>Create a team and choose <b>Start with ▸ Dissertation or thesis</b>. Pick your level, your start and hand-in dates, any university deadlines (proposal, ethics, full draft, upgrade, viva), the kind of research, your chapters with word targets and your supervisor’s email.</p><span class="where">Home ▸ Create a team</span></div>
+      <div class="dc"><span class="big" style="--tint:color-mix(in srgb,var(--teal) 25%,transparent)">🗓️</span><h3>Your plan on the board</h3><p>One row per phase and a column per week, with tasks and checklists, milestones on the timeline and about 10% spare before hand-in. Unfinished tasks carry into the next week. A PhD gets its first term in weeks and the rest in the Backlog, with new weeks added as you go.</p><span class="where">The board · 📊 Analytics ▸ Timeline</span></div>
+      <div class="dc"><span class="big" style="--tint:color-mix(in srgb,var(--sky) 25%,transparent)">📊</span><h3>Are you on track?</h3><p>The overview shows days to go, the next milestone, and whether you’re on track or roughly how far behind, with anything late or due this week. <b>📅 Reminders in my calendar</b> puts your deadlines in Google Calendar or Outlook, with a reminder a week before each milestone.</p><span class="where">🧰 Tools ▸ 🎓 Dissertation ▸ Overview</span></div>
+      <div class="dc"><span class="big" style="--tint:color-mix(in srgb,var(--violet) 22%,transparent)">✍️</span><h3>Chapters and drafts</h3><p>Each chapter has a word target, a status and the words you’ve written. When a chapter is ready, <b>Send draft</b> with a link to the file and a note, and see whether feedback is waiting, overdue or in.</p><span class="where">🧰 Tools ▸ 🎓 Dissertation ▸ Chapters</span></div>
+      <div class="dc"><span class="big" style="--tint:color-mix(in srgb,var(--sun) 30%,transparent)">💡</span><h3>A proposal helper</h3><p>The questions every proposal answers: topic, why it matters, the gap, your question, aims and objectives, methods, ethics and sources. Gentle hints (is your question answerable with yes or no?), then an outline to paste into your university’s form.</p><span class="where">🧰 Tools ▸ 🎓 Dissertation ▸ Proposal</span></div>
+      <div class="dc"><span class="big" style="--tint:color-mix(in srgb,var(--pink) 22%,transparent)">✅</span><h3>Checklists, meetings, reading</h3><p>Ethics, before-you-hand-in and viva checklists. Supervisor meetings from a template, where the agreed next steps become tasks. A reading list with DOIs, notes and BibTeX for Zotero, Mendeley or LaTeX.</p><span class="where">Checklists · Supervisor · 📚 Literature</span></div>
+    </div>
+
+    <div class="sup-box">
+      <h3>👩‍🏫 For supervisors</h3>
+      <p>Invite your supervisor during setup, or later from the <b>Supervisor</b> tab. They join with the <b>Supervisor</b> role: they see the plan, chapters and progress and can comment, but can’t change your plan. Supervising several students? Each student invites them to their own workspace, and all of them appear on the supervisor’s home page.</p>
+      <ol class="flow">
+        <li><b>Send a draft</b>The student sends a chapter with a link to the file, a note and a date for feedback (two weeks by default).</li>
+        <li><b>A review task</b>It lands in the supervisor’s row on the board, with the file attached and the student’s note as a comment.</li>
+        <li><b>Approve or ask for changes</b>The supervisor opens Chapters, reads the draft and decides. Asking for changes needs a short note.</li>
+        <li><b>The student sees it</b>The feedback arrives as a comment that mentions the student, and the chapter shows Approved or Changes asked.</li>
+      </ol>
+    </div>
+
+    <div class="diss-cta">
+      <a class="btn primary" href="/?plan=dissertation#lp-signin">Plan my dissertation, free</a>
+      <a class="btn" href="/demo?plan=dissertation">See a sample dissertation</a>
+      <a class="btn" href="/templates/dissertation-gantt-chart">Free Gantt chart template</a>
+    </div>
+    <div class="tip"><b>📖</b><span>New to planning a dissertation? Read <a href="/blog/how-to-plan-a-dissertation.html">How to plan a dissertation from your hand-in date</a> and <a href="/blog/gantt-chart-for-a-dissertation-or-final-year-project.html">Gantt charts for a dissertation</a>.</span></div>
+    <p class="honest"><b>Your work stays yours.</b> Trawpie never writes any part of your dissertation or proposal. Universities treat AI-written work as academic misconduct, so it helps with the part that’s fair game: planning, keeping track and keeping going.</p>
   </div>
 </section>
 
@@ -660,9 +760,10 @@ footer a { color: var(--ink-2); }
     <div class="sec-head"><span class="num">06</span><div><h2>The toolbox: switch on what you need</h2><p>New teams start simple. Owners and admins turn extra tools on or off in <b>Settings ▸ Features</b>. They then appear under <b>🧰 Tools</b>. Nothing is lost when you turn one off.</p></div></div>
     <div class="filters">
       <input id="feat-q" type="search" placeholder="Search features… (try “budget”)" aria-label="Search features">
-      <span class="seg" id="feat-group"><button class="on" data-g="all" type="button">All</button><button data-g="std" type="button">Standard</button><button data-g="adv" type="button">Advanced</button><button data-g="pro" type="button">Pro</button></span>
+      <span class="seg" id="feat-group"><button class="on" data-g="all" type="button">All</button><button data-g="std" type="button">Standard</button><button data-g="adv" type="button">Advanced</button><button data-g="pro" type="button">Pro</button><button data-g="study" type="button">Study</button></span>
     </div>
     <div class="cards" id="feat-cards">
+      <article class="fc" data-g="study"><span class="tag study">Study</span><span class="big" style="--tint:color-mix(in srgb,var(--coral) 22%,transparent)">🎓</span><h3>Dissertation</h3><p>A week-by-week plan from your hand-in date, on-track signal, chapter word counts and drafts for feedback, a proposal helper, checklists and supervisor meetings. Undergraduate, master’s and PhD. <a href="#dissertation">More ↑</a></p><div class="good"><b>Good for</b>Dissertations, theses and final-year projects</div></article>
       <article class="fc" data-g="std"><span class="tag std">Standard</span><span class="big" style="--tint:color-mix(in srgb,var(--sky) 25%,transparent)">⏱</span><h3>Planning</h3><p>Effort estimates, “waits on” links between tasks, workload charts and a burndown.</p><div class="good"><b>Good for</b>Knowing whether the plan actually fits.</div></article>
       <article class="fc" data-g="std"><span class="tag std">Standard</span><span class="big" style="--tint:color-mix(in srgb,var(--teal) 25%,transparent)">📝</span><h3>Meetings</h3><p>Meeting notes with attendees and decisions. Action items become real tasks on the board in one click.</p><div class="good"><b>Good for</b>Weekly supervisor meetings that actually lead somewhere.</div></article>
       <article class="fc" data-g="std"><span class="tag std">Standard</span><span class="big" style="--tint:color-mix(in srgb,var(--sun) 30%,transparent)">📓</span><h3>Lab notebook</h3><p>Dated entries with photos on every task: what you tried, what happened, what’s next.</p><div class="good"><b>Good for</b>Experiments, test rigs, and writing the report later.</div></article>
@@ -856,7 +957,9 @@ footer a { color: var(--ink-2); }
       <details><summary>Where are my files stored?</summary><p>In your own Google Drive or OneDrive. Trawpie only keeps a link on the task, so nothing is copied to our servers.</p></details>
       <details><summary>Can I use my university OneDrive?</summary><p>Yes. Upload or find the file in OneDrive, click <b>Share ▸ Copy link</b>, and paste it into <b>Attach a file</b>. Trawpie names the file from the link and shows it as a OneDrive file. Your university doesn’t need to approve anything for this.</p></details>
       <details><summary>How do I get Pro Education?</summary><p>Open <b>Settings ▸ Plan</b>. If you signed in with a university email (.ac.uk, .edu…), just switch it on. If you use a personal email, add your university email there, enter the 6-digit code we send, and you’re done. Owners or admins switch it on for the team.</p></details>
-      <details><summary>Can supervisors or sponsors look without editing?</summary><p>Yes. Invite them with the <b>Viewer</b> role. They can see the board, analytics and timeline but can’t change anything.</p></details>
+      <details><summary>Can supervisors or sponsors look without editing?</summary><p>Yes. Invite them with the <b>Viewer</b> role. They can see the board, analytics and timeline but can’t change anything. For a dissertation, use the <b>Supervisor</b> role instead: supervisors can also comment and give feedback on chapter drafts.</p></details>
+      <details><summary>Can I use Trawpie on my own, for a dissertation or thesis?</summary><p>Yes. A team can be just you (plus your supervisor, if you like). Create a team and choose <b>Start with ▸ Dissertation or thesis</b>. It’s free, and your home page also has a personal <b>Today</b> view for habits and tasks outside your projects.</p></details>
+      <details><summary>Can a company or department use it?</summary><p>Yes. Each project is a team with its own plan, roles and data. Turn on workflows and sign-offs, purchase approvals, requirements and risks in <b>Settings ▸ Features</b>, and invite clients or contractors as Guests. The <a href="#plans">Organisation plan</a> puts many teams on one bill.</p></details>
       <details><summary>Can I bring in work from Excel, Jira or Trello?</summary><p>Yes. Go to <b>Team data ▸ Import tasks</b> and choose an Excel file, a CSV, a Jira export or a Trello board export. You get a preview before anything is added.</p></details>
       <details><summary>Is my data private?</summary><p>Only members of your team can see your team’s work, and the server enforces this. How it’s protected, backed up and what’s still to come is on the <a href="security.html">security page</a>; the <a href="privacy.html">privacy policy</a> has the details.</p></details>
     </div>
