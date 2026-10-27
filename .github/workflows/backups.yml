@@ -46,7 +46,7 @@ env:
 
 jobs:
   backups:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned: since ubuntu-latest began moving to Ubuntu 26 (Oct 2026), installing the test browser failed
     timeout-minutes: 90
     environment: production
     steps:
