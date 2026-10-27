@@ -72,14 +72,14 @@ try {
   await A.keyboard.press('Escape'); await sleep(200);
 
   step('Email notification choices in your account');
-  await A.evaluate(() => TT.openAccount()); await A.waitForSelector('#notify-field');
+  await A.evaluate(() => TT.openAccount('notifications')); await A.waitForSelector('#notify-field');
   ok(await A.locator('#notify-field input[data-notify="mentions"]').isChecked() && await A.locator('#notify-field input[data-notify="digest"]').isChecked(), 'both on by default');
   ok((await A.locator('#notify-field').textContent()).includes('aisha@gmail.com'), 'says which address they go to');
   await A.locator('#notify-field input[data-notify="digest"]').uncheck(); await sleep(400);
   let u = Object.values((await store(A)).users).find(x => x.email === 'aisha@gmail.com');
   ok(u.notify && u.notify.digest === false && u.notify.mentions === true, 'turning off the digest is saved to the account');
   await A.keyboard.press('Escape'); await A.reload(); await A.waitForSelector('.node-cat'); await sleep(400);
-  await A.evaluate(() => TT.openAccount()); await A.waitForSelector('#notify-field');
+  await A.evaluate(() => TT.openAccount('notifications')); await A.waitForSelector('#notify-field');
   ok(!(await A.locator('#notify-field input[data-notify="digest"]').isChecked()), 'and remembered after reload');
   await A.keyboard.press('Escape');
   await A.goto(BASE + '#/account'); await sleep(800);

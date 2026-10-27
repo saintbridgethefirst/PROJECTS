@@ -23,16 +23,19 @@ try {
   await p.fill('#demo-name', 'Sam'); await p.click('#demo-go');
   await p.waitForSelector('.task-card'); await p.waitForSelector('.tour-card', { timeout: 8000 });
   ok((await p.locator('#team-switch').textContent()).includes('Skyhawk UAV'), 'opens the sample team');
-  ok((await p.locator('.tour-card .tour-step').textContent()) === '1 of 16', 'tour starts at 1 of 16');
+  ok((await p.locator('.tour-card .tour-step').textContent()) === '1 of 17', 'tour starts at 1 of 17');
+  ok(await p.locator('#editor-panel.hidden').count() === 1, 'the side panel starts closed in the demo');
   const seen = [];
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 16; i++) {
     seen.push((await p.locator('.tour-card h3').textContent()) + (await p.locator('.tour-ring').isVisible() ? ' [ring]' : ''));
-    if (i === 4) ok(seen[i].includes('Backlog'), 'a step shows the Backlog');
-    if (i === 5) ok(seen[i].includes('Files'), 'a step shows file health');
-    if (i === 7) ok(await p.locator('.kb-board').isVisible(), 'the Kanban step switches to Kanban');
-    if (i === 8) ok(await p.locator('.lt-table').isVisible(), 'the List step switches to the List view');
-    if (i === 10) ok(await p.locator('.gt2-scroll').isVisible(), 'the Gantt step switches to the Gantt');
-    await p.click('#tour-next'); await sleep(i === 6 || i === 7 || i === 9 ? 600 : 250);
+    if (i === 4) ok(seen[i].includes('editor') && await p.locator('#editor-panel:not(.hidden) .ed-tabs').isVisible(), 'a step opens a task in the editor, with its tabs');
+    if (i === 5) ok(await p.locator('#editor-panel.hidden').count() === 1, 'and closes the panel again afterwards');
+    if (i === 5) ok(seen[i].includes('Backlog'), 'a step shows the Backlog');
+    if (i === 6) ok(seen[i].includes('Files'), 'a step shows file health');
+    if (i === 8) ok(await p.locator('.kb-board').isVisible(), 'the Kanban step switches to Kanban');
+    if (i === 9) ok(await p.locator('.lt-table').isVisible(), 'the List step switches to the List view');
+    if (i === 11) ok(await p.locator('.gt2-scroll').isVisible(), 'the Gantt step switches to the Gantt');
+    await p.click('#tour-next'); await sleep(i === 3 || i === 4 || i === 7 || i === 8 || i === 10 ? 600 : 250);
   }
   seen.push(await p.locator('.tour-card h3').textContent());
   ok(seen.filter(s => s.includes('[ring]')).length >= 8, 'most steps ring a real element: ' + seen.join(' | '));

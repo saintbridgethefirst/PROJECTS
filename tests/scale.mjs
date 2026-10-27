@@ -2,6 +2,7 @@
 // do all day and fails if any is far too slow. (Generous limits: CI machines are slower than laptops.)
 // Needs the preview server: npx vite preview --port 4173
 import { chromium } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 let pass = 0, fail = 0;
@@ -10,6 +11,7 @@ const step = (s) => console.log('▸ ' + s);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = [];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message)); p.on('dialog', d => d.accept());
 const times = {};
@@ -68,6 +70,7 @@ try {
   await p.locator('#edit-name').blur(); await sleep(400);
   const save = await timed('save a change', async () => { await p.evaluate(() => { const l = allTaskLocs().find(x => x.task.flag !== 'completed'); l.task.priority = 'Blocker'; saveDatabase(); }); await sleep(50); });
   ok(save < 2500, 'saving a change: ' + save + ' ms');
+  if (await p.locator('#editor-panel .ed-back').isVisible()) await p.click('#editor-panel .ed-back');   // back from the task to Search & filters
   const search = await timed('search', async () => { await p.fill('#search-tasks', 'review'); await sleep(50); });
   ok(search < 3000, 'search across the board: ' + search + ' ms');
   await p.fill('#search-tasks', ''); await sleep(300);

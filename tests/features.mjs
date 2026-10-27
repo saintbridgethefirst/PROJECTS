@@ -4,6 +4,7 @@
 // register, requirements, the progress report's new sections, and workload across teams.
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 const SHOTS = process.env.SHOTS_DIR || null;
@@ -15,6 +16,7 @@ const errors = [];
 const iso = (d) => { const x = new Date(); x.setDate(x.getDate() + d); return x.toLocaleDateString('en-CA'); };
 const monday = () => { const x = new Date(); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.toLocaleDateString('en-CA'); };
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
 async function tab(label) { const p = await ctx.newPage(); p.on('pageerror', e => errors.push(label + ': ' + e.message)); p.on('dialog', d => d.accept()); return p; }
 async function signIn(p, name, email) {

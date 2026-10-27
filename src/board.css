@@ -991,3 +991,78 @@
         .fh-note .btn.small { margin: 0; text-decoration: none; }
         .fh-check { margin: 0 0 10px; }
         .att-chip.att-broken { color: #c53030; }
+
+
+        /* ── Task editor: a header that stays put, and four tabs (Task · Plan · Files · Activity) ───────── */
+        /* With a task open, the panel is about that task: search, filters and team data come back when it closes. */
+        #editor-panel.ed-task > .editor-top-bar, #editor-panel.ed-task > .search-box, #editor-panel.ed-task > .filter-container,
+        #editor-panel.ed-task > hr, #editor-panel.ed-task > #no-selection, #editor-panel.ed-task > #team-data-panel { display: none !important; }
+        .ed-head { position: sticky; top: -25px; z-index: 6; background: var(--bg-panel); margin: -25px -30px 16px; padding: 22px 30px 12px;
+            border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 12px; }
+        .ed-grip { display: none; }
+        .ed-nav { display: flex; align-items: center; gap: 8px; }
+        .ed-sp { flex: 1; }
+        .ed-back { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 9px; border: 1px solid var(--border-color); border-radius: 999px;
+            background: transparent; color: var(--text-muted); font-weight: 600; font-size: 12.5px; cursor: pointer; }
+        .ed-back::before { content: ""; width: 7px; height: 7px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin-left: 3px; }
+        .ed-back:hover { color: var(--text-main); border-color: var(--line-color); }
+        .ed-ref { font: 600 11.5px ui-monospace, Menlo, monospace; color: var(--text-muted); padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 6px; }
+        .ed-close { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--border-color); border-radius: 9px; background: transparent; color: var(--text-main); cursor: pointer; padding: 0; }
+        .ed-close:hover { border-color: var(--line-color); }
+        .ed-title-row { display: flex; gap: 12px; align-items: flex-start; }
+        .ed-title-row .ed-icon, body.look-pro .ed-title-row .ed-icon.task-icon { box-sizing: border-box; width: 40px; height: 40px; flex: 0 0 40px; margin: 0; display: inline-grid; place-items: center; border-radius: 11px; border: 1px solid var(--border-color);
+            background: var(--bg-main); color: var(--line-color); font-size: 20px; vertical-align: 0; overflow: hidden; }
+        body.look-pro .ed-title-row .ed-icon.task-icon.has-line { font-size: 0; }
+        body.look-pro .ed-title-row .ed-icon.task-icon.has-line .look-ico svg { width: 20px; height: 20px; }
+        .ed-title-row .ed-icon svg { display: block; }
+        .ed-title-col { flex: 1; min-width: 0; }
+        #edit-form .ed-head textarea#edit-name { font-size: 19px; font-weight: 750; line-height: 1.3; min-height: 0; height: auto; resize: none; overflow: hidden;
+            margin: -3px 0 0 -7px; padding: 3px 6px; width: calc(100% + 7px); border-color: transparent; background: transparent; border-radius: 8px; }
+        #edit-form .ed-head textarea#edit-name:hover { border-color: var(--border-color); }
+        #edit-form .ed-head textarea#edit-name:focus { border-color: var(--line-color); background: var(--bg-main); }
+        .ed-meta { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; overflow-wrap: anywhere; }
+        .ed-head > .read-only-note { margin: 0; }
+        .ed-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 12px; }
+        .ed-tab { height: 36px; border: 0; border-radius: 9px; background: transparent; color: var(--text-muted); font-weight: 650; font-size: 13.5px; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 4px; min-width: 0; white-space: nowrap; }
+        .ed-tab:hover { color: var(--text-main); }
+        .ed-tab[aria-selected="true"] { background: color-mix(in srgb, var(--line-color) 72%, #000); color: #fff; font-weight: 750; }
+        .ed-tab:focus-visible { outline: 2px solid var(--line-color); outline-offset: 2px; }
+        .ed-count { font-size: 11px; font-weight: 750; line-height: 1; padding: 3px 7px; border-radius: 999px; background: var(--border-color); color: var(--text-main); }
+        .ed-count.hot { background: var(--line-color); color: #0b0f19; }
+        .ed-tab[aria-selected="true"] .ed-count { background: rgba(255,255,255,.24); color: #fff; }
+        .ed-pane { display: flex; flex-direction: column; }
+        .ed-pane[hidden] { display: none !important; }
+        .ed-pane > .panel-section:first-child, .ed-pane > .ed-pane-title + .panel-section { border-top: 0; margin-top: 0; padding-top: 0; }
+        .ed-pane-title { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin: 26px 0 10px; padding-top: 14px; border-top: 2px solid var(--border-color); }
+        .ed-field { min-width: 0; }
+        .ed-field > select, .ed-field > input[type="text"], .ed-field > .due-field { margin-bottom: 14px; }
+        .ed-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .ed-due-more { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: -6px 0 14px; }
+        .ed-due-more .due-quick { margin: 0; }
+        .ed-due-more .cal-link { margin: 0; }
+        .ed-subtasks { margin: 2px 0 14px; }
+        .ed-subtasks > label { margin-top: 0 !important; }
+        .ed-subtasks > button[onclick^="quickAddSubtask"] { margin-bottom: 0 !important; }
+        .ed-actions { margin: 6px 0 10px !important; }
+        .ed-changed { font-size: 11.5px; margin-bottom: 4px; }
+        .ed-card-sec .ed-sub { border-top: 0; margin-top: 4px; padding-top: 0; }
+        .ed-card-sec .ed-sub h4 { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; font-weight: 800; margin-bottom: 8px; }
+        .ed-history { margin-top: 18px; }
+        .ed-history .history-box { margin-top: 0; }
+        .ed-layout { margin-top: 18px; padding-top: 12px; border-top: 1px dashed var(--border-color); text-align: center; }
+        .ed-layout .link-btn { align-self: center; color: var(--text-muted); font-size: 12px; }
+        @media (max-width: 1100px) {
+            .ed-head { top: -20px; margin: -20px -18px 14px; padding: 16px 18px 12px; }
+        }
+        /* Phones: the open task slides up from the bottom, with the same tabs */
+        @media (max-width: 640px) {
+            #editor-panel.ed-task { top: auto; bottom: 0; height: 92vh; height: 92dvh; width: 100vw; border-radius: 18px 18px 0 0; padding-top: 8px; border-left: 0;
+                border-top: 1px solid var(--border-color); box-shadow: 0 -18px 50px rgba(0,0,0,.5); }
+            #editor-panel.ed-task.hidden { transform: translateY(105%); }
+            .ed-head { top: -8px; margin: -8px -18px 12px; padding: 8px 18px 12px; border-radius: 18px 18px 0 0; }
+            .ed-grip { display: block; width: 40px; height: 5px; border-radius: 999px; background: var(--border-color); margin: 0 auto 2px; }
+            .ed-tab { height: 40px; font-size: 14px; }
+            .ed-close, .ed-back { height: 40px; } .ed-close { width: 40px; }
+            .ed-two { gap: 8px; }
+        }

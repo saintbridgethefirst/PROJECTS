@@ -3,6 +3,7 @@
 // reference and branch name, the "Raise an issue" form and link, and disconnecting.
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 const SHOTS = process.env.SHOTS || '';
@@ -12,6 +13,7 @@ const step = (s) => console.log('▸ ' + s);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = [];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'] });
 async function tab(label) { const p = await ctx.newPage(); p.on('pageerror', e => errors.push(label + ': ' + e.message)); p.on('dialog', d => d.accept()); return p; }
 const team = (p) => p.evaluate(() => Object.values(JSON.parse(localStorage.getItem('tt_demo_store_v1')).teams)[0]);

@@ -3,6 +3,7 @@
 // (edits flow forward; analytics, timeline, Kanban and My tasks show the chain once).
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 const SHOTS = process.env.SHOTS_DIR || null;
@@ -17,6 +18,7 @@ const DUE2 = (() => { const m = new Date(); m.setDate(m.getDate() - ((m.getDay()
 const monday = () => { const x = new Date(); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.toLocaleDateString('en-CA'); };
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAKElEQVR42mNk+M9Qz0AEYBxVSF+FDP8ZGP4zMDIyMjIwMjIyAAAk6wQB9p8iGwAAAABJRU5ErkJggg==', 'base64');
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
 await ctx.route('https://api.crossref.org/**', (route) => route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' },
   body: JSON.stringify({ message: { title: ['Learning dexterous in-hand manipulation'], author: [{ given: 'Marcin', family: 'Andrychowicz' }, { given: 'Bowen', family: 'Baker' }], issued: { 'date-parts': [[2020]] }, 'container-title': ['The International Journal of Robotics Research'], URL: 'https://doi.org/10.1177/0278364919887447' } }) }));

@@ -6,6 +6,9 @@ import { el, modal, toast, friendlyError } from './ui.js';
 import { can } from './permissions.js';
 import { cleanGithub, taskRef, refIdOf, newIssueUrl, branchName } from '../functions/ghsync.js';
 
+// An on/off switch: still a real checkbox (role=switch), drawn as a switch (ticks.css).
+const switchBox = (attrs) => el('span.switch', {}, el('input', { type: 'checkbox', role: 'switch', ...attrs }), el('i'));
+
 export const githubOf = (s) => cleanGithub(s && s.team && s.team.github);
 export const refOf = (task) => taskRef(refIdOf(task));
 export { branchName, newIssueUrl };
@@ -77,9 +80,12 @@ export function githubSection(ctx, { rerender } = {}) {
   box.append(
     el('p', {}, 'Connected to ', el('a', { href: 'https://github.com/' + g.repo, target: '_blank', rel: 'noopener noreferrer', id: 'gh-repo-link' }, g.repo), '.'),
     status, guide,
-    el('label.chk', {}, el('input', { type: 'checkbox', id: 'gh-issues', checked: g.issues, disabled: !edit, onchange: (e) => { v.issues = e.target.checked; touch(); } }), ' New issues become tasks for ',
-      el('select', { id: 'gh-owner', disabled: !edit, 'aria-label': 'Who gets new issues', onchange: (e) => { v.owner = e.target.value; touch(); } }, people.map(m => el('option', { value: m.uid, selected: m.uid === (g.owner || s.team.ownerUid) }, m.name || m.email)))),
-    el('label.chk', {}, el('input', { type: 'checkbox', id: 'gh-done', checked: g.done, disabled: !edit, onchange: (e) => { v.done = e.target.checked; touch(); } }), ' A merged pull request or closed issue finishes its task (not past a sign-off still to give)'),
+    el('div.set-card.gh-options', {},
+      el('div.set-row', {}, el('div.set-text', {}, el('div.set-name', {}, el('label', { for: 'gh-issues' }, 'New issues become tasks for'),
+        el('select', { id: 'gh-owner', disabled: !edit, 'aria-label': 'Who gets new issues', onchange: (e) => { v.owner = e.target.value; touch(); } }, people.map(m => el('option', { value: m.uid, selected: m.uid === (g.owner || s.team.ownerUid) }, m.name || m.email))))),
+        switchBox({ id: 'gh-issues', checked: g.issues, disabled: !edit, onchange: (e) => { v.issues = e.target.checked; touch(); } })),
+      el('div.set-row', {}, el('div.set-text', {}, el('label', { for: 'gh-done' }, 'A merged pull request or closed issue finishes its task'), el('p.hint', {}, 'Not past a sign-off that hasn’t been given yet.')),
+        switchBox({ id: 'gh-done', checked: g.done, disabled: !edit, onchange: (e) => { v.done = e.target.checked; touch(); } }))),
     edit ? el('div.row', { style: { gap: '8px', marginTop: '10px', flexWrap: 'wrap' } },
       el('button.btn.small', { type: 'button', id: 'gh-reconnect', onclick: () => connect(g.repo) }, 'New secret'),
       el('button.btn.small.danger', { type: 'button', id: 'gh-disconnect', onclick: async () => {

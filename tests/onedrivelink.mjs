@@ -2,6 +2,7 @@
 // Attach a file shows the "From OneDrive" steps; a pasted link is recognised, named from the link
 // when it can be, and saved as a OneDrive file. Needs the preview server:  npx vite preview --port 4173
 import { chromium } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 let pass = 0, fail = 0;
@@ -10,6 +11,7 @@ const step = (s) => console.log('▸ ' + s);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = [];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const p = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
 p.on('pageerror', e => errors.push(e.message));
 const allTasks = () => p.evaluate(() => Object.values(Object.values(JSON.parse(localStorage.getItem('tt_demo_store_v1')).teams)[0].tasks));

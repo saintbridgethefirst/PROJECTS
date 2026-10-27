@@ -2,6 +2,7 @@
 // with badges, the Activity panel, a viewer who can read but not comment, and My tasks.
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 const SHOTS = process.env.SHOTS_DIR || null;
@@ -11,6 +12,7 @@ const step = (s) => console.log('▸ ' + s);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = [];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 } });
 
 async function tab(label) {

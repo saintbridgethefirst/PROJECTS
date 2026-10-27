@@ -3,6 +3,7 @@
 // (workload with capacity, burndown, dependencies at risk). Also checks permissions and a phone.
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium, devices } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 const SHOTS = process.env.SHOTS_DIR || null;
@@ -14,6 +15,7 @@ const errors = [];
 const iso = (d, base = new Date()) => { const x = new Date(base); x.setDate(x.getDate() + d); return x.toLocaleDateString('en-CA'); };
 const monday = () => { const x = new Date(); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.toLocaleDateString('en-CA'); };
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 async function tab(label) { const p = await ctx.newPage(); p.on('pageerror', e => errors.push(label + ': ' + e.message)); p.on('dialog', d => d.accept()); return p; }
 async function signIn(p, name, email) {
@@ -141,6 +143,7 @@ try {
   await A.selectOption('#kb-lanes', 'person'); await sleep(300);
   ok((await A.locator('.kb-lane-head').count()) >= 1 && (await A.locator('.kb-lane-head').first().textContent()).includes('Aisha Khan'), 'one row per person');
   await A.selectOption('#kb-lanes', 'none'); await sleep(200);
+  if (await A.locator('#editor-panel .ed-back').isVisible()) await A.click('#editor-panel .ed-back');   // back from the task to Search & filters
   await A.fill('#search-tasks', 'gripper'); await A.evaluate(() => performSearch()); await sleep(300);
   ok(await A.locator('.kb-card').count() === 1, 'the side-panel search filters the Kanban');
   await A.fill('#search-tasks', ''); await A.evaluate(() => performSearch()); await sleep(200);

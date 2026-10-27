@@ -27,7 +27,7 @@ try {
   ok(!(await p.locator('.nav-group').first().isVisible()) && !(await p.locator('#nav-collapse').isVisible()), 'no sidebar bits in top-bar mode');
 
   step('Account ▸ Navigation ▸ Sidebar');
-  await p.evaluate(() => TT.openAccount()); await p.waitForSelector('[data-nav="side"]');
+  await p.evaluate(() => TT.openAccount('appearance')); await p.waitForSelector('[data-nav="side"]');
   ok(await p.locator('[data-nav="top"][aria-checked=true]').count() === 1, 'Top bar is ticked to start with');
   await p.click('[data-nav="side"]'); await sleep(300);
   ok(await p.locator('[data-nav="side"][aria-checked=true]').count() === 1, 'Sidebar ticked');
@@ -84,7 +84,7 @@ try {
 
   step('Back to the top bar');
   await p.setViewportSize({ width: 1440, height: 900 });
-  await p.evaluate(() => TT.openAccount()); await p.click('[data-nav="top"]'); await p.keyboard.press('Escape'); await sleep(300);
+  await p.evaluate(() => TT.openAccount('appearance')); await p.click('[data-nav="top"]'); await p.keyboard.press('Escape'); await sleep(300);
   bar = await p.locator('#top-bar').boundingBox();
   ok(bar.width > 900 && bar.height < 120, 'top bar again');
   ok(await p.evaluate(() => document.getElementById('top-bar').dataset.tight) !== undefined, 'top bar fitting still runs');

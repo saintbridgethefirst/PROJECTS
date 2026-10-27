@@ -2,6 +2,7 @@
 // tasks that wait on it pushed later, quick add) and turning sub-tasks into tasks and back.
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 let pass = 0, fail = 0;
@@ -13,6 +14,7 @@ const monday = () => { const x = new Date(); x.setDate(x.getDate() - ((x.getDay(
 const add = (iso, n) => { const x = new Date(iso + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toLocaleDateString('en-CA'); };
 const M = monday();
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const A = await ctx.newPage(); A.on('pageerror', e => errors.push(e.message)); A.on('dialog', d => d.accept());
 const team = () => A.evaluate(() => Object.values(JSON.parse(localStorage.getItem('tt_demo_store_v1')).teams)[0]);

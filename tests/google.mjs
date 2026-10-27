@@ -6,6 +6,7 @@
 import { chromium } from 'playwright';
 import { execSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { editorAsOneList } from './editor-list.mjs';
 
 const PORT = 4174, BASE = `http://127.0.0.1:${PORT}/`;
 const SHOTS = process.env.SHOTS_DIR || null;
@@ -61,6 +62,7 @@ async function google(route) {
 }
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 async function newPage(ctx, label) {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(label + ': ' + e.message)); p.on('dialog', d => d.accept());
   await p.route('https://accounts.google.com/gsi/client', r => r.fulfill({ status: 200, contentType: 'text/javascript', body: GIS }));
@@ -158,6 +160,7 @@ try {
   ok((await p.evaluate(() => window.__gisScopes)).includes('https://www.googleapis.com/auth/drive.file'), 'Drive asks only for drive.file');
 
   step('Export to Google Sheets');
+  if (await p.locator('#editor-panel .ed-back').isVisible()) await p.click('#editor-panel .ed-back');   // back from the task to Search & filters
   await p.click('#team-data-actions button:has-text("Export to Google Sheets")');
   await p.waitForFunction(() => [...document.querySelectorAll('.toast')].some(t => t.textContent.includes('Google Sheet updated')), null, { timeout: 8000 });
   const sheet = G.sheets[0];

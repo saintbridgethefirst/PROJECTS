@@ -6,8 +6,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import './board.css';
 import './app.css';
+import './ticks.css';
 import './themes.css';
-import { THEMES, SWATCH, applyTheme, currentTheme, savedTheme, themeName, isTheme } from './themes.js';
+import { THEMES, SWATCH, applyTheme, currentTheme, savedTheme, themeName, isTheme, resolveTheme } from './themes.js';
 import { APP_NAME, APP_TAGLINE, DEMO_MODE, PUBLIC_DEMO, GOOGLE_CLIENT_ID, MS_CLIENT_ID, LIMITS } from './config.js';
 import { can, canEditOwnedBy, DEFAULT_ROLES, normEmail, isValidEmail } from './permissions.js';
 import { healthOf, checkFiles, checkableBy } from './filehealth.js';
@@ -45,7 +46,8 @@ import * as collab from './collab.js';
 import { parseGithub, githubStatus } from './github.js';
 import { openSearch, boardSources } from './search.js';
 import { startMonitor, report } from './monitor.js';
-import { yourDataField } from './yourdata.js';
+import { yourDataRows } from './yourdata.js';
+import { lineIcon } from './line-icons.js';
 import * as saving from './saving.js';
 import { openFeedback } from './feedback.js';
 import { openShareWeek } from './share.js';
@@ -112,7 +114,7 @@ async function route() {
     if (!session || session.teamId !== m[1]) await openTeam(m[1]);
     maybeRaise();
   }
-  else { closeTeam(); renderHome(); if (location.hash === '#/account') setTimeout(() => window.TT && window.TT.openAccount && window.TT.openAccount(), 0); }
+  else { closeTeam(); renderHome(); if (location.hash === '#/account') setTimeout(() => window.TT && window.TT.openAccount && window.TT.openAccount('notifications'), 0); }   // the link in notification emails
 }
 const goHome = () => { location.hash = '#/'; };
 let pendingRaise = '';
@@ -267,7 +269,9 @@ function demoWelcome(box, note, wrap) {
     ...(wantsDissertation() ? [] : [dissBtn, dissSample]),
     many,
     el('details.demo-new', { open: !!copy && window.matchMedia('(min-width: 961px)').matches }, el('summary', {}, 'New in Trawpie'),
-      el('ul', {}, ['A dissertation and thesis planner: a week-by-week plan from your hand-in date, chapter word counts, a proposal helper, supervisor meetings and feedback on drafts (🎓 Plan a dissertation, or 📖 see a sample)',
+      el('ul', {}, ['Tidier settings: Your account in four sections, switches for settings that are on or off, and round ticks for sub-tasks',
+        'A tidier task editor: the title stays at the top, with Task, Plan, Files and Activity tabs (on a phone it slides up from the bottom)',
+        'A dissertation and thesis planner: a week-by-week plan from your hand-in date, chapter word counts, a proposal helper, supervisor meetings and feedback on drafts (🎓 Plan a dissertation, or 📖 see a sample)',
         'List view: every task in one table you can sort, group and edit (☰ List at the top of the board)',
         'A Backlog column for work that isn’t planned into a week yet',
         'Automatic carry-over: unfinished tasks move into the new week on their own (Settings ▸ Workflow)',
@@ -298,6 +302,10 @@ function demoTourSteps(kind = 'drone') {
     { target: thisWeek, title: 'One column per week', text: 'The board runs week by week. This week is outlined. Unfinished work carries forward to next week, keeping its history, so you can see what slipped.' },
     { target: '#nodes-container .row-person', title: 'One row per person', text: 'Each person has a row, split into their own categories. Their tasks sit under the week they’re planned for; drag a card to move it to another week.' },
     { target: () => document.querySelector('.task-card .stage-bar') && document.querySelector('.task-card .stage-bar').closest('.task-card'), title: 'A task', text: 'Priority, deadline, sub-tasks, hours and comments. The coloured bar shows its stage in this team’s workflow: Design → Review → Build → Test → Done. Click any card to open it.' },
+    { target: () => document.querySelector('#editor-panel.ed-task .ed-head'), title: 'The task editor',
+      before: () => { const c = document.querySelector('.task-card .stage-bar'); const card = c && c.closest('.task-card'); if (card && window.boardOpenTask) { window.boardOpenTask(card.id); if (window.boardEditorTab) window.boardEditorTab('task'); if (window.boardPanel) window.boardPanel(true); } },
+      after: () => { if (window.boardCloseEditor) window.boardCloseEditor(); if (window.boardPanel) window.boardPanel(false); },
+      text: 'Click a card and it opens here. Its title, owner and week stay at the top, and four tabs hold the rest: Task (status, deadline, sub-tasks, people), Plan (phase, stage and sign-off, effort, repeat), Files (Drive and OneDrive files, linked parts, lab notebook) and Activity (comments and history). On a phone it slides up from the bottom. ‹ Search & filters takes you back.' },
     { target: () => document.querySelector('.header-week[data-week-key="backlog"]'), title: 'A Backlog for later', text: 'Ideas that aren’t planned into a week yet wait in the Backlog. Drag one into a week when you’re ready; it has no dates, so it never carries over.' },
     { target: () => { const c = document.querySelector('.task-card .att-chip.att-broken'); return c && c.closest('.task-card'); }, title: 'Files that say when they break', text: 'Files from Google Drive or OneDrive sit on the task. If one can’t be opened any more, the card says so, and the task shows who to ask and a one-click re-link.' },
     { target: '#subteam-bar', title: 'Sub-teams', text: 'Show just one sub-team, with its leads. Handy when 30 people share one board.' },
@@ -652,39 +660,43 @@ function refreshInstallBanner() {
     el('button.btn.small.ghost', { type: 'button', onclick: () => { try { localStorage.setItem('tt_install_dismissed', '1'); } catch { /* */ } refreshInstallBanner(); } }, 'Not now'),
     el('button.btn.small.primary', { type: 'button', onclick: installApp }, mode === 'ios' ? 'Show me how' : 'Install'));
 }
-function installField() {
-  if (isStandalone()) return el('div.field', {}, el('span', {}, 'App'), el('div.hint', {}, '✓ You’re using the installed Trawpie app.'));
-  return el('div.field', {}, el('span', {}, 'App'), el('div.row', {}, el('span.hint', {}, 'Put Trawpie on your home screen or dock.'), el('span.spacer'),
-    el('button.btn.small', { type: 'button', onclick: installApp }, '📱 Install as an app…')));
+function installRow() {
+  if (isStandalone()) return acctRow('install', 'Installed app', 'You’re using the installed Trawpie app.', el('span.acct-ok', {}, lineIcon('check', 14), 'Installed'));
+  return acctRow('install', 'Install as an app', 'Put Trawpie on your home screen or dock. It opens full-screen, like an app.',
+    el('button.btn.small', { type: 'button', onclick: installApp }, 'Install…'));
 }
 
 // ── Email notifications (sent by the Cloud Functions for Pro teams) ─────────
-function notifyField() {
+function notifyCard() {
   const n = (user && user.notify) || {};
-  const box = (key, label) => el('label.row', { style: { gap: '8px', margin: '4px 0' } }, el('input', { type: 'checkbox', checked: n[key] !== false, dataset: { notify: key }, onchange: async (e) => {
+  const sw = (key, label) => el('span.switch', {}, el('input', { type: 'checkbox', role: 'switch', 'aria-label': label, checked: n[key] !== false, dataset: { notify: key }, onchange: async (e) => {
     const next = { mentions: n.mentions !== false, digest: n.digest !== false, [key]: e.target.checked };
     try { const u = await backend.auth.setNotify(next); user = { ...user, ...(u || {}), notify: next }; Object.assign(n, next); toast(e.target.checked ? 'You’ll get these emails.' : 'Those emails are off.'); }
     catch (err) { e.target.checked = !e.target.checked; toast(friendlyError(err), 5000); }
-  } }), label);
-  return el('div.field', { id: 'notify-field' }, el('span', {}, 'Email notifications'),
-    box('mentions', 'When someone @mentions me'), box('digest', 'Monday digest: my overdue and upcoming tasks'),
-    el('div.hint', {}, 'Sent to ' + (user ? user.email : 'your email') + ' from teams on Pro or Pro Education. You can switch them off here or with the link in any email.'));
+  } }), el('i'));
+  return [el('div', { id: 'notify-field' }, el('div.set-card', {},
+    acctRow('at', 'When someone @mentions me', '', sw('mentions', 'Email me when someone @mentions me')),
+    acctRow('calendar', 'Monday digest', 'Your overdue and upcoming tasks, every Monday morning.', sw('digest', 'Monday digest email'))),
+  el('p.hint.acct-after', {}, 'Sent to ' + (user ? user.email : 'your email') + ' from teams on Pro or Pro Education. You can switch them off here or with the link in any email.'))];
 }
 
 // ── Right-click menu style: list (default) or circle ────────────────────────
 function menuStyle() { try { return localStorage.getItem('tt_menu_style') === 'circle' ? 'circle' : 'list'; } catch { return 'list'; } }
-function languageField() {
-  const sel = el('select', { id: 'acct-lang', 'aria-label': 'Language', translate: 'no', onchange: (e) => setLang(e.target.value) }, ...LANGS.map(([k, label]) => el('option', { value: k, selected: k === currentLang() }, label)));
-  return el('label.field', {}, el('span', {}, 'Language'), sel,
-    el('div.hint', { style: { marginTop: '6px' } }, 'Buttons, menus and settings. What people write stays as they wrote it. Translations are new: tell us if something reads oddly.'));
+function languageRow() {
+  const sel = el('select.inp.acct-select', { id: 'acct-lang', 'aria-label': 'Language', translate: 'no', onchange: (e) => setLang(e.target.value) }, ...LANGS.map(([k, label]) => el('option', { value: k, selected: k === currentLang() }, label)));
+  return acctRow('globe', 'Language', 'Buttons, menus and settings. What people write stays as they wrote it. Translations are new: tell us if something reads oddly.', sel);
 }
-function menuStyleField() {
-  const box = el('div.seg-toggle', { role: 'radiogroup', 'aria-label': 'Right-click menu style' });
-  const draw = () => box.replaceChildren(...[['list', '☰ List'], ['circle', '◎ Circle']].map(([v, label]) =>
-    el('button' + (menuStyle() === v ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(menuStyle() === v), dataset: { menuStyle: v }, onclick: () => chooseMenuStyle(v).then(draw) }, label)));
+/** A two- or three-way picker: real radio buttons drawn as a segmented control, with line icons. */
+function segPicker(label, options, current, choose, data) {
+  const box = el('div.seg-toggle.pill', { role: 'radiogroup', 'aria-label': label });
+  const draw = () => box.replaceChildren(...options.map(([v, text, icon]) =>
+    el('button' + (current() === v ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(current() === v), dataset: { [data]: v }, onclick: () => choose(v).then(draw) }, lineIcon(icon), el('span', {}, text))));
   draw();
-  return el('div.field', {}, el('span', {}, 'Right-click menu'), box,
-    el('div.hint', { style: { marginTop: '6px' } }, 'The menu you get by right-clicking, pressing and holding, or tapping ⋯ on a card. Circle shows the same actions around the pointer.'));
+  return box;
+}
+function menuStyleRow() {
+  return acctRow('menu', 'Right-click menu', 'Right-click, press and hold, or tap ⋯ on a card. Circle shows the same actions around the pointer.',
+    segPicker('Right-click menu style', [['list', 'List', 'list'], ['circle', 'Circle', 'radial']], menuStyle, chooseMenuStyle, 'menuStyle'), { wide: true });
 }
 async function chooseMenuStyle(v) {
   try { localStorage.setItem('tt_menu_style', v); } catch { /* */ }
@@ -706,13 +718,9 @@ function applyNav() {
   if (c) { c.setAttribute('aria-expanded', String(!navRail())); c.title = navRail() ? 'Expand the sidebar' : 'Collapse to icons'; c.setAttribute('aria-label', c.title); }
 }
 function toggleNavRail() { try { localStorage.setItem('tt_nav_rail', navRail() ? '0' : '1'); } catch { /* */ } applyNav(); }
-function navField() {
-  const box = el('div.seg-toggle', { role: 'radiogroup', 'aria-label': 'Navigation' });
-  const draw = () => box.replaceChildren(...[['top', '▭ Top bar'], ['side', '▯ Sidebar']].map(([v, label]) =>
-    el('button' + (navMode() === v ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(navMode() === v), dataset: { nav: v }, onclick: () => chooseNav(v).then(draw) }, label)));
-  draw();
-  return el('div.field', {}, el('span', {}, 'Navigation'), box,
-    el('div.hint', { style: { marginTop: '6px' } }, 'Where a team’s tools sit on a computer. The sidebar can fold down to icons. Phones always use the top bar.'));
+function navRow() {
+  return acctRow('topbar', 'Navigation', 'Where a team’s tools sit on a computer. The sidebar can fold down to icons. Phones always use the top bar.',
+    segPicker('Navigation', [['top', 'Top bar', 'topbar'], ['side', 'Sidebar', 'sidebar']], navMode, chooseNav, 'nav'), { wide: true });
 }
 async function chooseNav(v) {
   try { localStorage.setItem('tt_nav', v); } catch { /* */ }
@@ -765,7 +773,7 @@ function openThemes() {
 }
 async function chooseTheme(id) {
   applyTheme(id);
-  const n = document.getElementById('account-theme-name'); if (n) n.textContent = themeName(id);
+  const n = document.getElementById('account-theme-name'); if (n) { n.textContent = themeName(id); const sw = n.parentElement && n.parentElement.querySelector('.acct-swatch'); if (sw) sw.replaceWith(themeSwatch(id)); }
   if (window.boardThemeChanged) window.boardThemeChanged();
   if (!user || !backend.auth.setTheme) return;
   try { const u = await backend.auth.setTheme(id); user = { ...user, ...(u || {}), theme: id }; }
@@ -781,15 +789,40 @@ function refreshAccountChips() {
   const acc = document.getElementById('home-account'); if (acc && acc.childElementCount) acc.replaceChildren(avatar(user), el('span', {}, user.name));
 }
 
-function openAccount() {
-  const m = modal('Your account', { narrow: true });
-  const name = el('input', { value: user.name, maxlength: 80 });
+// Your account: sections down the side (tabs across the top on a phone), like Team settings.
+const ACCOUNT_SECTIONS = [
+  ['profile', 'Profile', 'user', 'Your name and photo, as your teams see them.'],
+  ['appearance', 'Appearance', 'palette', 'How Trawpie looks and works for you, on every device.'],
+  ['notifications', 'Notifications', 'bell', 'Emails Trawpie sends you.'],
+  ['data', 'App and data', 'shield', 'The app, your data and your account.'],
+];
+let accountSection = 'profile';   // the section showing (opens on Profile unless asked for another)
+/** One settings row: an icon, a name and one short line, then the control on the right. */
+function acctRow(icon, name, hint, control, { wide = false, danger = false } = {}) {
+  return el('div.set-row' + (wide ? '.wide' : ''), {}, el('span.set-icon' + (danger ? '.danger' : ''), {}, lineIcon(icon, 18)),
+    el('div.set-text', {}, el('span.set-name' + (danger ? '.danger' : ''), {}, name), hint ? el('p.hint', {}, hint) : ''), control);
+}
+function themeSwatch(id) {
+  return el('span.acct-swatch', { 'aria-hidden': 'true' }, ...(SWATCH[resolveTheme(id)] || SWATCH.midnight).map(c => el('i', { style: { background: c } })));
+}
+function openAccount(section) {
+  accountSection = ACCOUNT_SECTIONS.some(x => x[0] === section) ? section : 'profile';
+  const m = modal('Your account');
+  m.box.classList.add('settings-modal', 'account-modal');
+  m.body.style.padding = '0'; m.body.style.display = 'flex';
+  const nav = el('nav.settings-nav.account-nav', { 'aria-label': 'Account sections' });
+  const pane = el('div.settings-pane.account-pane');
+  m.body.append(el('div.settings.account', { style: { flex: '1', width: '100%' } }, nav, pane));
+  const name = el('input.inp.acct-name', { id: 'acct-name', value: user.name, maxlength: 80, autocomplete: 'name' });
   const photoBox = el('span.account-photo');
-  const photoBtns = el('div.row', { style: { gap: '6px' } });
+  const photoBtns = el('div.acct-photo-btns');
+  const who = el('div.acct-who');
+  const drawWho = () => who.replaceChildren(avatar(user), el('div', {}, el('b', {}, user.name), el('small', {}, user.email)));
   const drawPhoto = () => {
     photoBox.replaceChildren(avatar(user));
-    photoBtns.replaceChildren(el('button.btn.small', { type: 'button', onclick: () => changePhoto() }, user.photo ? 'Change photo…' : 'Upload photo…'));
+    photoBtns.replaceChildren(el('button.btn.small', { type: 'button', onclick: () => changePhoto() }, lineIcon('camera'), user.photo ? 'Change photo…' : 'Upload photo…'));
     if (user.photo) photoBtns.append(el('button.btn.small.ghost', { type: 'button', onclick: () => changePhoto('') }, 'Remove photo'));
+    drawWho();
   };
   // Upload (file picked) or remove ('' passed) the photo; saved to your profile and all your teams.
   async function changePhoto(value) {
@@ -807,29 +840,44 @@ function openAccount() {
     } catch (e) { toast(friendlyError(e), 5000); drawPhoto(); }
   }
   drawPhoto();
-  m.body.append(
-    el('div.row', { style: { marginBottom: '16px', alignItems: 'center' } }, photoBox,
-      el('div', { style: { minWidth: 0 } }, el('b', {}, user.name), el('div.muted', {}, user.email), el('div.hint', {}, user.emailVerified ? 'Email verified' : 'Email not verified'), photoBtns)),
-    el('label.field', {}, el('span', {}, 'Display name (shown to your teams)'), name),
-    el('div.field', {}, el('span', {}, 'Theme'), el('div.row', {}, el('span', { id: 'account-theme-name' }, themeName(currentTheme())), el('span.spacer'),
-      el('button.btn.small', { type: 'button', onclick: () => openThemes() }, '🎨 Change theme…'))),
-    navField(),
-    languageField(),
-    menuStyleField(),
-    notifyField(),
-    installField(),
-    yourDataField(app, m));
+  const sections = {
+    profile: () => [el('div.set-card', {},
+      el('div.acct-profile', {}, photoBox, el('div.acct-id', {},
+        el('div.acct-id-name', {}, el('b', {}, user.name), el('span.acct-pill' + (user.emailVerified ? '.ok' : ''), {}, user.emailVerified ? [lineIcon('check', 12), 'Email verified'] : 'Email not verified')),
+        el('div.acct-email', {}, user.email), photoBtns)),
+      el('label.acct-name-field', { for: 'acct-name' }, el('span', {}, 'Display name ', el('small', {}, '· shown to your teams')), name))],
+    appearance: () => [el('div.set-card', {},
+      acctRow('palette', 'Theme', el('span.acct-theme', {}, themeSwatch(currentTheme()), el('span', { id: 'account-theme-name' }, themeName(currentTheme()))),
+        el('button.btn.small', { type: 'button', onclick: () => openThemes() }, 'Change theme…')),
+      navRow(), menuStyleRow(), languageRow())],
+    notifications: notifyCard,
+    data: () => [el('div.set-card', { id: 'your-data-field' }, installRow(), ...yourDataRows(app, m, acctRow))],
+  };
+  // Most settings here apply straight away; only the display name waits for Save.
+  const saveBtn = el('button.btn.primary', { type: 'button', id: 'acct-save', onclick: async () => {
+    const v = name.value.trim(); if (!v) { accountSection = 'profile'; draw(); name.focus(); return; }
+    if (v === user.name) { m.close(); return; }
+    try {
+      await backend.auth.updateName(v); user = { ...user, name: v };
+      if (session && session.me) await backend.data.commit(session.teamId, [{ type: 'update', path: 'members/' + user.uid, data: { name: v } }]);
+      toast('Name updated.'); m.close(); refreshAccountChips(); if (!session) renderHome();
+    } catch (e) { toast(friendlyError(e)); }
+  } }, 'Save');
+  name.addEventListener('input', () => { saveBtn.textContent = 'Save'; });
+  function draw() {
+    const [, title, , sub] = ACCOUNT_SECTIONS.find(x => x[0] === accountSection);
+    saveBtn.textContent = accountSection === 'profile' || name.value.trim() !== user.name ? 'Save' : 'Done';
+    nav.replaceChildren(who, ...ACCOUNT_SECTIONS.map(([k, label, icon]) => el('button' + (k === accountSection ? '.on' : ''), {
+      type: 'button', 'aria-current': k === accountSection ? 'page' : null, dataset: { acct: k },
+      onclick: () => { accountSection = k; draw(); pane.scrollTop = 0; },
+    }, lineIcon(icon, 18), el('span', {}, label))));
+    pane.replaceChildren(el('h2.acct-title', {}, title), el('p.hint.acct-sub', {}, sub), ...sections[accountSection]());
+  }
+  draw();
   m.foot.append(
-    el('button.btn.danger', { type: 'button', onclick: async () => { m.close(); await backend.auth.signOut(); location.hash = ''; } }, 'Sign out'),
-    el('span.spacer'),
-    el('button.btn.primary', { type: 'button', onclick: async () => {
-      const v = name.value.trim(); if (!v) return;
-      try {
-        await backend.auth.updateName(v); user = { ...user, name: v };
-        if (session && session.me) await backend.data.commit(session.teamId, [{ type: 'update', path: 'members/' + user.uid, data: { name: v } }]);
-        toast('Name updated.'); m.close(); if (!session) renderHome();
-      } catch (e) { toast(friendlyError(e)); }
-    } }, 'Save'));
+    el('button.btn.danger', { type: 'button', onclick: async () => { m.close(); await backend.auth.signOut(); location.hash = ''; } }, lineIcon('signout'), 'Sign out'),
+    el('span.spacer'), saveBtn);
+  return m;
 }
 
 // SheetJS (Excel import/export), loaded on demand (not at board load, so the board never waits
@@ -1008,7 +1056,10 @@ function refresh() {
   if (pendingOpen && pendingOpen.teamId === s.teamId) { const id = pendingOpen.taskId; pendingOpen = null; setTimeout(() => window.boardOpenTask && window.boardOpenTask(id), 50); }
   syncMoney(s); syncResearch(s);
   refreshResearch(ctx());
-  if (!s.booted) { s.booted = true; onFirstLoad(); if (PUBLIC_DEMO && sget(DEMO_TOUR)) { const k = sget(DEMO_TOUR); sset(DEMO_TOUR, null); setTimeout(() => startDemoTour(k), 1200); } }
+  if (!s.booted) { s.booted = true; onFirstLoad();
+    // The live demo opens on the board itself: the side panel stays closed until you open a task (the tour shows how).
+    if (PUBLIC_DEMO && String(s.teamId).startsWith('t_sample_') && window.boardPanel) window.boardPanel(false);
+    if (PUBLIC_DEMO && sget(DEMO_TOUR)) { const k = sget(DEMO_TOUR); sset(DEMO_TOUR, null); setTimeout(() => startDemoTour(k), 1200); } }
   scheduleAutos(); maybeRaise(); if (window.boardUpdateApprovals) window.boardUpdateApprovals();
   if (window.TTSettingsRefresh) window.TTSettingsRefresh();
 }

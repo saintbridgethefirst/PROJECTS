@@ -1,0 +1,94 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Ticks, round ticks and switches: one family of controls in the team colour.
+   • Ticks (rounded squares): picking from a list (filters, permissions, checklists)
+   • Round ticks, green when done: things you finish (sub-tasks, Today, habits)
+   • Switches (.switch, below): settings that are on or off
+   They are still real <input type=checkbox>, so keyboards, screen readers and tests
+   work as before. Zero-specificity :where() so a component's own size rules still win.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --tick-off: color-mix(in srgb, var(--text-muted) 55%, var(--border-color));
+  --tick-ring: color-mix(in srgb, var(--line-color) 28%, transparent);
+  --done: #48bb78; --done-ink: #0b0f19;
+}
+:root[data-theme="light"] { --done: #2f855a; --done-ink: #ffffff; }
+
+:where(input[type=checkbox]:not([role=switch])) {
+  -webkit-appearance: none; appearance: none;
+  box-sizing: border-box; width: 20px; height: 20px; margin: 0; flex: none;
+  display: inline-grid; place-content: center; vertical-align: -5px;
+  border: 2px solid var(--tick-off); border-radius: 6px; background: var(--bg-panel);
+  color: var(--on-accent, #fff); cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+/* the tick itself: a drawn check mark, scaled in when ticked */
+:where(input[type=checkbox]:not([role=switch]))::before {
+  content: ''; width: 11px; height: 11px; background: currentColor;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  transform: scale(0); transition: transform .16s cubic-bezier(.3, 1.6, .6, 1);
+}
+:where(input[type=checkbox]:not([role=switch])):checked,
+:where(input[type=checkbox]:not([role=switch])):indeterminate { background: var(--line-color); border-color: var(--line-color); }
+:where(input[type=checkbox]:not([role=switch])):checked::before { transform: scale(1); }
+/* part-ticked (some of a group): a short bar */
+:where(input[type=checkbox]:not([role=switch])):indeterminate::before { clip-path: none; width: 10px; height: 2.5px; border-radius: 2px; transform: scale(1); }
+:where(input[type=checkbox]:not([role=switch])):hover:not(:disabled):not(:checked) { border-color: var(--line-color); }
+:where(input[type=checkbox]:not([role=switch])):focus-visible { outline: none; border-color: var(--line-color); box-shadow: 0 0 0 4px var(--tick-ring); }
+:where(input[type=checkbox]:not([role=switch])):disabled { opacity: .45; cursor: not-allowed; }
+
+/* Round ticks: work you finish. Done is green in every theme, so finished work reads the same everywhere. */
+:where(.subtask-item, .ed-subtasks, .sf-task, .sf-mini, .tick-round) input[type=checkbox] { border-radius: 50%; }
+:where(.subtask-item, .ed-subtasks, .sf-task, .sf-mini, .tick-round) input[type=checkbox]:checked { background: var(--done); border-color: var(--done); color: var(--done-ink); }
+:where(.subtask-item, .ed-subtasks, .sf-task, .sf-mini, .tick-round) input[type=checkbox]:not(:checked):not(:disabled):hover::before { transform: scale(.75); background: var(--line-color); opacity: .5; }
+/* sign-off checklist items: rounded squares, but done is green too */
+:where(.so-check) input[type=checkbox]:checked { background: var(--done); border-color: var(--done); color: var(--done-ink); }
+
+/* Radios: the same family, a dot in the team colour */
+:where(input[type=radio]) {
+  -webkit-appearance: none; appearance: none;
+  box-sizing: border-box; width: 20px; height: 20px; margin: 0; flex: none;
+  display: inline-grid; place-content: center; vertical-align: -5px;
+  border: 2px solid var(--tick-off); border-radius: 50%; background: var(--bg-panel); cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+:where(input[type=radio])::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--line-color); transform: scale(0); transition: transform .16s cubic-bezier(.3, 1.6, .6, 1); }
+:where(input[type=radio]):checked { border-color: var(--line-color); }
+:where(input[type=radio]):checked::before { transform: scale(1); }
+:where(input[type=radio]):hover:not(:disabled) { border-color: var(--line-color); }
+:where(input[type=radio]):focus-visible { outline: none; border-color: var(--line-color); box-shadow: 0 0 0 4px var(--tick-ring); }
+:where(input[type=radio]):disabled { opacity: .45; cursor: not-allowed; }
+
+/* Switches: <span class="switch"><input type="checkbox" role="switch"><i></i></span> */
+.switch { position: relative; flex: none; width: 46px; height: 28px; display: inline-block; }
+.switch.small { width: 40px; height: 24px; }
+.switch input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+.switch i { position: absolute; inset: 0; border-radius: 999px; background: color-mix(in srgb, var(--text-muted) 32%, var(--border-color)); transition: background-color .18s ease; }
+.switch i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .18s ease; }
+.switch.small i::after { width: 18px; height: 18px; }
+.switch input:checked + i { background: var(--line-color); }
+.switch input:checked + i::after { transform: translateX(18px); }
+.switch.small input:checked + i::after { transform: translateX(16px); }
+.switch input:hover:not(:disabled) + i { box-shadow: 0 0 0 4px color-mix(in srgb, var(--line-color) 14%, transparent); }
+.switch input:focus-visible + i { outline: 2px solid var(--line-color); outline-offset: 2px; }
+.switch input:disabled { cursor: not-allowed; } .switch input:disabled + i { opacity: .45; }
+
+/* A settings card: rows of a name, one short line, and the control on the right */
+.set-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden; }
+.set-row { display: flex; align-items: center; gap: 14px; padding: 13px 16px; min-height: 30px; }
+.set-row + .set-row, .set-row + .set-sub, .set-sub + .set-row { border-top: 1px solid color-mix(in srgb, var(--border-color) 65%, transparent); }
+.set-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 14.5px; line-height: 1.4; }
+.set-text > label, .set-text > .set-name { font-weight: 650; cursor: pointer; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--text-main); font-size: 14.5px; }
+.set-text .hint { margin: 0; font-size: 12.5px; }
+.set-sub { margin: 0 12px 12px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--line-color) 5%, var(--bg-main)); display: flex; flex-direction: column; gap: 10px; }
+.set-sub .set-row { padding: 0; border: 0; }
+.set-sub .set-row + .set-row { border: 0; }
+.set-icon { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--line-color) 12%, var(--bg-panel)); color: var(--line-color); }
+.set-icon svg { width: 18px; height: 18px; }
+.set-icon.danger { background: color-mix(in srgb, #e53e3e 12%, var(--bg-panel)); color: #e53e3e; }
+.set-foot { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.set-foot .spacer { flex: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  :where(input[type=checkbox], input[type=radio]), :where(input[type=checkbox], input[type=radio])::before,
+  .switch i, .switch i::after { transition: none !important; }
+}

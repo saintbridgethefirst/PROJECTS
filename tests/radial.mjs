@@ -55,7 +55,7 @@ try {
   await p.locator('.task-card', { hasText: 'Design gripper' }).click({ button: 'right' }); await sleep(200);
   const listLabels = await p.$$eval('#quick-menu .qm-btn', bs => bs.map(b => b.textContent.replace(/[▸✓]/g, '').trim()));
   await p.keyboard.press('Escape'); await p.mouse.click(5, 300); await sleep(150);
-  await p.click('#editor-panel .account-chip'); await p.waitForSelector('.seg-toggle');
+  await p.evaluate(() => TT.openAccount('appearance')); await p.waitForSelector('.seg-toggle');
   ok(await p.locator('.seg-toggle button.on[data-menu-style="list"]').count() === 1, 'List is the default');
   await p.click('.seg-toggle button[data-menu-style="circle"]'); await sleep(200);
   ok(await p.locator('.seg-toggle button.on[data-menu-style="circle"]').count() === 1, 'Circle selected');
@@ -117,7 +117,7 @@ try {
   await p.keyboard.press('Escape');
 
   step('Switch back to the list');
-  await p.click('#editor-panel .account-chip'); await p.waitForSelector('.seg-toggle'); await p.click('.seg-toggle button[data-menu-style="list"]'); await p.keyboard.press('Escape'); await sleep(150);
+  await p.evaluate(() => TT.openAccount('appearance')); await p.waitForSelector('.seg-toggle'); await p.click('.seg-toggle button[data-menu-style="list"]'); await p.keyboard.press('Escape'); await sleep(150);
   await p.locator('.task-card', { hasText: 'Design gripper' }).first().click({ button: 'right' }); await sleep(200);
   ok(await p.locator('#quick-menu.active').isVisible() && await p.locator('#radial-menu').count() === 0, 'list menu is back');
   await ctx.close();

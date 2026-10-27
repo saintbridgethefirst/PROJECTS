@@ -2,6 +2,7 @@
 // the account (follows you to another device), "Match my device", and the old light/dark
 // setting carried over. Needs the preview server:  npx vite preview --port 4173
 import { chromium } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 const SHOTS = process.env.SHOTS_DIR || null;
@@ -11,6 +12,7 @@ const step = (s) => console.log('▸ ' + s);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = [];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const PACKS = ['midnight', 'ocean', 'forest', 'grape', 'graphite', 'contrast-dark', 'daylight', 'paper', 'sakura', 'mint', 'contrast-light'];
 const LIGHT = ['daylight', 'paper', 'sakura', 'mint', 'contrast-light'];
 
@@ -61,6 +63,7 @@ try {
     saveDatabase(); render(); });
   await sleep(300);
   await p.locator('.task-card', { hasText: 'Design gripper' }).click(); await sleep(200);
+  if (await p.locator('#editor-panel .ed-back').isVisible()) await p.click('#editor-panel .ed-back');   // the theme button sits in Search & filters
   ok((await p.locator('#theme-toggle-inner').textContent()).includes('Theme'), 'board button says Theme');
   for (const id of PACKS) {
     await p.click('#theme-toggle-inner'); await p.waitForSelector('.theme-card'); await pick(p, id); await p.keyboard.press('Escape'); await sleep(150);

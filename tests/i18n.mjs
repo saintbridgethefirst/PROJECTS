@@ -39,7 +39,7 @@ try {
   await p.evaluate(() => document.querySelectorAll('.modal-overlay').forEach(m => m.remove()));
 
   step('Back to English from Your account');
-  await p.evaluate(() => TT.openAccount()); await p.waitForSelector('#acct-lang');
+  await p.evaluate(() => TT.openAccount('appearance')); await p.waitForSelector('#acct-lang');
   await Promise.all([p.waitForEvent('load'), p.selectOption('#acct-lang', 'en')]);
   await p.waitForSelector('.task-card'); await sleep(800);
   ok(/Add task/.test(await p.evaluate(() => document.body.innerText)), 'English again');

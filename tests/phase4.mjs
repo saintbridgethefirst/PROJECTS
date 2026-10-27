@@ -2,6 +2,7 @@
 // issue / pull-request links with live state (against a stand-in for GitHub's API).
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 const SHOTS = process.env.SHOTS_DIR || null;
@@ -19,6 +20,7 @@ const GH = { calls: 0, items: {
   'acme/robot-arm/issues/8': { state: 'closed', state_reason: 'completed', title: 'Calibrate encoders' },
 } };
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 
 try {
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 } });

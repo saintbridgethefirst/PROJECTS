@@ -222,6 +222,19 @@ section.block { padding: 72px 0; }
 .pill { font: 700 11px var(--body); padding: 3px 9px; border-radius: 99px; border: 1.5px solid var(--ink); background: var(--paper-2); color: var(--ink); }
 .pill.hi { background: var(--coral); color: #fff; } .pill.ph { background: var(--violet); color: #fff; } .pill.dl { background: var(--sun); color: #14213d; }
 .featlist { display: grid; gap: 12px; }
+.ehead { display: grid; gap: 2px; }
+.ehead b { font: 800 17px var(--display); color: var(--ink); }
+.ehead span { font-size: 12px; color: var(--muted); }
+.etabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 2px solid var(--ink); border-radius: 12px; background: var(--paper-2); }
+.etabs button { font: 700 12.5px var(--body); border: 0; border-radius: 8px; padding: 7px 4px; background: transparent; color: var(--ink-2); cursor: pointer; display: inline-flex; gap: 5px; align-items: center; justify-content: center; }
+.etabs button[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+.etabs .c { font: 800 10px var(--mono); padding: 1px 6px; border-radius: 99px; background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+.epane { display: grid; gap: 12px; }
+.epane[hidden] { display: none; }
+.stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.stages span { font: 700 11px var(--body); text-align: center; padding: 5px 2px; border-radius: 7px; border: 1.5px solid var(--line); color: var(--muted); }
+.stages span.done { background: color-mix(in srgb, var(--teal) 18%, transparent); color: var(--ink); border-color: transparent; }
+.stages span.now { border-color: var(--ink); color: var(--ink); }
 .feat { display: grid; grid-template-columns: 42px 1fr; gap: 12px; align-items: start; }
 .feat .i { width: 42px; height: 42px; display: grid; place-items: center; font-size: 20px; border: 2px solid var(--ink); border-radius: 12px; background: var(--card); box-shadow: 2px 2px 0 var(--ink); }
 .feat h3 { font-size: 16.5px; margin: 2px 0 3px; }
@@ -520,6 +533,8 @@ footer a { color: var(--ink-2); }
     <div class="sec-head"><span class="num">★</span><div><h2>New in Trawpie</h2><p>The latest additions, and where to find them.</p></div></div>
     <div class="custom-list">
       <div class="feat"><span class="i">🎓</span><div><h3>Dissertation and thesis planner</h3><p>Create a team and choose <b>Start with ▸ Dissertation or thesis</b>. Give your level (undergraduate, master’s or PhD) and hand-in date, and Trawpie lays out the whole plan week by week, with phases on the timeline and milestones. <b>🧰 Tools ▸ 🎓 Dissertation</b> then shows whether you’re on track, your chapter word counts, a proposal helper, checklists and supervisor meetings. Send a chapter draft and your supervisor approves it or asks for changes. <a href="#dissertation">How it works ↓</a></p></div></div>
+      <div class="feat"><span class="i">⚙️</span><div><h3>Tidier settings</h3><p><b>Your account</b> is now four sections (Profile, Appearance, Notifications, App and data), with tabs across the top on a phone. Settings that are on or off are <b>switches</b>, and ticks are rounded in your team’s colour, with a round green tick for sub-tasks and Today.</p></div></div>
+      <div class="feat"><span class="i">🗂️</span><div><h3>A tidier task editor</h3><p>Open a task and its title stays at the top, with four tabs underneath: <b>Task</b>, <b>Plan</b>, <b>Files</b> and <b>Activity</b>. Search and filters come back when you close it, and on a phone it slides up from the bottom. <a href="#tasks">See it ↓</a></p></div></div>
       <div class="feat"><span class="i">☰</span><div><h3>List view and a Backlog</h3><p>Pick <b>☰ List</b> at the top of the board: every task in one table you can sort, group (by person, week, stage or priority) and edit in place. Add a <b>Backlog</b> column for work that isn’t planned into a week yet. <a href="#views">More below ↓</a></p></div></div>
       <div class="feat"><span class="i">↪️</span><div><h3>Automatic carry-over</h3><p>Unfinished tasks move into the new week on their own, with their history. Owners switch it on in <b>Settings ▸ Workflow ▸ Automatic steps</b>, and can flag tasks that keep rolling over.</p></div></div>
       <div class="feat"><span class="i">📎</span><div><h3>File health</h3><p>Google Drive and OneDrive files on a task show <b>Access lost</b>, <b>Personal drive</b> or <b>✓ Opens</b>, with who to ask and a one-click re-link. The whole team’s list is in <b>Settings ▸ Integrations</b>.</p></div></div>
@@ -644,21 +659,42 @@ footer a { color: var(--ink-2); }
 <!-- ═══ 3 Tasks ═══ -->
 <section class="block" id="tasks">
   <div class="wrap">
-    <div class="sec-head"><span class="num">04</span><div><h2>Everything a task can hold</h2><p>Click any card and the editor opens on the right. It saves as you type, for everyone, instantly.</p></div></div>
+    <div class="sec-head"><span class="num">04</span><div><h2>Everything a task can hold</h2><p>Click any card and its editor opens on the right (on a phone, it slides up from the bottom). The title stays at the top and four tabs hold the rest. Everything saves as you type, for everyone, instantly. Try the tabs on the example.</p></div></div>
     <div class="grid2">
       <div class="win">
         <div class="win-bar"><i></i><i></i><i></i><b>Editor ▸ CAD v2</b></div>
-        <div class="editor">
-          <div class="f"><label>Task</label><div class="v">CAD v2 — gripper fingers</div></div>
-          <div class="row"><span class="pill hi">● High</span><span class="pill dl">📅 Due Fri 24 Oct</span><span class="pill ph">Phase: Detailed design</span><span class="pill">🧩 Payload</span></div>
-          <div class="f"><label>Progress · 65%</label><div class="slider"><i></i><b></b></div></div>
-          <div class="f"><label>Sub-tasks</label><div class="subs"><div class="x">Finger geometry</div><div class="x">Tolerance stack (GD&amp;T)</div><div>Export STEP for printing</div></div></div>
-          <div class="row"><div class="f"><label>Helpers</label><div class="v">👥 Mei, Tom</div></div><div class="f"><label>Waits on</label><div class="v">⛓ Servo sizing</div></div></div>
-          <div class="f"><label>Files &amp; links</label><div class="v">📎 gripper_v2.step (Drive) · 🐙 org/arm#14</div></div>
-          <div class="comment"><span class="av" style="background:var(--teal)">M</span><span><b>Mei:</b> <span class="mention">@Rushi</span> torque is fine at 0.8 Nm, go ahead 👍</span></div>
+        <div class="editor" id="ed-demo">
+          <div class="ehead"><b>CAD v2 — gripper fingers</b><span>Mei Chen · Week 42 · Payload · TT-7Q2K</span></div>
+          <div class="etabs" role="tablist" aria-label="Task editor tabs (example)">
+            <button type="button" role="tab" aria-selected="true" data-p="t">Task</button>
+            <button type="button" role="tab" aria-selected="false" data-p="p">Plan</button>
+            <button type="button" role="tab" aria-selected="false" data-p="f">Files <span class="c">2</span></button>
+            <button type="button" role="tab" aria-selected="false" data-p="a">Activity <span class="c">1</span></button>
+          </div>
+          <div class="epane" data-p="t">
+            <div class="row"><span class="pill hi">● High</span><span class="pill dl">📅 Due Fri 24 Oct</span><span class="pill">Doing</span></div>
+            <div class="f"><label>Progress · 65%</label><div class="slider"><i></i><b></b></div></div>
+            <div class="f"><label>Sub-tasks</label><div class="subs"><div class="x">Finger geometry</div><div class="x">Tolerance stack (GD&amp;T)</div><div>Export STEP for printing</div></div></div>
+            <div class="f"><label>Helping</label><div class="v">👥 Tom</div></div>
+          </div>
+          <div class="epane" data-p="p" hidden>
+            <div class="row"><span class="pill ph">Phase: Detailed design</span><span class="pill">🧩 Payload</span></div>
+            <div class="f"><label>Stage</label><div class="stages"><span class="done">Design ✓</span><span class="now">Review</span><span>Build</span><span>Test</span></div></div>
+            <div class="row"><div class="f"><label>Starts</label><div class="v">Mon 20 Oct</div></div><div class="f"><label>Effort</label><div class="v">6 hours</div></div></div>
+            <div class="f"><label>Waits on</label><div class="v">⛓ Servo sizing</div></div>
+          </div>
+          <div class="epane" data-p="f" hidden>
+            <div class="f"><label>Files &amp; links</label><div class="v">📎 gripper_v2.step (Drive) · ✓ opens</div><div class="v">🐙 org/arm#14 · pull request, open</div></div>
+            <div class="f"><label>Lab notebook</label><div class="v">Thu: first print too tight, +0.2 mm clearance</div></div>
+          </div>
+          <div class="epane" data-p="a" hidden>
+            <div class="comment"><span class="av" style="background:var(--teal)">M</span><span><b>Mei:</b> <span class="mention">@Rushi</span> torque is fine at 0.8 Nm, go ahead 👍</span></div>
+            <div class="f"><label>History</label><div class="v">Tom ticked “Tolerance stack” · 2 h ago</div></div>
+          </div>
         </div>
       </div>
       <div class="featlist">
+        <div class="feat"><span class="i">🗂️</span><div><h3>Four tabs, nothing to scroll for</h3><p><b>Task</b>: status, priority, deadline, sub-tasks and who’s helping. <b>Plan</b>: phase, stage and sign-off, start date, effort, “waits on”, repeat and what shows on the card. <b>Files</b>: Drive and OneDrive files, linked parts and papers, and the lab notebook. <b>Activity</b>: comments and the change history. <b>‹ Search &amp; filters</b> takes you back; prefer one long list? Choose <b>Show everything in one list</b> at the bottom.</p></div></div>
         <div class="feat"><span class="i">🎚️</span><div><h3>Progress, priority &amp; deadline</h3><p>Drag the slider as work moves. Deadlines drive the late flags, the timeline and the Monday email digest.</p></div></div>
         <div class="feat"><span class="i">☑️</span><div><h3>Sub-tasks</h3><p>Break big jobs into a checklist. Ticking them off moves the progress bar.</p></div></div>
         <div class="feat"><span class="i">👥</span><div><h3>Helpers &amp; “waits on”</h3><p>Add teammates who help, and link tasks that must finish first. The Kanban view and the planning charts use these links.</p></div></div>
@@ -672,7 +708,7 @@ footer a { color: var(--ink-2); }
       <div>
         <span class="tag">Try it</span>
         <h3 style="font-size:28px;margin:10px 0 10px">The right-click menu does almost everything</h3>
-        <p>Right-click a card, a cell, a week or a person to get the actions that fit it. On a phone, <b>press and hold</b> or tap <b>⋯</b> on a card. Prefer a circle? Switch the style in <b>Your account ▸ Right-click menu</b>.</p>
+        <p>Right-click a card, a cell, a week or a person to get the actions that fit it. On a phone, <b>press and hold</b> or tap <b>⋯</b> on a card. Prefer a circle? Switch the style in <b>Your account ▸ Appearance ▸ Right-click menu</b>.</p>
         <p style="margin-top:14px"><span class="seg" id="menu-style"><button type="button" class="on" data-s="list">☰ List</button><button type="button" data-s="circle">◯ Circle</button></span></p>
       </div>
       <div class="play" id="play" tabindex="0" aria-label="Right-click practice area">
@@ -1088,6 +1124,15 @@ footer a { color: var(--ink-2); }
     tabs.forEach(function (x) { x.classList.toggle('on', x === t); x.setAttribute('aria-selected', x === t); });
     document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('on', v.dataset.v === t.dataset.v); });
   }); });
+
+  // The example editor's tabs
+  var edDemo = document.getElementById('ed-demo');
+  if (edDemo) [].slice.call(edDemo.querySelectorAll('.etabs button')).forEach(function (b, i, all) {
+    b.addEventListener('click', function () {
+      all.forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); });
+      [].slice.call(edDemo.querySelectorAll('.epane')).forEach(function (p) { p.hidden = p.dataset.p !== b.dataset.p; });
+    });
+  });
 
   // Feature search + groups
   var q = document.getElementById('feat-q'), group = 'all', cards = [].slice.call(document.querySelectorAll('.fc'));

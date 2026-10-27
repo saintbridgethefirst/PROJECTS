@@ -37,7 +37,7 @@ try {
   await B.click('#invites-list button:has-text("Join team")'); await B.waitForSelector('.node-cat'); await sleep(400);
 
   step('Download my data');
-  await A.evaluate(() => TT.openAccount()); await A.waitForSelector('#your-data-field');
+  await A.evaluate(() => TT.openAccount('data')); await A.waitForSelector('#your-data-field');
   const [dl] = await Promise.all([A.waitForEvent('download'), A.click('#my-data-download')]);
   ok(/^trawpie-my-data-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()), 'a dated JSON file: ' + dl.suggestedFilename());
   const data = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));
@@ -64,7 +64,7 @@ try {
   await A.keyboard.press('Escape');
 
   step('Delete my account');
-  await A.evaluate(() => TT.openAccount()); await A.click('#my-account-delete'); await A.waitForSelector('#delete-confirm'); await sleep(300);
+  await A.evaluate(() => TT.openAccount('data')); await A.click('#my-account-delete'); await A.waitForSelector('#delete-confirm'); await sleep(300);
   ok(!(await A.locator('#delete-blocked').count()), 'no longer blocked');
   ok(await A.locator('#delete-go').isDisabled(), 'needs DELETE typed first');
   await A.fill('#delete-confirm', 'delete'); ok(await A.locator('#delete-go').isDisabled(), '(exactly DELETE)');

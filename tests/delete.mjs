@@ -3,6 +3,7 @@
 // repeating tasks, comments on a deleted task, and who is allowed to delete.
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium, devices } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 let pass = 0, fail = 0;
@@ -12,6 +13,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = [];
 const monday = () => { const x = new Date(); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.toLocaleDateString('en-CA'); };
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 } });
 const dialogs = [];
 async function tab(label) {

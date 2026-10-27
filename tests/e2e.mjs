@@ -2,6 +2,7 @@
 //   npm run build && npx vite preview --port 4173   (in one terminal)
 //   npm run test:e2e                                (in another)
 import { chromium } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 import fs from 'node:fs';
 import { isoWeekNumber } from '../src/model.js';
 
@@ -13,6 +14,7 @@ const step = (s) => console.log('▸ ' + s);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 }, acceptDownloads: true });
 const errors = [];
 async function tab(label) {
@@ -235,6 +237,7 @@ try {
     return XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
   });
   fs.writeFileSync('/tmp/tt-import.xlsx', Buffer.from(xlsxB64, 'base64'));
+  if (await A.locator('#editor-panel .ed-back').isVisible()) await A.click('#editor-panel .ed-back');   // back from the task to Search & filters
   const [chooser] = await Promise.all([A.waitForEvent('filechooser'), A.click('#team-data-actions button:has-text("Import tasks")').then(() => A.click('#imp-choose'))]);
   await chooser.setFiles('/tmp/tt-import.xlsx');
   await A.waitForSelector('.modal:has-text("Import from")');

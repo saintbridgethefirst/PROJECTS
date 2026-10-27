@@ -1653,7 +1653,7 @@
             more.addEventListener('click', (e) => { e.stopPropagation(); const r = more.getBoundingClientRect(); onBoardContextMenu({ target: card, clientX: r.left, clientY: r.bottom + 4, preventDefault() {} }); });
             card.appendChild(more);
             const baseClick = card.onclick;
-            card.onclick = (e) => { if (baseClick) baseClick.call(card, e); if (isCompact()) setPanel(true); };
+            card.onclick = (e) => { if (baseClick) baseClick.call(card, e); if (activeNode && activeNode.id === task.id) openPanelForTask(); };
             return card;
         }
 
@@ -1661,6 +1661,7 @@
         const ICON_CHOICES = ['🔧', '⚙️', '🤖', '📐', '🧪', '📊', '📝', '💡', '🚀', '🎯', '⚡', '🔌', '🖥️', '📦', '🧠', '📷'];
         function openEditor(nodeData) {
             if (TT.lookingAt) TT.lookingAt(nodeData && (!nodeData.type || nodeData.type === 'task') ? nodeData.id : '');
+            watchEditorMode();
             if (nodeData.type === 'person') return openPersonPanel(nodeData);
             _openEditorBase(nodeData);
             const form = document.getElementById('edit-form'); if (!form) return;
@@ -1671,36 +1672,145 @@
             }
             const owner = taskOwner(nodeData);
             const editable = TT.canEditOwner(owner);
-            const extra = document.createElement('div');
             if (nodeData.dueDate) {
                 const due = form.querySelector('.due-field');
                 if (due) { const a = document.createElement('button'); a.type = 'button'; a.className = 'link-btn cal-link'; a.textContent = '📅 Add to my calendar'; a.onclick = () => TT.taskIcs(nodeData.id); due.after(a); }
             }
-            extra.appendChild(phaseSection(nodeData, editable));
-            extra.appendChild(planningSection(nodeData, editable));
-            const soSec = signoffSection(nodeData, editable); if (soSec) extra.appendChild(soSec);
-            extra.appendChild(repeatSection(nodeData, editable));
-            extra.appendChild(iconSection(nodeData, editable));
-            if (teamFields().length) extra.appendChild(customFieldSection(nodeData, editable));
-            extra.appendChild(attachmentSection(nodeData, editable));
-            const chainNote = carryNote(nodeData); if (chainNote) extra.prepend(chainNote);
-            const linked = TT.linkedSection(nodeData.id); if (linked) extra.appendChild(linked);
-            if (TT.feature('people')) extra.appendChild(skillSection(nodeData, editable));
-            if (TT.feature('time')) extra.appendChild(timeSection(nodeData));
-            if (TT.feature('notebook')) extra.appendChild(TT.notebookSection(nodeData.id));
-            extra.appendChild(TT.commentSection(nodeData.id));
-            if (nodeData.updatedBy) { const n = document.createElement('div'); n.className = 'hint'; n.style.marginTop = '14px'; n.textContent = 'Last change by ' + nodeData.updatedBy + (nodeData.updatedAt ? ' · ' + new Date(nodeData.updatedAt).toLocaleString() : ''); extra.appendChild(n); }
-            const hist = [...form.querySelectorAll('label')].find(l => l.textContent === 'History Log');
-            form.insertBefore(extra, hist || null);
+            // Each part goes in its tab: Task (doing it), Plan (planning it), Files (what's attached), Activity (talking about it).
+            const parts = { task: [], plan: [], files: [], activity: [] };
+            const chainNote = carryNote(nodeData); if (chainNote) parts.task.push(chainNote);
+            parts.plan.push(phaseSection(nodeData, editable), planningSection(nodeData, editable));
+            const soSec = signoffSection(nodeData, editable); if (soSec) parts.plan.push(soSec);
+            parts.plan.push(repeatSection(nodeData, editable));
+            if (TT.feature('people')) parts.plan.push(skillSection(nodeData, editable));
+            if (TT.feature('time')) parts.plan.push(timeSection(nodeData));
+            parts.files.push(attachmentSection(nodeData, editable));
+            const linked = TT.linkedSection(nodeData.id); if (linked) parts.files.push(linked);
+            if (TT.feature('notebook')) parts.files.push(TT.notebookSection(nodeData.id));
+            parts.activity.push(TT.commentSection(nodeData.id));
+            const card = [iconSection(nodeData, editable)]; if (teamFields().length) card.push(customFieldSection(nodeData, editable));
+            buildEditorTabs(form, nodeData, parts, card);
             if (!editable) makeReadOnly(form);
+            const ro = form.querySelector(':scope > .read-only-note'); const row = form.querySelector('.ed-title-row');
+            if (ro && row) row.after(ro);
         }
         function makeReadOnly(form) {
-            // Comments stay open: people can discuss a task they're not allowed to edit.
-            form.querySelectorAll('input, textarea, select, button').forEach(n => { if (!n.closest('.comments-section, .nb-section, .linked-section, .carry-note, .so-box') && !n.classList.contains('cal-link')) n.disabled = true; });
+            // Comments stay open: people can discuss a task they're not allowed to edit. So do the tabs and the header buttons.
+            form.querySelectorAll('input, textarea, select, button').forEach(n => { if (!n.closest('.comments-section, .nb-section, .linked-section, .carry-note, .so-box, .ed-nav, .ed-tabs, .ed-layout') && !n.classList.contains('cal-link')) n.disabled = true; });
             form.querySelectorAll('.due-quick, [data-edit-only], .btn-danger').forEach(n => { n.style.display = 'none'; });
             const note = document.createElement('div'); note.className = 'read-only-note';
             note.textContent = 'View only — your role can’t edit this.';
             form.prepend(note);
+        }
+
+        // ---------- Task editor: a header that stays put, and four tabs ----------
+        // The task's title, who and when stay at the top; under them Task · Plan · Files · Activity, so nothing
+        // needs a long scroll. Search and filters show again when no task is open. "One list" shows every part in turn.
+        const ED_TABS = [['task', 'Task'], ['plan', 'Plan'], ['files', 'Files'], ['activity', 'Activity']];
+        let edTab = 'task', edTabFor = '';
+        function edLayout() { try { return localStorage.getItem('tt_editor_layout') === 'list' ? 'list' : 'tabs'; } catch (e) { return 'tabs'; } }
+        function setEdLayout(v) { try { localStorage.setItem('tt_editor_layout', v); } catch (e) { /* private mode */ } if (activeNode && activeNode.type === 'task') openEditor(activeNode); }
+        let edWatch = null;
+        /** The panel shows search and filters, or the open task: whichever path opened or closed the editor. */
+        function watchEditorMode() {
+            if (edWatch) return;
+            const form = document.getElementById('edit-form'), panel = document.getElementById('editor-panel'); if (!form || !panel) return;
+            const sync = () => panel.classList.toggle('ed-task', form.style.display !== 'none' && !!form.querySelector(':scope > .ed-head'));
+            edWatch = new MutationObserver(sync); edWatch.observe(form, { attributes: true, attributeFilter: ['style'], childList: true }); sync();
+        }
+        function edCounts(task) {
+            const files = (task.attachments || []).length + (TT.feature('notebook') && TT.notebookCount ? TT.notebookCount(task.id) : 0);
+            const talk = TT.commentCount ? TT.commentCount(task.id) : 0;
+            return { files, activity: talk, hot: !!(TT.hasUnreadMention && TT.hasUnreadMention(task.id)) };
+        }
+        function showEdTab(k, focus) {
+            edTab = k;
+            document.querySelectorAll('#edit-form .ed-tab').forEach(b => { const on = b.dataset.tab === k; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
+            document.querySelectorAll('#edit-form .ed-pane').forEach(p => { p.hidden = edLayout() === 'tabs' && p.dataset.pane !== k; });
+            const panel = document.getElementById('editor-panel'); const head = document.querySelector('#edit-form .ed-head');
+            if (panel && head && panel.scrollTop > head.offsetTop) panel.scrollTop = head.offsetTop;
+        }
+        function buildEditorTabs(form, task, parts, card) {
+            if (edTabFor !== task.id) { edTab = 'task'; edTabFor = task.id; }
+            const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+            const byId = (id) => form.querySelector('#' + id);
+            const withLabel = (el, label) => { if (!el) return null; const l = el.previousElementSibling && el.previousElementSibling.tagName === 'LABEL' ? el.previousElementSibling : null; const f = mk('div', 'ed-field'); if (l) { if (label) l.textContent = label; l.htmlFor = el.id; f.appendChild(l); } el.style.marginBottom = ''; f.appendChild(el); return f; };
+            const labelText = (t) => [...form.querySelectorAll(':scope > label')].find(l => l.textContent.trim() === t);
+            // The pieces the board drew (they keep their ids and handlers).
+            const title = byId('edit-name'); const titleLabel = title && title.previousElementSibling;
+            const flag = withLabel(byId('edit-flag'), 'Status');
+            const prio = withLabel(byId('edit-priority'));
+            const dueField = form.querySelector('.due-field'); const dueLabel = dueField && dueField.previousElementSibling && dueField.previousElementSibling.tagName === 'LABEL' ? dueField.previousElementSibling : null;
+            const due = mk('div', 'ed-field'); if (dueLabel) due.appendChild(dueLabel); if (dueField) due.appendChild(dueField);
+            const calLink = form.querySelector('.cal-link'), quick = form.querySelector('.due-quick');
+            const sup1 = withLabel(byId('edit-support'), 'Helping'), sup2 = withLabel(byId('edit-support2'), 'Also helping');
+            const badge = withLabel(byId('edit-status')), ref = withLabel(byId('edit-jira'));
+            const stLabel = labelText('Subtasks'); const stList = stLabel && stLabel.nextElementSibling;
+            const addSt = form.querySelector('button[onclick^="quickAddSubtask"]');
+            const carryBtn = form.querySelector('button[onclick="extendTaskUI()"]'); const actions = carryBtn && carryBtn.parentElement;
+            const histLabel = labelText('History Log'); const histBox = form.querySelector('.history-box');
+
+            // Header: back to search and filters, the reference, hide the panel; then the title and who/when; then the tabs.
+            const head = mk('div', 'ed-head');
+            head.appendChild(mk('div', 'ed-grip'));
+            const nav = mk('div', 'ed-nav');
+            const back = mk('button', 'ed-back', 'Search & filters'); back.type = 'button'; back.title = 'Close this task and go back to search and filters';
+            back.onclick = () => { closeEditor(); render(); const s = document.getElementById('search-tasks'); if (s && !isCompact()) s.focus(); };
+            const refChip = mk('span', 'ed-ref', TT.taskRef(task)); refChip.title = 'This task’s reference';
+            const hide = mk('button', 'ed-close'); hide.type = 'button'; hide.setAttribute('aria-label', 'Hide panel'); hide.title = 'Hide panel'; hide.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+            hide.onclick = () => (isCompact() ? setPanel(false) : toggleSidebar());
+            nav.append(back, mk('span', 'ed-sp'), refChip, hide);
+            const row = mk('div', 'ed-title-row');
+            const ic = mk('span', task.icon ? 'task-icon ed-icon' : 'ed-icon'); ic.setAttribute('aria-hidden', 'true');
+            if (task.icon && task.icon.startsWith('data:image/')) { const img = document.createElement('img'); img.src = task.icon; img.alt = ''; ic.appendChild(img); }
+            else if (task.icon) { ic.textContent = task.icon; ic.dataset.emo = task.icon; }
+            else ic.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/></svg>';
+            const col = mk('div', 'ed-title-col');
+            if (title) { title.rows = 1; title.setAttribute('aria-label', 'Task title'); col.appendChild(title); const fit = () => { title.style.height = 'auto'; title.style.height = Math.min(title.scrollHeight + 2, 160) + 'px'; }; title.addEventListener('input', fit); requestAnimationFrame(fit); }
+            if (titleLabel && titleLabel.tagName === 'LABEL') titleLabel.remove();
+            const loc = locateTask(task.id);
+            const meta = mk('div', 'ed-meta', loc ? [loc.person.name, weekTitle(loc.weekKey), loc.cat.name].filter(Boolean).join(' · ') : '');
+            col.appendChild(meta); row.append(ic, col); head.append(nav, row);
+
+            const layout = edLayout(); const counts = edCounts(task);
+            const tabs = mk('div', 'ed-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Task editor');
+            ED_TABS.forEach(([k, label]) => {
+                const b = mk('button', 'ed-tab'); b.type = 'button'; b.id = 'ed-tab-' + k; b.dataset.tab = k; b.setAttribute('role', 'tab'); b.setAttribute('aria-controls', 'ed-pane-' + k);
+                b.appendChild(mk('span', null, label));
+                const n = k === 'files' ? counts.files : k === 'activity' ? counts.activity : 0;
+                if (n) { const c = mk('span', 'ed-count' + (k === 'activity' && counts.hot ? ' hot' : ''), String(n)); c.setAttribute('aria-label', n + (k === 'files' ? ' files and notes' : ' comments')); b.appendChild(c); }
+                b.onclick = () => showEdTab(k);
+                b.onkeydown = (e) => { const i = ED_TABS.findIndex(t => t[0] === k); const j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? ED_TABS.length - 1 : null; if (j === null) return; e.preventDefault(); showEdTab(ED_TABS[(j + ED_TABS.length) % ED_TABS.length][0], true); };
+                tabs.appendChild(b);
+            });
+            if (layout === 'tabs') head.appendChild(tabs);
+
+            // The panes.
+            const pane = (k) => { const p = mk('div', 'ed-pane'); p.id = 'ed-pane-' + k; p.dataset.pane = k; p.setAttribute('role', layout === 'tabs' ? 'tabpanel' : 'region'); p.setAttribute('aria-labelledby', 'ed-tab-' + k); if (layout === 'list' && k !== 'task') p.appendChild(mk('h3', 'ed-pane-title', ED_TABS.find(t => t[0] === k)[1])); return p; };
+            const P = { task: pane('task'), plan: pane('plan'), files: pane('files'), activity: pane('activity') };
+            parts.task.forEach(n => P.task.appendChild(n));
+            if (flag) P.task.appendChild(flag);
+            const two = mk('div', 'ed-two'); if (prio) two.appendChild(prio); two.appendChild(due); P.task.appendChild(two);
+            if (quick || calLink) { const q = mk('div', 'ed-due-more'); if (quick) q.appendChild(quick); if (calLink) q.appendChild(calLink); P.task.appendChild(q); }
+            const st = mk('div', 'ed-field ed-subtasks'); if (stLabel) st.appendChild(stLabel); if (stList) st.appendChild(stList); if (addSt) st.appendChild(addSt); P.task.appendChild(st);
+            if (sup1 || sup2) { const ppl = mk('div', 'ed-two'); if (sup1) ppl.appendChild(sup1); if (sup2) ppl.appendChild(sup2); P.task.appendChild(ppl); }
+            if (actions) { actions.classList.add('ed-actions'); actions.style.marginBottom = ''; P.task.appendChild(actions); }
+            if (task.updatedBy) P.task.appendChild(mk('div', 'hint ed-changed', 'Last change by ' + task.updatedBy + (task.updatedAt ? ' · ' + new Date(task.updatedAt).toLocaleString() : '')));
+            parts.plan.forEach(n => P.plan.appendChild(n));
+            const onCard = section('On the card'); onCard.classList.add('ed-card-sec');
+            if (badge) onCard.appendChild(badge); if (ref) onCard.appendChild(ref);
+            card.forEach(n => { n.classList.add('ed-sub'); onCard.appendChild(n); });
+            P.plan.appendChild(onCard);
+            parts.files.forEach(n => P.files.appendChild(n));
+            parts.activity.forEach(n => P.activity.appendChild(n));
+            if (histLabel || histBox) { const h = mk('div', 'ed-field ed-history'); if (histLabel) { histLabel.textContent = 'History'; h.appendChild(histLabel); } if (histBox) h.appendChild(histBox); P.activity.appendChild(h); }
+
+            const sw = mk('div', 'ed-layout');
+            const swBtn = mk('button', 'link-btn', layout === 'tabs' ? 'Show everything in one list' : 'Use tabs instead'); swBtn.type = 'button';
+            swBtn.onclick = () => setEdLayout(layout === 'tabs' ? 'list' : 'tabs');
+            sw.appendChild(swBtn);
+            form.replaceChildren(head, P.task, P.plan, P.files, P.activity, sw);
+            showEdTab(edTab);
         }
         function section(title) {
             const s = document.createElement('div'); s.className = 'panel-section';
@@ -2159,7 +2269,13 @@
             setTimeout(drawLines, 350);
             if (window.boardFitTopBar) { setTimeout(window.boardFitTopBar, 0); setTimeout(window.boardFitTopBar, 380); }
         }
+        /** Opening a task shows the panel, also when it was hidden (the demo starts with it closed). */
+        function openPanelForTask() { const p = document.getElementById('editor-panel'); if (p && p.classList.contains('hidden')) setPanel(true); }
         function toggleSidebar() { const panel = document.getElementById('editor-panel'); if (panel) setPanel(panel.classList.contains('hidden')); }
+        // For the app (the demo tour): show or hide the side panel, and close the open task.
+        window.boardPanel = (open) => setPanel(!!open);
+        window.boardCloseEditor = () => { closeEditor(); render(); };
+        window.boardEditorTab = (k) => { if (ED_TABS.some(t => t[0] === k)) showEdTab(k); };
         (function initCompactLayout() {
             const screen = document.getElementById('board-screen');
             if (screen && !document.getElementById('panel-backdrop')) {
@@ -2382,7 +2498,7 @@
             if (!locateTask(taskId)) { toast('That task no longer exists.'); return; }
             hiddenPhases.clear(); const q = document.getElementById('search-tasks'); if (q && q.value) { q.value = ''; performSearch(); }
             openOriginalTask(taskId);
-            if (isCompact()) setPanel(true);
+            openPanelForTask();
             const n = document.getElementById(taskId); if (n && n.scrollIntoView) try { n.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' }); } catch (e) { /* */ }
         };
 
@@ -2673,7 +2789,7 @@
         // ---------- Jump targets for search ----------
         window.boardFocusPerson = function (uid) {
             const p = db.find(x => x.id === uid); if (!p) { toast('That person has no row on this board yet.'); return; }
-            hiddenPersons.delete(uid); renderFilters(); render(); openEditorForNode(p); if (isCompact()) setPanel(true); flashNode(uid);
+            hiddenPersons.delete(uid); renderFilters(); render(); openEditorForNode(p); openPanelForTask(); flashNode(uid);
         };
         window.boardShowWeek = function (key) {
             hiddenWeeks.delete(key); const w = weeksData.find(x => x.key === key); if (w && w.collapsed) { w.collapsed = false; TT.setCollapsed(key, false); }
@@ -2710,7 +2826,7 @@
             logHistory(t, 'Task Status', '', 'Created from template “' + tpl.name + '”');
             if (!Array.isArray(cat[weekKey])) cat[weekKey] = [];
             cat[weekKey].push(t); saveDatabase(); render(); flashNode(t.id);
-            openEditorForNode(t); if (isCompact()) setPanel(true);
+            openEditorForNode(t); openPanelForTask();
         }
         function columnMenuItems(person, cat, weekKey) {
             const items = _columnMenuItemsBase(person, cat, weekKey);
@@ -3386,7 +3502,7 @@
             const subs = t.subtasks || []; const sb = document.createElement('span'); sb.className = 'lt-subs';
             if (subs.length) { const done = subs.filter(x => x.completed).length; sb.innerHTML = '<span class="lt-bar"><i style="width:' + Math.round(done / subs.length * 100) + '%"></i></span>'; sb.title = done + ' of ' + subs.length + ' done'; sb.append(done + '/' + subs.length); } else sb.textContent = '—';
             td('lt-c-subs', sb);
-            const open = () => { const loc = locateTask(t.id); if (!loc) return; activeNode = loc.task; openEditorForNode(loc.task); if (isCompact()) setPanel(true); document.querySelectorAll('.lt-row.selected').forEach(x => x.classList.remove('selected')); tr.classList.add('selected'); };
+            const open = () => { const loc = locateTask(t.id); if (!loc) return; activeNode = loc.task; openEditorForNode(loc.task); openPanelForTask(); document.querySelectorAll('.lt-row.selected').forEach(x => x.classList.remove('selected')); tr.classList.add('selected'); };
             tr.addEventListener('click', open);
             tr.addEventListener('keydown', (e) => { if (e.target === tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } });
             tr.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); const loc = locateTask(t.id); if (loc) showMenu(e.clientX, e.clientY, taskMenuItems(loc)); });
@@ -3605,7 +3721,7 @@
             const more = document.createElement('button'); more.type = 'button'; more.className = 'card-more'; more.textContent = '⋯'; more.title = 'Task actions'; more.setAttribute('aria-label', 'Task actions');
             more.addEventListener('click', (e) => { e.stopPropagation(); const r = more.getBoundingClientRect(); const loc = locateTask(t.id); if (loc) showMenu(r.left, r.bottom + 4, taskMenuItems(loc)); });
             c.appendChild(more);
-            c.addEventListener('click', () => { const loc = locateTask(t.id); if (!loc) return; activeNode = loc.task; openEditorForNode(loc.task); if (isCompact()) setPanel(true); document.querySelectorAll('.kb-card.selected').forEach(x => x.classList.remove('selected')); c.classList.add('selected'); });
+            c.addEventListener('click', () => { const loc = locateTask(t.id); if (!loc) return; activeNode = loc.task; openEditorForNode(loc.task); openPanelForTask(); document.querySelectorAll('.kb-card.selected').forEach(x => x.classList.remove('selected')); c.classList.add('selected'); });
             c.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); const loc = locateTask(t.id); if (loc) showMenu(e.clientX, e.clientY, taskMenuItems(loc)); });
             c.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.click(); return; }
@@ -3876,7 +3992,7 @@
         }
         function gtWireBar(b, l, sp, dw, editable) {
             const id = l.task.id;
-            const open = () => { const loc = locateTask(id); if (!loc) return; activeNode = loc.task; openEditorForNode(loc.task); if (isCompact()) setPanel(true); document.querySelectorAll('.gt2-bar.selected').forEach(n => n.classList.remove('selected')); b.classList.add('selected'); };
+            const open = () => { const loc = locateTask(id); if (!loc) return; activeNode = loc.task; openEditorForNode(loc.task); openPanelForTask(); document.querySelectorAll('.gt2-bar.selected').forEach(n => n.classList.remove('selected')); b.classList.add('selected'); };
             b.addEventListener('contextmenu', (e) => { e.preventDefault(); const loc = locateTask(id); if (loc) showMenu(e.clientX, e.clientY, taskMenuItems(loc)); });
             b.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); return; }

@@ -60,7 +60,7 @@ export function proActive(plan, now = Date.now(), ownerUid = '') {
 export const wants = (userDoc, key) => !(userDoc && userDoc.notify && userDoc.notify[key] === false);
 const day = (iso) => { const d = new Date(iso + 'T12:00:00Z'); return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' }); };
 const shell = (appName, body, appUrl, why) => '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;color:#1a202c">' + body +
-  '<p style="margin-top:28px;font-size:12px;color:#718096">' + esc(why) + ' Change this in ' + esc(appName) + ' ▸ your account ▸ Email notifications: <a href="' + esc(appUrl) + '/#/account">' + esc(appUrl.replace(/^https?:\/\//, '')) + '</a></p></div>';
+  '<p style="margin-top:28px;font-size:12px;color:#718096">' + esc(why) + ' Change this in ' + esc(appName) + ' ▸ your account ▸ Notifications: <a href="' + esc(appUrl) + '/#/account">' + esc(appUrl.replace(/^https?:\/\//, '')) + '</a></p></div>';
 
 /** "Aisha mentioned you" — one email per mention. */
 export function mentionEmail({ appName = 'Trawpie', appUrl, author, teamName, taskName, text, teamId }) {

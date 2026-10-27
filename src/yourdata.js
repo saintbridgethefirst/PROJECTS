@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  Your account ▸ Your data: download everything about you, or delete your account.
+//  Your account ▸ App and data: download everything about you, or delete your account.
 //  The work is done by Cloud Functions (functions/privacy.js); the demo backend mirrors them.
 //  app = { backend } (from main.js).
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, toast, modal } from './ui.js';
 
 // ── Your data: download it, or delete your account ─────────────────────────
-export function yourDataField(app, accountModal) {
+export function yourDataRows(app, accountModal, row) {
   const dl = el('button.btn.small', { type: 'button', id: 'my-data-download', onclick: async () => {
     dl.disabled = true; dl.textContent = 'Preparing…';
     try {
@@ -15,12 +15,13 @@ export function yourDataField(app, accountModal) {
       document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       toast('Downloaded: everything Trawpie stores about you.');
     } catch (e) { toast(callError(e), 6000); }
-    dl.disabled = false; dl.textContent = '⬇️ Download my data';
-  } }, '⬇️ Download my data');
-  const del = el('button.btn.small.danger', { type: 'button', id: 'my-account-delete', onclick: () => { accountModal.close(); openDeleteAccount(app); } }, 'Delete my account…');
-  return el('div.field', { id: 'your-data-field' }, el('span', {}, 'Your data'),
-    el('div.hint', {}, 'A file with everything stored about you, or delete your account. See the ', el('a', { href: 'privacy.html', target: '_blank', rel: 'noopener' }, 'privacy notice'), '.'),
-    el('div.row', { style: { gap: '6px', marginTop: '6px' } }, dl, del));
+    dl.disabled = false; dl.textContent = 'Download';
+  } }, 'Download');
+  const del = el('button.btn.small.danger', { type: 'button', id: 'my-account-delete', onclick: () => { accountModal.close(); openDeleteAccount(app); } }, 'Delete…');
+  return [
+    row('download', 'Download my data', el('span', {}, 'A file with everything stored about you. See the ', el('a', { href: 'privacy.html', target: '_blank', rel: 'noopener' }, 'privacy notice'), '.'), dl),
+    row('trash', 'Delete my account', 'You’ll see what happens to your teams and be asked to confirm first.', del, { danger: true }),
+  ];
 }
 /** Message from a Cloud Function error (or the demo's), without the "functions/" prefix. */
 function callError(e) { return String((e && e.message) || 'Something went wrong.').replace(/^Firebase:\s*/, ''); }
@@ -38,7 +39,7 @@ export async function openDeleteAccount(app) {
       el('li', {}, 'Teams where you’re the only member are deleted, with everything in them.'),
       el('li', {}, 'In other teams, the work you shared stays for your teammates (tasks, comments, notes), but your name on it becomes “Former member”.'),
       el('li', {}, 'Your student verification, feedback, error reports and invitations to your email are deleted. Backups that still hold them are deleted automatically within 14 weeks.')),
-    el('p.hint', {}, 'Want a copy first? Use “Download my data” in your account.'), status, confirmIn);
+    el('p.hint', {}, 'Want a copy first? Use “Download my data” in Your account ▸ App and data.'), status, confirmIn);
   m.foot.append(el('button.btn.ghost', { type: 'button', onclick: m.close }, 'Cancel'), go);
   try {
     const { teams } = await app.backend.data.callFunction('myOwnedTeams', {});

@@ -7,6 +7,7 @@ import { APP_NAME, GOOGLE_CLIENT_ID, MS_CLIENT_ID, DEMO_MODE, LIMITS, STUDENT_EM
 import { PERMISSIONS, can, roleList, normEmail, isValidEmail, DEFAULT_ROLES, GUEST_HELP } from './permissions.js';
 import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS, storedWorkflow, leadsIndex, cleanWorkflow, cleanPurchase, cleanAutos, currencyOf, CURRENCIES, CURRENCY_NAMES, cleanBudget } from './model.js';
 import { el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
+import { lineIcon } from './line-icons.js';
 import { githubSection } from './github-ui.js';
 import { askToLeave, cancelLeave, leaveOf } from './requests.js';
 import { timeAgo } from './collab.js';
@@ -356,6 +357,8 @@ function workflow(pane, ctx, { rerender } = {}) {
 }
 
 // A number box that matches the dropdowns: one rounded field with thin up/down chevrons on the right.
+// An on/off switch: still a real checkbox (role=switch), drawn as a switch (ticks.css).
+function toggle(attrs, small) { return el('span.switch' + (small ? '.small' : ''), {}, el('input', { type: 'checkbox', role: 'switch', ...attrs }), el('i')); }
 function numBox(input) {
   const step = (d) => { if (input.disabled) return; if (d > 0) input.stepUp(); else input.stepDown(); input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); };
   const b = (d, label) => el('button.num-btn' + (d > 0 ? '.up' : '.down'), { type: 'button', tabindex: '-1', 'aria-label': label, disabled: input.disabled, onclick: () => step(d) });
@@ -372,11 +375,13 @@ function purchaseSection(ctx, { rerender } = {}) {
   const touch = () => { btn.disabled = false; };
   return el('section.wf-extra', { id: 'pa-settings' }, el('h4', {}, 'Purchase approvals'),
     el('p.hint', {}, 'Parts over a limit can’t be marked Ordered until someone who manages finances (or the team owner) approves them. Approved spending counts against its budget line straight away. Nobody approves their own request.'),
-    el('div.row', {},
-      el('label.chk', {}, el('input', { type: 'checkbox', id: 'pa-on', checked: pc.on, disabled: !editable, onchange: (e) => { v.on = e.target.checked; touch(); } }), 'Orders need approving when they cost more than'),
-      numBox(el('input', { type: 'number', id: 'pa-over', min: 0, step: '1', value: pc.over, disabled: !editable, 'aria-label': 'Approval limit', oninput: (e) => { v.over = Number(e.target.value) || 0; touch(); } })),
-      el('span.hint', {}, '(0 = every order)'), el('span.spacer'), editable ? btn : ''),
-    editable ? '' : el('p.hint', {}, 'Only roles that manage finances or team settings change this.'));
+    el('div.set-card', {},
+      el('div.set-row', {},
+        el('div.set-text', {}, el('div.set-name', {}, el('label', { for: 'pa-on' }, 'Orders need approving when they cost more than'),
+          numBox(el('input', { type: 'number', id: 'pa-over', min: 0, step: '1', value: pc.over, disabled: !editable, 'aria-label': 'Approval limit', oninput: (e) => { v.over = Number(e.target.value) || 0; touch(); } })),
+          el('span.hint', {}, '(0 = every order)'))),
+        toggle({ id: 'pa-on', checked: pc.on, disabled: !editable, onchange: (e) => { v.on = e.target.checked; touch(); } }))),
+    editable ? el('div.set-foot', {}, el('span.spacer'), btn) : el('p.hint', {}, 'Only roles that manage finances or team settings change this.'));
 }
 // Workflow step 4: automatic steps, each switched on separately.
 function autosSection(ctx, stages, { rerender } = {}) {
@@ -387,27 +392,34 @@ function autosSection(ctx, stages, { rerender } = {}) {
   } }, 'Save');
   const touch = () => { btn.disabled = false; };
   const targets = stages.slice(1, -1);
+  const parts = el('select', { id: 'auto-parts-to', disabled: !editable || !targets.length, 'aria-label': 'Stage to move to', onchange: (e) => { if ((document.getElementById('auto-parts') || {}).checked) v.partsTo = e.target.value; touch(); } },
+    targets.map(x => el('option', { value: x.id, selected: (a.partsTo || 'build') === x.id }, x.name)));
   return el('section.wf-extra', { id: 'auto-settings' }, el('h4', {}, 'Automatic steps'),
     el('p.hint', {}, 'Small jobs Trawpie does for you. Each one is done by the app of someone who can make that change, and shows in the task’s history.'),
-    el('div.row', {},
-      el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-parts', checked: !!a.partsTo, disabled: !editable || !targets.length, onchange: (e) => { v.partsTo = e.target.checked ? (v.partsTo || (targets.find(x => x.id === 'build') || targets[0] || {}).id || '') : ''; const sel = document.getElementById('auto-parts-to'); if (sel && v.partsTo) sel.value = v.partsTo; touch(); } }),
-        'When all the parts a task needs are received, move it to'),
-      el('select', { id: 'auto-parts-to', disabled: !editable || !targets.length, 'aria-label': 'Stage to move to', onchange: (e) => { if ((document.getElementById('auto-parts') || {}).checked) v.partsTo = e.target.value; touch(); } },
-        targets.map(x => el('option', { value: x.id, selected: (a.partsTo || 'build') === x.id }, x.name)))),
-    el('p.hint', { style: { margin: '2px 0 10px 26px' } }, targets.length ? 'Not past a sign-off that hasn’t been given yet.' : 'Add a stage between the first and Done to use this.'),
-    el('div.row', {}, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-tell', checked: a.tellWaiting, disabled: !editable, onchange: (e) => { v.tellWaiting = e.target.checked; touch(); } }),
-      'When a task is done, tell everyone whose tasks were waiting on it (a comment that @mentions them)')),
-    el('div.row', { style: { marginTop: '10px' } }, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-remind', checked: a.remindDays > 0, disabled: !editable, onchange: (e) => { v.remindDays = e.target.checked ? (Number((document.getElementById('auto-remind-days') || {}).value) || 3) : 0; touch(); } }),
-      'Remind the sign-off person when a task has waited more than'),
-      numBox(el('input', { type: 'number', id: 'auto-remind-days', min: 1, max: 60, value: a.remindDays || 3, disabled: !editable, 'aria-label': 'Days', oninput: (e) => { const n = Math.max(1, Math.min(60, Math.round(Number(e.target.value) || 1))); const box = document.getElementById('auto-remind'); if (box && box.checked) v.remindDays = n; touch(); } })), el('span.hint', {}, 'days')),
-    el('div.row', { style: { marginTop: '10px' } }, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-carry', checked: a.carry, disabled: !editable, onchange: (e) => { v.carry = e.target.checked; touch(); } }),
-      'At the start of each week, carry any unfinished tasks from past weeks into the current week')),
-    el('p.hint', { style: { margin: '2px 0 6px 26px' } }, 'A linked copy that keeps its history, like the manual “Carry forward”. Only tasks each person can edit are carried.'),
-    el('div.row', { style: { marginLeft: '26px' } }, el('label.chk', {}, el('input', { type: 'checkbox', id: 'auto-carry-weeks', checked: a.carryMakeWeeks, disabled: !editable, onchange: (e) => { v.carryMakeWeeks = e.target.checked; touch(); } }),
-      'Add the new week automatically if it doesn’t exist yet')),
-    el('div.row', { style: { marginLeft: '26px', marginTop: '6px' } }, el('label.chk', {}, 'Flag a task once it has carried over more than'),
-      numBox(el('input', { type: 'number', id: 'auto-carry-warn', min: 0, max: 10, value: a.carryWarn || 0, disabled: !editable, 'aria-label': 'Weeks before flagging', oninput: (e) => { v.carryWarn = Math.max(0, Math.min(10, Math.round(Number(e.target.value) || 0))); touch(); } })), el('span.hint', {}, 'weeks (0 = never)')),
-    editable ? el('div.row', { style: { marginTop: '12px' } }, el('span.spacer'), btn) : el('p.hint', {}, 'Only roles that can change team settings change these.'));
+    el('div.set-card', {},
+      el('div.set-row', {},
+        el('div.set-text', {}, el('div.set-name', {}, el('label', { for: 'auto-parts' }, 'When all the parts a task needs are received, move it to'), parts),
+          el('p.hint', {}, targets.length ? 'Not past a sign-off that hasn’t been given yet.' : 'Add a stage between the first and Done to use this.')),
+        toggle({ id: 'auto-parts', checked: !!a.partsTo, disabled: !editable || !targets.length, onchange: (e) => { v.partsTo = e.target.checked ? (v.partsTo || (targets.find(x => x.id === 'build') || targets[0] || {}).id || '') : ''; if (v.partsTo) parts.value = v.partsTo; touch(); } })),
+      el('div.set-row', {},
+        el('div.set-text', {}, el('label', { for: 'auto-tell' }, 'When a task is done, tell everyone whose tasks were waiting on it'), el('p.hint', {}, 'A comment that @mentions them.')),
+        toggle({ id: 'auto-tell', checked: a.tellWaiting, disabled: !editable, onchange: (e) => { v.tellWaiting = e.target.checked; touch(); } })),
+      el('div.set-row', {},
+        el('div.set-text', {}, el('div.set-name', {}, el('label', { for: 'auto-remind' }, 'Remind the sign-off person when a task has waited more than'),
+          numBox(el('input', { type: 'number', id: 'auto-remind-days', min: 1, max: 60, value: a.remindDays || 3, disabled: !editable, 'aria-label': 'Days', oninput: (e) => { const n = Math.max(1, Math.min(60, Math.round(Number(e.target.value) || 1))); const box = document.getElementById('auto-remind'); if (box && box.checked) v.remindDays = n; touch(); } })),
+          el('span.hint', {}, 'days'))),
+        toggle({ id: 'auto-remind', checked: a.remindDays > 0, disabled: !editable, onchange: (e) => { v.remindDays = e.target.checked ? (Number((document.getElementById('auto-remind-days') || {}).value) || 3) : 0; touch(); } })),
+      el('div.set-row', {},
+        el('div.set-text', {}, el('label', { for: 'auto-carry' }, 'At the start of each week, carry unfinished tasks from past weeks into the current week'),
+          el('p.hint', {}, 'A linked copy that keeps its history, like the manual “Carry forward”. Only tasks each person can edit are carried.')),
+        toggle({ id: 'auto-carry', checked: a.carry, disabled: !editable, onchange: (e) => { v.carry = e.target.checked; touch(); } })),
+      el('div.set-sub', {},
+        el('div.set-row', {}, el('div.set-text', {}, el('label', { for: 'auto-carry-weeks' }, 'Add the new week automatically if it doesn’t exist yet')),
+          toggle({ id: 'auto-carry-weeks', checked: a.carryMakeWeeks, disabled: !editable, onchange: (e) => { v.carryMakeWeeks = e.target.checked; touch(); } }, true)),
+        el('div.set-row', {}, el('div.set-text', {}, el('div.set-name', {}, el('label', { for: 'auto-carry-warn' }, 'Flag a task once it has carried over more than'),
+          numBox(el('input', { type: 'number', id: 'auto-carry-warn', min: 0, max: 10, value: a.carryWarn || 0, disabled: !editable, 'aria-label': 'Weeks before flagging', oninput: (e) => { v.carryWarn = Math.max(0, Math.min(10, Math.round(Number(e.target.value) || 0))); touch(); } })),
+          el('span.hint', {}, 'weeks (0 = never)')))))),
+    editable ? el('div.set-foot', {}, el('span.spacer'), btn) : el('p.hint', {}, 'Only roles that can change team settings change these.'));
 }
 
 function subteams(pane, ctx, { rerender } = {}) {
@@ -754,33 +766,34 @@ function fields(pane, ctx) {
   function build() {
     listBox.replaceChildren();
     if (!draft.length) listBox.append(el('p.hint', {}, 'No custom fields yet. Add fields like “Budget (£)”, “Supervisor”, “Lab booked?”, “Module code” or “Report link”.'));
+    const rows = el('div.set-card.field-list'); if (draft.length) listBox.append(rows);
     draft.forEach((f, i) => {
       const name = el('input.inp', { value: f.name, maxlength: 60, disabled: !editable, 'aria-label': 'Field name' }); name.addEventListener('input', () => { f.name = name.value; });
       const type = el('select.inp', { disabled: !editable, 'aria-label': 'Field type' }); FIELD_TYPES.forEach(t => type.append(el('option', { value: t, selected: t === f.type }, FIELD_TYPE_LABEL[t])));
       type.addEventListener('change', () => { f.type = type.value; build(); });
       const opts = f.type === 'select' ? el('input.inp', { value: f.options.join(', '), placeholder: 'Options, comma separated', disabled: !editable, 'aria-label': 'Dropdown options' }) : el('span.hint', {}, f.type === 'person' ? 'Pick from team members' : '');
       if (f.type === 'select') opts.addEventListener('input', () => { f.options = opts.value.split(',').map(x => x.trim()).filter(Boolean); });
-      const card = el('label.row', { style: { fontSize: '13px', whiteSpace: 'nowrap' } }, el('input', { type: 'checkbox', checked: f.showOnCard, disabled: !editable, onchange: (e) => { f.showOnCard = e.target.checked; } }), 'Show on card');
+      const card = el('label.field-show', {}, el('span', {}, 'On card'), toggle({ checked: f.showOnCard, disabled: !editable, 'aria-label': 'Show “' + (f.name || 'this field') + '” on task cards', onchange: (e) => { f.showOnCard = e.target.checked; } }, true));
       const ctl = el('div.row', { style: { gap: '4px' } });
       if (editable) ctl.append(
-        el('button.btn.small.ghost', { type: 'button', title: 'Move up', disabled: i === 0, onclick: () => { [draft[i - 1], draft[i]] = [draft[i], draft[i - 1]]; build(); } }, '↑'),
-        el('button.btn.small.ghost', { type: 'button', title: 'Move down', disabled: i === draft.length - 1, onclick: () => { [draft[i + 1], draft[i]] = [draft[i], draft[i + 1]]; build(); } }, '↓'),
-        el('button.btn.small.danger', { type: 'button', onclick: () => { if (confirm('Delete the field “' + f.name + '”? Values stored in tasks are hidden and removed the next time each task is edited.')) { draft.splice(i, 1); build(); } } }, 'Delete'));
-      listBox.append(el('div.field-row', {}, name, type, opts, card, ctl));
+        el('button.icon-btn', { type: 'button', title: 'Move up', 'aria-label': 'Move up', disabled: i === 0, onclick: () => { [draft[i - 1], draft[i]] = [draft[i], draft[i - 1]]; build(); } }, lineIcon('up')),
+        el('button.icon-btn', { type: 'button', title: 'Move down', 'aria-label': 'Move down', disabled: i === draft.length - 1, onclick: () => { [draft[i + 1], draft[i]] = [draft[i], draft[i + 1]]; build(); } }, lineIcon('down')),
+        el('button.icon-btn.danger', { type: 'button', title: 'Delete field', 'aria-label': 'Delete the field “' + (f.name || '') + '”', onclick: () => { if (confirm('Delete the field “' + f.name + '”? Values stored in tasks are hidden and removed the next time each task is edited.')) { draft.splice(i, 1); build(); } } }, lineIcon('trash')));
+      rows.append(el('div.field-row', {}, name, type, opts, card, ctl));
     });
   }
   build();
   const labelRows = Object.keys(DEFAULT_LABELS).map(k => {
     const inp = el('input.inp', { value: labels[k].label, maxlength: 40, disabled: !editable, 'aria-label': 'Label' }); inp.addEventListener('input', () => { labels[k].label = inp.value; });
-    const show = el('input', { type: 'checkbox', checked: labels[k].show, disabled: !editable }); show.addEventListener('change', () => { labels[k].show = show.checked; });
-    const what = { jiraId: 'Reference ID on tasks (ticket, document or module code)', status: 'Short status badge on task cards', metric: 'Small badge on each week header' }[k];
-    return el('div.field-row', { style: { gridTemplateColumns: '1fr 1fr auto' } }, el('span', {}, el('b', {}, DEFAULT_LABELS[k].label), el('div.hint', {}, what)), inp, el('label.row', { style: { fontSize: '13px' } }, show, 'Show'));
+    const show = toggle({ checked: labels[k].show, disabled: !editable, 'aria-label': 'Show ' + DEFAULT_LABELS[k].label, onchange: (e) => { labels[k].show = e.target.checked; } });
+    const what = { jiraId: 'On tasks: a ticket, document or module code', status: 'A short badge on task cards', metric: 'A small badge on each week header' }[k];
+    return el('div.field-row.set-row.label-row', {}, el('span.set-icon', {}, lineIcon('tag')), el('div.set-text', {}, el('span.set-name', {}, DEFAULT_LABELS[k].label), el('p.hint', {}, what)), inp, show);
   });
   pane.append(
     el('section', {}, el('h4', {}, 'Custom fields'), el('p.hint', {}, 'Extra details every task can have. They appear in the task editor, on cards (if you choose), in exports and in AI summaries.'),
       editable ? '' : readOnlyNote(), listBox,
       editable ? el('button.btn', { type: 'button', style: { marginTop: '10px' }, onclick: () => { if (draft.length >= LIMITS.fieldsPerTeam) return toast('That’s the maximum number of fields.'); draft.push({ id: newId('f'), name: 'New field', type: 'text', options: [], showOnCard: false }); build(); } }, '➕ Add field') : ''),
-    el('section', {}, el('h4', {}, 'Built-in fields'), el('p.hint', {}, 'Rename or hide the standard fields to match how your team works.'), ...labelRows));
+    el('section', {}, el('h4', {}, 'Built-in fields'), el('p.hint', {}, 'Rename the standard fields to match how your team works, or switch them off.'), el('div.set-card', {}, ...labelRows)));
   if (editable) pane.append(el('div.row', { style: { marginTop: '18px' } }, el('span.spacer'), el('button.btn.primary', { type: 'button', onclick: () => {
     const cleaned = draft.map(f => cleanField({ ...f, name: (f.name || '').trim() || 'Field' }));
     if (cleaned.some(f => f.type === 'select' && !f.options.length)) return toast('Give every dropdown at least one option.');

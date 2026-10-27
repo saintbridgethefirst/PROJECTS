@@ -2,6 +2,7 @@
 // (Ctrl+K), task templates and repeating tasks.
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium, devices } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 const SHOTS = process.env.SHOTS_DIR || null;
@@ -13,6 +14,7 @@ const errors = [];
 const iso = (d, base = new Date()) => { const x = new Date(base); x.setDate(x.getDate() + d); return x.toLocaleDateString('en-CA'); };
 const monday = () => { const x = new Date(); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.toLocaleDateString('en-CA'); };
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 
 async function dialog(p, value) { await p.waitForSelector('#dialog-overlay input'); await p.fill('#dialog-overlay input', value); await p.click('#dialog-overlay .dlg-ok'); await sleep(250); }
 const store = (p) => p.evaluate(() => Object.values(JSON.parse(localStorage.getItem('tt_demo_store_v1')).teams)[0]);
@@ -144,9 +146,9 @@ try {
   await r.goto(BASE); await r.waitForSelector('#auth-screen:not([hidden])');
   await r.fill('#auth-actions input[placeholder="Your name"]', 'Rushi'); await r.fill('#auth-actions input[type=email]', 'r@uni.ac.uk');
   await r.tap('#auth-actions button:has-text("Sign in to demo")'); await r.waitForSelector('#home-screen:not([hidden])');
-  await r.tap('#home-account'); await r.waitForSelector('.modal');
+  await r.tap('#home-account'); await r.waitForSelector('.modal'); await r.tap('.modal [data-acct="data"]');
   ok((await r.textContent('.modal')).includes('Install as an app'), 'Your account offers “Install as an app”');
-  await r.tap('.modal button:has-text("Install as an app")'); await sleep(250);
+  await r.tap('.modal .set-row:has-text("Install as an app") button'); await sleep(250);
   ok((await r.locator('.modal').last().textContent()).includes('Add to Home Screen'), 'on iPhone it explains Share ▸ Add to Home Screen');
   if (SHOTS) await r.screenshot({ path: `${SHOTS}/phase5-install.png` });
   await pc.close();

@@ -2,6 +2,7 @@
 // analytics and timeline, and a viewer who can see phases but not change them.
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium, devices } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 const SHOTS = process.env.SHOTS_DIR || null;
@@ -10,6 +11,7 @@ const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ FAIL:', 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = [];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 
 const iso = (d) => { const x = new Date(); x.setDate(x.getDate() + d); return x.toLocaleDateString('en-CA'); };
 const store = (p) => p.evaluate(() => { const s = JSON.parse(localStorage.getItem('tt_demo_store_v1')); const T = Object.values(s.teams)[0]; return { team: T.doc, tasks: Object.values(T.tasks) }; });
@@ -79,6 +81,7 @@ try {
   await sleep(300);
 
   // Board filter
+  if (await p.locator('#editor-panel .ed-back').isVisible()) await p.click('#editor-panel .ed-back');   // back from the task to Search & filters
   await p.click('.filter-header:has-text("Filter by Phase")'); await sleep(150);
   ok(await p.locator('#filter-phases label').count() === 5, 'phase filter lists the 4 phases + "No phase"');
   await p.locator('#filter-phases label', { hasText: 'Research' }).locator('input').uncheck(); await sleep(250);
@@ -127,7 +130,7 @@ try {
   ok(await v.locator('.task-card .phase-tag').count() >= 1, 'viewer sees phase tags on a phone');
   await v.locator('.task-card', { hasText: 'Gripper CAD' }).tap(); await sleep(400);
   ok(await v.locator('#edit-phase').isDisabled(), 'viewer cannot change a task’s phase');
-  await v.tap('.panel-close'); await sleep(300);
+  await v.tap('#editor-panel .ed-close'); await sleep(300);
   await v.tap('#top-actions button:has-text("Settings")'); await sleep(300);
   await v.tap('.settings-nav button:has-text("Phases")'); await sleep(200);
   ok(await v.locator('.settings-pane .read-only-note').first().isVisible() && await v.locator('button:has-text("Save phases")').count() === 0, 'viewer sees phases read-only');

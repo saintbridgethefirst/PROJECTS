@@ -11,6 +11,8 @@ export function safeUrl(u) {
 }
 
 /** el('button.btn.primary', { onclick, type: 'button' }, 'Save') */
+import { lineIcon } from './line-icons.js';
+
 export function el(spec, props = {}, ...children) {
   const [tag, ...classes] = spec.split('.');
   const node = document.createElement(tag || 'div');
@@ -59,7 +61,7 @@ export function toast(msg, ms = 3500, actionLabel, action) {
 export function modal(title, { narrow = false, onClose } = {}) {
   const body = el('div.modal-body');
   const foot = el('div.modal-foot');
-  const closeBtn = el('button.btn.small.ghost', { type: 'button', 'aria-label': 'Close' }, 'Close');
+  const closeBtn = el('button.modal-close', { type: 'button', 'aria-label': 'Close', title: 'Close' }, lineIcon('x', 16));
   const box = el('div.modal' + (narrow ? '.narrow' : ''), { role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
     el('div.modal-head', {}, el('h3', {}, title), el('span.spacer'), closeBtn), body, foot);
   const overlay = el('div.modal-overlay', {}, box);

@@ -21,7 +21,7 @@ async function run(label, device) {
   const shot = async (n) => { if (SHOTS) await p.screenshot({ path: `${SHOTS}/${label.replace(/\W+/g, '-')}-${n}.png` }); };
   const noSideScroll = () => p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
   const tasks = () => p.evaluate(() => { const s = JSON.parse(localStorage.getItem('tt_demo_store_v1')); const T = Object.values(s.teams)[0]; return { weeks: T.doc.weeks, tasks: Object.values(T.tasks) }; });
-  const panelOpen = () => p.evaluate(() => { const r = document.getElementById('editor-panel').getBoundingClientRect(); return r.left < innerWidth - 5 && r.right <= innerWidth + 1; });
+  const panelOpen = () => p.evaluate(() => { const r = document.getElementById('editor-panel').getBoundingClientRect(); return r.left < innerWidth - 5 && r.right <= innerWidth + 1 && r.top < innerHeight - 5; });   // a side sheet, or (phones, with a task open) a bottom sheet
   async function longPress(locator) {
     const b = await locator.boundingBox(); const x = b.x + b.width / 2, y = b.y + Math.min(30, b.height / 2);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
@@ -59,8 +59,8 @@ async function run(label, device) {
   await shot('2-editor');
   if (device.viewport.width < 640) {
     ok((await p.locator('#editor-panel').boundingBox()).width >= device.viewport.width - 1, 'on a phone the sheet uses the full width');
-    ok(await p.locator('.panel-close .lbl-compact').isVisible(), 'a clear Close button is shown');
-    await p.tap('.panel-close'); await sleep(400);
+    ok(await p.locator('#editor-panel .ed-close').isVisible(), 'a clear Close button is shown');
+    await p.tap('#editor-panel .ed-close'); await sleep(400);
     ok(!(await panelOpen()), 'Close shuts the sheet');
   } else {
     await p.locator('#panel-backdrop').tap({ position: { x: 10, y: 300 } }); await sleep(400);
@@ -100,7 +100,7 @@ async function run(label, device) {
   ok(await p.locator('#quick-menu.active').isVisible(), '"⋯" on a card opens the task menu');
   await p.locator('#quick-menu .qm-btn', { hasText: 'Edit in side panel' }).tap(); await sleep(400);
   ok(await panelOpen(), '"Edit in side panel" opens the sheet');
-  await p.tap('.panel-close'); await sleep(400);
+  await p.tap('#editor-panel .ed-close'); await sleep(400);
   ok(!(await panelOpen()), 'Hide Panel closes the sheet');
 
   // Dialogs fill a phone screen

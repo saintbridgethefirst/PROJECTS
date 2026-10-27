@@ -3,6 +3,7 @@
 // The checks themselves need a real Google / Microsoft sign-in, so results are seeded on the device.
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium } from 'playwright';
+import { editorAsOneList } from './editor-list.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 let pass = 0, fail = 0;
@@ -11,6 +12,7 @@ const step = (s) => console.log('▸ ' + s);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = [];
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+editorAsOneList(browser);   // the task editor as one list: these checks reach into every tab
 const p = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
 p.on('pageerror', e => errors.push(e.message)); p.on('dialog', d => d.accept());
 // No real Google / Microsoft calls in tests
