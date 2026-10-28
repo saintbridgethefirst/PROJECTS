@@ -7,6 +7,8 @@
 //  (firestore.rules ▸ selfItems, and its copy in rules-sim.js).
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { latestCopies } from '../functions/ghsync.js';
+
 export const SELF_KINDS = ['task', 'habit', 'skill', 'learning', 'reflect', 'settings'];
 export const SELF_FIELDS = ['uid', 'kind', 'title', 'area', 'scope', 'date', 'done', 'doneOn', 'order', 'createdAt', 'updatedAt',
   'note', 'log', 'goal', 'skillId', 'mood', 'well', 'hard', 'areas', 'sync', 'archived', 'color'];
@@ -161,7 +163,8 @@ export function monthSummary(items, today) {
   const parts = []; if (target) parts.push(Math.min(1, kept / target)); if (tasks.length) parts.push(done / tasks.length);
   const pct = parts.length ? parts.reduce((a, b) => a + b, 0) / parts.length : 0;
   // Last month, same span, for "vs last month".
-  const pFirst = iso(new Date(at(first).getFullYear(), at(first).getMonth() - 1, 1)); const pTo = addDays(pFirst, days - 1);
+  // (On the 29th–31st last month may be shorter: stop at its end, so this month's days aren't counted twice.)
+  const pFirst = iso(new Date(at(first).getFullYear(), at(first).getMonth() - 1, 1)); const pTo = [addDays(pFirst, days - 1), addDays(first, -1)].sort()[0];
   const pHours = skills.reduce((n, s) => n + skillMinutes(s, pFirst, pTo), 0) / 60;
   return { pct, kept, target, done, tasks: tasks.length, hours, learned, hoursDelta: hours - pHours, month: at(today).toLocaleDateString('en-GB', { month: 'long' }) };
 }
@@ -247,9 +250,7 @@ export function syncedTeamTasks(work, uid, today, sync = {}) {
     const weeks = w.team.weeks || [];
     const cur = weeks.find(x => x.startDate && x.startDate <= today && today <= addDays(x.startDate, 6));
     // A task carried forward to a later week is one piece of work: only its newest copy counts.
-    const carried = new Set((w.tasks || []).map(t => t.carryOf).filter(Boolean));
-    (w.tasks || []).forEach(t => {
-      if (carried.has(t.id)) return;
+    latestCopies(w.tasks || [], weeks).forEach(t => {
       if (t.flag === 'completed' || !(t.ownerUid === uid || t.supportPersonId === uid || t.supportPersonId2 === uid)) return;
       const due = isDate(t.dueDate) ? t.dueDate : '';
       const inWeek = cur && t.weekId === cur.key;

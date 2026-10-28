@@ -144,16 +144,21 @@ service cloud.firestore {
     function partApproval(t) {
       let v = request.resource.data.get('approval', null);
       let old = resource == null ? null : resource.data.get('approval', null);
+      // A decision answers a request that is waiting, keeps who asked (so nobody approves their own by renaming
+      // it), and is never made up on a new part.
       return v == old || v == null
         || (v.status == 'waiting' && v.by == request.auth.uid)
         || (v.status in ['approved', 'declined'] && v.get('approver', '') == request.auth.uid
+          && old != null && old.get('status', '') == 'waiting' && v.get('by', '') == old.get('by', '')
           && (get(teamPath(t)).data.ownerUid == request.auth.uid || (can(t, 'finance.edit') && v.by != request.auth.uid)));
     }
     // With approvals on, an order costing more than the limit is only marked Ordered (or Received) once approved.
     function purchaseOk(t) {
       let pc = get(teamPath(t)).data.get('purchase', null);
       let d = request.resource.data;
-      let out = d.status in ['ordered', 'received'] && (resource == null || !(resource.data.status in ['ordered', 'received']));
+      // Checked when a part becomes Ordered or Received, and again if its quantity or price changes after that.
+      let out = d.status in ['ordered', 'received'] && (resource == null || !(resource.data.status in ['ordered', 'received'])
+        || d.qty != resource.data.qty || d.unitCost != resource.data.unitCost);
       return pc == null || pc.get('on', false) != true || !out || d.qty * d.unitCost <= pc.get('over', 0)
         || (d.get('approval', null) != null && d.approval.status == 'approved');
     }
@@ -537,7 +542,12 @@ service cloud.firestore {
           && request.resource.data.email == email
           && email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$')
           && request.resource.data.roleId != 'owner'
-          && request.resource.data.roleId in get(teamPath(t)).data.roles;
+          && request.resource.data.roleId in get(teamPath(t)).data.roles
+          // in your own name, with names of sensible length (they go into the invitation email)
+          && request.resource.data.get('invitedBy', '') == request.auth.uid
+          && request.resource.data.get('invitedByName', '') is string && request.resource.data.get('invitedByName', '').size() <= 80
+          && request.resource.data.get('teamName', '') is string && request.resource.data.get('teamName', '').size() <= 80
+          && request.resource.data.get('createdAt', 0) is number;
         allow delete: if can(t, 'members.manage') || (signedIn() && verified() && email == myEmail());
       }
 
@@ -688,7 +698,9 @@ service cloud.firestore {
       match /tasks/{task} {
         allow read: if isMember(t);
         // who made it and when can't be forged or changed later (deleting without approval depends on them)
+        // A new task never arrives already signed off (an approval is given on the task, by the approver)
         allow create: if canEditOwned(t, request.resource.data.ownerUid) && validTask(request.resource.data)
+          && (request.resource.data.get('signoff', null) == null || request.resource.data.signoff.get('status', '') == 'waiting')
           && request.resource.data.get('createdBy', '') == request.auth.uid && request.resource.data.get('createdAt', 0) <= request.time.toMillis() + 300000
           && getAfter(/databases/$(database)/documents/teams/$(t)/categories/$(request.resource.data.categoryId)).data.ownerUid == request.resource.data.ownerUid;
         allow update: if ((canEditOwned(t, resource.data.ownerUid)

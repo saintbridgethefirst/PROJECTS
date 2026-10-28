@@ -28,7 +28,8 @@ export async function exportUserData(db, account) {
     feedbackYouSent: rows(await db.collection('feedback').where('uid', '==', uid).get()),
     selfTrack: rows(await db.collection('selfItems').where('uid', '==', uid).get()),
     errorReportsFromYourBrowser: rows(await db.collection('clientErrors').where('uid', '==', uid).get()),
-    invitationsToYou: email ? (await db.collectionGroup('invites').where('email', '==', email).get()).docs.map(d => ({ teamId: d.ref.parent.parent.id, ...plain(d.data()) })) : [],
+    // Invitations go to an email address: only someone who has proved it's theirs sees them (as in the app)
+    invitationsToYou: email && account.emailVerified ? (await db.collectionGroup('invites').where('email', '==', email).get()).docs.map(d => ({ teamId: d.ref.parent.parent.id, ...plain(d.data()) })) : [],
     teams: [],
   };
   for (const m of await memberships(db, uid)) {
@@ -77,9 +78,14 @@ export async function deleteUserData(db, account) {
     const teamRef = db.doc('teams/' + m.teamId);
     if (m.member.roleId === 'owner') { await db.recursiveDelete(teamRef); summary.teamsDeleted++; continue; }
     const ops = [];
+    // A name or email another member of this team still uses is left alone (someone may have taken a
+    // teammate's name to erase their history by deleting their own account).
+    const others = (await db.collection(`teams/${m.teamId}/members`).get()).docs.filter(d => d.id !== uid).map(d => d.data());
+    const teamNames = new Set([...names].filter(n => !others.some(o => String(o.name || '').trim() === n)));
+    const teamEmails = new Set([...emails].filter(e => !others.some(o => normEmail(o.email || '') === e)));
     for (const c of TEAM_COLLECTIONS) {
       (await db.collection(`teams/${m.teamId}/${c}`).get()).docs.forEach(d => {
-        const r = scrubPerson(d.data(), names, emails);
+        const r = scrubPerson(d.data(), teamNames, teamEmails, uid);
         if (r.changed) ops.push({ ref: d.ref, data: r.value });
       });
     }
@@ -90,7 +96,7 @@ export async function deleteUserData(db, account) {
   const del = [];
   for (const p of ['users/', 'verifiedStudents/', 'eduClaims/', 'studentCodes/']) del.push(db.doc(p + uid));
   for (const q of [db.collection('feedback').where('uid', '==', uid), db.collection('clientErrors').where('uid', '==', uid), db.collection('studentEmails').where('uid', '==', uid), db.collection('selfItems').where('uid', '==', uid)]) (await q.get()).docs.forEach(d => del.push(d.ref));
-  if (email) (await db.collectionGroup('invites').where('email', '==', email).get()).docs.forEach(d => del.push(d.ref));
+  if (email && account.emailVerified) (await db.collectionGroup('invites').where('email', '==', email).get()).docs.forEach(d => del.push(d.ref));
   (await db.collection('inviteQuota').where('__name__', '>=', db.doc('inviteQuota/' + uid + '_')).where('__name__', '<', db.doc('inviteQuota/' + uid + '_~')).get()).docs.forEach(d => del.push(d.ref));
   await writeAll(db, del.map(ref => ({ ref, del: true })));
   summary.privateRecordsDeleted = del.length;

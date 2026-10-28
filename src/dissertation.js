@@ -11,7 +11,9 @@
 
 const DAY = 864e5;
 const at = (iso) => new Date(iso + 'T12:00:00Z');
-const iso = (d) => new Date(d).toISOString().slice(0, 10);
+const iso = (d) => new Date(d).toISOString().slice(0, 10);   // date maths on UTC noon timestamps (at())
+/** Today on this device's calendar (not UTC: just after midnight in summer time UTC is still yesterday). */
+const localToday = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 export const isISO = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(at(v).getTime());
 const addDays = (s, n) => iso(at(s).getTime() + n * DAY);
 const daysBetween = (a, b) => Math.round((at(b) - at(a)) / DAY);
@@ -79,9 +81,9 @@ export function buildDissertationPlan(o = {}) {
   const level = LEVELS[o.level] ? o.level : 'ug';
   const kind = KINDS[o.kind] ? o.kind : 'people';
   const warnings = [];
-  const start = isISO(o.start) ? o.start : (isISO(o.today) ? o.today : iso(Date.now()));
+  const start = isISO(o.start) ? o.start : (isISO(o.today) ? o.today : localToday());
   let handIn = isISO(o.handIn) ? o.handIn : addDays(start, Math.round(LEVELS[level].months * 30.4));
-  if (daysBetween(start, handIn) < 21) { warnings.push('The hand-in date is less than three weeks away, so the plan is very tight.'); if (daysBetween(start, handIn) < 7) handIn = addDays(start, 7); }
+  if (daysBetween(start, handIn) < 21) { warnings.push('The hand-in date is less than three weeks away, so the plan is very tight.'); if (daysBetween(start, handIn) < 7) { handIn = addDays(start, 7); warnings.push('A plan needs at least a week, so it runs to ' + handIn + '. Check your real hand-in date.'); } }
   const total = daysBetween(start, handIn);
   const D = o.dates || {};
   const inRange = (v) => isISO(v) && daysBetween(start, v) >= 0 && daysBetween(v, handIn) >= 0;
@@ -166,6 +168,7 @@ export function buildDissertationPlan(o = {}) {
     // ── Undergraduate and master's: one phase per stage of the work, every week on the board.
     const proposal = dateOr(D.proposal, 0.12);
     const draft = dateOr(D.draft, 0.8);
+    let ethicsEnd = '';   // working with people: nothing is recruited or piloted before ethics approval
     const p1 = phase('topic', 'Topic and proposal', start, proposal, 'Proposal submitted');
     task(p1, 'First meeting with your supervisor', 0.25, { icon: '👥', subtasks: ['Send your topic ideas beforehand', 'Agree how often you will meet', 'Ask how the dissertation is marked'] });
     task(p1, 'Choose a topic and a working question', 0.45, { icon: '💡', subtasks: ['List three topics you could enjoy for months', 'Check each has enough to read', 'Write your favourite as a question'] });
@@ -177,6 +180,7 @@ export function buildDissertationPlan(o = {}) {
       task(pe, 'Check what ethics approval you need', 0.1, { icon: '📋', subtasks: ['Read your department’s ethics guidance', 'Ask your supervisor'] });
       task(pe, 'Prepare the ethics application', 0.6, { icon: '📋', subtasks: ['Participant information sheet', 'Consent form', 'Data management plan', 'Risk assessment'] });
       milestone(pe, 'Ethics approved', pe.end);
+      ethicsEnd = pe.end;
     }
     const pl = phase('lit', kind === 'literature' ? 'Reading and sources' : 'Literature review', when(0.05), when(0.35));
     task(pl, 'Set up your reading list in Literature', 0.05, { icon: '📚' });
@@ -192,7 +196,9 @@ export function buildDissertationPlan(o = {}) {
       data: ['Data and code', [['Get and clean the data', 0.3, '🧹'], ['Write and test your code', 0.6, '💻'], ['Run the main analysis', 1, '📊']]],
       literature: ['Deep reading', [['Gather your primary sources', 0.3, '📚'], ['Build a table of themes across sources', 0.7, '🧩'], ['Decide your argument', 1, '💡']]],
     }[kind];
-    const pd = phase('data', DATA[0], when(0.3), when(0.6));
+    const dataStart = ethicsEnd && ethicsEnd > when(0.3) ? ethicsEnd : when(0.3);
+    if (ethicsEnd && ethicsEnd > when(0.45)) warnings.push('Ethics approval comes late in your plan (' + ethicsEnd + '), so there is little time to collect data. Ask your supervisor whether you can apply sooner.');
+    const pd = phase('data', DATA[0], dataStart, dataStart >= when(0.55) ? addDays(dataStart, 21) : when(0.6));
     DATA[1].forEach(([n, f, ic]) => task(pd, n, f, { icon: ic }));
     const pa = phase('analysis', kind === 'lab' ? 'Testing and results' : 'Analysis', when(0.55), when(0.72));
     task(pa, kind === 'lab' ? 'Test and measure against your aims' : 'Analyse your results', 0.5, { icon: '📊' });
@@ -240,30 +246,42 @@ export function buildDissertationPlan(o = {}) {
 }
 
 /** Days from `today` to the hand-in (negative once it has passed). */
-export const daysLeft = (handIn, today = iso(Date.now())) => (isISO(handIn) ? daysBetween(today, handIn) : null);
+export const daysLeft = (handIn, today = localToday()) => (isISO(handIn) ? daysBetween(today, handIn) : null);
 
 /**
- * Where you are against the plan, from the plan's tasks: compare how many are done with how many were
- * due before today. Behind: how long ago the next task in date order was due ("about N days behind").
+ * Where you are against the plan, from the plan's tasks: on track when every task due before today is done.
+ * Behind: how long ago the oldest unfinished task was due ("about N days behind").
  * @returns {{ state: 'ok'|'behind'|'late'|'none', days: number, ahead: number, done: number, due: number }}
  */
-export function scheduleStatus(tasks, today = iso(Date.now())) {
+export function scheduleStatus(tasks, today = localToday()) {
   const list = (tasks || []).filter(t => isISO(t.dueDate)).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   if (!list.length) return { state: 'none', days: 0, ahead: 0, done: 0, due: 0 };
   const isDone = (t) => t.flag === 'completed';
   const due = list.filter(t => t.dueDate < today).length;
   const done = list.filter(isDone).length;
-  if (done >= due) return { state: 'ok', days: 0, ahead: done - due, done, due };
-  const next = list.filter(t => !isDone(t))[0];
-  const days = next ? Math.max(1, daysBetween(next.dueDate, today)) : 0;
+  // On track only when everything due before today is done: finishing later tasks early doesn't make up for
+  // an overdue one (it is still waiting, e.g. ethics approval before recruiting).
+  const overdue = list.filter(t => t.dueDate < today && !isDone(t));
+  if (!overdue.length) return { state: 'ok', days: 0, ahead: list.filter(t => t.dueDate >= today && isDone(t)).length, done, due };
+  const days = Math.max(1, daysBetween(overdue[0].dueDate, today));
   return { state: days > 21 ? 'late' : 'behind', days, ahead: 0, done, due };
 }
 
-/** A chapter draft's state, read from its review task (owned by the supervisor). */
-export function draftState(task, today = iso(Date.now())) {
+/** The supervisor's own decision on a review task: the newest "✅ Approved" / "✏️ Changes needed" comment on it
+ *  written by a member with the Supervisor role (who wrote a comment is checked by the security rules; a task's
+ *  status is not, as the student owns the team and can edit any task). 'approved' | 'changes' | ''. */
+export function supervisorDecision(comments, members, taskId) {
+  const sup = new Set((members || []).filter(m => m.roleId === 'supervisor').map(m => m.uid));
+  const c = (comments || []).filter(x => x.taskId === taskId && sup.has(x.authorUid) && /^(✅ Approved|✏️ Changes needed)/u.test(x.text || ''))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+  return c ? (c.text.startsWith('✅') ? 'approved' : 'changes') : '';
+}
+/** A chapter draft's state, read from its review task (owned by the supervisor). `decision`: supervisorDecision(),
+ *  when known: "Approved" is shown only when the supervisor recorded it. */
+export function draftState(task, today = localToday(), decision) {
   if (!task) return { state: 'gone', label: 'Review task deleted' };
   const st = String(task.status || '').toLowerCase();
-  if (task.flag === 'completed' && st.startsWith('approved')) return { state: 'approved', label: 'Approved' };
+  if (task.flag === 'completed' && st.startsWith('approved')) return decision === undefined || decision === 'approved' ? { state: 'approved', label: 'Approved' } : { state: 'unconfirmed', label: 'Marked approved, not by the supervisor' };
   if (st.startsWith('changes')) return { state: 'changes', label: 'Changes asked' };
   if (task.flag === 'completed') return { state: 'reviewed', label: 'Reviewed' };
   if (isISO(task.dueDate) && task.dueDate < today) return { state: 'late', label: 'Feedback overdue' };

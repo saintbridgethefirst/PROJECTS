@@ -237,12 +237,14 @@ async function savePart(id, fields) {
   // and a part over the limit can't be marked Ordered or Received until it's approved.
   const costChanged = !isNew && (partTotal(before) !== partTotal(data) || before.qty !== data.qty || before.unitCost !== data.unitCost || JSON.stringify(before.extras || []) !== JSON.stringify(data.extras || []));
   if (isApproved(before) && costChanged && !editsMoney()) { data.approval = null; toast('The cost changed, so “' + data.name + '” needs approving again.', 5000); }
-  const buying = ['ordered', 'received'].includes(data.status) && !['ordered', 'received'].includes(before.status);
+  // Checked when it's bought, and again if an order's quantity or price changes (same as the security rules)
+  const wasBought = ['ordered', 'received'].includes(before.status);
+  const buying = ['ordered', 'received'].includes(data.status) && (!wasBought || before.qty !== data.qty || before.unitCost !== data.unitCost);
   if (buying && purchaseOn(S())) {
     const block = orderBlock(S(), { ...data, status: 'needed' });
     if (block) {
       const ask = !data.approval || data.approval.status === 'declined';
-      toast('“' + data.name + '” can’t be marked ' + PART_LABEL[data.status] + ' yet. ' + block, 7000, ask && !isNew ? 'Ask for approval' : null, ask && !isNew ? () => requestApproval({ ...before, ...data, id: pid, status: before.status }) : null);
+      toast((wasBought ? 'At its new cost “' + data.name + '” needs approving. ' : '“' + data.name + '” can’t be marked ' + PART_LABEL[data.status] + ' yet. ') + block, 7000, ask && !isNew ? 'Ask for approval' : null, ask && !isNew ? () => requestApproval({ ...before, ...data, id: pid, status: before.status }) : null);
       if (!isNew) { render(); return false; }
       data.status = 'needed'; data.orderedDate = ''; data.receivedDate = '';
     }

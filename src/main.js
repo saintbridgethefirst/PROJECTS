@@ -16,6 +16,7 @@ import { cleanTeam, cleanMember, cleanCategory, cleanTask, DEFAULT_LABELS, newId
 import { buildModel, flatten, diff, deniedChanges, changesToOps, restoreOps, mergeChanges, invert } from './sync.js';
 import { loadBackend } from './backend/index.js';
 import { $, el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
+import { carryFields, uniqueTimeEntries } from './model.js';
 import { carryRoots, cleanFeatures, TEAM_STARTS, startFeatures, cleanProfile, cleanRisk, cleanRequirement, capacityFor, planOf, hasPro, cleanPlan, isAcademicEmail, EDU_DAYS, EDU_TEAMS_PER_YEAR, cleanEduClaim } from './model.js';
 import { runAutos, afterCommit } from './autos.js';
 import { startI18n, setLang, currentLang, LANGS, translate } from './i18n.js';
@@ -215,6 +216,8 @@ const SAMPLE_CHOICES = [
 ];
 const sget = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const sset = (k, v) => { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch { /* */ } };
+// A message to show once after the page reloads (signing out reloads it: see backend signOut)
+{ const flash = sget('tt_flash'); if (flash) { sset('tt_flash', null); setTimeout(() => toast(flash, 8000), 900); } }
 function demoWelcome(box, note, wrap) {
   // Search engines: the demo is its own page.
   document.title = 'Trawpie live demo: try it with a sample team';
@@ -1053,10 +1056,13 @@ function refresh() {
   const sig = boardSignature(s, s.base);
   if (sig !== s.shownSig) { s.shownSig = sig; window.boardApplyModel(model); }
   updateChrome(); updateActivityBadge(); drawStart();
-  if (pendingOpen && pendingOpen.teamId === s.teamId) { const id = pendingOpen.taskId; pendingOpen = null; setTimeout(() => window.boardOpenTask && window.boardOpenTask(id), 50); }
+  let opening = false;
+  if (pendingOpen && pendingOpen.teamId === s.teamId) { const id = pendingOpen.taskId; pendingOpen = null; opening = true; setTimeout(() => window.boardOpenTask && window.boardOpenTask(id), 50); }
   syncMoney(s); syncResearch(s);
   refreshResearch(ctx());
   if (!s.booted) { s.booted = true; onFirstLoad();
+    // Open on this week (unless a link is about to open a task, which scrolls to it)
+    if (!opening) setTimeout(() => { if (session === s && window.boardShowThisWeek) window.boardShowThisWeek(); }, 80);
     // The live demo opens on the board itself: the side panel stays closed until you open a task (the tour shows how).
     if (PUBLIC_DEMO && String(s.teamId).startsWith('t_sample_') && window.boardPanel) window.boardPanel(false);
     if (PUBLIC_DEMO && sget(DEMO_TOUR)) { const k = sget(DEMO_TOUR); sset(DEMO_TOUR, null); setTimeout(() => startDemoTour(k), 1200); } }
@@ -1226,6 +1232,7 @@ window.TT = {
   get team() { return session && session.team; },
   get members() { return (session && session.members) || []; },
   /** Sign-offs and checklists (model.js): who signs off a stage for a task's owner, and can I. */
+  carryFields: (task) => carryFields(task), uniqueTimeEntries: (tasks) => uniqueTimeEntries(tasks),
   signersFor: (stage, ownerUid) => signersFor(stage, session && session.team, (session && session.members) || [], ownerUid),
   canSign: (stage, ownerUid) => !!session && !!user && canSignStage(stage, session.team, { uid: user.uid, roleId: session.me && session.me.roleId }, ownerUid),
   gateOnTheWay: (task, from, to) => { const w = workflowOf(session && session.team); return gateOnTheWay(task, w.stages, from, to); },
@@ -1365,7 +1372,10 @@ window.TT = {
     const applied = dir === 'undo' ? invert(entry.changes) : entry.changes;
     const denied = deniedChanges(applied, s.team, s.me);
     if (denied.length) { toast('Can’t ' + dir + ': your role no longer allows it.'); return; }
-    const ok = await writeOps(restoreOps(entry.changes, user, dir === 'undo' ? 'before' : 'after'), { quiet: true });
+    // Against the board as it is now: a teammate's edits since then are kept (see restoreOps)
+    const now = (c) => (c.kind === 'weeks' ? (s.rawTeam && s.rawTeam.weeks) : c.kind === 'cat' ? (s.categories || []).find(x => x.id === c.id) : (s.rawTasks || []).find(x => x.id === c.id));
+    const ops = restoreOps(entry.changes, user, dir === 'undo' ? 'before' : 'after', now);
+    const ok = ops.length ? await writeOps(ops, { quiet: true }) : true;
     if (ok) { to.push({ ...entry, key: null }); toast(dir === 'undo' ? 'Undone. (Ctrl+Y to redo)' : 'Redone.'); }
     else toast('Couldn’t ' + dir + ' — a teammate changed this in the meantime.', 5000);
   },

@@ -91,10 +91,12 @@ function partApproval(T0, auth, can, before, after) {
   const v = after.approval || null; const old = (before && before.approval) || null;
   if (v === null || JSON.stringify(v) === JSON.stringify(old)) return true;
   if (v.status === 'waiting') return v.by === auth.uid;
+  if (!old || old.status !== 'waiting' || (v.by || '') !== (old.by || '')) return false;   // answers a waiting request, keeps who asked
   return v.approver === auth.uid && (T0.doc.ownerUid === auth.uid || (can('finance.edit') && v.by !== auth.uid));
 }
 function purchaseOk(T0, before, after) {
-  const pc = T0.doc.purchase; const out = ['ordered', 'received'].includes(after.status) && !(before && ['ordered', 'received'].includes(before.status));
+  const pc = T0.doc.purchase;
+  const out = ['ordered', 'received'].includes(after.status) && (!(before && ['ordered', 'received'].includes(before.status)) || after.qty !== before.qty || after.unitCost !== before.unitCost);
   return !pc || pc.on !== true || !out || after.qty * after.unitCost <= (pc.over || 0) || !!(after.approval && after.approval.status === 'approved');
 }
 function costKept(can, before, after) {
@@ -317,7 +319,8 @@ export function checkWrite(pre, post, auth, teamId, op) {
     case 'invites': {
       const invitee = auth.emailVerified && id === myEmail;
       if (isDelete) { if (!(can('members.manage') || invitee)) deny('delete invite'); return; }
-      if (!(can('members.manage') && after.email === id && EMAIL_RE.test(id) && after.roleId !== 'owner' && !!T0.doc.roles?.[after.roleId] && hasOnly(after, ALLOWED.invite))) deny('invite');
+      if (!(can('members.manage') && after.email === id && EMAIL_RE.test(id) && after.roleId !== 'owner' && !!T0.doc.roles?.[after.roleId] && hasOnly(after, ALLOWED.invite)
+        && after.invitedBy === auth.uid && isStr(after.invitedByName ?? '', 80) && isStr(after.teamName ?? '', 80) && typeof (after.createdAt ?? 0) === 'number')) deny('invite');
       return;
     }
     case 'categories': {
@@ -330,7 +333,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (isDelete) { if (!(can('tasks.editAll') || (canEditOwned(before.ownerUid) && before.createdBy === auth.uid && (before.createdAt || 0) > Date.now() - 86400000))) deny('delete task'); return; }
       const catAfter = T1 && T1.categories[after.categoryId];
       if (!catAfter || catAfter.ownerUid !== after.ownerUid) deny('task row mismatch');
-      if (isCreate) { if (!(canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, null, auth) && (after.createdBy || '') === auth.uid && (after.createdAt || 0) <= Date.now() + 300000)) deny('create task'); return; }
+      if (isCreate) { if (!(canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, null, auth) && (!after.signoff || after.signoff.status === 'waiting') && (after.createdBy || '') === auth.uid && (after.createdAt || 0) <= Date.now() + 300000)) deny('create task'); return; }
       if ((after.createdBy || '') !== (before.createdBy || '') || (after.createdAt || 0) !== (before.createdAt || 0)) deny('who made a task can’t change');
       if (canEditOwned(before.ownerUid) && canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, before, auth)) { if (!signoffGates(T0, auth, meMember, before, after)) deny('sign-off gate'); return; }
       // Recording a sign-off decision (firestore.rules ▸ signoffDecision)

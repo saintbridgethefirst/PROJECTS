@@ -24,7 +24,10 @@ export async function buildSample(user, now = Date.now(), kind = 'drone') {
   const ownerUid = T.doc.ownerUid; const owner = raw.users[ownerUid];
   // Every id-like string of the owner becomes the visitor's; dates and times move to now.
   let json = JSON.stringify(T).split(ownerUid).join(user.uid);
-  if (owner && owner.name) json = json.split('"' + owner.name + '"').join(JSON.stringify(user.name || 'You'));
+  if (owner && owner.name) {
+    json = json.split('"' + owner.name + '"').join(JSON.stringify(user.name || 'You'));
+    json = json.split('@' + owner.name).join('@' + JSON.stringify(user.name || 'You').slice(1, -1));   // @mentions of you in comments
+  }
   if (owner && owner.email) json = json.split(owner.email).join(user.email);
   const team = JSON.parse(json, (k, v) => {
     if (typeof v === 'string' && /^\d{4}-\d\d-\d\d$/.test(v)) { const d = new Date(v + 'T12:00:00'); d.setDate(d.getDate() + shiftDays); return d.toLocaleDateString('en-CA'); }

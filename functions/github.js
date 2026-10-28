@@ -68,12 +68,16 @@ export async function handleWebhook(db, { teamId, kind, signature, rawBody, deli
   const weekIdx = new Map((team.weeks || []).map((w, i) => [w.key, i]));
   const taskSnap = await db.collection('teams/' + teamId + '/tasks').get();
   let tasks = taskSnap.docs.map(d => ({ ...d.data(), id: d.id, weekIdx: weekIdx.has(d.data().weekId) ? weekIdx.get(d.data().weekId) : -1 }));
-  // The repository was renamed on GitHub: follow it (the signature proves the event is from our webhook).
-  const moved = repoRenamed(team.github, payload, tasks);
+  // The repository was renamed on GitHub: follow it, but only when the event is about the same repository
+  // (GitHub's numeric id, learnt from the first event): the webhook secret alone mustn't move the team elsewhere.
+  const repoId = Number(payload && payload.repository && payload.repository.id) || 0; const knownId = Number(priv.data().repoId) || 0;
+  const sameName = cleanGithub(team.github).repo.toLowerCase() === String((payload && payload.repository && payload.repository.full_name) || '').toLowerCase();
+  if (!knownId && repoId && sameName) await priv.ref.set({ repoId }, { merge: true });
+  const moved = knownId && repoId === knownId ? repoRenamed(team.github, payload, tasks) : null;
   if (moved) {
     const batch0 = db.batch();
     moved.ops.forEach(o => batch0.update(db.doc('teams/' + teamId + '/' + o.path), o.data));
-    batch0.update(teamSnap.ref, { 'github.repo': moved.repo }); batch0.set(priv.ref, { repo: moved.repo }, { merge: true });
+    batch0.update(teamSnap.ref, { 'github.repo': moved.repo }); batch0.set(priv.ref, { repo: moved.repo, formers: [...new Set([...(priv.data().formers || []), moved.from])].slice(-10) }, { merge: true });
     await batch0.commit();
     team.github = { ...(team.github || {}), repo: moved.repo };
     const fixed = new Map(moved.ops.map(o => [o.path.slice(6), o.data.attachments]));
@@ -158,9 +162,10 @@ export async function issueAction(db, uid, teamId, a) {
     return { number: is.number, url: is.html_url, state: 'open' };
   }
   const n = Math.round(Number(a.number)); if (!(n > 0)) throw fail('invalid-argument', 'Which issue?');
-  // The link's own repository: the team's, or another of the same owner (a renamed repository keeps its old links)
-  const own = g.repo.split('/')[0].toLowerCase();
-  const linkOf = (k) => (task.attachments || []).map(x => /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/(issues|pull)\/(\d+)$/i.exec(String(x.url || ''))).find(m => m && m[3].toLowerCase() === k && +m[4] === n && m[1].toLowerCase() === own);
+  // The link's own repository: only the team's (or a name it had before GitHub renamed it). The team's token
+  // is never used on other repositories, even of the same owner: anyone who edits a task could link one.
+  const known = new Set([g.repo, ...((priv.data().formers || []))].map(r => String(r).toLowerCase()));
+  const linkOf = (k) => (task.attachments || []).map(x => /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/(issues|pull)\/(\d+)$/i.exec(String(x.url || ''))).find(m => m && m[3].toLowerCase() === k && +m[4] === n && known.has((m[1] + '/' + m[2]).toLowerCase()));
   const hit = linkOf(a.action === 'refresh' && a.kind === 'pull' ? 'pull' : 'issues'); const R = hit ? hit[1] + '/' + hit[2] : g.repo;
   if (a.action === 'refresh') {   // read the current state from GitHub (after linking one by hand)
     const kind = a.kind === 'pull' ? 'pull' : 'issues';

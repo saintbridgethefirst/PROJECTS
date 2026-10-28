@@ -147,11 +147,11 @@ export const FAIR_USE_TEAMS = 25;
 /** Paid features, in the order they're being built. status: 'soon' until built, then 'live'. */
 export const PRO_FEATURES = [
   { key: 'backups', tier: 'pro', icon: '🛟', name: 'Daily backups and restore', help: 'Restore the whole team to any day in the last 30.', status: 'soon' },
-  { key: 'approvals', tier: 'pro', icon: '✅', name: 'Purchase approvals', help: 'Requests go to a lead or supervisor for sign-off before anything is ordered.', status: 'soon' },
+  { key: 'approvals', tier: 'pro', icon: '✅', name: 'Purchase approvals', help: 'Orders over a limit go to a finance manager for approval before anything is ordered (Settings ▸ Workflow).', status: 'live' },
   { key: 'notifications', tier: 'pro', icon: '📧', name: 'Email notifications', help: 'An email when someone @mentions you, and a Monday digest of your overdue and upcoming tasks. Each person can switch them off.', status: 'live' },
   { key: 'supervisor', tier: 'pro', icon: '👀', name: 'Supervisor and sponsor view', help: 'A read-only link for supervisors, sponsors and judges.', status: 'soon' },
-  { key: 'history', tier: 'pro', icon: '🕘', name: 'Full change history', help: 'Every change to the team kept for good, not just finance; finance history beyond 90 days.', status: 'live' },
-  { key: 'reviews', tier: 'pro', icon: '🧭', name: 'Design reviews and stage gates', help: 'Review dates per phase with checklists and sign-off.', status: 'soon' },
+  { key: 'history', tier: 'pro', icon: '🕘', name: 'Full change history', help: 'Finance history kept beyond 90 days. (Every task keeps its last 100 changes on every plan.)', status: 'live' },
+  { key: 'reviews', tier: 'pro', icon: '🧭', name: 'Design reviews and stage gates', help: 'Stages that need a sign-off, with checklists, before work moves on (Settings ▸ Workflow).', status: 'live' },
   { key: 'bom', tier: 'pro', icon: '🧱', name: 'Bill of materials and mass budget', help: 'Assemblies and parts with mass and cost rolled up.', status: 'soon' },
   { key: 'documents', tier: 'pro', icon: '📑', name: 'Document control', help: 'Drawings and documents with revisions, linked to parts and requirements.', status: 'soon' },
   { key: 'sso', tier: 'org', icon: '🔐', name: 'Single sign-on', help: 'Sign in with the university or company Microsoft or Google account.', status: 'soon' },
@@ -363,6 +363,14 @@ export function leadsIndex(subteams) {
   const out = {};
   (subteams || []).forEach(s => (s.members || []).forEach(u => { const l = (s.leads || []).filter(x => x !== u); if (l.length) out[u] = [...new Set((out[u] || []).concat(l))].slice(0, 20); }));
   return out;
+}
+/** Someone leaves or is removed: take them out of every sub-team (as member and lead), so a sign-off that needs
+ *  "the sub-team lead" goes to the admins instead of waiting for someone who has gone. A team update, or null. */
+export function subteamsWithout(team, uid) {
+  const list = cleanSubteams(team && team.subteams);
+  if (!list.some(s => (s.members || []).includes(uid) || (s.leads || []).includes(uid))) return null;
+  const subteams = list.map(s => ({ ...s, members: (s.members || []).filter(x => x !== uid), leads: (s.leads || []).filter(x => x !== uid) }));
+  return { subteams, leads: leadsIndex(subteams) };
 }
 /** The workflow as stored: stages, moved, and the index the rules use. */
 export const storedWorkflow = (w) => ({ stages: w.stages, moved: w.moved || {}, ...workflowIndex(w.stages, w.moved || {}) });
@@ -623,7 +631,8 @@ export function cleanApproval(v) {
 /** Does buying this part need an approval first? (Cost over the team's limit, approvals on, not bought yet.) */
 export function needsApproval(part, purchase) {
   const pc = cleanPurchase(purchase);
-  return pc.on && !!part && !['ordered', 'received', 'cancelled'].includes(part.status) && partTotal(part) > pc.over;
+  // The items' cost before discounts or extras counts too: that's what the security rules can check.
+  return pc.on && !!part && !['ordered', 'received', 'cancelled'].includes(part.status) && Math.max(partItems(part), partTotal(part)) > pc.over;
 }
 export const isApproved = (part) => !!(part && part.approval && part.approval.status === 'approved');
 /** Can `member` approve or decline this part's request? The team owner always; finance managers, not their own. */
@@ -975,6 +984,36 @@ export function cleanTimeLog(list) {
     id: safeKey(e && e.id), uid: str(e && e.uid, 128), name: str(e && e.name, 80), date: isoOrEmpty(e && e.date),
     hours: Math.round(Math.min(24, Math.max(0, Number(e && e.hours) || 0)) * 4) / 4, note: str(e && e.note, 200),
   })).filter(e => e.hours > 0 && e.date);
+}
+/** What changes on a copy carried into a later week. It points back to the first copy; it starts with no
+ *  hours logged (they stay on the week they were logged in, so a chain never counts them twice); it doesn't
+ *  start a new repeat series (the series' first task already repeats); and it keeps a sign-off request that is
+ *  still waiting (a decision already given belongs to the old week, and a new task can't arrive signed off). */
+export function carryFields(t) {
+  const r = cleanRepeat(t && t.repeat); const so = cleanSignoff(t && t.signoff);
+  return {
+    carryOf: (t && (t.carryOf || t.id)) || '',
+    timeLog: [],
+    repeat: r && r.every ? { every: 0, until: '', through: '', seriesId: r.seriesId || t.id } : r,
+    signoff: so && so.status === 'waiting' ? so : null,
+  };
+}
+/** A fixed id for the automatic copy of a task in a week, so two apps open at the week change make the
+ *  same copy instead of two (the second write finds it already there). */
+export function carryCopyId(rootId, weekKey) {
+  let h1 = 0x811c9dc5, h2 = 0x01000193; const str = String(rootId) + '|' + String(weekKey);
+  for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619) >>> 0; h2 = Math.imul(h2 ^ c, 2246822507) >>> 0; }
+  return 't_' + h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0') + 'cf';
+}
+/** A fixed key for a week added automatically, from its start date (so two apps add the same week). */
+export const autoWeekKey = (startDate) => 'wk_' + String(startDate).replace(/[^0-9]/g, '');
+/** Time entries across a chain of carried copies, each counted once (older copies may hold the same entry). */
+export function uniqueTimeEntries(tasks) {
+  const seen = new Set(); const out = [];
+  (tasks || []).forEach(t => (Array.isArray(t && t.timeLog) ? t.timeLog : []).forEach(e => {
+    const k = e.id || [e.uid, e.date, e.hours, e.note].join('|'); if (seen.has(k)) return; seen.add(k); out.push({ e, task: t });
+  }));
+  return out;
 }
 export const loggedHours = (t) => Math.round((t && Array.isArray(t.timeLog) ? t.timeLog : []).reduce((a, e) => a + (Number(e.hours) || 0), 0) * 100) / 100;
 

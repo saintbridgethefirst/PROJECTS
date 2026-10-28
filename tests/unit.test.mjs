@@ -1156,3 +1156,64 @@ test('dissertation: on-track signal and chapter draft states', async () => {
   assert.equal(draftState({ flag: 'completed', status: 'Changes needed' }, '2027-01-10').state, 'changes');
   assert.equal(draftState({ flag: 'completed', status: 'Done' }, '2027-01-10').state, 'reviewed');
 });
+
+// ── Sweep of 28 Oct 2026: carry-over, undo, dissertation and sub-team fixes ─────
+import { carryFields, carryCopyId, uniqueTimeEntries, subteamsWithout, needsApproval } from '../src/model.js';
+import { latestCopies } from '../functions/ghsync.js';
+import { scheduleStatus, supervisorDecision, buildDissertationPlan, draftState } from '../src/dissertation.js';
+test('a carried copy: points to the first copy, no hours, no new repeat series, only a waiting sign-off', () => {
+  const t = { id: 't1', timeLog: [{ id: 'l1', hours: 3 }], repeat: { every: 1 }, signoff: { stage: 'review', status: 'approved', by: 'a', approver: 'b' } };
+  const f = carryFields(t);
+  assert.equal(f.carryOf, 't1'); assert.deepEqual(f.timeLog, []); assert.equal(f.repeat.every, 0); assert.equal(f.repeat.seriesId, 't1'); assert.equal(f.signoff, null);
+  assert.equal(carryFields({ id: 't2', carryOf: 't1', signoff: { stage: 'review', status: 'waiting', by: 'a' } }).signoff.status, 'waiting');
+  assert.equal(carryFields({ id: 't2', carryOf: 't1' }).carryOf, 't1', 'a copy of a copy points to the first');
+  assert.equal(carryCopyId('t1', 'wk_2'), carryCopyId('t1', 'wk_2'), 'two apps make the same copy id');
+  assert.notEqual(carryCopyId('t1', 'wk_2'), carryCopyId('t1', 'wk_3'));
+  assert.match(carryCopyId('t1', 'wk_2'), /^[A-Za-z0-9_-]{1,64}$/);
+});
+test('hours on a chain of carried copies are counted once', () => {
+  const e = { id: 'l1', hours: 3, date: '2026-10-01' };
+  assert.equal(uniqueTimeEntries([{ timeLog: [e] }, { timeLog: [e] }, { timeLog: [e, { id: 'l2', hours: 1, date: '2026-10-08' }] }]).reduce((a, x) => a + x.e.hours, 0), 4);
+});
+test('only the newest copy of a carried task counts (Today, digest)', () => {
+  const weeks = [{ key: 'w1' }, { key: 'w2' }, { key: 'w3' }];
+  const got = latestCopies([{ id: 'a', weekId: 'w1' }, { id: 'b', carryOf: 'a', weekId: 'w3' }, { id: 'c', carryOf: 'a', weekId: 'w2' }, { id: 'x', weekId: 'w1' }], weeks).map(t => t.id).sort();
+  assert.deepEqual(got, ['b', 'x']);
+});
+test('dissertation: on track only when everything due is done', () => {
+  const t = (dueDate, flag = 'none') => ({ dueDate, flag });
+  assert.equal(scheduleStatus([t('2026-10-01'), t('2026-12-01', 'completed'), t('2026-12-08', 'completed')], '2026-10-20').state, 'behind', 'finishing later work early doesn’t cover an overdue task');
+  assert.equal(scheduleStatus([t('2026-10-01', 'completed'), t('2026-12-01', 'completed')], '2026-10-20').ahead, 1);
+});
+test('dissertation: nothing is recruited before ethics approval', () => {
+  const p = buildDissertationPlan({ level: 'masters', kind: 'people', start: '2026-01-05', handIn: '2026-09-04', dates: { ethics: '2026-07-01' } });
+  const due = (n) => p.tasks.find(x => x.name.startsWith(n)).due;
+  assert.ok(due('Recruit') >= due('Ethics approved') && due('Pilot') >= due('Ethics approved'));
+  assert.ok(p.warnings.some(w => /Ethics approval comes late/.test(w)));
+});
+test('dissertation: a draft counts as approved only when the supervisor recorded it', () => {
+  const members = [{ uid: 'sup', roleId: 'supervisor' }, { uid: 'stu', roleId: 'owner' }];
+  assert.equal(supervisorDecision([{ taskId: 'r', authorUid: 'stu', text: '✅ Approved.', createdAt: 2 }], members, 'r'), '', 'the student’s own comment doesn’t count');
+  assert.equal(supervisorDecision([{ taskId: 'r', authorUid: 'sup', text: '✏️ Changes needed. More sources', createdAt: 1 }, { taskId: 'r', authorUid: 'sup', text: '✅ Approved.', createdAt: 3 }], members, 'r'), 'approved');
+  assert.equal(draftState({ flag: 'completed', status: 'Approved' }, '2027-01-10', '').state, 'unconfirmed');
+});
+test('someone who leaves is taken out of their sub-teams (and the leads index)', () => {
+  const team = { subteams: [{ id: 'st1', name: 'Fuselage', members: ['a', 'b'], leads: ['b'] }] };
+  const u = subteamsWithout(team, 'b');
+  assert.deepEqual(u.subteams[0].members, ['a']); assert.deepEqual(u.subteams[0].leads, []); assert.deepEqual(u.leads, {});
+  assert.equal(subteamsWithout(team, 'zz'), null);
+});
+test('purchase approval: the items’ price before a discount counts (as in the security rules)', () => {
+  assert.equal(needsApproval({ status: 'needed', qty: 1, unitCost: 120, extras: [{ label: 'Student discount', amount: -25, percent: true }] }, { on: true, over: 100 }), true);
+});
+test('undo puts back only my change, keeping a teammate’s later edits', () => {
+  const before = { id: 't', name: 'A', subtasks: [{ id: 's1', title: 'x', completed: false }, { id: 's2', title: 'y', completed: false }] };
+  const after = { ...before, subtasks: [{ id: 's1', title: 'x', completed: true }, before.subtasks[1]] };
+  const now = { ...after, name: 'Renamed by Bob', subtasks: [after.subtasks[0], { id: 's2', title: 'y', completed: true }] };
+  const [op] = restoreOps([{ kind: 'task', id: 't', before, after }], { name: 'Ann', uid: 'ann' }, 'before', () => now);
+  assert.equal(op.data.name, undefined, 'Bob’s rename stays');
+  assert.deepEqual(op.data.subtasks.map(s => s.completed), [false, true], 'my tick is undone, Bob’s stays');
+  const w0 = [{ key: 'w9', title: 'WEEK 9' }], w1 = [{ key: 'w9', title: 'Exam week' }], cur = [...w1, { key: 'w10', title: 'WEEK 10' }];
+  const [wop] = restoreOps([{ kind: 'weeks', before: w0, after: w1 }], { name: 'Ann' }, 'before', () => cur);
+  assert.deepEqual(wop.data.weeks.map(w => w.title), ['WEEK 9', 'WEEK 10'], 'Bob’s new week stays');
+});

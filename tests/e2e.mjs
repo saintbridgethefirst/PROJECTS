@@ -342,7 +342,7 @@ try {
   ok((await card(A, 'Write intro').locator('.progress-text').textContent()) === '50%', 'card progress updates to 50%');
   await clickCard(A, 'Write intro'); await A.waitForSelector('#edit-form');
   const draftBox = A.locator('#edit-form input[type=text][value="Draft"]'); await draftBox.fill('First draft'); await draftBox.press('Tab'); await A.waitForTimeout(300);
-  await A.locator('#edit-form button[title="Delete Subtask"]').first().click(); await A.waitForTimeout(300);
+  await A.locator('#edit-form button.st-del').first().click(); await A.waitForTimeout(300);
   st = await subTask();
   ok(st.subtasks.map(x => x.title).join() === 'First draft', 'rename and delete saved');
   const fields = st.history.slice(0, 5).map(h => h.field);

@@ -272,7 +272,8 @@ export function openReport(ctx) {
   opts.known = available.map(x => x[0]);
   if (!money) opts.sections = opts.sections.filter(k => k !== 'finance');
   const m = modal('📄 Progress report'); m.box.classList.add('report-modal');
-  const frame = el('iframe.rp-frame', { title: 'Report preview' });
+  // Sandboxed: the preview never runs scripts (what people wrote is in it); same origin so it can be printed.
+  const frame = el('iframe.rp-frame', { title: 'Report preview', sandbox: 'allow-same-origin allow-modals allow-popups allow-popups-to-escape-sandbox' });
   const data = () => ({
     team: s.team, rows: window.boardRows ? window.boardRows({ scope: 'all', allPhases: true }) : [], latestId: (id) => (carryIndexOf(s).latest(id) || {}).id || id, members: s.members, meetings: s.meetings, notebook: s.notebook, parts: s.parts,
     papers: s.papers, expenses: s.expenses, budget: s.budget, risks: s.risks, requirements: s.requirements, timeEntries: window.boardTimeEntries ? window.boardTimeEntries() : [], money, author: ctx.user.name || ctx.user.email || 'Trawpie', today: localISO(new Date()),

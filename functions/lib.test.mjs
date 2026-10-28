@@ -44,9 +44,9 @@ test('mention email is escaped and links to the team', () => {
 });
 test('Monday digest: overdue and next 7 days, mine only, open only', () => {
   const tasks = [
-    { name: 'Late', ownerUid: 'u', dueDate: '2026-10-15', flag: 'none' }, { name: 'Soon', ownerUid: 'u', dueDate: '2026-10-22', flag: 'none' },
-    { name: 'Far', ownerUid: 'u', dueDate: '2026-11-30', flag: 'none' }, { name: 'Done', ownerUid: 'u', dueDate: '2026-10-15', flag: 'completed' },
-    { name: 'Theirs', ownerUid: 'x', dueDate: '2026-10-20', flag: 'none' }, { name: 'No date', ownerUid: 'u', flag: 'none' },
+    { id: 'a', name: 'Late', ownerUid: 'u', dueDate: '2026-10-15', flag: 'none' }, { id: 'b', name: 'Soon', ownerUid: 'u', dueDate: '2026-10-22', flag: 'none' },
+    { id: 'c', name: 'Far', ownerUid: 'u', dueDate: '2026-11-30', flag: 'none' }, { id: 'd', name: 'Done', ownerUid: 'u', dueDate: '2026-10-15', flag: 'completed' },
+    { id: 'e', name: 'Theirs', ownerUid: 'x', dueDate: '2026-10-20', flag: 'none' }, { id: 'f', name: 'No date', ownerUid: 'u', flag: 'none' },
   ];
   const it = digestItems(tasks, 'u', '2026-10-19');
   assert.deepEqual(it.overdue.map(t => t.name), ['Late']); assert.deepEqual(it.soon.map(t => t.name), ['Soon']);
@@ -54,6 +54,12 @@ test('Monday digest: overdue and next 7 days, mine only, open only', () => {
   assert.equal(mail.subject, 'Your week: 1 overdue, 1 due in the next 7 days');
   assert.ok(mail.html.includes('Late') && mail.html.includes('Soon') && !mail.html.includes('Far'));
   assert.equal(digestEmail({ appUrl: 'x', teams: [{ teamId: 't', teamName: 'A', overdue: [], soon: [] }], today: '2026-10-19' }), null, 'nothing to say → no email');
+});
+test('Monday digest: a task carried into later weeks shows once, and not at all once its newest copy is done', () => {
+  const weeks = [{ key: 'w1' }, { key: 'w2' }, { key: 'w3' }];
+  const copy = (id, weekId, flag = 'none', carryOf = 'a') => ({ id, carryOf: id === 'a' ? '' : carryOf, name: 'Wire ESC', ownerUid: 'u', dueDate: '2026-10-15', flag, weekId });
+  assert.deepEqual(digestItems([copy('a', 'w1'), copy('b', 'w2'), copy('c', 'w3')], 'u', '2026-10-19', weeks).overdue.map(t => t.id), ['c']);
+  assert.equal(digestItems([copy('a', 'w1'), copy('b', 'w2'), copy('c', 'w3', 'completed')], 'u', '2026-10-19', weeks).overdue.length, 0);
 });
 
 import { inviteChanged, inviteEmail } from './lib.js';
@@ -105,4 +111,6 @@ test('your data: a deleted person’s name and email are removed from shared rec
   assert.equal(scrubPerson({ authorName: 'Tom Reed', text: 'Ask Tom Reed' }, names, emails).value.text, undefined, 'what they wrote stays');
   assert.equal(scrubPerson({ email: 'TOM@uni.ac.uk', byName: 'Tom Reed' }, names, emails).value.email, '');
   assert.equal(scrubPerson({ authorName: 'Aisha Khan', createdBy: 'Tom Reed' }, names, emails).changed, false, 'ids and other people untouched');
+  assert.equal(scrubPerson({ authorUid: 'u-aisha', authorName: 'Tom Reed', text: 'x' }, names, emails, 'u-tom').changed, false, 'a record that names someone else by id keeps its name');
+  assert.equal(scrubPerson({ authorUid: 'u-tom', authorName: 'Tom Reed' }, names, emails, 'u-tom').value.authorName, FORMER_MEMBER, 'their own record loses the name');
 });

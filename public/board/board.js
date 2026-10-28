@@ -364,7 +364,7 @@
 
                 if (e.altKey || e.ctrlKey) {
                     let clonedTask = JSON.parse(JSON.stringify(originalTask)); 
-                    clonedTask.id = generateId(); clonedTask.carryOf = originalTask.carryOf || originalTask.id; clonedTask.repeat = null; clonedTask.stage = ''; clonedTask.timeLog = [];
+                    Object.assign(clonedTask, TT.carryFields(originalTask)); clonedTask.id = generateId(); clonedTask.carryOf = originalTask.carryOf || originalTask.id; clonedTask.repeat = null; clonedTask.stage = ''; clonedTask.timeLog = [];
                     let tW = weeksData.find(w=>w.key===tgtWeek)?.title || tgtWeek;
                     logHistory(clonedTask, "Action", data.srcWeek, `Carried forward to ${tW}`);
                     logMove(clonedTask);
@@ -499,7 +499,7 @@
                                 <div style="display:flex; align-items:center; gap:8px; background:var(--bg-main); padding:8px; border-radius:6px; border:1px solid var(--border-color);">
                                     <input type="checkbox" style="width:16px; height:16px; margin:0;" ${st.completed ? 'checked' : ''} onchange="toggleSubtask(event, '${nodeData.id}', '${st.id}')">
                                     <input type="text" style="margin:0; padding:4px 8px;" value="${esc(st.title)}" onchange="updateSubtaskTitle(event, '${nodeData.id}', '${st.id}', this.value)">
-                                    <button type="button" class="st-promote" onclick="promoteSubtask(event, '${nodeData.id}', '${st.id}')" title="Make this sub-task a task of its own" aria-label="Make “${esc(st.title)}” a task of its own">↥ Task</button><button class="btn-danger" style="padding:4px 8px; width:auto; border:none; background:transparent; cursor:pointer;" onclick="deleteSubtask(event, '${nodeData.id}', '${st.id}')" title="Delete Subtask">❌</button>
+                                    <button type="button" class="st-promote" onclick="promoteSubtask(event, '${nodeData.id}', '${st.id}')" title="Make this sub-task a task of its own" aria-label="Make “${esc(st.title)}” a task of its own">↥ Task</button><button type="button" class="btn-danger st-del" style="padding:4px 8px; width:auto; border:none; background:transparent; cursor:pointer;" onclick="deleteSubtask(event, '${nodeData.id}', '${st.id}')" title="Delete sub-task" aria-label="Delete sub-task “${esc(st.title)}”">❌</button>
                                 </div>
                             `).join('')}
                         </div>
@@ -650,7 +650,7 @@
                 
                 let nextWeekKey = weeksData[nextWeekIndex].key;
                 let clonedTask = JSON.parse(JSON.stringify(activeNode)); 
-                clonedTask.id = generateId(); clonedTask.carryOf = activeNode.carryOf || activeNode.id; clonedTask.repeat = null; clonedTask.stage = ''; clonedTask.timeLog = [];
+                Object.assign(clonedTask, TT.carryFields(activeNode)); clonedTask.id = generateId(); clonedTask.carryOf = activeNode.carryOf || activeNode.id; clonedTask.repeat = null; clonedTask.stage = ''; clonedTask.timeLog = [];
                 
                 let sW = weeksData[currentWeekIndex].title;
                 let tW = weeksData[nextWeekIndex].title;
@@ -929,7 +929,7 @@
         }
         function duplicateTask(loc) {
             const clone = JSON.parse(JSON.stringify(loc.task));
-            clone.id = generateId(); clone.flag = 'none'; clone.completedDate = ''; clone.history = []; clone.repeat = null; clone.stage = ''; clone.dependsOn = []; clone.carryOf = ''; clone.timeLog = [];
+            clone.id = generateId(); clone.flag = 'none'; clone.completedDate = ''; clone.history = []; clone.signoff = null; clone.carryOf = ''; clone.timeLog = []; clone.repeat = null; clone.stage = ''; clone.dependsOn = []; clone.carryOf = ''; clone.timeLog = [];
             clone.subtasks.forEach(s => { s.id = generateId(); s.completed = false; });
             logHistory(clone, 'Action', '', 'Duplicated from "' + loc.task.name + '"');
             loc.cat[loc.weekKey].splice(loc.index + 1, 0, clone); saveDatabase(); render(); flashNode(clone.id);
@@ -939,7 +939,7 @@
             if (nextIdx >= weeksData.length) addWeek();
             const next = weeksData[nextIdx]; if (!next) return;
             hiddenWeeks.delete(next.key);
-            const clone = JSON.parse(JSON.stringify(loc.task)); clone.id = generateId(); clone.repeat = null; clone.stage = ''; clone.carryOf = loc.task.carryOf || loc.task.id; clone.timeLog = [];
+            const clone = JSON.parse(JSON.stringify(loc.task)); Object.assign(clone, TT.carryFields(loc.task)); clone.id = generateId(); clone.repeat = null; clone.stage = ''; clone.carryOf = loc.task.carryOf || loc.task.id; clone.timeLog = [];
             logHistory(clone, 'Action', weeksData[srcIdx].title, 'Carried forward to ' + next.title);
             if (!Array.isArray(loc.cat[next.key])) loc.cat[next.key] = [];
             loc.cat[next.key].push(clone); saveDatabase(); renderFilters(); render(); flashNode(clone.id);
@@ -1096,7 +1096,7 @@
                 { icon: '✏️', label: 'Edit in side panel', action: () => openEditorForNode(t) },
                 { icon: '⊕', label: 'Add sub-task…', action: () => quickAddSubtask(null, t.id) },
                 { icon: '📄', label: 'Duplicate', action: () => duplicateTask(loc) },
-                { icon: '➡️', label: 'Carry forward to ' + (nextW ? nextW.title : 'a new week'), action: () => carryForwardTask(loc) },
+                ...(t.flag === 'completed' ? [] : [{ icon: '➡️', label: 'Carry forward to ' + (nextW ? nextW.title : 'a new week'), action: () => carryForwardTask(loc) }]),
                 { divider: true },
                 { icon: '📆', label: 'Deadline' + (t.dueDate ? ' · ' + fmtShort(t.dueDate) : ''), submenu: [
                     { icon: '📆', label: 'Pick date…', action: () => pickDeadline(t) },
@@ -2274,6 +2274,17 @@
         function toggleSidebar() { const panel = document.getElementById('editor-panel'); if (panel) setPanel(panel.classList.contains('hidden')); }
         // For the app (the demo tour): show or hide the side panel, and close the open task.
         window.boardPanel = (open) => setPanel(!!open);
+        /** Opening a team: show this week, not the first week of the project. Instant (no smooth scroll), and only
+         *  sideways: the week starts just right of the people and category columns (centred on a phone). */
+        window.boardShowThisWeek = () => {
+            const el = document.querySelector('.header-week.current-week'); const cc = document.getElementById('canvas-container');
+            if (!el || !cc || document.body.classList.contains('view-kanban') || document.body.classList.contains('view-gantt') || document.body.classList.contains('view-list')) return false;
+            const brand = document.getElementById('brand-block'); const left = brand ? brand.getBoundingClientRect().right : cc.getBoundingClientRect().left;
+            const r = el.getBoundingClientRect(); const room = cc.getBoundingClientRect().right - left;
+            const prev = cc.style.scrollBehavior; cc.style.scrollBehavior = 'auto';
+            cc.scrollLeft += r.width + 40 > room ? (r.left - left) - Math.max(0, (room - r.width) / 2) : (r.left - left) - 24;
+            cc.style.scrollBehavior = prev; return true;
+        };
         window.boardCloseEditor = () => { closeEditor(); render(); };
         window.boardEditorTab = (k) => { if (ED_TABS.some(t => t[0] === k)) showEdTab(k); };
         (function initCompactLayout() {
@@ -3166,7 +3177,9 @@
                 });
                 if (others.length) { out.push(h('h4', 'so-h', 'Waiting for someone else (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(({ l, who }) => ul.appendChild(h('li', '', (l.task.name || 'Untitled task') + ' · ' + l.person.name + ' · waiting for ' + who.label))); out.push(ul); }
                 if (recent.length) { out.push(h('h4', 'so-h', 'Recently decided')); const ul = h('ul', 'so-recent'); recent.forEach(l => { const so = l.task.signoff; const li = h('li'); li.append(h('span', so.status === 'approved' ? 'so-ok' : 'so-ch', so.status === 'approved' ? 'Approved' : 'Changes requested'), ' · ' + (l.task.name || 'Untitled task') + ' (' + l.person.name + ')' + (so.note ? ': “' + so.note + '”' : '') + ' · ' + so.approverName + ', ' + soAgo(so.decidedAt)); ul.appendChild(li); }); out.push(ul); }
-                m.body.replaceChildren(...requestCards(h), ...out, ...purchaseCards(h));
+                const parts = [...requestCards(h), ...out, ...purchaseCards(h)];
+                if (!parts.length) parts.push(h('p', 'hint so-empty', 'Nothing is waiting for approval. Sign-offs, purchases over the approval limit and requests to leave or to delete a task show up here.'));
+                m.body.replaceChildren(...parts);
             };
             m.box.__draw = draw; draw();
         }
@@ -4373,13 +4386,15 @@
             const owner = taskOwner(task); const mayLog = TT.canEditOwner(owner);
             // A carried-forward task is one piece of work: hours from every week's copy count toward its estimate.
             const chain = carryChain(task); const copies = chain ? chain.map(l => l.task) : [task];
-            const total = Math.round(copies.reduce((a, t) => a + loggedOf(t), 0) * 100) / 100; const est = TT.feature('planning') ? task.effort : null;
+            // Older copies may hold the same entries (carried before copies started empty): each entry counts once.
+            const entries = TT.uniqueTimeEntries(copies);
+            const total = Math.round(entries.reduce((a, x) => a + (Number(x.e.hours) || 0), 0) * 100) / 100; const est = TT.feature('planning') ? task.effort : null;
             const head = document.createElement('div'); head.className = 'time-head';
             const b = document.createElement('b'); b.textContent = fmtHours(total) || '0h'; head.appendChild(b);
             if (est) { head.append(' of ' + fmtHours(est) + ' estimated'); const bar = document.createElement('div'); bar.className = 'fin-bar' + (total > est ? ' over' : ''); const i = document.createElement('i'); i.style.width = Math.min(100, total / est * 100).toFixed(1) + '%'; bar.appendChild(i); head.appendChild(bar); }
             s.appendChild(head);
             const weekOfCopy = new Map(chain ? chain.map(l => [l.task.id, weekTitle(l.weekKey)]) : []);
-            const log = copies.flatMap(t => (t.timeLog || []).map(e => ({ ...e, _copy: t }))).sort((a, c) => (c.date || '').localeCompare(a.date || ''));
+            const log = entries.map(x => ({ ...x.e, _copy: x.task })).sort((a, c) => (c.date || '').localeCompare(a.date || ''));
             if (log.length) {
                 const ul = document.createElement('div'); ul.className = 'time-list';
                 log.slice(0, 12).forEach(e => {
@@ -4414,8 +4429,13 @@
         /** Every logged hour (for Tools ▸ Timesheet). */
         window.boardTimeEntries = function () {
             const out = [];
-            const locs = allTaskLocs(); const roots = carryRootMap(locs);
-            locs.forEach(l => (l.task.timeLog || []).forEach(e => out.push({ ...e, taskId: l.task.id, chainId: roots.get(l.task.id) || l.task.id, taskName: l.task.name, owner: l.person.name, effort: l.task.effort ?? null })));
+            const locs = allTaskLocs(); const roots = carryRootMap(locs); const seenEntry = new Set();
+            // An entry copied onto a carried copy (before copies started empty) is counted once per chain.
+            locs.forEach(l => (l.task.timeLog || []).forEach(e => {
+                const chainId = roots.get(l.task.id) || l.task.id; const k = chainId + '|' + (e.id || [e.uid, e.date, e.hours, e.note].join('|'));
+                if (seenEntry.has(k)) return; seenEntry.add(k);
+                out.push({ ...e, taskId: l.task.id, chainId, taskName: l.task.name, owner: l.person.name, effort: l.task.effort ?? null });
+            }));
             return out;
         };
 

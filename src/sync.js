@@ -152,21 +152,35 @@ export function changesToOps(changes, me) {
   return ops;
 }
 
-/** Ops that force entities to the given values (used by undo/redo). */
-export function restoreOps(changes, me, which) {
+/** Ops that take entities back (undo) or forward (redo) to `which` side of my changes. `current(c)`: the entity
+ *  as it is now (the week list for kind 'weeks'), so only what I changed is undone and a teammate's later edits
+ *  to the same task (a ticked sub-task, a new week) are kept (merge3 of what I set, what I want back, and now). */
+export function restoreOps(changes, me, which, current = () => undefined) {
   const now = Date.now(); const other = which === 'before' ? 'after' : 'before';
-  return changes.map(c => {
-    const target = c[which];
-    if (c.kind === 'weeks') return { type: 'update', path: 'team', data: { weeks: target } };
+  const ops = [];
+  changes.forEach(c => {
+    const target = c[which]; const cur = current(c);
+    if (c.kind === 'weeks') { ops.push({ type: 'update', path: 'team', data: { weeks: Array.isArray(cur) && Array.isArray(c[other]) ? merge3(c[other], target, cur) : target } }); return; }
     const path = (c.kind === 'cat' ? 'categories/' : 'tasks/') + c.id;
-    if (!target) return { type: 'delete', path };
+    if (!target) { ops.push({ type: 'delete', path }); return; }
+    if (c[other] && cur) {
+      const data = {};
+      new Set([...Object.keys(c.before || {}), ...Object.keys(c.after || {})]).forEach(k => {
+        if (k === 'id' || same(c.before[k], c.after[k]) || target[k] === undefined) return;
+        const v = merge3(c[other][k], target[k], cur[k]); if (!same(v, cur[k])) data[k] = v;
+      });
+      if (!Object.keys(data).length) return;
+      if (c.kind === 'task') Object.assign(data, { updatedBy: me.name, updatedAt: now });
+      ops.push({ type: 'update', path, data }); return;
+    }
     const data = { ...target };
     if (c.kind === 'task') Object.assign(data, { updatedBy: me.name, updatedAt: now });
     // Entity still exists → update (keeps createdBy etc.); it was deleted → recreate.
-    if (c[other]) return { type: 'update', path, data };
+    if (c[other]) { ops.push({ type: 'update', path, data }); return; }
     if (c.kind === 'task') Object.assign(data, { createdBy: me.uid, createdAt: now });
-    return { type: 'set', path, data };
+    ops.push({ type: 'set', path, data });
   });
+  return ops;
 }
 
 /** Merge two consecutive change lists (for coalescing rapid edits into one undo step). */

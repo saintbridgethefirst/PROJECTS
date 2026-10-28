@@ -16,6 +16,7 @@ import {
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator,
   collection, collectionGroup, doc, query, where, onSnapshot, writeBatch, getDocs, getDocsFromCache, getDoc, setDoc, orderBy, limit,
+  terminate, clearIndexedDbPersistence,
 } from 'firebase/firestore';
 import { firebaseConfig, USE_EMULATORS, ENABLE_MS_SIGNIN, ENABLE_EMAIL_LINK, APPCHECK_SITE_KEY } from '../config.js';
 import { newId } from '../model.js';
@@ -120,7 +121,13 @@ export const auth = {
   sendInviteEmail: ENABLE_EMAIL_LINK ? async (email) => {
     await sendSignInLinkToEmail(fbAuth, normEmail(email), { url: location.origin + location.pathname, handleCodeInApp: true });
   } : undefined,
-  async signOut() { await signOut(fbAuth); },
+  /** Sign out and forget this account's copy of team data on this device (a shared lab computer keeps
+   *  nothing readable), then start afresh. */
+  async signOut() {
+    await signOut(fbAuth);
+    try { await terminate(db); await clearIndexedDbPersistence(db); } catch (e) { console.warn('Couldn’t clear the offline copy', e); }
+    setTimeout(() => { location.hash = ''; location.reload(); }, 0);
+  },
   /** Save (or with '' remove) your account photo, and copy it to your membership in every team. */
   async setPhoto(photo) {
     const u = fbAuth.currentUser; if (!u) throw new Error('Not signed in.');

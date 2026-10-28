@@ -128,7 +128,10 @@ async function parseFile(file, TT) {
   }
   if (file.size > 12 * 1024 * 1024) throw new Error('That file is larger than 12 MB — split it or export a smaller range first.');
   try { await window.ensureXLSX(); } catch { throw new Error('Couldn’t load the spreadsheet reader. Check your connection and try again.'); }
-  const wb = window.XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+  // CSV: keep cells as text, so "03/04/2026" stays 3 April (our own day/month/year reading) instead of the
+  // spreadsheet reader turning it into 4 March the American way (while 27/10/2026 came in right).
+  const csv = /\.(csv|tsv|txt)$/i.test(file.name || '') || /^text\//.test(file.type || '');
+  const wb = window.XLSX.read(new Uint8Array(await file.arrayBuffer()), csv ? { type: 'array', raw: true } : { type: 'array' });
   if (wb.Sheets['Database_DO_NOT_EDIT']) {
     const sh = wb.Sheets['Database_DO_NOT_EDIT']; let json = ''; for (let r = 2; sh['A' + r]; r++) json += sh['A' + r].v || '';
     return { kind: 'old tracker Excel file', ...rowsFromOldTracker(JSON.parse(json)) };

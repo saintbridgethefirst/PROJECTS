@@ -11,6 +11,18 @@
 
 /** The id a task's reference is made from: a task carried into later weeks keeps its first copy's. */
 export const refIdOf = (t) => (t && (t.carryOf || t.id)) || '';
+/** One task per carried-forward chain: the copy in the latest week of the team's week order (ties: the newest).
+ *  Older copies stay in their weeks as a record and must not be counted again (digest, Today).
+ *  tasks: [{ id, carryOf?, weekId, createdAt? }], weeks: [{ key }]. */
+export function latestCopies(tasks, weeks) {
+  const order = new Map((weeks || []).map((w, i) => [w.key, i])); const at = (t) => (order.has(t.weekId) ? order.get(t.weekId) : -1);
+  const best = new Map();
+  (tasks || []).forEach(t => {
+    if (!t || !t.id) return; const k = refIdOf(t); const cur = best.get(k);
+    if (!cur || at(t) > at(cur) || (at(t) === at(cur) && (Number(t.createdAt) || 0) >= (Number(cur.createdAt) || 0))) best.set(k, t);
+  });
+  return [...best.values()];
+}
 /** open | closed | merged | draft, from an issue or pull request in a GitHub event. */
 export function stateOf(item, isPull) {
   if (!item) return '';

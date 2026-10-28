@@ -4,7 +4,7 @@
 // Requests live in teams/{t}/requests as leave-<uid> and del-<taskId>.
 import { el, modal, toast } from './ui.js';
 import { can, deleteNeedsApproval } from './permissions.js';
-import { handOverOps } from './model.js';
+import { handOverOps, subteamsWithout } from './model.js';
 
 const me = (ctx) => ctx.session.me;
 const myName = (ctx) => String(ctx.user.name || ctx.user.email || 'Someone').slice(0, 80);
@@ -63,7 +63,7 @@ export function approveLeave(ctx, req) {
       const plan = {}; open.forEach(t => { const sel = m.body.querySelector('select[data-task="' + t.id + '"]'); plan[t.id] = sel ? sel.value : all.value; });
       const names = Object.fromEntries(s.members.map(x => [x.uid, x.name || x.email]));
       const ops = handOverOps(s.tasks, s.categories || [], { uid: who.uid, name: who.name || who.email }, plan, { name: myName(ctx), names });
-      ops.push({ type: 'update', path: 'team', data: { former: { ...(s.team.former || {}), [who.uid]: { name: (who.name || who.email || '').slice(0, 80), leftAt: Date.now() } } } },
+      ops.push({ type: 'update', path: 'team', data: { former: { ...(s.team.former || {}), [who.uid]: { name: (who.name || who.email || '').slice(0, 80), leftAt: Date.now() } }, ...(subteamsWithout(s.team, who.uid) || {}) } },
         { type: 'delete', path: 'members/' + who.uid }, { type: 'delete', path: 'presence/' + who.uid }, { type: 'delete', path: 'requests/' + req.id });
       if (await ctx.writeOps(ops)) { m.close(); toast((who.name || who.email) + ' has left' + (open.length ? '; their tasks were handed on.' : '.'), 5000); }
     } }, 'Approve and remove'));

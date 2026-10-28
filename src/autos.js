@@ -7,7 +7,7 @@
 //  There's no server doing this: the app of someone allowed to make the change does it, so it is
 //  checked by the same security rules as a change made by hand, and shows in the task's history.
 // ─────────────────────────────────────────────────────────────────────────────
-import { newId, cleanAutos, cleanComment, cleanFeatures, cleanTask, carryIndexOf, workflowOf, stageIdOf, partsReadyMoves, waitingOn, signersFor, nextWeekTitle } from './model.js';
+import { newId, cleanAutos, cleanComment, cleanFeatures, cleanTask, carryIndexOf, workflowOf, stageIdOf, partsReadyMoves, waitingOn, signersFor, nextWeekTitle, carryFields, carryCopyId, autoWeekKey, BACKLOG_KEY } from './model.js';
 import { can, canEditOwnedBy } from './permissions.js';
 import { toast } from './ui.js';
 
@@ -30,36 +30,56 @@ function carryOps(ctx, a) {
     const add = []; let start = targetStart; let guard = 0;
     while (addDaysISO(start, 7) <= today && guard++ < 60) {
       start = addDaysISO(start, 7);
-      add.push({ key: newId('wk'), title: nextWeekTitle(s.team.weekNaming, [...(s.team.weeks || []), ...add], start), metric: '', startDate: start });
+      if ((s.team.weeks || []).some(w => w.startDate === start)) continue;   // another app already added it
+      add.push({ key: autoWeekKey(start), title: nextWeekTitle(s.team.weekNaming, [...(s.team.weeks || []), ...add], start), metric: '', startDate: start });
     }
     if (add.length) {
       ops.push({ type: 'update', path: 'team', data: { weeks: [...(s.team.weeks || []), ...add] } });
       const last = add[add.length - 1]; targetKey = last.key; targetStart = last.startDate; targetTitle = last.title;
     }
   }
-  const ix = carryIndexOf(s); const did = seen(s); const now = Date.now();
+  const ix = carryIndexOf(s); const did = seen(s); const now = Date.now(); const keys = [];
   const weekStart = new Map((s.team.weeks || []).map(w => [w.key, w.startDate || '']));
   (s.tasks || []).forEach(t => {
     if (t.flag === 'completed' || t.weekId === targetKey) return;
     const ws = weekStart.get(t.weekId); if (!ws || ws >= targetStart) return;      // only weeks before the current one
     const l = ix.latest(t.id); if (l && l.id !== t.id) return;                     // only the latest copy in a chain
     if (!canEditOwnedBy(s.team, s.me, t.ownerUid) || did.has('carry:' + t.id)) return;
-    did.add('carry:' + t.id);
-    const nid = newId('t'); const root = t.carryOf || t.id;
+    did.add('carry:' + t.id); keys.push('carry:' + t.id);
+    const root = t.carryOf || t.id; const nid = carryCopyId(root, targetKey);
+    if ((s.tasks || []).some(x => x.id === nid)) return;                           // another app already made this copy
     const history = [{ time: stamp(), user: ctx.user.name || 'Someone', field: 'Action', original: '', updated: 'Carried forward to ' + targetTitle + ' (automatic)' }]
       .concat(Array.isArray(t.history) ? t.history : []).slice(0, 100);
-    // A fresh copy for the new week: keep the work, but not the old week's sign-off decision or completion.
+    // A fresh copy for the new week: keep the work and an open sign-off request, not the hours logged or a decision (carryFields).
+    // It keeps the task's age (createdAt), so weeks-old work still needs approval to delete.
     // cleanTask returns id/type too; the document itself must not carry them (the id is the path).
-    const { id: _id, type: _type, ...data } = cleanTask({ ...t, id: nid, weekId: targetKey, carryOf: root, flag: t.flag, signoff: null, completedDate: '', history, createdBy: ctx.user.uid, createdAt: now, updatedBy: ctx.user.name || '', updatedAt: now }, nid);
+    const { id: _id, type: _type, ...data } = cleanTask({ ...t, ...carryFields(t), id: nid, weekId: targetKey, flag: t.flag, completedDate: '', history, createdBy: ctx.user.uid, createdAt: Number(t.createdAt) > 0 && Number(t.createdAt) < now ? Number(t.createdAt) : now, updatedBy: ctx.user.name || '', updatedAt: now }, nid);
     ops.push({ type: 'set', path: 'tasks/' + nid, data });
   });
   const n = ops.filter(o => o.path !== 'team').length;
-  return { ops, n, title: targetTitle };
+  return { ops, n, title: targetTitle, keys };
+}
+
+// Dissertation plans keep later work in the Backlog until its week exists (a PhD board grows a term at a time).
+// When the week a Backlog task is due in is on the board, move the task into it.
+function backlogOps(ctx) {
+  const s = ctx.session; if (!cleanFeatures(s.team.features).dissertation) return [];
+  const weeks = (s.team.weeks || []).filter(w => w.startDate && w.key !== BACKLOG_KEY);
+  const now = Date.now(); const did = seen(s); const ops = [];
+  (s.tasks || []).forEach(t => {
+    if (t.weekId !== BACKLOG_KEY || t.flag === 'completed' || !/^\d{4}-\d{2}-\d{2}$/.test(t.dueDate || '') || did.has('bl:' + t.id) || !canEditOwnedBy(s.team, s.me, t.ownerUid)) return;
+    const w = weeks.find(x => x.startDate <= t.dueDate && t.dueDate <= addDaysISO(x.startDate, 6)); if (!w) return;
+    did.add('bl:' + t.id);
+    const history = [{ time: stamp(), user: ctx.user.name || 'Someone', field: 'Schedule', original: 'Backlog', updated: w.title + ' (automatic: its week is on the board)' }, ...(t.history || [])].slice(0, 100);
+    ops.push({ type: 'update', path: 'tasks/' + t.id, data: { weekId: w.key, history, updatedBy: ctx.user.name || '', updatedAt: now } });
+  });
+  return ops;
 }
 
 const DAY = 864e5;
 const stamp = () => { const n = new Date(); let h = n.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return String(n.getDate()).padStart(2, '0') + '/' + n.toLocaleString('en-GB', { month: 'short' }) + '/' + String(n.getFullYear()).slice(-2) + ' ' + h + ':' + String(n.getMinutes()).padStart(2, '0') + ' ' + ap; };
 const done = new WeakMap();   // session → what this app already did (so a slow snapshot doesn't repeat it)
+const tries = new Map();      // carry key → refused writes so far
 const seen = (s) => { let x = done.get(s); if (!x) { x = new Set(); done.set(s, x); } return x; };
 const nameOf = (s, uid) => ((s.members || []).find(m => m.uid === uid) || {}).name || 'someone';
 const latestOnly = (s) => { const ix = carryIndexOf(s); return (s.tasks || []).filter(t => { const l = ix.latest(t.id); return !l || l.id === t.id; }); };
@@ -103,13 +123,20 @@ export async function runAutos(ctx) {
       ops.push({ type: 'update', path: 'tasks/' + t.id, data: { signoff: { ...so, remindedAt: now } } });
     });
   }
-  // 4. Carry unfinished tasks into the current week
+  // 5. Dissertation: Backlog tasks whose week is now on the board move into it
+  ops.push(...backlogOps(ctx));
+  if (ops.length) await ctx.writeOps(ops, { quiet: true, auto: true });
+  // 4. Carry unfinished tasks into the current week. Its own write: the copies have fixed ids, so if another
+  //    app open at the same moment made them first, this write is refused and nothing is duplicated.
   const carry = carryOps(ctx, a);
-  if (carry.ops.length) ops.push(...carry.ops);
-  if (!ops.length) return 0;
-  await ctx.writeOps(ops, { quiet: true, auto: true });
-  if (carry.n) toast(carry.n + (carry.n === 1 ? ' task' : ' tasks') + ' carried into ' + carry.title + '.', 5000);
-  return ops.length;
+  if (carry.ops.length) {
+    const ok = await ctx.writeOps(carry.ops, { quiet: true, auto: true });
+    if (ok !== false && carry.n) toast(carry.n + (carry.n === 1 ? ' task' : ' tasks') + ' carried into ' + carry.title + '.', 5000);
+    // Refused (usually: another app carried some of them a moment earlier): try the rest again after the next
+    // update arrives, when the copies already made are skipped. At most a few times, so a real refusal doesn't loop.
+    if (ok === false) carry.keys.forEach(k => { const n = (tries.get(k) || 0) + 1; tries.set(k, n); if (n < 3) did.delete(k); });
+  }
+  return ops.length + carry.ops.length;
 }
 
 /** After this app saved board changes: tasks just done → tell the owners of tasks waiting on them. */

@@ -1484,7 +1484,7 @@ body.look-pro .mt-prio.p-major { color: #d69e2e; } body.look-pro .mt-prio.p-mino
 .diss-draft { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 13px; }
 .diss-dstate { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--border-color); }
 .diss-dstate.approved { background: color-mix(in srgb, var(--ok, #2f9e44) 16%, transparent); color: var(--ok, #2f9e44); }
-.diss-dstate.changes, .diss-dstate.late { background: color-mix(in srgb, #e8590c 16%, transparent); color: #c2410c; }
+.diss-dstate.changes, .diss-dstate.late, .diss-dstate.unconfirmed { background: color-mix(in srgb, #e8590c 16%, transparent); color: #c2410c; }
 .diss-dstate.gone { color: var(--text-muted); }
 .diss-decide { display: inline-flex; gap: 6px; }
 .diss-prop-intro p { margin-top: 0; }
@@ -1518,7 +1518,7 @@ body.look-pro .mt-prio.p-major { color: #d69e2e; } body.look-pro .mt-prio.p-mino
 /* team settings menu: the open section tinted in the team colour */
 .settings-nav button { display: flex; align-items: center; gap: 10px; }
 .settings-nav button.on { background: color-mix(in srgb, var(--line-color) 12%, var(--bg-panel)); color: color-mix(in srgb, var(--line-color) 70%, var(--text-main)); box-shadow: none; font-weight: 750; }
-.settings-nav button:hover:not(.on) { background: color-mix(in srgb, var(--line-color) 6%, transparent); color: var(--text-main); }
+@media (hover: hover) { .settings-nav button:hover:not(.on) { background: color-mix(in srgb, var(--line-color) 6%, transparent); color: var(--text-main); } }
 .settings-nav button:focus-visible { outline: 2px solid var(--line-color); outline-offset: -2px; }
 /* icon buttons (move up, move down, delete) */
 .icon-btn { width: 32px; height: 32px; flex: none; display: inline-grid; place-items: center; padding: 0; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-panel); color: var(--text-muted); cursor: pointer; }
@@ -1609,3 +1609,21 @@ body.look-pro .mt-prio.p-major { color: #d69e2e; } body.look-pro .mt-prio.p-mino
 }
 .gh-options { margin-top: 12px; }
 .gh-options select { height: 36px; border-radius: 10px; font-weight: 600; }
+
+/* Phones: Tools and the progress report fill the screen like every other window */
+@media (max-width: 640px) {
+  .modal.research-modal, .modal.report-modal { width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; border: 0; }
+  /* Settings ▸ Phases: the phase name gets the first line; task count and buttons the second */
+  .phase-row-top { flex-wrap: wrap; }
+  .phase-row-top .inp { flex: 1 1 calc(100% - 60px); }
+  .phase-row-dates { grid-template-columns: 1fr 1fr; }
+  .phase-row-dates > :last-child { grid-column: 1 / -1; }
+}
+/* Fields ▸ built-in fields on a phone: name and switch on one line, the rename box under them */
+@media (max-width: 560px) {
+  .field-row.label-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "icon text show" "inp inp inp"; row-gap: 10px; }
+  .field-row.label-row > .set-icon { grid-area: icon; }
+  .field-row.label-row > .set-text { grid-area: text; }
+  .field-row.label-row > .inp { grid-area: inp; width: auto; }
+  .field-row.label-row > .switch { grid-area: show; }
+}

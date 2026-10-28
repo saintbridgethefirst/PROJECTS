@@ -5,7 +5,7 @@
 import { startFlag } from './start.js';
 import { APP_NAME, GOOGLE_CLIENT_ID, MS_CLIENT_ID, DEMO_MODE, LIMITS, STUDENT_EMAIL_CHECK, SERVER_EMAILS } from './config.js';
 import { PERMISSIONS, can, roleList, normEmail, isValidEmail, DEFAULT_ROLES, GUEST_HELP } from './permissions.js';
-import { FIELD_TYPES, DEFAULT_LABELS, newId, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS, storedWorkflow, leadsIndex, cleanWorkflow, cleanPurchase, cleanAutos, currencyOf, CURRENCIES, CURRENCY_NAMES, cleanBudget } from './model.js';
+import { FIELD_TYPES, DEFAULT_LABELS, newId, subteamsWithout, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS, storedWorkflow, leadsIndex, cleanWorkflow, cleanPurchase, cleanAutos, currencyOf, CURRENCIES, CURRENCY_NAMES, cleanBudget } from './model.js';
 import { el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
 import { lineIcon } from './line-icons.js';
 import { githubSection } from './github-ui.js';
@@ -46,7 +46,10 @@ export function openSettings(ctx, tab = 'general', focusUid = null) {
       && (!['features', 'workflow', 'fields', 'integrations'].includes(k) || can(T(), me(), 'team.settings')));
     if (!shown.some(([k]) => k === current)) current = 'general';
     nav.replaceChildren(...shown
-      .map(([k, label]) => el('button' + (k === current ? '.on' : ''), { type: 'button', onclick: () => { current = k; render(); } }, label)));
+      .map(([k, label]) => el('button' + (k === current ? '.on' : ''), { type: 'button', 'aria-current': k === current ? 'page' : null, onclick: () => { current = k; render(); } }, label)));
+    // On a phone the sections are a row of tabs that scrolls sideways: keep the open one in view
+    const onBtn = nav.querySelector('button.on');
+    if (onBtn && nav.scrollWidth > nav.clientWidth) { const x = onBtn.getBoundingClientRect().left - nav.getBoundingClientRect().left + nav.scrollLeft; nav.scrollLeft = Math.max(0, x - (nav.clientWidth - onBtn.offsetWidth) / 2); }
     pane.replaceChildren();
     const fn = { general, members, roles, plan, features, workflow, subteams, phases, templates, fields, integrations, danger }[current];
     fn(pane, ctx, { invites, getInvites: () => invites, focusUid, rerender: render });
@@ -685,7 +688,8 @@ export async function removeMember(ctx, uid) {
   if (!can(s.team, s.me, 'members.manage')) return toast('Your role can’t remove members.');
   if (mm.roleId === 'owner') return toast('The owner can’t be removed.');
   if (!confirm(`Remove ${mm.name || mm.email} from ${s.team.name}?\n\nTheir tasks stay on the board under “Former member” until someone moves or deletes them. You can invite them again later.`)) return;
-  await save(ctx, [{ type: 'delete', path: 'members/' + uid }], (mm.name || mm.email) + ' was removed.');
+  const st = subteamsWithout(s.team, uid);   // and out of their sub-teams, so their lead sign-offs go to the admins
+  await save(ctx, [...(st ? [{ type: 'update', path: 'team', data: st }] : []), { type: 'delete', path: 'members/' + uid }], (mm.name || mm.email) + ' was removed.');
 }
 
 async function makeOwner(ctx, mm) {
@@ -706,7 +710,8 @@ async function leaveTeam(ctx) {
   const s = ctx.session;
   if (!can(s.team, s.me, 'members.manage')) { askToLeave(ctx); return; }
   if (!confirm(`Leave ${s.team.name}? You’ll lose access until someone invites you again.`)) return;
-  if (await save(ctx, [{ type: 'delete', path: 'members/' + ctx.user.uid }])) { document.querySelector('.modal-overlay')?.remove(); toast('You left ' + s.team.name + '.'); ctx.goHome(); }
+  const st = subteamsWithout(s.team, ctx.user.uid);
+  if (await save(ctx, [...(st ? [{ type: 'update', path: 'team', data: st }] : []), { type: 'delete', path: 'members/' + ctx.user.uid }])) { document.querySelector('.modal-overlay')?.remove(); toast('You left ' + s.team.name + '.'); ctx.goHome(); }
 }
 
 // ── Roles & permissions ─────────────────────────────────────────────────────

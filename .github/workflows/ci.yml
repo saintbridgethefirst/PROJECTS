@@ -83,8 +83,15 @@ jobs:
       - name: Make sure this is the real site, not the demo
         run: |
           if grep -rq "uni-teamtrack.firebaseapp.com" dist/assets/*.js; then echo "Build points at uni-teamtrack"; else echo "::error::Build has no Firebase project in it — refusing to deploy"; exit 1; fi
+      # Functions' packages are installed before the key is on disk, with install scripts off
+      - name: Install the Cloud Functions packages
+        if: steps.fn.outputs.changed == 'yes'
+        run: cd functions && npm ci --ignore-scripts
+      # The key goes in through an environment variable, never into the script's text
       - name: Firebase credentials
-        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
       - name: Deploy website and security rules
         env: { GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/sa.json' }
         run: |
@@ -96,7 +103,6 @@ jobs:
         if: steps.fn.outputs.changed == 'yes'
         env: { GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/sa.json' }
         run: |
-          (cd functions && npm ci)
           set -o pipefail
           npx firebase deploy --only functions --project uni-teamtrack --non-interactive --force 2>&1 | tee fdeploy.log || {
             grep -iE "error|denied|permission|requires|not enabled|403|401" fdeploy.log | tail -8 | while IFS= read -r l; do echo "::error::$l"; done
@@ -121,7 +127,7 @@ jobs:
       - name: Build the live site
         run: npm run build:live
       - name: Deploy to a preview channel
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a   # v0, pinned: it receives the deploy key
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

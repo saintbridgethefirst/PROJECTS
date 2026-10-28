@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, toast, modal } from './ui.js';
 import { cleanDissertation, newId, DISS_PROPOSAL, dissertationOf, cleanUrl, carryIndexOf } from './model.js';
-import { LEVELS, KINDS, CHAPTER_STATUS, daysLeft, isISO, scheduleStatus, draftState } from './dissertation.js';
+import { LEVELS, KINDS, CHAPTER_STATUS, daysLeft, isISO, scheduleStatus, draftState, supervisorDecision } from './dissertation.js';
 import { linkInfo } from './filehealth.js';
 
 let view = 'overview'; let shownFor = null;   // the sub-view; a freshly opened Tools window starts on the overview
@@ -130,8 +130,8 @@ function chapters(body, { kit, S, D, edit, save }) {
 }
 /** One sent draft: its state from the supervisor's review task, the file, and (for the supervisor) the decision buttons. */
 function draftChip(kit, c, d, me) {
-  const task = kit.taskById(d.taskId);
-  const st = draftState(task);
+  const task = kit.taskById(d.taskId); const ss = kit.S();
+  const st = draftState(task, undefined, task ? supervisorDecision(ss.comments, ss.members, task.id) : '');
   const mine = task && task.ownerUid === me && (st.state === 'waiting' || st.state === 'late');
   const open = () => { kit.R.m.close(); if (task && window.boardOpenTask) window.boardOpenTask(task.id); };
   return el('div.diss-draft', { dataset: { draft: d.taskId, state: st.state } },
@@ -209,7 +209,7 @@ function decideDialog(kit, c, d, task, approve) {
     const me = kit.me();
     Object.assign(hit.task, { status: approve ? 'Approved' : 'Changes needed', flag: 'completed', completedDate: todayISO() });
     (hit.task.subtasks || []).forEach(x => { x.completed = true; });
-    hit.task.history = (hit.task.history || []).concat({ time: window.getTimestamp(), user: me.name, field: 'Review', original: '', updated: approve ? 'Approved' : 'Changes needed' }).slice(-100);
+    hit.task.history = [{ time: window.getTimestamp(), user: me.name, field: 'Review', original: '', updated: approve ? 'Approved' : 'Changes needed' }, ...(hit.task.history || [])].slice(0, 100);   // newest first, like every task's history
     window.boardApplyModel(model); window.boardCommit('review-' + Date.now());
     const student = task.supportPersonId;
     const text = (approve ? '✅ Approved.' : '✏️ Changes needed.') + (fb.value.trim() ? ' ' + fb.value.trim() : '');

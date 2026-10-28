@@ -29,6 +29,8 @@ const BUTTONS = [
 // Badge emoji that carry meaning → an icon instead of nothing.
 const BADGE = { '⏱': 'timer', '🕒': 'timer', '📅': 'calendar', '📆': 'calendar', '☑': 'square-check', '✅': 'square-check', '💬': 'message-square', '⚠': 'triangle-alert',
   '🔒': 'lock', '⏳': 'hourglass', '⏰': 'clock', '🎯': 'target', '📎': 'paperclip', '🔗': 'link', '📌': 'pin', '🔁': 'repeat', '⛓': 'link', '🔼': 'chevron-up', '🔽': 'chevron-down', '⏫': 'chevrons-up', '⛔': 'octagon-alert' };
+// Buttons that are only an emoji → this icon, so they aren't left empty.
+const ONLY_ICON = { '❌': 'x', '✖': 'x', '🗑': 'trash-2', '✏': 'pencil', '📌': 'pin', '🔗': 'link', '📎': 'paperclip', '⚙': 'settings', '🔍': 'search' };
 // Task icons (and the editor's icon picker) → a matching line icon. Emoji without a match stay hidden.
 const TASK_ICON = { '🔧': 'wrench', '🛠': 'wrench', '⚙': 'settings', '🤖': 'bot', '📐': 'ruler', '📏': 'ruler', '🧪': 'flask-conical', '📊': 'chart-column', '📈': 'chart-column',
   '📝': 'notebook-pen', '📜': 'file-text', '📄': 'file-text', '💡': 'lightbulb', '🚀': 'rocket', '🎯': 'target', '⚡': 'zap', '🔌': 'plug', '🖥': 'monitor', '💻': 'monitor',
@@ -118,5 +120,9 @@ function fixText(n) {
   }
   const stripped = v.replace(EMOJI, '');
   const out = (lead ? stripped.replace(/^\s+/, '') : stripped).replace(/ {2,}/g, ' ');
+  // A button that was only an emoji (❌, 🗑️, ✏️…) would be left empty: give it a line icon instead.
+  if (lead && !out.trim() && p.matches('button, [role=button], a') && !p.querySelector('.look-ico, svg, img') && !p.textContent.replace(EMOJI, '').trim()) {
+    const ic = icon(ONLY_ICON[lead[2].replace(/️/g, '')] || BADGE[lead[2].replace(/️/g, '')] || '', 'ico look-ico'); if (ic) { p.insertBefore(ic, n); iconsAdded.add(ic); }
+  }
   if (out !== v) n.nodeValue = out;
 }

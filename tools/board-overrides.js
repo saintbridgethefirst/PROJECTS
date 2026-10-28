@@ -810,6 +810,17 @@
         function toggleSidebar() { const panel = document.getElementById('editor-panel'); if (panel) setPanel(panel.classList.contains('hidden')); }
         // For the app (the demo tour): show or hide the side panel, and close the open task.
         window.boardPanel = (open) => setPanel(!!open);
+        /** Opening a team: show this week, not the first week of the project. Instant (no smooth scroll), and only
+         *  sideways: the week starts just right of the people and category columns (centred on a phone). */
+        window.boardShowThisWeek = () => {
+            const el = document.querySelector('.header-week.current-week'); const cc = document.getElementById('canvas-container');
+            if (!el || !cc || document.body.classList.contains('view-kanban') || document.body.classList.contains('view-gantt') || document.body.classList.contains('view-list')) return false;
+            const brand = document.getElementById('brand-block'); const left = brand ? brand.getBoundingClientRect().right : cc.getBoundingClientRect().left;
+            const r = el.getBoundingClientRect(); const room = cc.getBoundingClientRect().right - left;
+            const prev = cc.style.scrollBehavior; cc.style.scrollBehavior = 'auto';
+            cc.scrollLeft += r.width + 40 > room ? (r.left - left) - Math.max(0, (room - r.width) / 2) : (r.left - left) - 24;
+            cc.style.scrollBehavior = prev; return true;
+        };
         window.boardCloseEditor = () => { closeEditor(); render(); };
         window.boardEditorTab = (k) => { if (ED_TABS.some(t => t[0] === k)) showEdTab(k); };
         (function initCompactLayout() {
@@ -1702,7 +1713,9 @@
                 });
                 if (others.length) { out.push(h('h4', 'so-h', 'Waiting for someone else (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(({ l, who }) => ul.appendChild(h('li', '', (l.task.name || 'Untitled task') + ' · ' + l.person.name + ' · waiting for ' + who.label))); out.push(ul); }
                 if (recent.length) { out.push(h('h4', 'so-h', 'Recently decided')); const ul = h('ul', 'so-recent'); recent.forEach(l => { const so = l.task.signoff; const li = h('li'); li.append(h('span', so.status === 'approved' ? 'so-ok' : 'so-ch', so.status === 'approved' ? 'Approved' : 'Changes requested'), ' · ' + (l.task.name || 'Untitled task') + ' (' + l.person.name + ')' + (so.note ? ': “' + so.note + '”' : '') + ' · ' + so.approverName + ', ' + soAgo(so.decidedAt)); ul.appendChild(li); }); out.push(ul); }
-                m.body.replaceChildren(...requestCards(h), ...out, ...purchaseCards(h));
+                const parts = [...requestCards(h), ...out, ...purchaseCards(h)];
+                if (!parts.length) parts.push(h('p', 'hint so-empty', 'Nothing is waiting for approval. Sign-offs, purchases over the approval limit and requests to leave or to delete a task show up here.'));
+                m.body.replaceChildren(...parts);
             };
             m.box.__draw = draw; draw();
         }
@@ -2909,13 +2922,15 @@
             const owner = taskOwner(task); const mayLog = TT.canEditOwner(owner);
             // A carried-forward task is one piece of work: hours from every week's copy count toward its estimate.
             const chain = carryChain(task); const copies = chain ? chain.map(l => l.task) : [task];
-            const total = Math.round(copies.reduce((a, t) => a + loggedOf(t), 0) * 100) / 100; const est = TT.feature('planning') ? task.effort : null;
+            // Older copies may hold the same entries (carried before copies started empty): each entry counts once.
+            const entries = TT.uniqueTimeEntries(copies);
+            const total = Math.round(entries.reduce((a, x) => a + (Number(x.e.hours) || 0), 0) * 100) / 100; const est = TT.feature('planning') ? task.effort : null;
             const head = document.createElement('div'); head.className = 'time-head';
             const b = document.createElement('b'); b.textContent = fmtHours(total) || '0h'; head.appendChild(b);
             if (est) { head.append(' of ' + fmtHours(est) + ' estimated'); const bar = document.createElement('div'); bar.className = 'fin-bar' + (total > est ? ' over' : ''); const i = document.createElement('i'); i.style.width = Math.min(100, total / est * 100).toFixed(1) + '%'; bar.appendChild(i); head.appendChild(bar); }
             s.appendChild(head);
             const weekOfCopy = new Map(chain ? chain.map(l => [l.task.id, weekTitle(l.weekKey)]) : []);
-            const log = copies.flatMap(t => (t.timeLog || []).map(e => ({ ...e, _copy: t }))).sort((a, c) => (c.date || '').localeCompare(a.date || ''));
+            const log = entries.map(x => ({ ...x.e, _copy: x.task })).sort((a, c) => (c.date || '').localeCompare(a.date || ''));
             if (log.length) {
                 const ul = document.createElement('div'); ul.className = 'time-list';
                 log.slice(0, 12).forEach(e => {
@@ -2950,8 +2965,13 @@
         /** Every logged hour (for Tools ▸ Timesheet). */
         window.boardTimeEntries = function () {
             const out = [];
-            const locs = allTaskLocs(); const roots = carryRootMap(locs);
-            locs.forEach(l => (l.task.timeLog || []).forEach(e => out.push({ ...e, taskId: l.task.id, chainId: roots.get(l.task.id) || l.task.id, taskName: l.task.name, owner: l.person.name, effort: l.task.effort ?? null })));
+            const locs = allTaskLocs(); const roots = carryRootMap(locs); const seenEntry = new Set();
+            // An entry copied onto a carried copy (before copies started empty) is counted once per chain.
+            locs.forEach(l => (l.task.timeLog || []).forEach(e => {
+                const chainId = roots.get(l.task.id) || l.task.id; const k = chainId + '|' + (e.id || [e.uid, e.date, e.hours, e.note].join('|'));
+                if (seenEntry.has(k)) return; seenEntry.add(k);
+                out.push({ ...e, taskId: l.task.id, chainId, taskName: l.task.name, owner: l.person.name, effort: l.task.effort ?? null });
+            }));
             return out;
         };
 

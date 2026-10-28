@@ -53,8 +53,10 @@ export async function openDeleteAccount(app) {
     go.disabled = true; go.textContent = 'Deleting…';
     try {
       const r = await app.backend.data.callFunction('deleteMyAccount', { confirm: 'DELETE' });
+      const bye = 'Your account was deleted' + (r && r.teamsDeleted ? ', with ' + r.teamsDeleted + ' team' + (r.teamsDeleted === 1 ? '' : 's') + ' only you were in' : '') + '. Goodbye 👋';
+      try { sessionStorage.setItem('tt_flash', bye); } catch { /* private mode */ }   // signing out reloads the page
       m.close(); try { await app.backend.auth.signOut(); } catch { /* already gone */ }
-      location.hash = ''; toast('Your account was deleted' + (r && r.teamsDeleted ? ', with ' + r.teamsDeleted + ' team' + (r.teamsDeleted === 1 ? '' : 's') + ' only you were in' : '') + '. Goodbye 👋', 8000);
+      location.hash = ''; toast(bye, 8000);
     } catch (e) {
       go.textContent = 'Delete my account forever'; go.disabled = false;
       const recent = e && e.details && e.details.reason === 'recent-login';

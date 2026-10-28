@@ -3,6 +3,7 @@
 //  tested on their own: npm test in this folder).
 // ─────────────────────────────────────────────────────────────────────────────
 import crypto from 'node:crypto';
+import { latestCopies } from './ghsync.js';
 
 /** Same list as ACADEMIC_EMAIL in src/model.js and academic() in firestore.rules. */
 export const ACADEMIC_EMAIL = /@([a-z0-9-]+\.)+(ac\.[a-z]{2}|edu(\.[a-z]{2})?)$|@([a-z0-9-]+\.)*(ethz|epfl)\.ch$/;
@@ -74,10 +75,12 @@ export function mentionEmail({ appName = 'Trawpie', appUrl, author, teamName, ta
   return { subject, text: textBody, html };
 }
 
-/** A person's open tasks in one team, split into overdue and due in the next 7 days. today = 'YYYY-MM-DD'. */
-export function digestItems(tasks, uid, today) {
+/** A person's open tasks in one team, split into overdue and due in the next 7 days. today = 'YYYY-MM-DD'.
+ *  tasks: every task of the team with its id (done ones too, so a finished chain is left out); weeks: the team's weeks. */
+export function digestItems(tasks, uid, today, weeks) {
   const plus7 = new Date(Date.parse(today + 'T12:00:00Z') + 7 * 864e5).toISOString().slice(0, 10);
-  const mine = (tasks || []).filter(t => t && t.ownerUid === uid && t.flag !== 'completed' && /^\d{4}-\d{2}-\d{2}$/.test(t.dueDate || ''));
+  // A task carried into later weeks is one piece of work: only its newest copy counts (and not once it's done).
+  const mine = latestCopies(tasks, weeks).filter(t => t && t.ownerUid === uid && t.flag !== 'completed' && /^\d{4}-\d{2}-\d{2}$/.test(t.dueDate || ''));
   const byDue = (a, b) => a.dueDate.localeCompare(b.dueDate) || String(a.name).localeCompare(String(b.name));
   return { overdue: mine.filter(t => t.dueDate < today).sort(byDue), soon: mine.filter(t => t.dueDate >= today && t.dueDate <= plus7).sort(byDue) };
 }
@@ -99,10 +102,14 @@ export function digestEmail({ appName = 'Trawpie', appUrl, name, teams, today })
 }
 
 // ── Invitations ─────────────────────────────────────────────────────────────
-export const MAX_INVITE_EMAILS_PER_DAY = 60;   // per person inviting, to stop the app being used to spam
+export const MAX_INVITE_EMAILS_PER_DAY = 60;   // per person inviting (with a verified email), to stop the app being used to spam
+export const MAX_INVITE_EMAILS_UNVERIFIED = 10; // per person inviting whose own email isn't verified yet
+export const MAX_INVITE_EMAILS_ALL = 2000;      // all invitations together in a day: a backstop against many throwaway accounts
+export const INVITE_RESEND_MS = 3600e3;         // the same invitation is emailed again at most once an hour
 /** Send an invitation email for this write? Only for a new invitation or one re-sent (new createdAt). */
-export const inviteChanged = (before, after) => !!after && !!after.email && (!before || before.createdAt !== after.createdAt);
+export const inviteChanged = (before, after) => !!after && !!after.email && (!before || (before.createdAt !== after.createdAt && !(Number(before.emailedAt) > Date.now() - INVITE_RESEND_MS)));
 export function inviteEmail({ appName = 'Trawpie', appUrl, inviter, teamName, roleName, email }) {
+  inviter = String(inviter || 'A teammate').replace(/\s+/g, ' ').slice(0, 80); teamName = String(teamName || 'a team').replace(/\s+/g, ' ').slice(0, 80);
   const subject = inviter + ' invited you to ' + teamName + ' on ' + appName;
   const text = inviter + ' invited you to join "' + teamName + '" on ' + appName + ' as ' + roleName + '.\n\n' +
     '1. Open ' + appUrl + '\n2. Sign in, or create an account, with this email address: ' + email + '\n3. Press "Join team" under Invitations.\n\nIf you weren\'t expecting this, ignore this email.';
@@ -162,18 +169,23 @@ const NAME_KEYS = new Set(['authorName', 'createdByName', 'updatedByName', 'byNa
  * `email` fields) with ''. Walks nested lists/objects (task history). Returns { value, changed }
  * where value holds only the top-level fields that changed (for an update).
  */
-export function scrubPerson(doc, names, emails) {
-  const walk = (v, key) => {
+// A name field and the id field beside it that says whose name it is
+const NAME_ID = { authorName: 'authorUid', createdByName: 'createdBy', byName: 'by', approverName: 'approver', invitedByName: 'invitedBy', userName: 'uid' };
+/** `uid` (optional): a name whose record says, by id, that it is someone else's stays (two people can share a
+ *  name, and a name alone mustn't erase someone else's work). */
+export function scrubPerson(doc, names, emails, uid = '') {
+  const walk = (v, key, parent) => {
     if (typeof v === 'string') {
-      if (NAME_KEYS.has(key) && names.has(v.trim())) return FORMER_MEMBER;
+      const idKey = NAME_ID[key]; const owner = idKey && parent && typeof parent[idKey] === 'string' ? parent[idKey] : '';
+      if (NAME_KEYS.has(key) && names.has(v.trim()) && !(uid && owner && owner !== uid)) return FORMER_MEMBER;
       if (key === 'email' && emails.has(v.trim().toLowerCase())) return '';
       return v;
     }
-    if (Array.isArray(v)) { let ch = false; const out = v.map(x => { const y = walk(x, key); if (y !== x) ch = true; return y; }); return ch ? out : v; }
-    if (v && typeof v === 'object' && v.constructor === Object) { let ch = false; const out = {}; for (const [k, x] of Object.entries(v)) { out[k] = walk(x, k); if (out[k] !== x) ch = true; } return ch ? out : v; }
+    if (Array.isArray(v)) { let ch = false; const out = v.map(x => { const y = walk(x, key, parent); if (y !== x) ch = true; return y; }); return ch ? out : v; }
+    if (v && typeof v === 'object' && v.constructor === Object) { let ch = false; const out = {}; for (const [k, x] of Object.entries(v)) { out[k] = walk(x, k, v); if (out[k] !== x) ch = true; } return ch ? out : v; }
     return v;
   };
-  const value = {};
-  for (const [k, x] of Object.entries(doc || {})) { const y = walk(x, k); if (y !== x) value[k] = y; }
+  const value = {}; const d = doc || {};
+  for (const [k, x] of Object.entries(d)) { const y = walk(x, k, d); if (y !== x) value[k] = y; }
   return { value, changed: Object.keys(value).length > 0 };
 }

@@ -117,8 +117,10 @@ export function openDissertationSetup(ctx, { onDone, prefill } = {}) {
     if (st.supervisor && !isValidEmail(st.supervisor)) { toast('That supervisor email doesn’t look right.'); return; }
     go.disabled = true; go.textContent = 'Making your plan…';
     try {
-      const n = await applyDissertationPlan(ctx, plan, { supervisor: st.supervisor, replace: !again });
-      m.close(); toast('Your plan is ready: ' + n + ' tasks across ' + plan.summary.weeks + ' weeks.' + (st.supervisor ? ' ' + st.supervisor + ' is invited as your supervisor.' : ''), 7000);
+      const { added, moved } = await applyDissertationPlan(ctx, plan, { supervisor: st.supervisor, replace: !again });
+      const sup = st.supervisor ? ' ' + st.supervisor + ' is invited as your supervisor.' : '';
+      m.close(); toast(again ? 'Plan updated: ' + moved + (moved === 1 ? ' task' : ' tasks') + ' moved to new dates' + (added ? ', ' + added + ' added' : '') + '.' + sup
+        : 'Your plan is ready: ' + added + ' tasks across ' + plan.summary.weeks + ' weeks.' + sup, 7000);
       if (onDone) onDone(plan);
     } catch (e) { console.error(e); toast('Couldn’t make the plan: ' + (e.message || e), 6000); go.disabled = false; go.textContent = again ? 'Update my plan' : 'Make my plan'; }
   } }, again ? 'Update my plan' : 'Make my plan');
@@ -162,10 +164,27 @@ export async function applyDissertationPlan(ctx, plan, { supervisor = '', replac
   });
   model.db.forEach(p => p.categories.forEach(c => model.weeksData.forEach(w => { if (!Array.isArray(c[w.key])) c[w.key] = []; })));
   const mondayOf = (iso) => { const d = new Date(iso + 'T12:00:00Z'); return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 864e5).toISOString().slice(0, 10); };
-  let added = 0;
+  // Updating a plan (not a new team): the plan's tasks already on the board are moved to their new dates,
+  // keeping their history, comments and progress; only tasks the new plan adds are added. Finished ones stay put.
+  const weekIdx = new Map(model.weeksData.map((w, i) => [w.key, i]));
+  const existing = new Map();   // phaseId|name → the newest copy of that task on my row
+  if (!replace) me.categories.forEach(c => model.weeksData.forEach(w => (c[w.key] || []).forEach((task, i) => {
+    const k = (task.phaseId || '') + '|' + String(task.name || '').trim().toLowerCase(); const cur = existing.get(k);
+    if (!cur || weekIdx.get(w.key) >= weekIdx.get(cur.wk)) existing.set(k, { task, cat: c, wk: w.key, i });
+  })));
+  let added = 0, moved = 0;
   plan.tasks.forEach(t => {
     const wk = weekFor[mondayOf(t.due)] || backlog; if (!wk) return;
     const cat = rows[t.phaseId] || me.categories[0];
+    const had = existing.get((t.phaseId || '') + '|' + t.name.slice(0, 500).trim().toLowerCase());
+    if (had) {
+      if (had.task.flag === 'completed' || (had.task.dueDate === t.due && had.wk === wk.key)) return;
+      const from = had.task.dueDate;
+      had.task.dueDate = t.due;
+      (had.task.history = had.task.history || []).unshift({ time: window.getTimestamp(), user: TT.me.name, field: 'Deadline', original: from || '', updated: t.due + ' (plan updated)' });
+      if (had.wk !== wk.key) { const list = had.cat[had.wk]; const at = list.indexOf(had.task); if (at >= 0) list.splice(at, 1); had.cat[wk.key].push(had.task); }
+      moved++; return;
+    }
     cat[wk.key].push({
       id: gid(), type: 'task', name: t.name.slice(0, 500), priority: t.priority, status: '', jiraId: '',
       supportPersonId: null, supportPersonId2: null, flag: 'none', dueDate: t.due, completedDate: '', phaseId: t.phaseId,
@@ -181,7 +200,8 @@ export async function applyDissertationPlan(ctx, plan, { supervisor = '', replac
   const autos = cleanAutos({ ...(T.autos || {}), carry: true, carryWarn: 2, carryMakeWeeks: plan.level === 'phd' || !!(T.autos && T.autos.carryMakeWeeks) });
   const prev = dissertationOf(ctx.session) || {};
   const dissertation = cleanDissertation({ ...prev, level: plan.level, kind: plan.kind, start: plan.start, handIn: plan.handIn, dates: plan.dates || prev.dates || {},
-    chapters: plan.chapters.map(c => { const old = (prev.chapters || []).find(x => x.id === c.id); return { ...c, words: old ? old.words : c.words || 0, status: old ? old.status : c.status || 'todo' }; }),
+    // A chapter keeps its word count, status and the drafts sent to the supervisor
+    chapters: plan.chapters.map(c => { const old = (prev.chapters || []).find(x => x.id === c.id); return { ...c, words: old ? old.words : c.words || 0, status: old ? old.status : c.status || 'todo', drafts: old ? old.drafts || [] : [] }; }),
     setupAt: Date.now() });
   const data = { phases: plan.phases, autos };
   if (!(T.roles || {}).supervisor) data.roles = { ...T.roles, supervisor: SUPERVISOR_ROLE };
@@ -190,5 +210,5 @@ export async function applyDissertationPlan(ctx, plan, { supervisor = '', replac
   // The invitation is a second write: the security rules check its role against the team as saved.
   const email = normEmail(supervisor || '');
   if (email && isValidEmail(email) && email !== normEmail(TT.me.email)) await ctx.writeOps([{ type: 'set', path: 'invites/' + email, data: { email, roleId: 'supervisor', teamName: T.name, invitedBy: TT.me.uid, invitedByName: TT.me.name, createdAt: Date.now() } }]);
-  return added;
+  return { added, moved };
 }

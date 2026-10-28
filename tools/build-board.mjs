@@ -113,7 +113,7 @@ const patches = [
    "<span class=\"gt-name\">' + PRIO_ICON[r.t.priority] + ' ' + esc(r.t.name) + (r.carryCount > 1 ? ' <span class=\"gt-carry\" title=\"Carried forward across ' + r.carryCount + ' weeks\">↪ ' + r.carryCount + ' wks</span>' : '') + '</span></div><div class=\"gt-track\""],
   // Sub-task rows in the editor: a button to turn one into a task of its own
   ['<button class="btn-danger" style="padding:4px 8px; width:auto; border:none; background:transparent; cursor:pointer;" onclick="deleteSubtask(event, \'${nodeData.id}\', \'${st.id}\')" title="Delete Subtask">❌</button>',
-   '<button type="button" class="st-promote" onclick="promoteSubtask(event, \'${nodeData.id}\', \'${st.id}\')" title="Make this sub-task a task of its own" aria-label="Make “${esc(st.title)}” a task of its own">↥ Task</button><button class="btn-danger" style="padding:4px 8px; width:auto; border:none; background:transparent; cursor:pointer;" onclick="deleteSubtask(event, \'${nodeData.id}\', \'${st.id}\')" title="Delete Subtask">❌</button>'],
+   '<button type="button" class="st-promote" onclick="promoteSubtask(event, \'${nodeData.id}\', \'${st.id}\')" title="Make this sub-task a task of its own" aria-label="Make “${esc(st.title)}” a task of its own">↥ Task</button><button type="button" class="btn-danger st-del" style="padding:4px 8px; width:auto; border:none; background:transparent; cursor:pointer;" onclick="deleteSubtask(event, \'${nodeData.id}\', \'${st.id}\')" title="Delete sub-task" aria-label="Delete sub-task “${esc(st.title)}”">❌</button>'],
 ];
 // Speed (stress test): the side-panel search read every card's laid-out text on every redraw.
 patches.push(["            const query = document.getElementById('search-tasks').value.toLowerCase();\n            document.querySelectorAll('.task-card').forEach(card => {\n                const text = card.innerText.toLowerCase();",
@@ -128,6 +128,20 @@ patches.push(["                svg.appendChild(path);\n            });\n        
   "                frag.appendChild(path);\n            });\n            svg.appendChild(frag);\n        }\n        let linesQueued = false; const queueLines = () => { if (linesQueued) return; linesQueued = true; requestAnimationFrame(() => { linesQueued = false; drawLines(); }); };\n        window.addEventListener('resize', queueLines);\n        document.addEventListener('contentvisibilityautostatechange', queueLines, true);"]);
 // Scrolling fires many events per frame: draw the connector lines at most once per frame.
 patches.push(["canvasContainer.addEventListener('scroll', () => { requestAnimationFrame(drawLines); });", "canvasContainer.addEventListener('scroll', queueLines, { passive: true });"]);
+// Carrying a task forward (menu, the editor's button, Alt/Ctrl-drag): the copy points back to the first one, starts
+// with no hours logged, doesn't start a new repeat series and keeps an open sign-off request (TT.carryFields).
+patches.push(["let clonedTask = JSON.parse(JSON.stringify(originalTask)); \n                    clonedTask.id = generateId(); ",
+  "let clonedTask = JSON.parse(JSON.stringify(originalTask)); \n                    Object.assign(clonedTask, TT.carryFields(originalTask)); clonedTask.id = generateId(); "]);
+patches.push(["let clonedTask = JSON.parse(JSON.stringify(activeNode)); \n                clonedTask.id = generateId(); ",
+  "let clonedTask = JSON.parse(JSON.stringify(activeNode)); \n                Object.assign(clonedTask, TT.carryFields(activeNode)); clonedTask.id = generateId(); "]);
+patches.push(["const clone = JSON.parse(JSON.stringify(loc.task)); clone.id = generateId();",
+  "const clone = JSON.parse(JSON.stringify(loc.task)); Object.assign(clone, TT.carryFields(loc.task)); clone.id = generateId();"]);
+// Duplicating a task: the copy starts without the original's sign-off (a new task can't arrive signed off)
+patches.push(["clone.id = generateId(); clone.flag = 'none'; clone.completedDate = ''; clone.history = [];",
+  "clone.id = generateId(); clone.flag = 'none'; clone.completedDate = ''; clone.history = []; clone.signoff = null; clone.carryOf = ''; clone.timeLog = [];"]);
+// A finished task isn't carried forward: the menu doesn't offer it.
+patches.push(["                { icon: '➡️', label: 'Carry forward to ' + (nextW ? nextW.title : 'a new week'), action: () => carryForwardTask(loc) },",
+  "                ...(t.flag === 'completed' ? [] : [{ icon: '➡️', label: 'Carry forward to ' + (nextW ? nextW.title : 'a new week'), action: () => carryForwardTask(loc) }]),"]);
 for (const [a, b] of patches) {
   const n = src.split(a).length - 1;
   if (n !== 1) throw new Error(`Patch anchor found ${n} times: ${a.slice(0, 80)}`);

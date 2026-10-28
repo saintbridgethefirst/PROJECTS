@@ -19,7 +19,7 @@ import { refreshAll } from './stats.js';
 import { connectGithub, disconnectGithub, handleWebhook, setGithubToken, issueAction } from './github.js';
 import { exportUserData, deleteUserData, transferOwnership as transferOwnershipImpl, teamsToHandOver } from './privacy.js';
 import { normEmail, isAcademicEmail, newCode, hashCode, emailKey, checkSend, checkConfirm, codeEmail, CODE_MINUTES, VERIFIED_DAYS,
-  proActive, wants, mentionEmail, digestItems, digestEmail, inviteChanged, inviteEmail, MAX_INVITE_EMAILS_PER_DAY,
+  proActive, wants, mentionEmail, digestItems, digestEmail, inviteChanged, inviteEmail, MAX_INVITE_EMAILS_PER_DAY, MAX_INVITE_EMAILS_UNVERIFIED, MAX_INVITE_EMAILS_ALL, INVITE_RESEND_MS,
   errorSignature, signatureId, shouldAlert, errorAlertEmail, feedbackEmail, MAX_ALERT_EMAILS_PER_DAY, MAX_FEEDBACK_EMAILS_PER_DAY } from './lib.js';
 
 initializeApp();
@@ -136,11 +136,12 @@ export const mondayDigest = onSchedule({ schedule: '0 8 * * 1', timeZone: 'Europ
   const teams = (await db.collection('teams').where('plan.tier', 'in', ['pro', 'org']).get()).docs.filter(d => proActive(d.data().plan, now, d.data().ownerUid));
   const people = new Map();   // uid → { email, name, teams: [] }
   for (const t of teams) {
-    const [members, tasks] = await Promise.all([db.collection('teams/' + t.id + '/members').get(), db.collection('teams/' + t.id + '/tasks').where('flag', '!=', 'completed').get()]);
-    const open = tasks.docs.map(d => d.data());
+    // Every task (done ones too): a chain whose newest copy is done shouldn't show its older copies as overdue
+    const [members, tasks] = await Promise.all([db.collection('teams/' + t.id + '/members').get(), db.collection('teams/' + t.id + '/tasks').get()]);
+    const all = tasks.docs.map(d => ({ id: d.id, ...d.data() })); const weeks = t.data().weeks || [];
     members.docs.forEach(m => {
       const md = m.data(); if (!md.email) return;
-      const items = digestItems(open, m.id, today); if (!items.overdue.length && !items.soon.length) return;
+      const items = digestItems(all, m.id, today, weeks); if (!items.overdue.length && !items.soon.length) return;
       const p = people.get(m.id) || { email: md.email, name: md.name, teams: [] };
       p.teams.push({ teamId: t.id, teamName: t.data().name, ...items }); people.set(m.id, p);
     });
@@ -159,15 +160,31 @@ export const mondayDigest = onSchedule({ schedule: '0 8 * * 1', timeZone: 'Europ
 export const emailInvites = onDocumentWritten({ document: 'teams/{teamId}/invites/{email}', region: REGION, secrets: [RESEND_API_KEY], maxInstances: 3, timeoutSeconds: 60 }, async (event) => {
   const before = event.data.before.exists ? event.data.before.data() : undefined;
   const after = event.data.after.exists ? event.data.after.data() : undefined;
-  if (!inviteChanged(before, after)) return;
+  if (!inviteChanged(before, after)) {
+    // Re-sent within the hour: say so on the invitation instead of emailing again
+    if (after && before && before.createdAt !== after.createdAt && Number(before.emailedAt) > Date.now() - INVITE_RESEND_MS) await event.data.after.ref.update({ emailedAt: before.emailedAt, emailError: 'Emailed less than an hour ago, so not sent again yet.' });
+    return;
+  }
   const ref = event.data.after.ref; const today = new Date().toISOString().slice(0, 10);
-  // At most MAX_INVITE_EMAILS_PER_DAY invitation emails a day per person inviting.
-  const quota = db.doc('inviteQuota/' + (after.invitedBy || 'unknown') + '_' + today);
-  const allowed = await db.runTransaction(async (tx) => { const n = ((await tx.get(quota)).data() || {}).n || 0; if (n >= MAX_INVITE_EMAILS_PER_DAY) return false; tx.set(quota, { n: n + 1, at: Date.now() }); return true; });
-  if (!allowed) { await ref.update({ emailError: 'Daily invitation email limit reached — share the link yourself.' }); return; }
+  // The person inviting is a member who manages members (the rules check invitedBy is them); the email shows
+  // their name as the team knows it, not text typed into the invitation.
+  const inviterUid = String(after.invitedBy || '');
+  const inviter = inviterUid ? (await db.doc('teams/' + event.params.teamId + '/members/' + inviterUid).get()).data() : null;
+  if (!inviter) { await ref.update({ emailError: 'Not sent: the invitation isn’t from a member of this team.' }); return; }
+  const verifiedInviter = await getAuth().getUser(inviterUid).then(u => !!u.emailVerified).catch(() => false);
+  // Limits: per person inviting a day (fewer before they verify their email), and for everyone together.
+  const quota = db.doc('inviteQuota/' + inviterUid + '_' + today); const all = db.doc('inviteQuota/all_' + today);
+  const cap = verifiedInviter ? MAX_INVITE_EMAILS_PER_DAY : MAX_INVITE_EMAILS_UNVERIFIED;
+  const allowed = await db.runTransaction(async (tx) => {
+    const [mine, total] = await Promise.all([tx.get(quota), tx.get(all)]);
+    const n = (mine.data() || {}).n || 0, t = (total.data() || {}).n || 0;
+    if (n >= cap || t >= MAX_INVITE_EMAILS_ALL) return false;
+    tx.set(quota, { n: n + 1, at: Date.now() }); tx.set(all, { n: t + 1, at: Date.now() }); return true;
+  });
+  if (!allowed) { await ref.update({ emailError: 'Daily invitation email limit reached — share the link yourself.' + (verifiedInviter ? '' : ' Verify your email to send more.') }); return; }
   const team = (await db.doc('teams/' + event.params.teamId).get()).data() || {};
   const role = (team.roles && team.roles[after.roleId] && team.roles[after.roleId].name) || after.roleId || 'Member';
-  const mail = inviteEmail({ appName: APP_NAME.value(), appUrl: APP_URL.value(), inviter: after.invitedByName || 'A teammate', teamName: team.name || after.teamName || 'a team', roleName: role, email: after.email });
+  const mail = inviteEmail({ appName: APP_NAME.value(), appUrl: APP_URL.value(), inviter: inviter.name || 'A teammate', teamName: team.name || 'a team', roleName: role, email: after.email });
   const res = await sendMail(after.email, mail, 'invite-' + event.params.teamId + '-' + after.email + '-' + after.createdAt);
   await ref.update(res.ok ? { emailedAt: Date.now(), emailError: '' } : { emailError: res.reason });
 });
@@ -215,7 +232,7 @@ export const alertErrors = onDocumentCreated({ document: 'clientErrors/{id}', re
 // ── Your data (GDPR) ────────────────────────────────────────────────────────
 async function accountOf(uid) {
   const u = await getAuth().getUser(uid);
-  return { uid, email: u.email || '', displayName: u.displayName || '', providers: (u.providerData || []).map(p => p.providerId), createdAt: u.metadata.creationTime || '', lastSignInAt: u.metadata.lastSignInTime || '' };
+  return { uid, email: u.email || '', emailVerified: !!u.emailVerified, displayName: u.displayName || '', providers: (u.providerData || []).map(p => p.providerId), createdAt: u.metadata.creationTime || '', lastSignInAt: u.metadata.lastSignInTime || '' };
 }
 const asHttps = (e) => {
   if (e instanceof HttpsError) return e;
