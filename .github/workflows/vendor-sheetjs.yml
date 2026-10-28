@@ -1,0 +1,46 @@
+# Fetches the spreadsheet library (SheetJS Community Edition) from its official site and commits the
+# package file to vendor/. SheetJS stopped publishing to npm at 0.18.5, which has known flaws when reading
+# crafted files; newer versions are only on cdn.sheetjs.com, so the app installs them from this file.
+# Run it from the Actions tab ("Run workflow") to pick up a newer version; nothing runs it automatically.
+name: Vendor SheetJS
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to fetch (blank = the latest)
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download from cdn.sheetjs.com
+        env:
+          WANT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          case "$WANT" in ''|latest) WANT=latest ;; *) echo "$WANT" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "Bad version"; exit 1; } ;; esac
+          curl -fsSL --proto '=https' "https://cdn.sheetjs.com/xlsx-$WANT/xlsx-$WANT.tgz" -o /tmp/xlsx.tgz
+          VER=$(tar -xzOf /tmp/xlsx.tgz package/package.json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const p=JSON.parse(s);if(p.name!=="xlsx")process.exit(1);console.log(p.version)})')
+          echo "$VER" | grep -Eq '^0\.(19|2[0-9])\.[0-9]+$' || { echo "Unexpected version $VER"; exit 1; }
+          mkdir -p vendor
+          rm -f vendor/xlsx-*.tgz
+          cp /tmp/xlsx.tgz "vendor/xlsx-$VER.tgz"
+          echo "VER=$VER" >> "$GITHUB_ENV"
+          sha256sum "vendor/xlsx-$VER.tgz" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A vendor
+          if git diff --cached --quiet; then echo "Already up to date"; exit 0; fi
+          git commit -m "Vendor SheetJS $VER from cdn.sheetjs.com"
+          git push
