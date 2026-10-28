@@ -131,3 +131,83 @@ test('issues made before the rename (body says "TeamTrack: TT-…") still link t
   const ref = taskRef('t_old');
   assert.deepEqual([...findRefs('Old issue\n\nTeamTrack: ' + ref)], [ref]);
 });
+
+test('public repositories: outsiders can’t make, link or finish tasks', async () => {
+  const { planGithubEvent, taskRef, trustedAuthor } = await import('../functions/ghsync.js');
+  const pub = { full_name: 'uni/rover', private: false };
+  const ref = taskRef('t_frame');
+  assert.equal(trustedAuthor({ repository: { full_name: 'x/y' } }, {}), true, 'a private (or unmarked) repository trusts everyone who can post');
+  assert.equal(trustedAuthor({ repository: pub }, { author_association: 'COLLABORATOR' }), true);
+  assert.equal(trustedAuthor({ repository: pub }, { author_association: 'CONTRIBUTOR' }), false, 'a past contributor isn’t a collaborator');
+  const open = (assoc, extra = {}) => ({ action: 'opened', repository: pub, sender: { login: 'stranger' }, issue: { number: 50, title: 'Spam ' + ref, body: '', html_url: 'https://github.com/uni/rover/issues/50', state: 'open', user: { login: 'stranger' }, author_association: assoc, ...extra } });
+  let plan = planGithubEvent('issues', open('NONE'), [A], S);
+  assert.equal(plan.create, null, 'no task from an outsider’s issue'); assert.equal(plan.links.length, 0, 'and no link');
+  plan = planGithubEvent('issues', open('MEMBER'), [A], S);
+  assert.deepEqual(plan.links.map(l => l.taskId), ['t_frame'], 'a member’s issue links');
+  plan = planGithubEvent('issues', { ...open('NONE'), action: 'opened', issue: { ...open('NONE').issue, title: 'Unrelated' } }, [A], S);
+  assert.equal(plan.create, null);
+  assert.ok(planGithubEvent('issues', { ...open('OWNER'), issue: { ...open('OWNER').issue, title: 'Unrelated' } }, [A], S).create, 'the owner’s issue becomes a task');
+  // An issue a member linked by hand, closed by the outsider who opened it: the state changes, the task isn’t finished.
+  const url = 'https://github.com/uni/rover/issues/7';
+  const T = [{ ...B, attachments: [{ provider: 'github', url, state: 'open' }] }];
+  const closed = (who) => ({ action: 'closed', repository: pub, sender: { login: who }, issue: { number: 7, title: 'x', html_url: url, state: 'closed', state_reason: 'completed', user: { login: 'stranger' }, author_association: 'NONE' } });
+  plan = planGithubEvent('issues', closed('stranger'), T, S);
+  assert.equal(plan.finish.length, 0); assert.equal(plan.states[0].state, 'closed');
+  assert.equal(planGithubEvent('issues', closed('maintainer'), T, S).finish.length, 1, 'closed by someone with access: finished');
+  // An outsider’s pull request links only when merged.
+  const pr = (action, merged) => ({ action, repository: pub, pull_request: { number: 9, title: 'Fix ' + ref, body: '', html_url: 'https://github.com/uni/rover/pull/9', head: { ref: 'fix' }, state: action === 'closed' ? 'closed' : 'open', merged, author_association: 'FIRST_TIME_CONTRIBUTOR' } });
+  assert.equal(planGithubEvent('pull_request', pr('opened', false), [A], S).links.length, 0);
+  plan = planGithubEvent('pull_request', pr('closed', true), [A], S);
+  assert.equal(plan.links.length, 1); assert.equal(plan.finish.length, 1, 'merged by a maintainer: linked and finished');
+});
+
+// A small stand-in for Firestore: enough for the webhook and the token calls.
+function memDb(init) {
+  const docs = new Map(Object.entries(init).map(([k, v]) => [k, structuredClone(v)]));
+  const snap = (path) => ({ exists: docs.has(path), id: path.split('/').pop(), ref: ref(path), data: () => structuredClone(docs.get(path)) });
+  const setAt = (o, k, v) => { const ks = k.split('.'); let c = o; ks.slice(0, -1).forEach(x => { c[x] = c[x] && typeof c[x] === 'object' ? c[x] : {}; c = c[x]; }); c[ks.at(-1)] = v; };
+  const apply = { set: (p, d, o) => docs.set(p, o && o.merge ? { ...(docs.get(p) || {}), ...structuredClone(d) } : structuredClone(d)),
+    update: (p, d) => { if (!docs.has(p)) throw new Error('No document to update: ' + p); const cur = docs.get(p); Object.entries(d).forEach(([k, v]) => setAt(cur, k, structuredClone(v))); },
+    delete: (p) => docs.delete(p) };
+  function ref(path) { return { path, id: path.split('/').pop(), get: async () => snap(path), set: async (d, o) => apply.set(path, d, o), update: async (d) => apply.update(path, d), delete: async () => apply.delete(path) }; }
+  const writer = () => { const q = []; return { set: (r, d, o) => q.push(() => apply.set(r.path, d, o)), update: (r, d) => q.push(() => apply.update(r.path, d)), delete: (r) => q.push(() => apply.delete(r.path)), run: () => q.forEach(f => f()) }; };
+  return {
+    docs,
+    doc: ref,
+    collection: (p) => ({ get: async () => ({ docs: [...docs.keys()].filter(k => k.startsWith(p + '/') && !k.slice(p.length + 1).includes('/')).map(snap) }) }),
+    batch: () => { const w = writer(); return { ...w, commit: async () => w.run() }; },
+    runTransaction: async (fn) => { const w = writer(); const r = await fn({ get: async (r0) => snap(r0.path), ...w }); w.run(); return r; },
+  };
+}
+
+test('webhook: a delivery is applied once, even if GitHub sends it again', async () => {
+  const { handleWebhook } = await import('../functions/github.js');
+  const crypto = await import('node:crypto');
+  const db = memDb({
+    'teams/T': { github: { repo: 'uni/rover', issues: true, done: true, owner: 'u1' }, ownerUid: 'u1', weeks: [{ key: 'w1', startDate: '2026-10-26' }] },
+    'teams/T/private/github': { secret: 's3cret', repo: 'uni/rover' },
+    'teams/T/categories/c1': { ownerUid: 'u1', order: 0 },
+  });
+  const body = Buffer.from(JSON.stringify({ action: 'opened', repository: { full_name: 'uni/rover', private: true, id: 5 }, issue: { number: 3, title: 'Motor stalls', body: '', html_url: 'https://github.com/uni/rover/issues/3', state: 'open', author_association: 'OWNER' } }));
+  const sig = 'sha256=' + crypto.createHmac('sha256', 's3cret').update(body).digest('hex');
+  const call = () => handleWebhook(db, { teamId: 'T', kind: 'issues', signature: sig, rawBody: body, delivery: '72d3162e-cc78-11e3-81ab-4c9367dc0958' });
+  const first = await call();
+  assert.equal(first.status, 200); assert.equal(first.body.created, 1);
+  const again = await call();
+  assert.equal(again.body.duplicate, true, 'the same delivery id is skipped');
+  assert.equal([...db.docs.keys()].filter(k => k.startsWith('teams/T/tasks/')).length, 1, 'one task, not two');
+  assert.deepEqual(db.docs.get('teams/T/private/github').seen, ['72d3162e-cc78-11e3-81ab-4c9367dc0958']);
+});
+
+test('GitHub tokens: only fine-grained ones; a stored classic token is refused', async () => {
+  const { setGithubToken, issueAction, isClassicToken } = await import('../functions/github.js');
+  assert.equal(isClassicToken('ghp_' + 'a'.repeat(36)), true); assert.equal(isClassicToken('github_pat_' + 'a'.repeat(40)), false);
+  const db = memDb({
+    'teams/T': { github: { repo: 'uni/rover' }, roles: {}, ownerUid: 'u1' },
+    'teams/T/members/u1': { roleId: 'owner', name: 'Owner' },
+    'teams/T/private/github': { secret: 's', repo: 'uni/rover', token: 'ghp_' + 'b'.repeat(36) },
+    'teams/T/tasks/t1': { name: 'X', ownerUid: 'u1', attachments: [], history: [] },
+  });
+  await assert.rejects(setGithubToken(db, 'u1', 'T', 'ghp_' + 'c'.repeat(36)), (e) => e.code === 'invalid-argument' && /fine-grained/.test(e.message));
+  await assert.rejects(issueAction(db, 'u1', 'T', { taskId: 't1', action: 'create' }), (e) => e.code === 'failed-precondition' && /Classic/.test(e.message), 'never used, even if saved before');
+});

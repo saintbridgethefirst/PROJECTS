@@ -122,6 +122,8 @@ try {
   await A.evaluate(() => TT.openSettings('integrations')); await A.waitForSelector('#gh-token-input');
   await A.fill('#gh-token-input', 'not-a-token'); await A.click('#gh-token-save'); await sleep(300);
   ok(!(await team(A)).doc.github.write, 'a wrong token is refused');
+  await A.fill('#gh-token-input', 'ghp_' + 'a'.repeat(36)); await A.click('#gh-token-save'); await sleep(300);
+  ok(!(await team(A)).doc.github.write && (await A.locator('.toast').last().textContent()).includes('Classic'), 'a classic (ghp_) token is refused, with the reason');
   await A.fill('#gh-token-input', 'github_pat_' + 'a'.repeat(40)); await A.click('#gh-token-save'); await sleep(500);
   ok((await team(A)).doc.github.write === true && !JSON.stringify((await team(A)).doc).includes('github_pat_'), 'saved on the server side only');
   await A.keyboard.press('Escape'); await sleep(200);

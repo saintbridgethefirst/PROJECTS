@@ -58,6 +58,10 @@ Do these once; each takes a couple of minutes.
    Firebase console ▸ App Check ▸ APIs ▸ Cloud Firestore ▸ check the chart shows almost all requests
    as *verified* for a few days ▸ **Enforce**. Then the same for Authentication.
    If people suddenly can't save: App Check ▸ Cloud Firestore ▸ Unenforce, and tell Claude.
+   The server calls (download my data, delete account, student code, GitHub…) have their own switch:
+   Trawpie ▸ Settings ▸ Plan ▸ Platform admin ▸ **App Check on server calls**. It counts calls with and
+   without a valid token; once nearly all are verified, switch **Require App Check** on. Off again there
+   if people can't export, delete their account or connect GitHub.
 4. **Uptime monitoring** (an email within minutes if the site or the GitHub link goes down):
    uptimerobot.com ▸ free account ▸ Add New Monitor ▸ HTTP(s) ▸ `https://trawpie.org` ▸ every 5 minutes.
    Add a second one: Keyword monitor ▸ `https://europe-west2-uni-teamtrack.cloudfunctions.net/githubWebhook`

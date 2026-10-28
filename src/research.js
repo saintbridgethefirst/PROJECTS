@@ -265,8 +265,8 @@ function approvalCell(p) {
   const s = S(); const a = p.approval; const on = purchaseOn(s);
   if (!on && !a) return '';
   const box = el('div.pt-approval');
-  if (a && a.status === 'approved') box.append(el('span.rs-chip.pa-ok', { title: 'Approved ' + fmtMoney(a.amount) + ' by ' + a.approverName + (a.note ? ': ' + a.note : '') }, '✓ Approved · ' + (a.approverName || '').split(' ')[0]));
-  else if (a && a.status === 'waiting') box.append(el('span.rs-chip.pa-wait', { title: 'Asked by ' + a.byName }, '⏳ Waiting for approval'));
+  if (a && a.status === 'approved') box.append(el('span.rs-chip.pa-ok', { title: 'Approved ' + fmtMoney(a.amount) + ' by ' + window.TT.who(a.approver, a.approverName) + (a.note ? ': ' + a.note : '') }, '✓ Approved · ' + window.TT.who(a.approver, a.approverName, '').split(' ')[0]));
+  else if (a && a.status === 'waiting') box.append(el('span.rs-chip.pa-wait', { title: 'Asked by ' + window.TT.who(a.by, a.byName) }, '⏳ Waiting for approval'));
   else if (a && a.status === 'declined') box.append(el('span.rs-chip.pa-no', { title: a.note || '' }, '✕ Declined' + (a.note ? ': ' + a.note : '')));
   if (a && a.status === 'waiting' && canApprovePurchase(s.team, s.me, p)) {
     box.append(el('button.btn.small.primary.pa-approve', { type: 'button', onclick: () => decide(p, 'approved', '') }, 'Approve'),
@@ -531,7 +531,7 @@ function historyCard() {
       el('select', { 'aria-label': 'Show', id: 'fin-log-kind', onchange: (e) => { f.logKind = e.target.value; render(); } }, [['all', 'Everything'], ['budget', 'Budget'], ['spending', 'Spending'], ['income', 'Income'], ['parts', 'Parts']].map(([v, t]) => el('option', { value: v, selected: f.logKind === v }, t)))),
     el('p.hint', {}, 'Every change to the budget, spending, income and parts, with who made it and when. Entries can’t be edited or deleted.'),
     list.length ? el('ul.fin-log-list', {}, shown.map(e => el('li', {}, el('span.fin-log-ic', { 'aria-hidden': 'true' }, LOG_ICON[e.kind] || '•'),
-      el('div.fin-log-body', {}, el('div.fin-log-text', {}, e.text), el('div.hint', {}, (e.byName || 'Someone') + ' · ' + when(e.at)))))) :
+      el('div.fin-log-body', {}, el('div.fin-log-text', {}, e.text), el('div.hint', {}, window.TT.who(e.by, e.byName) + ' · ' + when(e.at)))))) :
       el('p.hint', {}, all.length ? 'Nothing of this kind yet.' : 'Changes will be listed here from now on.'),
     hidden ? el('p.hint.fin-log-older', {}, '🔒 ' + hidden + ' older ' + (hidden === 1 ? 'entry is' : 'entries are') + ' kept and included in the Excel export. The Free plan shows the last ' + P.financeHistoryDays + ' days here; Pro shows everything (Settings ▸ Plan).') : '',
     list.length > LOG_SHOWN ? el('button.link-btn', { type: 'button', id: 'fin-log-more', onclick: () => { R.logAll = !R.logAll; render(); } }, R.logAll ? 'Show fewer' : 'Show all ' + list.length) : '');
@@ -677,7 +677,7 @@ async function exportFinance() {
   X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['Team', s.team.name], ['Currency', currency()], ['Generated', today()], [], ['Budget', sum.total], ['Spent', sum.spent], ['Committed (not paid yet)', sum.committed], ['Remaining', sum.remaining], ['Income received', sum.income], ['Balance (income − spent)', sum.balance]]), 'Summary');
   X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['Budget line', 'Phase', 'Budget', 'Spent', 'Committed', 'Left'], ...sum.lines.map(l => [l.name, ((s.team.phases || []).find(p => p.id === l.phaseId) || {}).name || '', l.amount, l.spent, l.committed, l.amount - l.spent - l.committed]), ['Not assigned', '', 0, sum.other.spent, sum.other.committed, '']]), 'Budget');
   X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['Date', 'Type', 'What', 'Parts', 'Budget line', 'Paid by', 'Amount', 'Receipt link', 'Task', 'Recorded by'], ...(s.expenses || []).slice().sort((a, c) => (a.date || '').localeCompare(c.date || '')).map(x => [x.date, x.kind === 'income' ? 'Income' : 'Spending', x.description, x.partIds.map(partName).join(', '), lineName.get(x.budgetId) || '', x.payer, x.kind === 'income' ? x.amount : -x.amount, x.receiptUrl, (taskById(x.taskId) || {}).name || '', x.createdByName])]), 'Transactions');
-  X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['When', 'Who', 'Area', 'What changed'], ...(s.financeLog || []).slice().sort((a, c) => a.at - c.at).map(e => [new Date(e.at).toLocaleString('en-GB'), e.byName, e.kind, e.text])]), 'History');
+  X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['When', 'Who', 'Area', 'What changed'], ...(s.financeLog || []).slice().sort((a, c) => a.at - c.at).map(e => [new Date(e.at).toLocaleString('en-GB'), window.TT.who(e.by, e.byName), e.kind, e.text])]), 'Change history');   // Excel reserves the sheet name "History"
   X.writeFile(wb, (s.team.name || 'Team').replace(/[^\w-]+/g, '_') + '_Finance_' + today() + '.xlsx');
 }
 

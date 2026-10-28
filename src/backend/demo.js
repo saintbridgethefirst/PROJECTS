@@ -204,6 +204,11 @@ export const data = {
     const myTeams = () => Object.entries(store.teams).filter(([, T]) => T.members && T.members[me.uid]);
     const owned = () => myTeams().filter(([, T]) => T.members[me.uid].roleId === 'owner' && Object.keys(T.members).length > 1).map(([id, T]) => ({ teamId: id, name: T.doc.name, members: Object.keys(T.members).length }));
     if (name === 'myOwnedTeams') return { teams: owned() };
+    if (name === 'appCheckAdmin') {   // demo: nothing to measure, so the counts are zero
+      if (!(store.admins && store.admins[me.uid])) fail('permission-denied', 'Platform admins only.');
+      if (payload && typeof payload.enforce === 'boolean') { root.appCheckCallables = payload.enforce; persist(); }
+      return { enforced: root.appCheckCallables === true, days: Array.from({ length: 7 }, (_, i) => ({ day: new Date(Date.now() - i * 864e5).toISOString().slice(0, 10), verified: 0, unverified: 0 })) };
+    }
     if (name === 'refreshTeamStats') { if (!(store.admins && store.admins[me.uid])) fail('permission-denied', 'Only platform admins can do this.'); notify(); return { teams: Object.keys(store.teams).length, removed: 0 }; }
     if (name === 'exportMyData') {
       const email = normEmail(me.email); const list = (o) => Object.entries(o || {}).map(([id, d]) => ({ id, ...clone(d) }));
@@ -225,7 +230,8 @@ export const data = {
         if ('token' in payload) {
           if (!T.private || !T.private.github) fail('failed-precondition', 'Connect a repository first.');
           const t = String(payload.token || '').trim();
-          if (t && !/^(github_pat_|ghp_)[A-Za-z0-9_]{20,255}$/.test(t)) fail('invalid-argument', 'That doesn’t look like a GitHub token (they start with github_pat_ or ghp_).');
+          if (t && /^ghp_/.test(t)) fail('invalid-argument', 'Classic GitHub tokens (ghp_…) reach every repository you can, so Trawpie no longer uses them. Make a fine-grained token for just this repository (Settings ▸ Integrations ▸ GitHub shows how).');
+          if (t && !/^github_pat_[A-Za-z0-9_]{20,255}$/.test(t)) fail('invalid-argument', 'That doesn’t look like a fine-grained GitHub token (they start with github_pat_).');
           T.private.github.token = t || null; T.doc.github = { ...gh.cleanGithub(T.doc.github), write: !!t }; persist();
           return { write: !!t };
         }

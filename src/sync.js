@@ -131,7 +131,7 @@ export function changesToOps(changes, me) {
     if (c.kind === 'weeks') { ops.push({ type: 'update', path: 'team', data: { weeks: c.after }, base: { weeks: clone(c.before) } }); return; }
     const coll = c.kind === 'cat' ? 'categories' : 'tasks';
     const path = coll + '/' + c.id;
-    if (!c.after) { ops.push({ type: 'delete', path }); return; }
+    if (!c.after) { ops.push({ type: 'delete', path }); if (coll === 'tasks') ops.push(...keepDecision(c.id, c.before, me, now)); return; }
     if (!c.before) {
       const data = { ...c.after };
       if (coll === 'tasks') Object.assign(data, { createdBy: me.uid, createdAt: now, updatedBy: me.name, updatedAt: now });
@@ -152,6 +152,15 @@ export function changesToOps(changes, me) {
   return ops;
 }
 
+/**
+ * Deleting a task whose sign-off was decided (approved, or changes asked): a small record of that decision is
+ * kept beside the deletion (removed/{id}), so undo can bring the task back with it. The rules accept it only
+ * with the task's real deletion, and a new task only carries a decided sign-off when it takes that record back.
+ */
+const decided = (t) => !!(t && t.signoff && t.signoff.status && t.signoff.status !== 'waiting');
+function keepDecision(id, before, me, now) {
+  return decided(before) ? [{ type: 'set', path: 'removed/' + id, data: { signoff: before.signoff, name: before.name || '', ownerUid: before.ownerUid || '', by: me.uid, at: now } }] : [];
+}
 /** Ops that take entities back (undo) or forward (redo) to `which` side of my changes. `current(c)`: the entity
  *  as it is now (the week list for kind 'weeks'), so only what I changed is undone and a teammate's later edits
  *  to the same task (a ticked sub-task, a new week) are kept (merge3 of what I set, what I want back, and now). */
@@ -162,7 +171,7 @@ export function restoreOps(changes, me, which, current = () => undefined) {
     const target = c[which]; const cur = current(c);
     if (c.kind === 'weeks') { ops.push({ type: 'update', path: 'team', data: { weeks: Array.isArray(cur) && Array.isArray(c[other]) ? merge3(c[other], target, cur) : target } }); return; }
     const path = (c.kind === 'cat' ? 'categories/' : 'tasks/') + c.id;
-    if (!target) { ops.push({ type: 'delete', path }); return; }
+    if (!target) { ops.push({ type: 'delete', path }); if (c.kind !== 'cat' && cur) ops.push(...keepDecision(c.id, cur, me, now)); return; }
     if (c[other] && cur) {
       const data = {};
       new Set([...Object.keys(c.before || {}), ...Object.keys(c.after || {})]).forEach(k => {
@@ -179,6 +188,7 @@ export function restoreOps(changes, me, which, current = () => undefined) {
     if (c[other]) { ops.push({ type: 'update', path, data }); return; }
     if (c.kind === 'task') Object.assign(data, { createdBy: me.uid, createdAt: now });
     ops.push({ type: 'set', path, data });
+    if (c.kind === 'task' && decided(data)) ops.push({ type: 'delete', path: 'removed/' + c.id });   // takes the kept decision back
   });
   return ops;
 }

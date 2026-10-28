@@ -28,6 +28,8 @@ export const teamDoc = (over = {}) => ({
   weeks: [{ key: 'w1', title: 'WEEK 1', metric: '', startDate: '' }], ...over,
 });
 const member = (uid, roleId) => ({ uid, email: uid + '@x.com', name: uid, photo: '', roleId, joinedAt: 1 });
+// A task's history so far (newest first).
+const H = [{ time: 'b', user: 'mem1', field: 'Sign-off', original: '', updated: 'Sent for sign-off' }, { time: 'a', user: 'mem1', field: 'Stage', original: 'Design', updated: 'Review' }];
 export const task = (ownerUid, categoryId, over = {}) => ({
   name: 'Task', priority: 'Minor', status: '', jiraId: '', supportPersonId: null, supportPersonId2: null, flag: 'none',
   dueDate: '', completedDate: '', subtasks: [], history: [], custom: {}, icon: '', attachments: [],
@@ -88,10 +90,12 @@ export function fixture() {
         members: { owner: member('owner', 'owner'), admin1: member('admin1', 'admin'), mem1: member('mem1', 'member'), view1: member('view1', 'viewer') },
         invites: {}, categories: { c_mem1: { name: 'GEN', ownerUid: 'mem1', order: 0 } },
         tasks: {
-          g_review: task('mem1', 'c_mem1', { stage: 'review' }), g_wait: task('mem1', 'c_mem1', { stage: 'review', signoff: signoff('waiting') }),
+          g_review: task('mem1', 'c_mem1', { stage: 'review' }), g_wait: task('mem1', 'c_mem1', { stage: 'review', signoff: signoff('waiting'), history: H }),
           g_built: task('mem1', 'c_mem1', { stage: 'build', signoff: signoff('approved', { approver: 'view1', approverName: 'view1', decidedAt: 2 }) }),
           g_test: task('mem1', 'c_mem1', { stage: 'test' }),
         },
+        // A signed-off task that was deleted: its decision is kept, so undo can bring it back.
+        removed: { g_gone: { signoff: approved('review', 'view1'), name: 'Gone', ownerUid: 'mem1', by: 'admin1', at: 1 } },
         // Purchase approvals over 50: a cheap part, a dear one, one waiting, one approved.
         parts: { p_cheap: part('mem1', { qty: 2, unitCost: 10 }), p_dear: part('mem1', { qty: 1, unitCost: 300 }),
           p_wait: part('mem1', { qty: 1, unitCost: 300, approval: ask('mem1') }), p_ok: part('mem1', { qty: 1, unitCost: 300, approval: decided('approved', 'admin1') }),
@@ -377,6 +381,13 @@ export const writeScenarios = [
   ['purchase: a bought part’s price can’t go over the limit without approval', 'mem1', GATE, [upd('parts/p_cheap_bought', { unitCost: 300 })], 'deny'],
   ['purchase: …within the limit it can', 'mem1', GATE, [upd('parts/p_cheap_bought', { unitCost: 20 })], 'allow'],
   ['purchase: clearing an approval doesn’t let a bought part’s price go up', 'mem1', GATE, [upd('parts/p_ok_bought', { approval: null, unitCost: 900 })], 'deny'],
+  ['undo: deleting a signed-off task keeps its decision beside the deletion', 'admin1', GATE, [del('tasks/g_built'), set('removed/g_built', { signoff: approved('review', 'view1'), name: 'Task', ownerUid: 'mem1', by: 'admin1', at: 5 })], 'allow'],
+  ['undo: …but a decision can’t be kept without deleting the task', 'admin1', GATE, [set('removed/g_built', { signoff: approved('review', 'view1'), name: 'Task', ownerUid: 'mem1', by: 'admin1', at: 5 })], 'deny'],
+  ['undo: …nor a different one than the task carried', 'admin1', GATE, [del('tasks/g_built'), set('removed/g_built', { signoff: approved('review', 'admin1'), name: 'Task', ownerUid: 'mem1', by: 'admin1', at: 5 })], 'deny'],
+  ['undo: the deleted task comes back signed off, taking the kept decision back', 'admin1', GATE, [set('tasks/g_gone', task('mem1', 'c_mem1', { name: 'Gone', stage: 'build', signoff: approved('review', 'view1'), createdBy: 'admin1', createdAt: Date.now() })), del('removed/g_gone')], 'allow'],
+  ['undo: …only by taking it back', 'admin1', GATE, [set('tasks/g_gone', task('mem1', 'c_mem1', { name: 'Gone', stage: 'build', signoff: approved('review', 'view1'), createdBy: 'admin1', createdAt: Date.now() }))], 'deny'],
+  ['undo: …and only with the same decision', 'admin1', GATE, [set('tasks/g_gone', task('mem1', 'c_mem1', { name: 'Gone', stage: 'build', signoff: approved('review', 'admin1'), createdBy: 'admin1', createdAt: Date.now() })), del('removed/g_gone')], 'deny'],
+  ['undo: …on the same task (name and owner)', 'admin1', GATE, [set('tasks/g_gone', task('mem1', 'c_mem1', { name: 'Something else', stage: 'build', signoff: approved('review', 'view1'), createdBy: 'admin1', createdAt: Date.now() })), del('removed/g_gone')], 'deny'],
   ['tasks: a new task can’t arrive already signed off', 'mem1', GATE, [set('tasks/g_fresh', task('mem1', 'c_mem1', { stage: 'review', signoff: approved('review', 'mem1') }))], 'deny'],
   ['tasks: …but it may carry a sign-off request that is waiting', 'mem1', GATE, [set('tasks/g_fresh2', task('mem1', 'c_mem1', { stage: 'review', signoff: signoff('waiting', { stage: 'review', by: 'mem1', byName: 'mem1', at: 1 }) }))], 'allow'],
   ['purchase: only settings or finance managers change the approval limit', 'mem1', GATE, [upd('team', { purchase: { on: true, over: 100000 } })], 'deny'],
@@ -406,10 +417,13 @@ export const writeScenarios = [
   ['a member ticks checklist items on their task', 'mem1', TEAM, [upd('tasks/t_mem1', { checks: { review_c0: true } })], 'allow'],
   ['a member sends their task for sign-off', 'mem1', TEAM, [upd('tasks/t_mem1', { stage: 'review', signoff: signoff('waiting') })], 'allow'],
   ['nobody records an approval in someone else’s name', 'mem1', TEAM, [upd('tasks/t_wait', { signoff: signoff('approved', { approver: 'owner', approverName: 'owner', decidedAt: 2 }) })], 'deny'],
-  ['the sign-off person approves a task they can’t otherwise edit, moving it on', 'view1', TEAM, [upd('tasks/t_wait', { stage: 'build', signoff: signoff('approved', { approver: 'view1', approverName: 'view1', decidedAt: 2 }) })], 'allow'],
-  ['…or asks for changes, with a note', 'view1', TEAM, [upd('tasks/t_wait', { signoff: signoff('changes', { approver: 'view1', approverName: 'view1', note: 'Add the mass budget', decidedAt: 2 }) })], 'allow'],
-  ['…but can’t change anything else at the same time', 'view1', TEAM, [upd('tasks/t_wait', { name: 'Renamed', signoff: signoff('approved', { approver: 'view1', approverName: 'view1', decidedAt: 2 }) })], 'deny'],
-  ['a decision needs a waiting request', 'view1', TEAM, [upd('tasks/t_mem1', { signoff: signoff('approved', { approver: 'view1', approverName: 'view1', decidedAt: 2 }) })], 'deny'],
+  ['no gates: a viewer can’t decide a sign-off nobody asked them for', 'view1', TEAM, [upd('tasks/t_wait', { stage: 'build', signoff: signoff('approved', { approver: 'view1', approverName: 'view1', decidedAt: 2 }) })], 'deny'],
+  ['no gates: the team owner decides it', 'owner', TEAM, [upd('tasks/t_wait', { stage: 'build', signoff: signoff('approved', { approver: 'owner', approverName: 'owner', decidedAt: 2 }) })], 'allow'],
+  ['gate: the sign-off person (a viewer lead) approves a task they can’t otherwise edit, with a history line', 'view1', GATE, [upd('tasks/g_wait', { stage: 'build', history: [{ time: 't', user: 'view1', field: 'Sign-off', original: 'Review', updated: 'Approved' }, ...H], signoff: approved('review', 'view1') })], 'allow'],
+  ['…or asks for changes, with a note', 'view1', GATE, [upd('tasks/g_wait', { signoff: signoff('changes', { approver: 'view1', approverName: 'view1', note: 'Add the mass budget', decidedAt: 2 }) })], 'allow'],
+  ['…but can’t change anything else at the same time', 'view1', GATE, [upd('tasks/g_wait', { name: 'Renamed', signoff: approved('review', 'view1') })], 'deny'],
+  ['…nor rewrite the task’s history', 'view1', GATE, [upd('tasks/g_wait', { stage: 'build', history: [{ time: 't', user: 'view1', field: 'Sign-off', original: 'Review', updated: 'Approved' }], signoff: approved('review', 'view1') })], 'deny'],
+  ['a decision needs a waiting request', 'view1', GATE, [upd('tasks/t_mem1', { signoff: signoff('approved', { approver: 'view1', approverName: 'view1', decidedAt: 2 }) })], 'deny'],
   ['a stranger can’t record a decision', 'evil', TEAM, [upd('tasks/t_wait', { signoff: signoff('approved', { approver: 'evil', approverName: 'evil', decidedAt: 2 }) })], 'deny'],
   ['a sign-off note is at most 500 characters', 'view1', TEAM, [upd('tasks/t_wait', { signoff: signoff('changes', { approver: 'view1', note: 'x'.repeat(501), decidedAt: 2 }) })], 'deny'],
   // SelfTrack: private to its owner

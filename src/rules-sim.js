@@ -201,6 +201,17 @@ function signoffGates(T0, auth, meMember, before, after) {
   const leads = (T0.doc.leads || {})[owner] || [];
   return leads.length ? leads.includes(auth.uid) : admin;
 }
+/** firestore.rules ▸ sameDecision */
+function sameDecision(a, b) {
+  const g = (o, k, d) => (o && o[k] !== undefined ? o[k] : d);
+  return !!a && typeof a === 'object' && !!b && typeof b === 'object' && g(a, 'status', '') === g(b, 'status', '') && g(a, 'stage', '') === g(b, 'stage', '')
+    && g(a, 'approver', '') === g(b, 'approver', '') && g(a, 'decidedAt', 0) === g(b, 'decidedAt', 0);
+}
+/** firestore.rules ▸ historyGrows: up to 3 new lines at the front, the rest kept (100 at most). */
+function historyGrows(before, after) {
+  const o = before.history || [], n = after.history || []; const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+  return same(n, o) || [1, 2, 3].some(k => n.length === Math.min(o.length + k, 100) && same(n.slice(k), o.slice(0, n.length - k)));
+}
 /** A task's sign-off (firestore.rules ▸ validSignoff): shape, and a decision only by the approver it names. */
 function validSignoff(after, before, auth) {
   const v = after.signoff; if (v === undefined || v === null) return true;
@@ -333,14 +344,32 @@ export function checkWrite(pre, post, auth, teamId, op) {
       if (isDelete) { if (!(can('tasks.editAll') || (canEditOwned(before.ownerUid) && before.createdBy === auth.uid && (before.createdAt || 0) > Date.now() - 86400000))) deny('delete task'); return; }
       const catAfter = T1 && T1.categories[after.categoryId];
       if (!catAfter || catAfter.ownerUid !== after.ownerUid) deny('task row mismatch');
-      if (isCreate) { if (!(canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, null, auth) && (!after.signoff || after.signoff.status === 'waiting') && (after.createdBy || '') === auth.uid && (after.createdAt || 0) <= Date.now() + 300000)) deny('create task'); return; }
+      if (isCreate) {
+        // A decided sign-off only on a deleted task coming back, taking back the decision kept at its deletion (firestore.rules ▸ restoresDecision)
+        const kept = T0.removed && T0.removed[id];
+        const restores = !!kept && !(T1.removed && T1.removed[id]) && sameDecision(kept.signoff, after.signoff) && kept.name === after.name && kept.ownerUid === after.ownerUid;
+        if (!(canEditOwned(after.ownerUid) && validTask(after) && (validSignoff(after, null, auth) || restores) && (!after.signoff || after.signoff.status === 'waiting' || restores) && (after.createdBy || '') === auth.uid && (after.createdAt || 0) <= Date.now() + 300000)) deny('create task'); return;
+      }
       if ((after.createdBy || '') !== (before.createdBy || '') || (after.createdAt || 0) !== (before.createdAt || 0)) deny('who made a task can’t change');
       if (canEditOwned(before.ownerUid) && canEditOwned(after.ownerUid) && validTask(after) && validSignoff(after, before, auth)) { if (!signoffGates(T0, auth, meMember, before, after)) deny('sign-off gate'); return; }
       // Recording a sign-off decision (firestore.rules ▸ signoffDecision)
       const ch = changedKeys(before, after);
       if (meMember && before.signoff && before.signoff.status === 'waiting' && ch.every(k => ['signoff', 'stage', 'flag', 'completedDate', 'history', 'updatedBy', 'updatedAt'].includes(k))
-        && after.signoff && ['approved', 'changes'].includes(after.signoff.status) && after.signoff.approver === auth.uid && validTask(after) && validSignoff(after, before, auth)) { if (!signoffGates(T0, auth, meMember, before, after)) deny('sign-off gate'); return; }
+        && after.signoff && ['approved', 'changes'].includes(after.signoff.status) && after.signoff.approver === auth.uid && validTask(after) && validSignoff(after, before, auth)) {
+        if (!historyGrows(before, after)) deny('a decision only adds to the history');
+        const wf = T0.doc.workflow;
+        if (!(wf && wf.next) && !(T0.doc.ownerUid === auth.uid || (auth.uid !== before.ownerUid && ['owner', 'admin'].includes(meMember.roleId)))) deny('no gate names a signer: owner or admin only');
+        if (!signoffGates(T0, auth, meMember, before, after)) deny('sign-off gate'); return;
+      }
       deny('edit task');
+    }
+    case 'removed': {
+      if (!meMember) deny('not a member');
+      const task0 = T0.tasks && T0.tasks[id], task1 = T1 && T1.tasks && T1.tasks[id];
+      if (isDelete) { if (!(task1 || can('tasks.editAll'))) deny('delete kept decision'); return; }
+      if (!(hasOnly(after, ['signoff', 'name', 'ownerUid', 'by', 'at']) && after.by === auth.uid && typeof after.at === 'number' && task0 && !task1 && task0.signoff
+        && sameDecision(after.signoff, task0.signoff) && after.name === task0.name && after.ownerUid === task0.ownerUid)) deny('keep decision');
+      return;
     }
     case 'comments': {
       if (!meMember) deny('not a member');

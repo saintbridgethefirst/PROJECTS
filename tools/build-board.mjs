@@ -204,6 +204,11 @@ const header = `/* ────────────────────�
 `;
 src = header + src.replace(/\n{3,}/g, '\n\n') + overrides;
 
+// 3b) No inline script: onclick="…" (and change, key…) become data-onclick="…", run by src/handlers.js, so the
+// site's Content-Security-Policy can refuse inline script. Selectors for them change the same way.
+src = src.replace(/\bon(click|change|keydown|blur|input)([*^$]?=")/g, 'data-on$1$2');
+{ const left = src.match(/[\s'"`[]on[a-z]+=["']/); if (left) throw new Error('Inline handler left in the board: ' + left[0]); }
+
 // 4) Sanity: names that must no longer appear.
 for (const bad of ['localStorage.getItem(\'drilling_tracker_db', 'currentFileHandle', 'showOpenFilePicker', 'manualFileName', 'Epiroc', 'prompt("']) {
   if (src.includes(bad)) throw new Error('Leftover reference: ' + bad);

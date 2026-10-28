@@ -70,11 +70,11 @@ function composer(ctx, taskId, existing) {
 function entryView(ctx, n, mine, moderator, fromWeek = '') {
   const box = el('div.nb-entry', { dataset: { id: n.id } });
   const body = el('div.nb-body', {}, n.text);
-  const imgs = n.images.length ? el('div.nb-thumbs', {}, n.images.map((src, i) => el('button.nb-thumb', { type: 'button', 'aria-label': 'Open photo ' + (i + 1), onclick: () => { const m = modal(fmtDate(n.date) + ' · ' + n.authorName); m.body.append(el('img.rs-bigimg', { src, alt: '' })); } }, el('img', { src, alt: '' })))) : '';
+  const imgs = n.images.length ? el('div.nb-thumbs', {}, n.images.map((src, i) => el('button.nb-thumb', { type: 'button', 'aria-label': 'Open photo ' + (i + 1), onclick: () => { const m = modal(fmtDate(n.date) + ' · ' + window.TT.who(n.authorUid, n.authorName)); m.body.append(el('img.rs-bigimg', { src, alt: '' })); } }, el('img', { src, alt: '' })))) : '';
   const actions = el('span.nb-actions');
   if (mine) actions.append(el('button.link-btn', { type: 'button', onclick: () => box.replaceChildren(composer(ctx, n.taskId, n)) }, 'Edit'));
   if (mine || moderator) actions.append(el('button.link-btn', { type: 'button', onclick: async () => { if (confirm('Delete this notebook entry?')) await ctx.writeOps([{ type: 'delete', path: 'notebook/' + n.id }]); } }, 'Delete'));
-  box.append(el('div.nb-head', {}, el('b', {}, fmtDate(n.date)), el('span.hint', {}, ' · ' + n.authorName + (n.editedAt ? ' · edited' : '')), fromWeek ? el('span.nb-from', { title: 'Written on this task’s copy in ' + fromWeek + ' (carried forward)' }, '↪ ' + fromWeek) : '', el('span.spacer'), actions), body, imgs);
+  box.append(el('div.nb-head', {}, el('b', {}, fmtDate(n.date)), el('span.hint', {}, ' · ' + window.TT.who(n.authorUid, n.authorName) + (n.editedAt ? ' · edited' : '')), fromWeek ? el('span.nb-from', { title: 'Written on this task’s copy in ' + fromWeek + ' (carried forward)' }, '↪ ' + fromWeek) : '', el('span.spacer'), actions), body, imgs);
   return box;
 }
 

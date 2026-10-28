@@ -13,14 +13,15 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { defineSecret, defineString } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { refreshAll } from './stats.js';
 import { connectGithub, disconnectGithub, handleWebhook, setGithubToken, issueAction } from './github.js';
 import { exportUserData, deleteUserData, transferOwnership as transferOwnershipImpl, teamsToHandOver } from './privacy.js';
 import { normEmail, isAcademicEmail, newCode, hashCode, emailKey, checkSend, checkConfirm, codeEmail, CODE_MINUTES, VERIFIED_DAYS,
   proActive, wants, mentionEmail, digestItems, digestEmail, inviteChanged, inviteEmail, MAX_INVITE_EMAILS_PER_DAY, MAX_INVITE_EMAILS_UNVERIFIED, MAX_INVITE_EMAILS_ALL, INVITE_RESEND_MS,
-  errorSignature, signatureId, shouldAlert, errorAlertEmail, feedbackEmail, MAX_ALERT_EMAILS_PER_DAY, MAX_FEEDBACK_EMAILS_PER_DAY } from './lib.js';
+  errorSignature, signatureId, shouldAlert, errorAlertEmail, feedbackEmail, MAX_ALERT_EMAILS_PER_DAY, MAX_FEEDBACK_EMAILS_PER_DAY,
+  MAX_FEEDBACK_EMAILS_PER_PERSON, MAX_ALERT_EMAILS_PER_PERSON, memberLimit, overLimit } from './lib.js';
 
 initializeApp();
 const db = getFirestore();
@@ -54,7 +55,7 @@ async function sendMail(to, { subject, text, html, replyTo }, idem) {
 // Cost safety: no function may scale beyond a few copies, whatever happens (a bug, a loop, an attack).
 setGlobalOptions({ region: REGION, maxInstances: 3, memory: '256MiB' });
 
-export const sendStudentCode = onCall({ region: REGION, invoker: 'public', secrets: [RESEND_API_KEY], maxInstances: 3, timeoutSeconds: 30 }, (req) => explain('sendStudentCode', () => sendStudentCodeImpl(req)));
+export const sendStudentCode = onCall({ region: REGION, invoker: 'public', secrets: [RESEND_API_KEY], maxInstances: 3, timeoutSeconds: 30 }, (req) => explain('sendStudentCode', req, () => sendStudentCodeImpl(req)));
 /** Log the real cause and give the person a readable reason instead of "internal". */
 /** A server failure is recorded like a browser crash (clientErrors), so the admins get the same email alert. */
 async function serverFault(name, e) {
@@ -63,8 +64,25 @@ async function serverFault(name, e) {
       where: String(name).slice(0, 100), ua: 'Cloud Functions', build: 'functions', at: Date.now(), uid: '', expireAt: new Date(Date.now() + 30 * 864e5) });
   } catch (x) { console.error('serverFault', x); }
 }
-async function explain(name, fn) {
-  try { return await fn(); }
+// ── App Check on the app's server calls ─────────────────────────────────────
+// Every call is counted, with or without a valid App Check token from the real site, so a platform admin
+// can see in Settings ▸ Plan ▸ Platform admin that the tokens work, and then switch on refusing calls
+// without one (scripts, copies of the site). Off until then: while the site's reCAPTCHA key didn't cover
+// trawpie.org, enforcing App Check on the database stopped sign-in (26 Oct).
+let appCheckCache = { at: 0, on: false };
+async function appCheckEnforced() {
+  if (Date.now() - appCheckCache.at < 60e3) return appCheckCache.on;
+  const d = (await db.doc('config/security').get()).data() || {};
+  appCheckCache = { at: Date.now(), on: d.appCheckCallables === true };
+  return appCheckCache.on;
+}
+async function checkApp(name, req) {
+  const ok = !!(req && req.app);
+  db.doc('appCheckStats/' + new Date().toISOString().slice(0, 10)).set({ [ok ? 'verified' : 'unverified']: FieldValue.increment(1), at: Date.now() }, { merge: true }).catch(() => {});
+  if (!ok && name !== 'appCheckAdmin' && await appCheckEnforced()) throw new HttpsError('failed-precondition', 'Trawpie couldn’t confirm this request came from its own website (App Check). Reload the page and try again.');
+}
+async function explain(name, req, fn) {
+  try { await checkApp(name, req); return await fn(); }
   catch (e) {
     if (e instanceof HttpsError && e.code !== 'internal') throw e;
     console.error(name, e); await serverFault(name, e);
@@ -92,7 +110,7 @@ async function sendStudentCodeImpl(req) {
 }
 
 /** Check the code; on success the account is a verified student for a year. */
-export const confirmStudentCode = onCall({ region: REGION, invoker: 'public', maxInstances: 3, timeoutSeconds: 30 }, (req) => explain('confirmStudentCode', () => confirmStudentCodeImpl(req)));
+export const confirmStudentCode = onCall({ region: REGION, invoker: 'public', maxInstances: 3, timeoutSeconds: 30 }, (req) => explain('confirmStudentCode', req, () => confirmStudentCodeImpl(req)));
 async function confirmStudentCodeImpl(req) {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   const uid = req.auth.uid; const ref = db.doc('studentCodes/' + uid); const now = Date.now();
@@ -121,11 +139,15 @@ export const emailMentions = onDocumentCreated({ document: 'teams/{teamId}/comme
   if (!uids.length) return;
   const team = (await db.doc('teams/' + teamId).get()).data();
   if (!team || !proActive(team.plan, Date.now(), team.ownerUid)) return;
-  const task = c.taskId ? (await db.doc('teams/' + teamId + '/tasks/' + c.taskId).get()).data() : null;
+  const [taskSnap, authorSnap] = await Promise.all([c.taskId ? db.doc('teams/' + teamId + '/tasks/' + c.taskId).get() : null, db.doc('teams/' + teamId + '/members/' + String(c.authorUid || '_')).get()]);
+  const task = taskSnap ? taskSnap.data() : null;
+  // The writer's name in the team, not the name stored on the comment (that could be typed to look like anyone).
+  if (!authorSnap.exists) return;
+  const author = String(authorSnap.data().name || authorSnap.data().email || 'A teammate').slice(0, 80);
   await Promise.all(uids.map(async (uid) => {
     const [m, u] = await Promise.all([db.doc('teams/' + teamId + '/members/' + uid).get(), db.doc('users/' + uid).get()]);
     if (!m.exists || !m.data().email || !wants(u.data(), 'mentions')) return;
-    const mail = mentionEmail({ appName: APP_NAME.value(), appUrl: APP_URL.value(), author: c.authorName || 'Someone', teamName: team.name, taskName: task && task.name, text: c.text, teamId });
+    const mail = mentionEmail({ appName: APP_NAME.value(), appUrl: APP_URL.value(), author, teamName: team.name, taskName: task && task.name, text: c.text, teamId });
     await sendMail(m.data().email, mail, 'mention-' + event.params.commentId + '-' + uid);
   }));
 });
@@ -171,6 +193,12 @@ export const emailInvites = onDocumentWritten({ document: 'teams/{teamId}/invite
   const inviterUid = String(after.invitedBy || '');
   const inviter = inviterUid ? (await db.doc('teams/' + event.params.teamId + '/members/' + inviterUid).get()).data() : null;
   if (!inviter) { await ref.update({ emailError: 'Not sent: the invitation isn’t from a member of this team.' }); return; }
+  // The plan's limit counts members and pending invitations (the app checks this first; this is the server's check).
+  if (!before) {
+    const teamNow = (await db.doc('teams/' + event.params.teamId).get()).data() || {};
+    const [m, i] = await Promise.all(['members', 'invites'].map(c => db.collection('teams/' + event.params.teamId + '/' + c).count().get().then(r => r.data().count)));
+    if (m + i > memberLimit(teamNow.plan, Date.now(), teamNow.ownerUid)) { console.warn('invitation over the plan limit removed', event.params.teamId); await ref.delete(); return; }
+  }
   const verifiedInviter = await getAuth().getUser(inviterUid).then(u => !!u.emailVerified).catch(() => false);
   // Limits: per person inviting a day (fewer before they verify their email), and for everyone together.
   const quota = db.doc('inviteQuota/' + inviterUid + '_' + today); const all = db.doc('inviteQuota/all_' + today);
@@ -189,6 +217,17 @@ export const emailInvites = onDocumentWritten({ document: 'teams/{teamId}/invite
   await ref.update(res.ok ? { emailedAt: Date.now(), emailError: '' } : { emailError: res.reason });
 });
 
+/** Someone joined: if that takes the team over its plan's limit (only a changed app gets this far), undo it. */
+export const memberLimitCheck = onDocumentCreated({ document: 'teams/{teamId}/members/{uid}', region: REGION, maxInstances: 3, timeoutSeconds: 60 }, async (event) => {
+  const m = event.data && event.data.data(); if (!m || m.roleId === 'owner') return;
+  const team = (await db.doc('teams/' + event.params.teamId).get()).data(); if (!team) return;
+  const limit = memberLimit(team.plan, Date.now(), team.ownerUid);
+  const all = (await db.collection('teams/' + event.params.teamId + '/members').select('roleId', 'joinedAt').get()).docs.map(d => ({ uid: d.id, ...d.data() }));
+  if (all.length <= limit || !overLimit(all, limit).includes(event.params.uid)) return;
+  console.warn('member over the plan limit removed', event.params.teamId, event.params.uid);
+  await event.data.ref.delete();
+});
+
 // ── Feedback and error alerts → email to the platform admins ────────────────
 // Platform admins are the people with a document at admins/{uid} (made by hand in the console).
 async function adminEmails() {
@@ -205,6 +244,9 @@ async function underDailyLimit(name, max) {
 /** Someone pressed Feedback → email it to the platform admins (reply goes to the sender). */
 export const emailFeedback = onDocumentCreated({ document: 'feedback/{id}', region: REGION, secrets: [RESEND_API_KEY], maxInstances: 2, timeoutSeconds: 60 }, async (event) => {
   const fb = event.data.data();
+  // Each person has their own small daily allowance, so nobody can use up the shared one (the feedback is
+  // still saved, and platform admins see it in the app).
+  if (!(await underDailyLimit('feedback_' + String(fb.uid || 'anon').slice(0, 128), MAX_FEEDBACK_EMAILS_PER_PERSON))) { console.warn('feedback email limit reached for one person'); return; }
   if (!(await underDailyLimit('feedback', MAX_FEEDBACK_EMAILS_PER_DAY))) { console.warn('feedback email limit reached'); return; }
   const to = await adminEmails(); if (!to.length) { console.warn('no platform admins to email'); return; }
   const mail = feedbackEmail({ appName: APP_NAME.value(), appUrl: APP_URL.value(), fb });
@@ -224,6 +266,7 @@ export const alertErrors = onDocumentCreated({ document: 'clientErrors/{id}', re
     return (st && st.count) || 0;
   });
   if (seenBefore < 0) return;
+  if (!(await underDailyLimit('errors_' + String(err.uid || 'anon').slice(0, 128), MAX_ALERT_EMAILS_PER_PERSON))) { console.warn('error alert limit reached for one person'); return; }
   if (!(await underDailyLimit('errors', MAX_ALERT_EMAILS_PER_DAY))) { console.warn('error alert limit reached'); return; }
   const to = await adminEmails(); if (!to.length) return;
   await sendMail(to, errorAlertEmail({ appName: APP_NAME.value(), appUrl: APP_URL.value(), err, seenBefore }), 'err-' + event.params.id);
@@ -242,13 +285,13 @@ const asHttps = (e) => {
 };
 
 /** Everything stored about you, as one JSON file. */
-export const exportMyData = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 120, memory: '512MiB' }, (req) => explain('exportMyData', async () => {
+export const exportMyData = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 120, memory: '512MiB' }, (req) => explain('exportMyData', req, async () => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   return exportUserData(db, await accountOf(req.auth.uid));
 }));
 
 /** Delete your account and everything about you. Needs a sign-in in the last 15 minutes. */
-export const deleteMyAccount = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 300, memory: '512MiB' }, (req) => explain('deleteMyAccount', async () => {
+export const deleteMyAccount = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 300, memory: '512MiB' }, (req) => explain('deleteMyAccount', req, async () => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   if (!req.data || req.data.confirm !== 'DELETE') throw new HttpsError('invalid-argument', 'Type DELETE to confirm.');
   const signedInAt = Number(req.auth.token.auth_time || 0) * 1000;
@@ -259,14 +302,14 @@ export const deleteMyAccount = onCall({ region: REGION, invoker: 'public', maxIn
 }));
 
 /** Hand a team over to another member (the old owner becomes an Admin). */
-export const transferOwnership = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('transferOwnership', async () => {
+export const transferOwnership = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('transferOwnership', req, async () => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   try { return await transferOwnershipImpl(db, req.auth.uid, String((req.data && req.data.teamId) || ''), String((req.data && req.data.toUid) || '')); }
   catch (e) { throw asHttps(e); }
 }));
 
 /** Teams you'd need to hand over before you can delete your account. */
-export const myOwnedTeams = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('myOwnedTeams', async () => {
+export const myOwnedTeams = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('myOwnedTeams', req, async () => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   return { teams: await teamsToHandOver(db, req.auth.uid) };
 }));
@@ -276,7 +319,7 @@ export const dailyTeamStats = onSchedule({ schedule: '15 5 * * *', timeZone: 'Eu
   console.log('team stats', await refreshAll(db));
 });
 /** Platform admins: recompute now (Settings ▸ Plan ▸ Platform admin ▸ Refresh). */
-export const refreshTeamStats = onCall({ region: REGION, invoker: 'public', maxInstances: 1, timeoutSeconds: 300 }, (req) => explain('refreshTeamStats', async () => {
+export const refreshTeamStats = onCall({ region: REGION, invoker: 'public', maxInstances: 1, timeoutSeconds: 300 }, (req) => explain('refreshTeamStats', req, async () => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   if (!(await db.doc('admins/' + req.auth.uid).get()).exists) throw new HttpsError('permission-denied', 'Only platform admins can do this.');
   return refreshAll(db);
@@ -284,7 +327,7 @@ export const refreshTeamStats = onCall({ region: REGION, invoker: 'public', maxI
 
 // ── GitHub sync (see github.js) ─────────────────────────────────────────────
 /** Connect a repository to a team: returns the webhook address and a new secret to paste into GitHub. */
-export const githubConnect = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('githubConnect', async () => {
+export const githubConnect = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('githubConnect', req, async () => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   const teamId = String((req.data && req.data.teamId) || '');
   try {
@@ -294,6 +337,17 @@ export const githubConnect = onCall({ region: REGION, invoker: 'public', maxInst
     const project = process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId;
     return { ...r, url: 'https://' + REGION + '-' + project + '.cloudfunctions.net/githubWebhook?team=' + encodeURIComponent(teamId) };
   } catch (e) { throw asHttps(e); }
+}));
+/** Platform admins: App Check on these server calls — the last week's counts, and the switch to require it. */
+export const appCheckAdmin = onCall({ region: REGION, invoker: 'public', maxInstances: 1, timeoutSeconds: 30 }, (req) => explain('appCheckAdmin', req, async () => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  if (!(await db.doc('admins/' + req.auth.uid).get()).exists) throw new HttpsError('permission-denied', 'Platform admins only.');
+  const ref = db.doc('config/security');
+  if (req.data && typeof req.data.enforce === 'boolean') { await ref.set({ appCheckCallables: req.data.enforce, by: req.auth.uid, at: Date.now() }, { merge: true }); appCheckCache = { at: 0, on: false }; }
+  const days = Array.from({ length: 7 }, (_, i) => new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+  const snaps = await Promise.all(days.map(d => db.doc('appCheckStats/' + d).get()));
+  const cfg = (await ref.get()).data() || {};
+  return { enforced: cfg.appCheckCallables === true, days: days.map((d, i) => ({ day: d, verified: (snaps[i].data() || {}).verified || 0, unverified: (snaps[i].data() || {}).unverified || 0 })) };
 }));
 /** GitHub calls this for every issue and pull-request event in a connected repository. */
 export const githubWebhook = onRequest({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30, cors: false }, async (req, res) => {
@@ -305,7 +359,7 @@ export const githubWebhook = onRequest({ region: REGION, invoker: 'public', maxI
   } catch (e) { console.error('githubWebhook', e); await serverFault('githubWebhook', e); res.status(500).json({ message: 'Something went wrong; GitHub will show this delivery as failed.' }); }
 });
 /** Create, close or reopen a task's GitHub issue (needs the team's token, set in Settings ▸ Integrations). */
-export const githubIssue = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('githubIssue', async () => {
+export const githubIssue = onCall({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30 }, (req) => explain('githubIssue', req, async () => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   try { return await issueAction(db, req.auth.uid, String((req.data && req.data.teamId) || ''), req.data || {}); }
   catch (e) { throw asHttps(e); }

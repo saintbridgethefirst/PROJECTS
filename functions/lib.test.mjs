@@ -114,3 +114,14 @@ test('your data: a deleted person’s name and email are removed from shared rec
   assert.equal(scrubPerson({ authorUid: 'u-aisha', authorName: 'Tom Reed', text: 'x' }, names, emails, 'u-tom').changed, false, 'a record that names someone else by id keeps its name');
   assert.equal(scrubPerson({ authorUid: 'u-tom', authorName: 'Tom Reed' }, names, emails, 'u-tom').value.authorName, FORMER_MEMBER, 'their own record loses the name');
 });
+
+test('plan member limits: the server’s copy matches the app, and the latest joiner is the one over', async () => {
+  const { PLAN_MEMBERS, memberLimit, overLimit } = await import('./lib.js');
+  const { PLANS } = await import('../src/model.js');
+  for (const k of Object.keys(PLANS)) assert.equal(PLAN_MEMBERS[k], PLANS[k].members, k);
+  assert.equal(memberLimit({ tier: 'pro' }), 100); assert.equal(memberLimit({ tier: 'pro', until: 1 }), 30, 'an expired plan is Free');
+  assert.equal(memberLimit(undefined), 30);
+  const ms = [{ uid: 'o', roleId: 'owner', joinedAt: 50 }, { uid: 'a', roleId: 'member', joinedAt: 10 }, { uid: 'b', roleId: 'member', joinedAt: 20 }, { uid: 'c', roleId: 'member', joinedAt: 30 }];
+  assert.deepEqual(overLimit(ms, 3), ['c']); assert.deepEqual(overLimit(ms, 4), []);
+  assert.deepEqual(overLimit(ms, 1), ['a', 'b', 'c'], 'the owner always stays');
+});

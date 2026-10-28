@@ -147,8 +147,8 @@
         function _renderFiltersBase() {
             const fp = document.getElementById('filter-persons');
             const fw = document.getElementById('filter-weeks');
-            if(fp) fp.innerHTML = db.map(p => `<label><input type="checkbox" value="${p.id}" onchange="toggleFilter('person', '${p.id}', this.checked)" ${!hiddenPersons.has(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('');
-            if(fw) fw.innerHTML = weeksData.map(w => `<label><input type="checkbox" value="${w.key}" onchange="toggleFilter('week', '${w.key}', this.checked)" ${!hiddenWeeks.has(w.key) ? 'checked' : ''}> ${esc(w.title)}</label>`).join('');
+            if(fp) fp.innerHTML = db.map(p => `<label><input type="checkbox" value="${p.id}" data-onchange="toggleFilter('person', '${p.id}', this.checked)" ${!hiddenPersons.has(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('');
+            if(fw) fw.innerHTML = weeksData.map(w => `<label><input type="checkbox" value="${w.key}" data-onchange="toggleFilter('week', '${w.key}', this.checked)" ${!hiddenWeeks.has(w.key) ? 'checked' : ''}> ${esc(w.title)}</label>`).join('');
         }
         
         function toggleFilter(type, id, isChecked) { 
@@ -203,15 +203,15 @@
                 if (w.collapsed) {
                     let shortName = weekShortName(w, actualIndex);
 
-                    container.innerHTML += `<div class="header-week collapsed-circle" data-week-key="${esc(w.key)}" onclick="toggleWeekCollapse(${actualIndex})" title="Expand ${esc(w.title)}">${esc(shortName)}</div>`;
+                    container.innerHTML += `<div class="header-week collapsed-circle" data-week-key="${esc(w.key)}" data-onclick="toggleWeekCollapse(${actualIndex})" title="Expand ${esc(w.title)}">${esc(shortName)}</div>`;
                 } else {
                     container.innerHTML += `
                         <div class="header-week${isCurrentWeek(w) ? ' current-week' : ''}" data-week-key="${esc(w.key)}">
-                            <button class="collapse-toggle" onclick="toggleWeekCollapse(${actualIndex})" title="Collapse Week">◂</button>
-                            <input class="week-title" value="${esc(w.title)}" ${TT.can('weeks.manage') ? '' : 'readonly'} onchange="updateWeekField(${actualIndex}, 'title', this.value)">
-                            <div class="metric-badge" ${TT.can('weeks.manage') ? 'contenteditable="true"' : ''} data-ph="${esc(TT.label('metric').label)}" data-week="${actualIndex}" onkeydown="metricKey(event, this)" onblur="commitMetric(${actualIndex}, this)">${esc(w.metric)}</div>
+                            <button class="collapse-toggle" data-onclick="toggleWeekCollapse(${actualIndex})" title="Collapse Week">◂</button>
+                            <input class="week-title" value="${esc(w.title)}" ${TT.can('weeks.manage') ? '' : 'readonly'} data-onchange="updateWeekField(${actualIndex}, 'title', this.value)">
+                            <div class="metric-badge" ${TT.can('weeks.manage') ? 'contenteditable="true"' : ''} data-ph="${esc(TT.label('metric').label)}" data-week="${actualIndex}" data-onkeydown="metricKey(event, this)" data-onblur="commitMetric(${actualIndex}, this)">${esc(w.metric)}</div>
                             ${weekDatesHtml(w)}
-                            <button class="delete-week-btn" onclick="deleteWeek(${actualIndex})" title="Delete entire week">🗑️</button>
+                            <button class="delete-week-btn" data-onclick="deleteWeek(${actualIndex})" title="Delete entire week">🗑️</button>
                         </div>`;
                 }
             });
@@ -312,7 +312,7 @@
                 let total = task.subtasks ? task.subtasks.length : 0; let completed = total > 0 ? task.subtasks.filter(s => s.completed).length : 0;
                 let progress = total > 0 ? (completed / total) * 100 : 0;
                 let subtasksHtml = task.subtasks && task.subtasks.length > 0 ? task.subtasks.map(st => `
-                    <div class="subtask-item ${st.completed ? 'completed' : ''}" onclick="toggleSubtask(event, '${task.id}', '${st.id}')">
+                    <div class="subtask-item ${st.completed ? 'completed' : ''}" data-onclick="toggleSubtask(event, '${task.id}', '${st.id}')">
                         <input type="checkbox" ${st.completed ? 'checked' : ''} tabindex="-1"><span>${esc(st.title)}</span>
                     </div>`).join('') : '';
 
@@ -320,7 +320,7 @@
                     <div class="progress-wrapper"><div class="progress-bg"><div class="progress-fill" style="width: ${progress}%;"></div></div><div class="progress-text">${Math.round(progress)}%</div></div>
                     <div class="subtask-list">${subtasksHtml}</div>
                     <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 15px;">
-                        <div class="btn-add-subtask" onclick="quickAddSubtask(event, '${task.id}')"><i>⊕</i> Add sub-task</div>
+                        <div class="btn-add-subtask" data-onclick="quickAddSubtask(event, '${task.id}')"><i>⊕</i> Add sub-task</div>
                         ${(function(){
                             let names = [];
                             if(task.supportPersonId) { let p1 = db.find(p=>p.id===task.supportPersonId); if(p1) names.push(p1.name); }
@@ -478,7 +478,7 @@
                 form.innerHTML = `
                     <label>${lbl} Name</label><input type="text" id="edit-name" value="${esc(nodeData.name)}">
                     <div style="margin-top: 20px;">
-                        <button class="btn-secondary btn-danger" onclick="deleteActiveNode()">🗑️ Delete ${lbl}</button>
+                        <button class="btn-secondary btn-danger" data-onclick="deleteActiveNode()">🗑️ Delete ${lbl}</button>
                     </div>`;
             } else {
                 let personOptions1 = db.map(p => `<option value="${p.id}" ${nodeData.supportPersonId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
@@ -497,9 +497,9 @@
                         <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:15px;">
                             ${nodeData.subtasks.map(st => `
                                 <div style="display:flex; align-items:center; gap:8px; background:var(--bg-main); padding:8px; border-radius:6px; border:1px solid var(--border-color);">
-                                    <input type="checkbox" style="width:16px; height:16px; margin:0;" ${st.completed ? 'checked' : ''} onchange="toggleSubtask(event, '${nodeData.id}', '${st.id}')">
-                                    <input type="text" style="margin:0; padding:4px 8px;" value="${esc(st.title)}" onchange="updateSubtaskTitle(event, '${nodeData.id}', '${st.id}', this.value)">
-                                    <button type="button" class="st-promote" onclick="promoteSubtask(event, '${nodeData.id}', '${st.id}')" title="Make this sub-task a task of its own" aria-label="Make “${esc(st.title)}” a task of its own">↥ Task</button><button type="button" class="btn-danger st-del" style="padding:4px 8px; width:auto; border:none; background:transparent; cursor:pointer;" onclick="deleteSubtask(event, '${nodeData.id}', '${st.id}')" title="Delete sub-task" aria-label="Delete sub-task “${esc(st.title)}”">❌</button>
+                                    <input type="checkbox" style="width:16px; height:16px; margin:0;" ${st.completed ? 'checked' : ''} data-onchange="toggleSubtask(event, '${nodeData.id}', '${st.id}')">
+                                    <input type="text" style="margin:0; padding:4px 8px;" value="${esc(st.title)}" data-onchange="updateSubtaskTitle(event, '${nodeData.id}', '${st.id}', this.value)">
+                                    <button type="button" class="st-promote" data-onclick="promoteSubtask(event, '${nodeData.id}', '${st.id}')" title="Make this sub-task a task of its own" aria-label="Make “${esc(st.title)}” a task of its own">↥ Task</button><button type="button" class="btn-danger st-del" style="padding:4px 8px; width:auto; border:none; background:transparent; cursor:pointer;" data-onclick="deleteSubtask(event, '${nodeData.id}', '${st.id}')" title="Delete sub-task" aria-label="Delete sub-task “${esc(st.title)}”">❌</button>
                                 </div>
                             `).join('')}
                         </div>
@@ -516,8 +516,8 @@
                     </select>
                     ${TT.label('status').show ? `<label>${esc(TT.label('status').label)}</label><input type="text" id="edit-status" value="${esc(nodeData.status)}">` : ''}
                     ${TT.label('jiraId').show ? `<label>${esc(TT.label('jiraId').label)}</label><input type="text" id="edit-jira" value="${esc(nodeData.jiraId || '')}" placeholder="${esc(TT.taskRef(nodeData))} (automatic: type your own to change it)" title="Leave empty to use ${esc(TT.taskRef(nodeData))}. GitHub links pull requests and issues that mention either.">` : ''}
-                    <label>Deadline</label><div class="due-field"><button type="button" class="due-display${nodeData.dueDate ? '' : ' empty'}" onclick="openDuePicker()" aria-label="Choose deadline">${dueDisplayHtml(nodeData)}</button><input type="date" id="edit-due" class="due-native" tabindex="-1" aria-hidden="true" value="${esc(nodeData.dueDate || '')}"></div>
-                    <div class="due-quick"><button type="button" onclick="setDueQuick(0)">Today</button><button type="button" onclick="setDueQuick(1)">Tomorrow</button><button type="button" onclick="setDueQuick(7)">+1 week</button><button type="button" onclick="setDueQuick(null)">Clear</button></div>
+                    <label>Deadline</label><div class="due-field"><button type="button" class="due-display${nodeData.dueDate ? '' : ' empty'}" data-onclick="openDuePicker()" aria-label="Choose deadline">${dueDisplayHtml(nodeData)}</button><input type="date" id="edit-due" class="due-native" tabindex="-1" aria-hidden="true" value="${esc(nodeData.dueDate || '')}"></div>
+                    <div class="due-quick"><button type="button" data-onclick="setDueQuick(0)">Today</button><button type="button" data-onclick="setDueQuick(1)">Tomorrow</button><button type="button" data-onclick="setDueQuick(7)">+1 week</button><button type="button" data-onclick="setDueQuick(null)">Clear</button></div>
                     <label>Supporting Person 1</label><select id="edit-support"><option value="">None</option>${personOptions1}</select>
                     <label>Supporting Person 2</label><select id="edit-support2"><option value="">None</option>${personOptions2}</select>
                     <label style="margin-top: 20px;">Task Status Flag</label>
@@ -529,11 +529,11 @@
                     </select>
 
                     ${subtasksEditorHtml}
-                    <button class="btn-secondary" style="font-size:11px; padding:6px; margin-bottom: 30px;" onclick="quickAddSubtask(event, '${nodeData.id}')">➕ Add Subtask</button>
+                    <button class="btn-secondary" style="font-size:11px; padding:6px; margin-bottom: 30px;" data-onclick="quickAddSubtask(event, '${nodeData.id}')">➕ Add Subtask</button>
 
                     <div style="display: flex; gap: 10px; margin-bottom: 30px;">
-                        <button class="btn-secondary" style="flex:1; border-color:var(--text-main); color:var(--text-main);" onclick="extendTaskUI()">📋 Carry Forward</button>
-                        <button class="btn-secondary btn-danger" style="flex:1;" onclick="deleteActiveNode()">🗑️ Delete Task</button>
+                        <button class="btn-secondary" style="flex:1; border-color:var(--text-main); color:var(--text-main);" data-onclick="extendTaskUI()">📋 Carry Forward</button>
+                        <button class="btn-secondary btn-danger" style="flex:1;" data-onclick="deleteActiveNode()">🗑️ Delete Task</button>
                     </div>
 
                     <label>History Log</label>
@@ -1746,8 +1746,8 @@
             const sup1 = withLabel(byId('edit-support'), 'Helping'), sup2 = withLabel(byId('edit-support2'), 'Also helping');
             const badge = withLabel(byId('edit-status')), ref = withLabel(byId('edit-jira'));
             const stLabel = labelText('Subtasks'); const stList = stLabel && stLabel.nextElementSibling;
-            const addSt = form.querySelector('button[onclick^="quickAddSubtask"]');
-            const carryBtn = form.querySelector('button[onclick="extendTaskUI()"]'); const actions = carryBtn && carryBtn.parentElement;
+            const addSt = form.querySelector('button[data-onclick^="quickAddSubtask"]');
+            const carryBtn = form.querySelector('button[data-onclick="extendTaskUI()"]'); const actions = carryBtn && carryBtn.parentElement;
             const histLabel = labelText('History Log'); const histBox = form.querySelector('.history-box');
 
             // Header: back to search and filters, the reference, hide the panel; then the title and who/when; then the tabs.
@@ -3049,7 +3049,7 @@
             if (stage.signoff) {
                 const so = task.signoff && task.signoff.stage === stage.id ? task.signoff : null; const who = TT.signersFor(stage, taskOwner(task));
                 if (so && so.status === 'waiting') mk('so-wait', /^an? /.test(who.label) ? '⏳ Waiting for sign-off' : '⏳ Waiting for ' + soFirst(who.label), 'Waiting for ' + who.label + ' to sign off');
-                else if (so && so.status === 'changes') mk('so-changes', '✋ Changes asked', so.approverName + ': ' + so.note);
+                else if (so && so.status === 'changes') mk('so-changes', '✋ Changes asked', TT.who(so.approver, so.approverName) + ': ' + so.note);
                 else if (!so || so.status !== 'approved') mk('so-lock', '🔒 Sign-off', 'Moving on from ' + stage.name + ' needs ' + who.label + '’s sign-off');
             }
             return out;
@@ -3071,15 +3071,15 @@
                 const box = document.createElement('div'); box.className = 'so-box' + (so ? ' ' + so.status : '');
                 const line = document.createElement('div'); line.className = 'so-status'; line.id = 'so-status';
                 if (!so) line.textContent = '🔒 Moving on from ' + stage.name + ' needs a sign-off from ' + who.label + '.';
-                else if (so.status === 'waiting') line.textContent = '⏳ Sent for sign-off by ' + so.byName + ', ' + soAgo(so.at) + '. Waiting for ' + who.label + '.';
-                else if (so.status === 'changes') line.textContent = '✋ ' + so.approverName + ' asked for changes' + (so.note ? ': “' + so.note + '”' : '') + ' (' + soAgo(so.decidedAt) + ').';
-                else line.textContent = '✅ Signed off by ' + so.approverName + ', ' + soAgo(so.decidedAt) + '.';
+                else if (so.status === 'waiting') line.textContent = '⏳ Sent for sign-off by ' + TT.who(so.by, so.byName) + ', ' + soAgo(so.at) + '. Waiting for ' + who.label + '.';
+                else if (so.status === 'changes') line.textContent = '✋ ' + TT.who(so.approver, so.approverName) + ' asked for changes' + (so.note ? ': “' + so.note + '”' : '') + ' (' + soAgo(so.decidedAt) + ').';
+                else line.textContent = '✅ Signed off by ' + TT.who(so.approver, so.approverName) + ', ' + soAgo(so.decidedAt) + '.';
                 box.appendChild(line);
                 const btns = document.createElement('div'); btns.className = 'so-btns';
                 const b = (txt, id, cls, fn) => { const x = document.createElement('button'); x.type = 'button'; x.className = cls; x.id = id; x.textContent = txt; x.onclick = fn; btns.appendChild(x); return x; };
                 if (iCan && next && (!so || so.status !== 'approved')) {
                     if (cl.total && cl.done < cl.total) { const w = document.createElement('div'); w.className = 'so-warn'; w.textContent = '⚠ ' + (cl.total - cl.done) + ' checklist item' + (cl.total - cl.done === 1 ? ' isn’t' : 's aren’t') + ' ticked yet.'; box.appendChild(w); }
-                    const note = document.createElement('textarea'); note.id = 'so-note'; note.className = 'so-note'; note.rows = 2; note.maxLength = 500; note.placeholder = 'Note for ' + (so ? soFirst(so.byName) : 'them') + (so && so.status === 'waiting' ? ' (needed to ask for changes)' : ' (optional)'); box.appendChild(note);
+                    const note = document.createElement('textarea'); note.id = 'so-note'; note.className = 'so-note'; note.rows = 2; note.maxLength = 500; note.placeholder = 'Note for ' + (so ? soFirst(TT.who(so.by, so.byName)) : 'them') + (so && so.status === 'waiting' ? ' (needed to ask for changes)' : ' (optional)'); box.appendChild(note);
                     b('Approve → ' + next.name, 'so-approve', 'btn-primary', () => soApprove(task, note.value.trim()));
                     if (so && so.status === 'waiting') b('Request changes', 'so-changes', 'btn-secondary', () => soChanges(task, note.value.trim()));
                     if (so && so.status === 'waiting' && editable && so.by === (TT.me || {}).uid) b('Withdraw request', 'so-cancel', 'btn-secondary', () => soCancel(task));
@@ -3121,14 +3121,14 @@
             if (!mine.length) out.push(h('p', 'hint', 'No purchases to approve right now.'));
             mine.forEach(p => {
                 const a = p.approval; const card = h('article', 'so-card pa-card'); card.dataset.part = p.id;
-                const top = h('div', 'so-card-top'); top.append(h('span', 'so-badge', 'PURCHASE'), h('span', 'hint', (a.byName || 'Someone') + ' · asked ' + soAgo(a.at)));
+                const top = h('div', 'so-card-top'); top.append(h('span', 'so-badge', 'PURCHASE'), h('span', 'hint', (TT.who(a.by, a.byName) || 'Someone') + ' · asked ' + soAgo(a.at)));
                 const name = h('button', 'link-btn so-name', TT.purchaseLine(p)); name.type = 'button'; name.onclick = () => TT.openParts();
                 const btns = h('div', 'so-btns');
                 const ap = h('button', 'btn-primary pa-approve', 'Approve'); ap.type = 'button'; ap.onclick = () => TT.approvePurchase(p);
                 const no = h('button', 'btn-secondary pa-decline', 'Decline…'); no.type = 'button'; no.onclick = () => TT.declinePurchase(p);
                 btns.append(ap, no); card.append(top, name); if (p.notes) card.append(h('div', 'hint', p.notes)); card.append(btns); out.push(card);
             });
-            if (others.length) { out.push(h('h4', 'so-h', 'Purchases waiting for someone else (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(p => ul.appendChild(h('li', '', TT.purchaseLine(p) + ' · asked by ' + (p.approval.byName || 'someone')))); out.push(ul); }
+            if (others.length) { out.push(h('h4', 'so-h', 'Purchases waiting for someone else (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(p => ul.appendChild(h('li', '', TT.purchaseLine(p) + ' · asked by ' + (TT.who(p.approval.by, p.approval.byName) || 'someone')))); out.push(ul); }
             return out;
         }
         // Leaving the team and deleting tasks (requests.js), at the top: they're about people
@@ -3140,8 +3140,8 @@
             if (!mine.length) out.push(h('p', 'hint', 'Nothing for you to decide.'));
             mine.forEach(r => {
                 const card = h('article', 'so-card rq-card'); card.dataset.request = r.id;
-                const top = h('div', 'so-card-top'); top.append(h('span', 'so-badge' + (r.kind === 'leave' ? ' rq-leave' : ' rq-del'), r.kind === 'leave' ? 'LEAVING' : 'DELETE'), h('span', 'hint', (r.byName || 'Someone') + ' · asked ' + soAgo(r.at)));
-                const name = h(r.kind === 'leave' ? 'div' : 'button', r.kind === 'leave' ? 'so-name' : 'link-btn so-name', r.kind === 'leave' ? (r.byName || 'Someone') + ' wants to leave the team' : (r.taskName || 'Untitled task'));
+                const top = h('div', 'so-card-top'); top.append(h('span', 'so-badge' + (r.kind === 'leave' ? ' rq-leave' : ' rq-del'), r.kind === 'leave' ? 'LEAVING' : 'DELETE'), h('span', 'hint', (TT.who(r.by, r.byName) || 'Someone') + ' · asked ' + soAgo(r.at)));
+                const name = h(r.kind === 'leave' ? 'div' : 'button', r.kind === 'leave' ? 'so-name' : 'link-btn so-name', r.kind === 'leave' ? (TT.who(r.by, r.byName) || 'Someone') + ' wants to leave the team' : (r.taskName || 'Untitled task'));
                 if (r.kind !== 'leave') { name.type = 'button'; name.onclick = () => { document.getElementById('approvals-modal')?.closest('.modal-overlay')?.remove(); openOriginalTask(r.taskId); }; }
                 card.append(top, name); if (r.note) card.append(h('div', 'hint', '“' + r.note + '”'));
                 const btns = h('div', 'so-btns');
@@ -3149,7 +3149,7 @@
                 const no = h('button', 'btn-secondary rq-decline', r.kind === 'leave' ? 'Decline' : 'Keep it'); no.type = 'button'; no.onclick = () => TT.declineRequest(r);
                 btns.append(ap, no); card.append(btns); out.push(card);
             });
-            if (others.length) { out.push(h('h4', 'so-h', 'Other requests (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(r => ul.appendChild(h('li', '', (r.kind === 'leave' ? (r.byName || 'Someone') + ' asked to leave' : 'Delete “' + (r.taskName || 'a task') + '” · asked by ' + (r.byName || 'someone')) + ', ' + soAgo(r.at)))); out.push(ul); }
+            if (others.length) { out.push(h('h4', 'so-h', 'Other requests (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(r => ul.appendChild(h('li', '', (r.kind === 'leave' ? (TT.who(r.by, r.byName) || 'Someone') + ' asked to leave' : 'Delete “' + (r.taskName || 'a task') + '” · asked by ' + (TT.who(r.by, r.byName) || 'someone')) + ', ' + soAgo(r.at)))); out.push(ul); }
             return out;
         }
         function openApprovals() {
@@ -3169,14 +3169,14 @@
                     const meta = h('div', 'hint', st.name + ' → ' + (next ? next.name : '') + (t.dueDate ? ' · due ' + fmtShort(t.dueDate) : '') + (cl.total ? ' · checklist ' + cl.done + '/' + cl.total : ''));
                     card.append(top, name, meta);
                     if (cl.total) { const ul = h('ul', 'so-cl-list'); cl.items.forEach(c => ul.appendChild(h('li', c.done ? 'ok' : 'no', (c.done ? '✓ ' : '✗ ') + c.text))); card.appendChild(ul); }
-                    const note = h('textarea', 'so-note'); note.rows = 2; note.maxLength = 500; note.placeholder = 'Note for ' + soFirst(so.byName) + ' (needed to ask for changes)'; note.setAttribute('aria-label', 'Note for ' + so.byName);
+                    const note = h('textarea', 'so-note'); note.rows = 2; note.maxLength = 500; note.placeholder = 'Note for ' + soFirst(TT.who(so.by, so.byName)) + ' (needed to ask for changes)'; note.setAttribute('aria-label', 'Note for ' + TT.who(so.by, so.byName));
                     const btns = h('div', 'so-btns');
                     const ap = h('button', 'btn-primary so-approve', 'Approve → ' + (next ? next.name : '')); ap.type = 'button'; ap.onclick = () => soApprove(t, note.value.trim());
                     const ch = h('button', 'btn-secondary so-changes', 'Request changes'); ch.type = 'button'; ch.onclick = () => soChanges(t, note.value.trim());
                     btns.append(ap, ch); card.append(note, btns); out.push(card);
                 });
                 if (others.length) { out.push(h('h4', 'so-h', 'Waiting for someone else (' + others.length + ')')); const ul = h('ul', 'so-others'); others.forEach(({ l, who }) => ul.appendChild(h('li', '', (l.task.name || 'Untitled task') + ' · ' + l.person.name + ' · waiting for ' + who.label))); out.push(ul); }
-                if (recent.length) { out.push(h('h4', 'so-h', 'Recently decided')); const ul = h('ul', 'so-recent'); recent.forEach(l => { const so = l.task.signoff; const li = h('li'); li.append(h('span', so.status === 'approved' ? 'so-ok' : 'so-ch', so.status === 'approved' ? 'Approved' : 'Changes requested'), ' · ' + (l.task.name || 'Untitled task') + ' (' + l.person.name + ')' + (so.note ? ': “' + so.note + '”' : '') + ' · ' + so.approverName + ', ' + soAgo(so.decidedAt)); ul.appendChild(li); }); out.push(ul); }
+                if (recent.length) { out.push(h('h4', 'so-h', 'Recently decided')); const ul = h('ul', 'so-recent'); recent.forEach(l => { const so = l.task.signoff; const li = h('li'); li.append(h('span', so.status === 'approved' ? 'so-ok' : 'so-ch', so.status === 'approved' ? 'Approved' : 'Changes requested'), ' · ' + (l.task.name || 'Untitled task') + ' (' + l.person.name + ')' + (so.note ? ': “' + so.note + '”' : '') + ' · ' + TT.who(so.approver, so.approverName) + ', ' + soAgo(so.decidedAt)); ul.appendChild(li); }); out.push(ul); }
                 const parts = [...requestCards(h), ...out, ...purchaseCards(h)];
                 if (!parts.length) parts.push(h('p', 'hint so-empty', 'Nothing is waiting for approval. Sign-offs, purchases over the approval limit and requests to leave or to delete a task show up here.'));
                 m.body.replaceChildren(...parts);

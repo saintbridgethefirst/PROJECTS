@@ -42,7 +42,7 @@ try {
       status: 'A long status that should wrap neatly inside the card rather than run off its edge' });
     const owner = Object.keys(T.members).find(u => T.members[u].roleId === 'owner');
     T.doc.github = { repo: 'uni/rover', issues: true, done: true, owner, connectedAt: 1, write: true, last: null };
-    T.private = { github: { secret: 's', repo: 'uni/rover', by: owner, at: 1, last: null, token: 'ghp_demo0000000000000000000000' } };
+    T.private = { github: { secret: 's', repo: 'uni/rover', by: owner, at: 1, last: null, token: 'github_pat_demo0000000000000000000000' } };
     localStorage.setItem(k, JSON.stringify(s));
   });
   await A.reload(); await A.waitForSelector('.task-card'); await sleep(500);

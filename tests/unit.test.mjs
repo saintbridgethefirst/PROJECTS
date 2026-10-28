@@ -1217,3 +1217,42 @@ test('undo puts back only my change, keeping a teammate’s later edits', () => 
   const [wop] = restoreOps([{ kind: 'weeks', before: w0, after: w1 }], { name: 'Ann' }, 'before', () => cur);
   assert.deepEqual(wop.data.weeks.map(w => w.title), ['WEEK 9', 'WEEK 10'], 'Bob’s new week stays');
 });
+
+test('undo of a deleted signed-off task: the decision is kept beside the deletion and taken back on undo', () => {
+  const so = { stage: 'review', status: 'approved', by: 'a', byName: 'A', at: 1, approver: 'b', approverName: 'B', note: '', decidedAt: 2 };
+  const before = { id: 't1', name: 'Frame', ownerUid: 'a', signoff: so, weekId: 'w1', categoryId: 'c1' };
+  const changes = [{ kind: 'task', id: 't1', before, after: null }];
+  const ops = changesToOps(changes, { uid: 'm', name: 'Max' });
+  assert.deepEqual(ops.map(o => o.type + ' ' + o.path), ['delete tasks/t1', 'set removed/t1']);
+  assert.deepEqual(ops[1].data.signoff, so); assert.equal(ops[1].data.name, 'Frame'); assert.equal(ops[1].data.by, 'm');
+  const undo = restoreOps(changes, { uid: 'm', name: 'Max' }, 'before');
+  assert.deepEqual(undo.map(o => o.type + ' ' + o.path), ['set tasks/t1', 'delete removed/t1']);
+  const redo = restoreOps(changes, { uid: 'm', name: 'Max' }, 'after', () => before);
+  assert.deepEqual(redo.map(o => o.type + ' ' + o.path), ['delete tasks/t1', 'set removed/t1'], 'redo deletes it again, keeping the decision');
+  const waiting = changesToOps([{ kind: 'task', id: 't2', before: { ...before, id: 't2', signoff: { ...so, status: 'waiting' } }, after: null }], { uid: 'm', name: 'Max' });
+  assert.equal(waiting.length, 1, 'a waiting request needs nothing kept');
+});
+
+test('no inline script: every data-on… handler in the page and the board is a plain call of an allowed function', async () => {
+  const fs = await import('node:fs');
+  const { parseHandler, ALLOWED, EVENTS } = await import('../src/handlers.js');
+  const page = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../public/board/board.js', import.meta.url), 'utf8');
+  assert.equal(/\son[a-z]+=["']/.test(page), false, 'index.html has no onclick="…"');
+  assert.equal(/[\s'"`]on(click|change|keydown|blur|input)=["']/.test(board), false, 'the board writes no onclick="…"');
+  assert.equal(/<script>/.test(page), false, 'index.html has no inline <script>');
+  const found = [...(page + board).matchAll(/data-on([a-z]+)="([^"]*)"/g)];
+  assert.ok(found.length > 50, 'found the handlers (' + found.length + ')');
+  const used = new Set();
+  for (const [, ev, src] of found) {
+    assert.ok(EVENTS.includes(ev), 'listened for: ' + ev);
+    const code = src.replace(/\$\{[^}]*\}/g, '0');   // the board's template values (ids, indexes)
+    const { calls } = parseHandler(code); calls.forEach(c => used.add(c.call));
+  }
+  for (const name of ALLOWED) assert.ok(used.has(name), 'allowed but unused: ' + name);
+  assert.throws(() => parseHandler('alert(1)'), /Not an allowed action/);
+  assert.throws(() => parseHandler('toggleTheme(window.x)'), /plain values/);
+  assert.throws(() => parseHandler('toggleTheme(); fetch("//x")'), /Not an allowed action/);
+  assert.throws(() => parseHandler('toggleTheme`x`'), /Unexpected/);
+  assert.deepEqual(parseHandler("TT.openSettings('members'); return false;"), { calls: [{ call: 'TT.openSettings', args: [{ lit: 'members' }] }], ret: false });
+});

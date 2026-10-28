@@ -121,7 +121,7 @@ export function boardSources(ctx) {
   const tasks = new Map((s.tasks || []).map(t => [t.id, t]));
   (s.comments || []).forEach(c => {
     const t = tasks.get(c.taskId); if (!t || !weeks.has(t.weekId)) return;
-    items.push({ group: 'Comments', icon: '💬', title: c.text.length > 90 ? c.text.slice(0, 90) + '…' : c.text, sub: c.authorName + ' on ' + t.name, fields: [[c.text, 1.5], [c.authorName, 1]], run: () => window.boardOpenTask(t.id) });
+    items.push({ group: 'Comments', icon: '💬', title: c.text.length > 90 ? c.text.slice(0, 90) + '…' : c.text, sub: TT.who(c.authorUid, c.authorName) + ' on ' + t.name, fields: [[c.text, 1.5], [TT.who(c.authorUid, c.authorName), 1]], run: () => window.boardOpenTask(t.id) });
   });
   s.members.forEach(m => items.push({ group: 'People', icon: '👤', title: m.name || m.email, sub: TT.roleName(m.roleId) + (m.email ? ' · ' + m.email : ''), fields: [[m.name, 3], [m.email, 2]], run: () => window.boardFocusPerson && window.boardFocusPerson(m.uid) }));
   (s.team.phases || []).forEach(p => items.push({ group: 'Phases', icon: '🧭', title: p.name, sub: [p.start && p.end ? p.start + ' → ' + p.end : '', p.milestone && '🏁 ' + p.milestone].filter(Boolean).join(' · '), fields: [[p.name, 3], [p.milestone, 1.5]], run: () => window.boardShowPhase && window.boardShowPhase(p.id) }));

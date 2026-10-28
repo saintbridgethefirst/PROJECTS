@@ -33,12 +33,21 @@ try {
     weeksData.push({ key: 'wk_2', title: 'WEEK 2', metric: '', collapsed: false, startDate: wk(-1) },
       { key: 'wk_3', title: 'WEEK 3', metric: '', collapsed: false, startDate: wk(0) });
     db.forEach(pp => pp.categories.forEach(c => { c.wk_2 = c.wk_2 || []; c.wk_3 = c.wk_3 || []; }));
-    const c = db.find(x => x.id === TT.me.uid).categories[0];
-    c[weeksData[0].key] = [
-      { id: 'tKeep', type: 'task', name: 'Carry me', priority: 'Minor', status: '', flag: 'none', subtasks: [], history: [] },
-      { id: 'tDone', type: 'task', name: 'Done already', priority: 'Minor', status: '', flag: 'completed', completedDate: wk(-2), subtasks: [], history: [] },
-    ];
     saveDatabase(); render();
+  }, monday());
+  await sleep(500);
+  // The tasks are written as they'd be by someone who made them two weeks ago (the board stamps new ones with now).
+  await p.evaluate(async (m) => {
+    const wk = (n) => { const x = new Date(m); x.setDate(x.getDate() + 7 * n); return x.toLocaleDateString('en-CA'); };
+    const c = db.find(x => x.id === TT.me.uid).categories[0]; const ago = Date.now() - 15 * 864e5;
+    const doc = (name, flag, createdAt) => ({ name, priority: 'Minor', status: '', jiraId: '', supportPersonId: null, supportPersonId2: null, flag, dueDate: '', completedDate: flag === 'completed' ? wk(-2) : '',
+      subtasks: [], history: [], custom: {}, icon: '', attachments: [], categoryId: c.id, ownerUid: TT.me.uid, weekId: weeksData[0].key, order: 0, createdBy: TT.me.uid, createdAt, updatedBy: 'Aisha Khan', updatedAt: createdAt });
+    await TT.writeOps([
+      { type: 'set', path: 'tasks/tKeep', data: doc('Carry me', 'none', ago) },
+      // Planned today into a week that's already over (a plan started in the past): not missed, so not carried.
+      { type: 'set', path: 'tasks/tLate', data: doc('Planned late', 'none', Date.now()) },
+      { type: 'set', path: 'tasks/tDone', data: doc('Done already', 'completed', ago) },
+    ]);
   }, monday());
   await sleep(600);
   ok((await tasksNamed('Carry me')).length === 1 && (await tasksNamed('Done already')).length === 1, 'one of each to start');
@@ -58,6 +67,7 @@ try {
   ok(inWeek3[0].carryOf === 'tKeep' || copies.some(t => t.carryOf), 'the copy is linked to the original (carry chain)');
   ok(inWeek3[0].flag !== 'completed' && (inWeek3[0].signoff == null), 'the copy is unfinished and carries no old sign-off');
   ok((await tasksNamed('Done already')).length === 1, 'the completed task is not carried');
+  ok((await tasksNamed('Planned late')).length === 1, 'a task added after its week was over stays there (no flood of copies)');
   ok(JSON.stringify(inWeek3[0].history).includes('Carried forward'), 'the copy records the carry in its history');
 
   step('It runs only once (no duplicates on the next check)');

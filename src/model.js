@@ -211,6 +211,16 @@ export function cleanSubteams(list) {
 export const subteamsOf = (team, uid) => ((team && team.subteams) || []).filter(s => s.members.includes(uid));
 export const subteamById = (team, id) => ((team && team.subteams) || []).find(s => s.id === id) || null;
 
+/**
+ * The name to show for a person on a record (a comment, note, sign-off, request…): their current name in
+ * the team when they're still a member, so a name typed into a record can't pass for someone else; the
+ * name stored with the record otherwise (a former member).
+ */
+export function nameFor(members, uid, stored, fallback = 'Someone') {
+  const m = uid ? (members || []).find(x => x && x.uid === uid) : null;
+  return (m && m.name) || stored || fallback;
+}
+
 export function cleanMember(m, uid) {
   return { uid: safeKey(uid || m.uid), email: str(m.email, 200).toLowerCase(), name: str(m.name, 80), photo: cleanPhoto(m.photo), roleId: safeKey(m.roleId || 'viewer'), joinedAt: Number(m.joinedAt) || 0 };
 }

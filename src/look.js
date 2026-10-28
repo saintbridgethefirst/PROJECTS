@@ -13,11 +13,11 @@ import { SKIP_SELECTOR } from './i18n-skip.js';
 // Menu buttons → icon. Matched in order; the first emoji in the button is swapped for the icon.
 const BUTTONS = [
   ['[data-view="board"]', 'layout-grid'], ['[data-view="kanban"]', 'square-kanban'], ['[data-view="gantt"]', 'chart-gantt'], ['[data-view="list"]', 'list'],
-  ['#search-btn', 'search'], ['[onclick*="openSettings(\'members\')"]', 'user-plus'], ['[onclick*="openAnalytics(\'overview\')"]', 'chart-column'],
-  ['[onclick*="openAnalytics(\'timeline\')"]', 'calendar-range'], ['#research-btn', 'wrench'], ['#online-btn', 'users'], ['#activity-btn', 'bell'],
-  ['#wb-btn', 'presentation'], ['#approvals-btn', 'check-check'], ['#share-btn', 'share-2'], ['[onclick*="TT.openAI"]', 'sparkles'],
-  ['[onclick*="scrollToToday"]', 'crosshair'], ['[onclick="TT.openSettings()"]', 'settings'], ['#nav-collapse', 'panel-left-close'],
-  ['[onclick="toggleSidebar()"]', 'panel-right'], ['#theme-toggle-outer', 'palette'], ['#crossteam-btn', 'users'], ['#joint-btn', 'layers'], ['#home-search', 'search'], ['#home-guide', 'book-open'], ['#home-feedback', 'message-square'], ['#home-theme', 'palette'],
+  ['#search-btn', 'search'], ['[data-onclick*="openSettings(\'members\')"]', 'user-plus'], ['[data-onclick*="openAnalytics(\'overview\')"]', 'chart-column'],
+  ['[data-onclick*="openAnalytics(\'timeline\')"]', 'calendar-range'], ['#research-btn', 'wrench'], ['#online-btn', 'users'], ['#activity-btn', 'bell'],
+  ['#wb-btn', 'presentation'], ['#approvals-btn', 'check-check'], ['#share-btn', 'share-2'], ['[data-onclick*="TT.openAI"]', 'sparkles'],
+  ['[data-onclick*="scrollToToday"]', 'crosshair'], ['[data-onclick="TT.openSettings()"]', 'settings'], ['#nav-collapse', 'panel-left-close'],
+  ['[data-onclick="toggleSidebar()"]', 'panel-right'], ['#theme-toggle-outer', 'palette'], ['#crossteam-btn', 'users'], ['#joint-btn', 'layers'], ['#home-search', 'search'], ['#home-guide', 'book-open'], ['#home-feedback', 'message-square'], ['#home-theme', 'palette'],
   // Settings ▸ Features: each module's emoji becomes a line icon
   ...Object.entries({ planning: 'calendar-range', meetings: 'clipboard-list', notebook: 'notebook-pen', literature: 'book-open', whiteboards: 'presentation',
     subteams: 'puzzle', parts: 'package', finance: 'wallet', people: 'users', time: 'clock', risks: 'shield-alert', requirements: 'ruler', dissertation: 'graduation-cap' })

@@ -57,6 +57,18 @@ export function proActive(plan, now = Date.now(), ownerUid = '') {
   if (p.edu && p.by && ownerUid && p.by !== ownerUid) return false;   // Education plan, but the team changed hands
   return !(Number(p.until) > 0 && Number(p.until) < now);
 }
+/** Members (plus pending invitations) a team's plan allows. Mirrors PLANS in src/model.js. */
+export const PLAN_MEMBERS = { free: 30, pro: 100, org: 500 };
+export const memberLimit = (plan, now = Date.now(), ownerUid = '') => (proActive(plan, now, ownerUid) ? PLAN_MEMBERS[plan.tier] : PLAN_MEMBERS.free);
+/**
+ * Who of a team's members is over its plan's limit: the latest to join, never the owner. The server removes
+ * them (the app already stops this; only a changed app could get past it). members: [{ uid, roleId, joinedAt }].
+ */
+export function overLimit(members, limit) {
+  const order = (members || []).map(m => ({ uid: m.uid, owner: m.roleId === 'owner', at: Number(m.joinedAt) || 0 }))
+    .sort((a, b) => (b.owner - a.owner) || (a.at - b.at) || a.uid.localeCompare(b.uid));
+  return order.slice(limit).filter(m => !m.owner).map(m => m.uid);
+}
 /** Email choices on users/{uid}.notify — on unless switched off. */
 export const wants = (userDoc, key) => !(userDoc && userDoc.notify && userDoc.notify[key] === false);
 const day = (iso) => { const d = new Date(iso + 'T12:00:00Z'); return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' }); };
@@ -124,6 +136,9 @@ export function inviteEmail({ appName = 'Trawpie', appUrl, inviter, teamName, ro
 // ── Feedback and error alerts to the platform admins ────────────────────────
 export const MAX_ALERT_EMAILS_PER_DAY = 10;      // new kinds of error
 export const MAX_FEEDBACK_EMAILS_PER_DAY = 40;
+// One person can't use up those daily emails for everyone else.
+export const MAX_FEEDBACK_EMAILS_PER_PERSON = 5;
+export const MAX_ALERT_EMAILS_PER_PERSON = 3;
 export const ALERT_REPEAT_HOURS = 24;            // the same error is emailed again at most once a day
 
 /** Errors that differ only in ids or numbers count as the same error. */

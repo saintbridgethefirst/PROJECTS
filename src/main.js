@@ -4,6 +4,7 @@
 //  bridge the board script (public/board/board.js) uses to save changes, check
 //  permissions and open app dialogs.
 // ─────────────────────────────────────────────────────────────────────────────
+import { installHandlers } from './handlers.js';
 import './board.css';
 import './app.css';
 import './ticks.css';
@@ -32,7 +33,7 @@ import { refIdOf } from '../functions/ghsync.js';
 import { waitingPurchases, decidePurchase, declineDialog, purchaseOn, purchaseLine } from './purchases.js';
 import { signersFor, canSignStage, gateOnTheWay, checklistOf, cleanWhiteboard, cleanWbItem, cleanWorkflow, storedWorkflow, leadsIndex, cleanPresence } from './model.js';
 import { guessCurrency, CURRENCIES } from './model.js';
-import { cleanComment, cleanTemplate, cleanEffort, cleanCapacity, MAX_DEPS, workflowOf, stageIdOf, stageKindOf, isCustomWorkflow, cleanMeeting, cleanNotebookEntry, cleanPart, cleanExpense, cleanBudget, cleanPaper, cleanLogEntry } from './model.js';
+import { nameFor, cleanComment, cleanTemplate, cleanEffort, cleanCapacity, MAX_DEPS, workflowOf, stageIdOf, stageKindOf, isCustomWorkflow, cleanMeeting, cleanNotebookEntry, cleanPart, cleanExpense, cleanBudget, cleanPaper, cleanLogEntry } from './model.js';
 import { openResearch, refreshResearch, seesMoney } from './research.js';
 import { notebookSection, notebookCount, linkedSection } from './notebook.js';
 import { openReport } from './report.js';
@@ -55,6 +56,7 @@ import { openShareWeek } from './share.js';
 import { renderStart } from './start.js';
 import { startTour, endTour, tourRunning } from './tour.js';
 import { openSelf, closeSelf, orb as selfOrb } from './self.js';
+installHandlers();   // data-onclick="…" in the page and the board (no inline script: see src/handlers.js)
 
 let backend = null;
 /** Shared state for the feature modules (yourdata.js, feedback.js…). */
@@ -318,8 +320,8 @@ function demoTourSteps(kind = 'drone') {
     { target: '.gt2-scroll', before: () => window.boardSetView && window.boardSetView('gantt'), after: () => window.boardSetView && window.boardSetView('board'), title: 'Gantt: plan on a timeline', text: 'Each task is a bar from its start to its deadline, with arrows for what waits on what. Drag a bar or its ends to re-plan; tasks that wait on it move along.' },
     { target: '#share-btn', title: 'Share this week', text: 'One click turns the week into a message for your team chat: what’s done, due, late and stuck, with a link back to the board.' },
     { target: '#research-btn', title: 'Tools', text: 'Parts and orders, budget and spending, lab notebook, meetings, papers, risks and requirements. Each team switches on only what it needs.' },
-    { target: '#top-actions [onclick="openAnalytics(\'overview\')"]', title: 'Analytics', text: 'Progress, workload per person, burndown, a Gantt timeline and a printable progress report for a manager, customer or funder.' },
-    { target: '#top-actions [onclick="TT.openSettings()"]', title: 'Make it yours', text: 'Settings: invite people by email, set roles and permissions, and under Workflow choose your stages and automatic steps: this team carries unfinished work into the new week on its own.' },
+    { target: '#top-actions [data-onclick="openAnalytics(\'overview\')"]', title: 'Analytics', text: 'Progress, workload per person, burndown, a Gantt timeline and a printable progress report for a manager, customer or funder.' },
+    { target: '#top-actions [data-onclick="TT.openSettings()"]', title: 'Make it yours', text: 'Settings: invite people by email, set roles and permissions, and under Workflow choose your stages and automatic steps: this team carries unfinished work into the new week on its own.' },
     { title: 'That’s the tour', text: 'Keep exploring: nothing here can break, and it all stays in this browser. When your team is ready, set up the real thing in a couple of minutes; it’s free for teams of up to 30.',
       action: () => el('div.row', { style: { gap: '8px', flexWrap: 'wrap' } }, el('a.btn.primary.small', { href: '/' }, 'Create your real team →'), el('a.btn.small', { href: 'guide.html' }, 'Read the full guide')) },
   ];
@@ -1231,6 +1233,8 @@ window.TT = {
   get me() { return session && session.me ? { uid: user.uid, name: user.name, email: user.email, roleId: session.me.roleId } : null; },
   get team() { return session && session.team; },
   get members() { return (session && session.members) || []; },
+  /** The name to show for someone on a record: their name in the team now, so a name typed into a record can't pass for someone else. */
+  who: (uid, stored, fallback) => nameFor((session && session.members) || [], uid, stored, fallback),
   /** Sign-offs and checklists (model.js): who signs off a stage for a task's owner, and can I. */
   carryFields: (task) => carryFields(task), uniqueTimeEntries: (tasks) => uniqueTimeEntries(tasks),
   signersFor: (stage, ownerUid) => signersFor(stage, session && session.team, (session && session.members) || [], ownerUid),

@@ -94,6 +94,15 @@ export function newIssueUrl(repo, { title = '', body = '', ref = '' } = {}) {
  *   settings: cleanGithub(team.github)
  * Returns { ok, why, links: [{ taskId, attachment }], finish: [{ taskId, why }], create: null | { name, url, label } }
  */
+// On a public repository anyone on GitHub can open issues and pull requests, so only people the repository
+// trusts (its owner, organisation members and collaborators) can make or link tasks that way. GitHub always
+// sends repository.private; a payload without it counts as private.
+const TRUSTED = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+export function trustedAuthor(payload, item) {
+  const p = payload || {};
+  if (!(p.repository && p.repository.private === false)) return true;
+  return TRUSTED.has(String((item && item.author_association) || '').toUpperCase());
+}
 export function planGithubEvent(kind, payload, tasks, settings) {
   const out = { ok: true, why: '', links: [], finish: [], create: null, states: [] };
   const s = cleanGithub(settings); const p = payload || {};
@@ -115,28 +124,35 @@ export function planGithubEvent(kind, payload, tasks, settings) {
   const finish = (t, why) => { if (t.flag !== 'completed' && !out.finish.some(f => f.taskId === t.id)) out.finish.push({ taskId: t.id, why }); };
   if (kind === 'pull_request') {
     const pr = p.pull_request || {};
-    const refs = findRefs(pr.title, pr.body, pr.head && pr.head.ref);
+    // An outsider's pull request on a public repository links to tasks only once someone merges it.
+    const trusted = trustedAuthor(p, pr) || (p.action === 'closed' && !!pr.merged);
+    const refs = trusted ? findRefs(pr.title, pr.body, pr.head && pr.head.ref) : [];
     const hits = refs.map(r => byRef.get(r)).filter(Boolean);
-    customHits(pr.title, pr.body, pr.head && pr.head.ref).forEach(t => { if (!hits.includes(t)) hits.push(t); });
+    if (trusted) customHits(pr.title, pr.body, pr.head && pr.head.ref).forEach(t => { if (!hits.includes(t)) hits.push(t); });
     hits.forEach(t => attach(t, pr, true));
     linked(pr.html_url).forEach(t => { if (!hits.includes(t)) hits.push(t); });
     hits.forEach(t => out.states.push({ taskId: t.id, url: pr.html_url, state: stateOf(pr, true), reason: '', label: 'PR #' + pr.number }));
     if (p.action === 'closed' && pr.merged && s.done) hits.forEach(t => finish(t, 'pull request #' + pr.number + ' merged'));
-    if (!hits.length) out.why = refs.length ? 'No task has ' + refs.join(', ') + '.' : 'No TT- reference in the pull request.';
+    if (!hits.length) out.why = !trusted ? 'A pull request from outside the repository: it links to tasks once it’s merged.' : refs.length ? 'No task has ' + refs.join(', ') + '.' : 'No TT- reference in the pull request.';
     return out;
   }
   if (kind === 'issues') {
     const is = p.issue || {};
     if (is.pull_request) { out.why = 'A pull request’s issue event.'; return out; }
-    const refs = findRefs(is.title, is.body);
+    // An issue by someone outside a public repository doesn't make or link tasks, and closing it themselves
+    // doesn't finish one (someone with access closing it does). Issues already linked keep their state.
+    const trusted = trustedAuthor(p, is);
+    const selfClosed = !trusted && p.sender && is.user && p.sender.login === is.user.login;
+    const refs = trusted ? findRefs(is.title, is.body) : [];
     const hits = refs.map(r => byRef.get(r)).filter(Boolean);
-    customHits(is.title, is.body).forEach(t => { if (!hits.includes(t)) hits.push(t); });
+    if (trusted) customHits(is.title, is.body).forEach(t => { if (!hits.includes(t)) hits.push(t); });
     linked(is.html_url).forEach(t => { if (!hits.includes(t)) hits.push(t); });
-    if (p.action === 'opened' || p.action === 'reopened' || p.action === 'edited') hits.forEach(t => attach(t, is, false));
-    if (p.action === 'opened' && !hits.length && s.issues) out.create = { name: String(is.title || 'GitHub issue').slice(0, 200), url: is.html_url, label: 'Issue #' + is.number + ': ' + String(is.title || '').slice(0, 160) };
+    if (trusted && (p.action === 'opened' || p.action === 'reopened' || p.action === 'edited')) hits.forEach(t => attach(t, is, false));
+    if (trusted && p.action === 'opened' && !hits.length && s.issues) out.create = { name: String(is.title || 'GitHub issue').slice(0, 200), url: is.html_url, label: 'Issue #' + is.number + ': ' + String(is.title || '').slice(0, 160) };
     hits.forEach(t => out.states.push({ taskId: t.id, url: is.html_url, state: stateOf(is, false), reason: is.state_reason === 'not_planned' ? 'not_planned' : is.state_reason === 'duplicate' ? 'duplicate' : '', label: 'issue #' + is.number }));
-    if (p.action === 'closed' && s.done && is.state_reason !== 'not_planned' && is.state_reason !== 'duplicate') hits.forEach(t => finish(t, 'issue #' + is.number + ' closed'));
-    if (!hits.length && !out.create) out.why = 'Nothing to do for this issue.';
+    if (p.action === 'closed' && s.done && !selfClosed && is.state_reason !== 'not_planned' && is.state_reason !== 'duplicate') hits.forEach(t => finish(t, 'issue #' + is.number + ' closed'));
+    if (!hits.length && !out.create) out.why = trusted ? 'Nothing to do for this issue.' : 'An issue from outside the repository: not turned into a task.';
+    else if (selfClosed && p.action === 'closed' && hits.length) out.why = 'Closed by the person who opened it, from outside the repository: the task isn’t finished.';
     return out;
   }
   out.why = 'Event not used: ' + kind;

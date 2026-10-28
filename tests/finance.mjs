@@ -146,7 +146,7 @@ try {
   ok(await A.locator('.fin-log-list li').count() === log.length, 'Show all lists every entry (' + log.length + ')');
   await shot(A, 'history');
   const [dl] = await Promise.all([A.waitForEvent('download'), A.click('button:has-text("Export (.xlsx)")')]);
-  ok(/Finance_.*\.xlsx$/.test(dl.suggestedFilename()), 'finance export still works (now with a History sheet)');
+  ok(/Finance_.*\.xlsx$/.test(dl.suggestedFilename()), 'finance export still works (now with a Change history sheet)');
   ok(await A.evaluate(async () => { const r = await TT.isDemo; return r; }), 'demo mode');
 } catch (e) { fail++; console.log('TEST CRASH:', e.message.split('\n').slice(0, 12).join('\n')); if (SHOTS) for (const [i, p] of ctx.pages().entries()) await p.screenshot({ path: `${SHOTS}/finance-crash-${i}.png` }); }
 console.log('\npage errors:', errors);

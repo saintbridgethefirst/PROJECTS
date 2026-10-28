@@ -32,10 +32,15 @@ function seoPages() {
   };
 }
 
+// The live site's security headers (firebase.json), also on the local preview, so every browser test runs
+// under the same Content-Security-Policy as trawpie.org and fails if something needs inline script.
+const HEADERS = Object.fromEntries(JSON.parse(readFileSync(new URL('./firebase.json', import.meta.url), 'utf8')).hosting.headers
+  .find(h => h.source === '**').headers.map(h => [h.key, h.value]));
+
 export default defineConfig({
   define: { __BUILD_ID__: JSON.stringify(Date.now().toString(36)) },
   build: { outDir: 'dist', sourcemap: false, chunkSizeWarningLimit: 900 },
   server: { host: '127.0.0.1', port: 5173 },
-  preview: { host: '127.0.0.1', port: 4173 },
+  preview: { host: '127.0.0.1', port: 4173, headers: HEADERS },
   plugins: [seoPages()],
 });

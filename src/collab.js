@@ -5,7 +5,7 @@
 //  task never needs permission to edit the task itself.
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, avatar, modal, toast } from './ui.js';
-import { newId, findMentions, cleanComment, carryRoots, carryIndexOf } from './model.js';
+import { newId, findMentions, cleanComment, carryRoots, carryIndexOf, nameFor } from './model.js';
 import { LIMITS } from './config.js';
 
 const PRIO_ICON = { Blocker: '⛔', Critical: '🔴', Major: '🟠', Minor: '🔽' };
@@ -210,7 +210,7 @@ export function buildFeed(session) {
   });
   (session.comments || []).forEach(c => {
     const t = tasks.get(c.taskId); if (!t) return;
-    out.push({ kind: 'comment', at: c.createdAt, who: c.authorName, whoUid: c.authorUid, taskId: c.taskId, task: t.name, week: weeks.get(t.weekId) || '', text: c.text, comment: c });
+    out.push({ kind: 'comment', at: c.createdAt, who: nameFor(session.members, c.authorUid, c.authorName), whoUid: c.authorUid, taskId: c.taskId, task: t.name, week: weeks.get(t.weekId) || '', text: c.text, comment: c });
   });
   return out.filter(e => e.at).sort((a, b) => b.at - a.at);
 }
@@ -244,7 +244,7 @@ export function openActivity(ctx, tab = 'mentions') {
       const t = tasks.get(c.taskId);
       pane.append(el('button.act-item' + (isNew.has(c.id) ? '.unread' : ''), { type: 'button', onclick: () => { markSeen(user.uid, [c.id]); go(c.taskId); } },
         avatar(session.members.find(x => x.uid === c.authorUid) || { name: c.authorName }),
-        el('span.act-main', {}, el('span', {}, el('b', {}, c.authorName), ' mentioned you on ', el('b', {}, t.name)),
+        el('span.act-main', {}, el('span', {}, el('b', {}, nameFor(session.members, c.authorUid, c.authorName)), ' mentioned you on ', el('b', {}, t.name)),
           el('span.act-quote', {}, c.text.length > 220 ? c.text.slice(0, 220) + '…' : c.text),
           el('span.act-time', {}, timeAgo(c.createdAt)))));
     });

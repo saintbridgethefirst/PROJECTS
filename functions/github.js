@@ -9,6 +9,10 @@ import crypto from 'node:crypto';
 import { planGithubEvent, githubOps, newTaskPlace, cleanGithub, cleanRepo, taskRef as ref, refIdOf, gateBlocks, stateOf, repoRenamed } from './ghsync.js';
 
 const fail = (code, message) => Object.assign(new Error(message), { code });
+// Classic tokens (ghp_) reach every repository their owner can; only fine-grained ones, limited to the
+// team's repository, are accepted.
+const CLASSIC = 'Classic GitHub tokens (ghp_…) reach every repository you can, so Trawpie no longer uses them. Make a fine-grained token for just this repository (Settings ▸ Integrations ▸ GitHub shows how).';
+export const isClassicToken = (t) => /^ghp_/.test(String(t || ''));
 
 async function canManage(db, uid, teamId) {
   const [team, me] = await Promise.all([db.doc('teams/' + teamId).get(), db.doc('teams/' + teamId + '/members/' + uid).get()]);
@@ -57,6 +61,9 @@ export async function handleWebhook(db, { teamId, kind, signature, rawBody, deli
   const priv = await db.doc('teams/' + teamId + '/private/github').get();
   if (!priv.exists) return { status: 404, body: 'GitHub isn’t connected to this team.' };
   if (!signatureOk(priv.data().secret, rawBody, signature)) return { status: 401, body: 'Bad signature: check the webhook secret.' };
+  // GitHub gives every delivery an id, and "Redeliver" (or a retry) sends the same one again: apply it once.
+  const deliveryId = /^[\w-]{8,80}$/.test(String(delivery || '')) ? String(delivery) : '';
+  if (deliveryId && (priv.data().seen || []).includes(deliveryId)) return { status: 200, body: { duplicate: true, delivery: deliveryId, why: 'Already applied this delivery.' } };
   let payload; try { payload = JSON.parse(rawBody.toString('utf8')); } catch { return { status: 400, body: 'Send the webhook as application/json.' }; }
   const teamSnap = await db.doc('teams/' + teamId).get(); const team = teamSnap.data() || {};
   // Only issues and pull requests change tasks: anything else (pushes, stars, ping…) is noted without reading the tasks.
@@ -91,14 +98,19 @@ export async function handleWebhook(db, { teamId, kind, signature, rawBody, deli
     newTask = newTaskPlace(team, cats, londonDay(now));
   }
   const { ops, notes } = githubOps(plan, tasks, { now, today: londonDay(now), time: stamp(now), stages: (team.workflow && team.workflow.stages) || [], newTask, newId: 't_gh' + crypto.randomBytes(9).toString('hex') });
-  const batch = db.batch();
-  ops.forEach(o => { const ref = db.doc('teams/' + teamId + '/' + o.path); if (o.type === 'set') batch.set(ref, o.data); else batch.update(ref, o.data); });
   const summary = { at: now, kind: String(kind).slice(0, 40), action: String((payload && payload.action) || '').slice(0, 40), delivery: String(delivery || '').slice(0, 80),
     links: plan.links.length, finished: plan.finish.length, created: plan.create && newTask ? 1 : 0, why: [moved ? 'Repository renamed from ' + moved.from + ' to ' + moved.repo + '; following it.' : '', plan.why, ...notes].filter(Boolean).join(' ').slice(0, 300) };
-  batch.set(priv.ref, { last: summary }, { merge: true });
-  // What the app shows (Settings ▸ Integrations ▸ GitHub): proof that events arrive.
-  batch.update(teamSnap.ref, { 'github.last': { at: now, kind: summary.kind, action: summary.action, links: summary.links, finished: summary.finished, created: summary.created, ok: plan.ok } });
-  await batch.commit();
+  // One transaction: two copies of the same delivery arriving together can't both be applied.
+  const dup = await db.runTransaction(async (tx) => {
+    const cur = await tx.get(priv.ref); const seen = (cur.exists && cur.data().seen) || [];
+    if (deliveryId && seen.includes(deliveryId)) return true;
+    ops.forEach(o => { const ref = db.doc('teams/' + teamId + '/' + o.path); if (o.type === 'set') tx.set(ref, o.data); else tx.update(ref, o.data); });
+    tx.set(priv.ref, { last: summary, ...(deliveryId ? { seen: [...seen.filter(x => x !== deliveryId).slice(-49), deliveryId] } : {}) }, { merge: true });
+    // What the app shows (Settings ▸ Integrations ▸ GitHub): proof that events arrive.
+    tx.update(teamSnap.ref, { 'github.last': { at: now, kind: summary.kind, action: summary.action, links: summary.links, finished: summary.finished, created: summary.created, ok: plan.ok } });
+    return false;
+  });
+  if (dup) return { status: 200, body: { duplicate: true, delivery: deliveryId, why: 'Already applied this delivery.' } };
   return { status: plan.ok ? 200 : 202, body: summary };
 }
 
@@ -128,7 +140,8 @@ export async function setGithubToken(db, uid, teamId, token) {
   const g = cleanGithub(team.data().github);
   if (!token) { await priv.set({ token: null }, { merge: true }); await team.ref.update({ github: { ...g, write: false } }); return { write: false }; }
   const t = String(token).trim();
-  if (!/^(github_pat_|ghp_)[A-Za-z0-9_]{20,255}$/.test(t)) throw fail('invalid-argument', 'That doesn’t look like a GitHub token (they start with github_pat_ or ghp_).');
+  if (isClassicToken(t)) throw fail('invalid-argument', CLASSIC);
+  if (!/^github_pat_[A-Za-z0-9_]{20,255}$/.test(t)) throw fail('invalid-argument', 'That doesn’t look like a fine-grained GitHub token (they start with github_pat_).');
   const repo = await gh(t, 'GET', '/repos/' + g.repo);
   if (repo && repo.has_issues === false) throw fail('failed-precondition', 'Issues are switched off in ' + g.repo + ' (GitHub ▸ Settings ▸ Features).');
   await priv.set({ token: t }, { merge: true });
@@ -144,6 +157,7 @@ export async function issueAction(db, uid, teamId, a) {
   if (!teamSnap.exists || !meSnap.exists) throw fail('permission-denied', 'You’re not in this team.');
   const team = teamSnap.data(); const g = cleanGithub(team.github); const token = priv.exists && priv.data().token;
   if (!g.repo || !token) throw fail('failed-precondition', 'Trawpie can’t change GitHub issues for this team yet (Settings ▸ Integrations ▸ GitHub ▸ token).');
+  if (isClassicToken(token)) throw fail('failed-precondition', CLASSIC);
   const taskRefDoc = db.doc('teams/' + teamId + '/tasks/' + String(a.taskId || '')); const taskSnap = await taskRefDoc.get();
   if (!taskSnap.exists) throw fail('not-found', 'That task doesn’t exist any more.');
   const task = taskSnap.data(); const role = meSnap.data().roleId; const perms = ((team.roles || {})[role] || {}).perms || {};

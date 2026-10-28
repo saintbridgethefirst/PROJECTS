@@ -42,7 +42,7 @@ export async function decidePurchase(ctx, part, status, note = '') {
   if (!a || !canApprovePurchase(s.team, s.me, part)) return false;
   const approval = cleanApproval({ ...a, status, approver: ctx.user.uid, approverName: ctx.user.name || '', note: String(note || '').slice(0, 500), decidedAt: Date.now() });
   const ops = [{ type: 'update', path: 'parts/' + part.id, data: { approval, updatedAt: Date.now() } },
-    logOp(ctx, (status === 'approved' ? 'Approved ' : 'Declined ') + q(part.name) + ' (' + fmt(s, a.amount || partTotal(part)) + ') for ' + (a.byName || 'someone') + (note ? ': ' + note : ''))];
+    logOp(ctx, (status === 'approved' ? 'Approved ' : 'Declined ') + q(part.name) + ' (' + fmt(s, a.amount || partTotal(part)) + ') for ' + window.TT.who(a.by, a.byName, 'someone') + (note ? ': ' + note : ''))];
   return ctx.writeOps(ops);
 }
 /** Decline with a note (asked for in a small dialog). Resolves true when declined. */
@@ -52,7 +52,7 @@ export function declineDialog(ctx, part) {
     const m = modal('Decline “' + part.name + '”', { narrow: true, onClose: () => { if (!done) resolve(false); } });
     m.box.id = 'pa-decline-modal';
     const note = el('textarea', { id: 'pa-decline-note', rows: 3, maxlength: 500, placeholder: 'e.g. Too dear: try the 3D-printed version first', 'aria-label': 'Why it’s declined' });
-    m.body.append(el('p.hint', {}, (part.approval && part.approval.byName ? part.approval.byName + ' sees' : 'They see') + ' this note, so they know what to change.'), note);
+    m.body.append(el('p.hint', {}, (part.approval && part.approval.by ? window.TT.who(part.approval.by, part.approval.byName) + ' sees' : 'They see') + ' this note, so they know what to change.'), note);
     m.foot.append(el('span.spacer'), el('button.btn.small.danger', { type: 'button', id: 'pa-decline-save', onclick: async () => {
       const text = note.value.trim(); if (!text) { toast('Say why it’s declined.'); note.focus(); return; }
       done = true; m.close(); resolve(await decidePurchase(ctx, part, 'declined', text));

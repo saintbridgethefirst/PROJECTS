@@ -43,6 +43,9 @@ function carryOps(ctx, a) {
   (s.tasks || []).forEach(t => {
     if (t.flag === 'completed' || t.weekId === targetKey) return;
     const ws = weekStart.get(t.weekId); if (!ws || ws >= targetStart) return;      // only weeks before the current one
+    // Work added after its week was over (a plan that starts in the past, an import) wasn't missed: it stays
+    // where it was planned (showing as overdue), instead of flooding this week with copies.
+    if (Number(t.createdAt) > 0 && localISO(new Date(Number(t.createdAt))) >= addDaysISO(ws, 7)) return;
     const l = ix.latest(t.id); if (l && l.id !== t.id) return;                     // only the latest copy in a chain
     if (!canEditOwnedBy(s.team, s.me, t.ownerUid) || did.has('carry:' + t.id)) return;
     did.add('carry:' + t.id); keys.push('carry:' + t.id);

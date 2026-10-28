@@ -3,8 +3,8 @@
 // Built files (/assets, /board, /icons): cached after first use; their names change on
 // every release, so old copies are simply never asked for again.
 // Team data isn't handled here: Firestore keeps its own offline copy.
-const CACHE = 'tt-shell-v3';
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon-192.png'];
+const CACHE = 'tt-shell-v4';
+const SHELL = ['/', '/index.html', '/boot/theme.js', '/boot/landing.js', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -22,6 +22,11 @@ self.addEventListener('fetch', (e) => {
     const app = url.pathname === '/' || url.pathname === '/index.html';
     e.respondWith(fetch(req).then(r => { if (app && r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put('/index.html', copy)); } return r; })
       .catch(() => caches.match('/index.html').then(r => r || caches.match('/'))));
+    return;
+  }
+  // The page's start-up scripts (/boot: theme, landing page) keep their names: network first, like pages.
+  if (url.pathname.startsWith('/boot/')) {
+    e.respondWith(fetch(req).then(r => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(req, copy)); } return r; }).catch(() => caches.match(req)));
     return;
   }
   if (/^\/(assets|board|icons)\//.test(url.pathname) || url.pathname === '/manifest.webmanifest') {

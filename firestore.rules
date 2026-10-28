@@ -246,7 +246,7 @@ service cloud.firestore {
       return d.keys().hasOnly(['name', 'ownerUid', 'order'])
         && d.name is string && d.name.size() <= 80 && d.ownerUid is string && d.order is number;
     }
-    function validTask(d) {
+    function validTaskBody(d) {
       return d.keys().hasOnly(['name', 'priority', 'status', 'jiraId', 'supportPersonId', 'supportPersonId2', 'flag',
           'dueDate', 'startDate', 'checks', 'signoff', 'phaseId', 'repeat', 'stage', 'effort', 'dependsOn', 'carryOf', 'skill', 'timeLog', 'completedDate', 'subtasks', 'history', 'custom', 'icon', 'attachments',
           'categoryId', 'ownerUid', 'weekId', 'order', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt'])
@@ -267,9 +267,9 @@ service cloud.firestore {
         && d.get('startDate', '') is string && d.get('startDate', '').size() <= 10
         && d.get('skill', '') is string && d.get('skill', '').size() <= 40
         && d.get('timeLog', []) is list && d.get('timeLog', []).size() <= 200
-        && d.get('checks', {}) is map && d.get('checks', {}).size() <= 50
-        && validSignoff(d.get('signoff', null));
+        && d.get('checks', {}) is map && d.get('checks', {}).size() <= 50;
     }
+    function validTask(d) { return validTaskBody(d) && validSignoff(d.get('signoff', null)); }
     // A sign-off on a task: who asked, and (once decided) who decided. A decision (approved or changes
     // requested) can only be recorded by the person it names as the approver.
     // The person asked to sign off a task may record their decision (and move it on when approved),
@@ -281,7 +281,25 @@ service cloud.firestore {
         && request.resource.data.get('signoff', null) != null
         && request.resource.data.signoff.get('status', '') in ['approved', 'changes']
         && request.resource.data.signoff.get('approver', '') == request.auth.uid
-        && validTask(request.resource.data);
+        && validTask(request.resource.data)
+        && historyGrows()
+        && (gated(t) || ungatedSigner(t, resource.data.ownerUid));
+    }
+    // A decision adds its lines to the front of the task's history (newest first, at most 100 kept): it never
+    // rewrites or removes what's there.
+    function historyFront(n, o, k) {
+      return n.size() == (o.size() + k <= 100 ? o.size() + k : 100) && n[k:n.size()] == o[0:n.size() - k];
+    }
+    function historyGrows() {
+      let n = request.resource.data.get('history', []);
+      let o = resource.data.get('history', []);
+      return n == o || historyFront(n, o, 1) || historyFront(n, o, 2) || historyFront(n, o, 3);
+    }
+    // With sign-off gates in the workflow, signoffGates checks who may decide. Without them nobody is named,
+    // so as the app shows: the team owner, or an admin (not on their own task). Never a viewer.
+    function gated(t) { let wf = get(teamPath(t)).data.get('workflow', null); return wf != null && ('next' in wf); }
+    function ungatedSigner(t, owner) {
+      return get(teamPath(t)).data.ownerUid == request.auth.uid || (request.auth.uid != owner && myRole(t) in ['owner', 'admin']);
     }
     // Sign-off gates (src/model.js ▸ workflowIndex): a task can only move forward past a stage that
     // needs a sign-off when it carries that sign-off, given by someone allowed to give it.
@@ -313,12 +331,29 @@ service cloud.firestore {
         && (v == null || v.get('status', '') == 'waiting' || resource.data.get('signoff', null) == v
           || canSign(t, wf.gates.get(v.get('stage', ''), null), request.resource.data.ownerUid)));
     }
-    function validSignoff(v) {
-      return v == null || (v is map
+    function taskDoc(t, id) { return /databases/$(database)/documents/teams/$(t)/tasks/$(id); }
+    function removedDoc(t, id) { return /databases/$(database)/documents/teams/$(t)/removed/$(id); }
+    // The same decision: who decided what, on which stage, when.
+    function sameDecision(a, b) {
+      return a is map && b is map && a.get('status', '') == b.get('status', '') && a.get('stage', '') == b.get('stage', '')
+        && a.get('approver', '') == b.get('approver', '') && a.get('decidedAt', 0) == b.get('decidedAt', 0);
+    }
+    // A new task may carry a decided sign-off only when it is that deleted task coming back (undo): same name
+    // and owner, the decision kept at its deletion, which this write takes back.
+    function restoresDecision(t, id) {
+      return exists(removedDoc(t, id)) && !existsAfter(removedDoc(t, id))
+        && sameDecision(get(removedDoc(t, id)).data.signoff, request.resource.data.signoff)
+        && get(removedDoc(t, id)).data.name == request.resource.data.name && get(removedDoc(t, id)).data.ownerUid == request.resource.data.ownerUid;
+    }
+    function signoffShape(v) {
+      return v is map
         && v.keys().hasOnly(['stage', 'status', 'by', 'byName', 'at', 'approver', 'approverName', 'note', 'decidedAt', 'remindedAt'])
         && v.get('status', '') in ['waiting', 'approved', 'changes']
         && v.get('note', '') is string && v.get('note', '').size() <= 500
-        && v.get('stage', '') is string && v.get('stage', '').size() <= 40
+        && v.get('stage', '') is string && v.get('stage', '').size() <= 40;
+    }
+    function validSignoff(v) {
+      return v == null || (signoffShape(v)
         && (v.status == 'waiting'
           || (resource != null && resource.data.get('signoff', null) == v)
           || v.get('approver', '') == request.auth.uid));
@@ -695,12 +730,26 @@ service cloud.firestore {
         allow delete: if can(t, 'finance.edit');
       }
 
+      // A decided sign-off kept when its task was deleted (src/sync.js ▸ keepDecision), so undo brings the
+      // task back with it. Made only together with that task's deletion, from what the task really carried;
+      // taken back (deleted) by the task's return.
+      match /removed/{task} {
+        allow read: if isMember(t);
+        allow create, update: if isMember(t) && request.resource.data.keys().hasOnly(['signoff', 'name', 'ownerUid', 'by', 'at'])
+          && request.resource.data.by == request.auth.uid && request.resource.data.at is number
+          && exists(taskDoc(t, task)) && !existsAfter(taskDoc(t, task))
+          && get(taskDoc(t, task)).data.get('signoff', null) != null
+          && sameDecision(request.resource.data.signoff, get(taskDoc(t, task)).data.signoff)
+          && request.resource.data.name == get(taskDoc(t, task)).data.name && request.resource.data.ownerUid == get(taskDoc(t, task)).data.ownerUid;
+        allow delete: if isMember(t) && (existsAfter(taskDoc(t, task)) || can(t, 'tasks.editAll'));
+      }
       match /tasks/{task} {
         allow read: if isMember(t);
         // who made it and when can't be forged or changed later (deleting without approval depends on them)
         // A new task never arrives already signed off (an approval is given on the task, by the approver)
-        allow create: if canEditOwned(t, request.resource.data.ownerUid) && validTask(request.resource.data)
-          && (request.resource.data.get('signoff', null) == null || request.resource.data.signoff.get('status', '') == 'waiting')
+        allow create: if canEditOwned(t, request.resource.data.ownerUid)
+          && ((validTask(request.resource.data) && (request.resource.data.get('signoff', null) == null || request.resource.data.signoff.get('status', '') == 'waiting'))
+            || (validTaskBody(request.resource.data) && request.resource.data.get('signoff', null) != null && signoffShape(request.resource.data.signoff) && restoresDecision(t, task)))
           && request.resource.data.get('createdBy', '') == request.auth.uid && request.resource.data.get('createdAt', 0) <= request.time.toMillis() + 300000
           && getAfter(/databases/$(database)/documents/teams/$(t)/categories/$(request.resource.data.categoryId)).data.ownerUid == request.resource.data.ownerUid;
         allow update: if ((canEditOwned(t, resource.data.ownerUid)

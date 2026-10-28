@@ -147,7 +147,7 @@ export function buildReport(data, opts) {
     ...m.actions.filter(a => (!person && !st) || who(a.ownerUid)).map(a => { const t = rowOf(a.taskId); return 'Action: ' + a.text + (a.ownerUid ? ' (' + memberName(a.ownerUid) + ')' : '') + (t ? (t.flag === 'completed' ? ' — done' : ' — open') : ''); }),
   ] })), empty: 'No meetings recorded in this period.' });
   const notes = (data.notebook || []).filter(n => between(n.date, period.from, period.to) && who(n.authorUid) && taskName(n.taskId)).sort((a, b) => a.date.localeCompare(b.date));
-  add('notebook', { items: notes.slice(0, 30).map(n => ({ title: fmt(n.date) + ' · ' + taskName(n.taskId) + ' · ' + n.authorName, lines: [n.text.length > 600 ? n.text.slice(0, 600) + '…' : n.text], image: n.images[0] || '' })), empty: 'No notebook entries in this period.' });
+  add('notebook', { items: notes.slice(0, 30).map(n => ({ title: fmt(n.date) + ' · ' + taskName(n.taskId) + ' · ' + (memberName(n.authorUid) || n.authorName), lines: [n.text.length > 600 ? n.text.slice(0, 600) + '…' : n.text], image: n.images[0] || '' })), empty: 'No notebook entries in this period.' });
   const parts = (data.parts || []).filter(p => !st || p.subteamId === st.id);
   const ordered = parts.filter(p => between(p.orderedDate, period.from, period.to)); const received = parts.filter(p => between(p.receivedDate, period.from, period.to));
   const waiting = parts.filter(p => p.status === 'ordered'); const needed = parts.filter(p => p.status === 'needed');

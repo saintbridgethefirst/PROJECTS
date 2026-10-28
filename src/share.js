@@ -84,7 +84,7 @@ export function openShareWeek(ctx) {
     const sub = opts.scope.startsWith('st:') ? subteams.find(g => 'st:' + g.id === opts.scope) : null;
     const rows = window.boardRows({ scope: 'all', allPhases: true });
     const mine = opts.scope === 'me' ? rows.filter(r => r.personId === ctx.user.uid) : sub ? rows.filter(r => sub.members.includes(r.personId)) : rows;
-    const purchases = opts.scope === 'all' && ctx.TT.purchaseOn() ? ctx.TT.purchasesWaiting().all.map(p => ({ line: ctx.TT.purchaseLine(p), by: (p.approval && p.approval.byName) || '' })) : [];
+    const purchases = opts.scope === 'all' && ctx.TT.purchaseOn() ? ctx.TT.purchasesWaiting().all.map(p => ({ line: ctx.TT.purchaseLine(p), by: p.approval ? ctx.TT.who(p.approval.by, p.approval.byName, '') : '' })) : [];
     text.value = buildWeekShare({ team: s.team, rows: mine, today: iso(new Date()), url, purchases }, { names: opts.names, scopeLabel: sub ? sub.name : opts.scope === 'me' ? (ctx.user.name || 'Me') : '' });
   };
   const scope = el('select', { id: 'share-scope', 'aria-label': 'Whose work', onchange: (e) => { opts.scope = e.target.value; build(); } },

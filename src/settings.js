@@ -113,7 +113,7 @@ function plan(pane, ctx, { invites, rerender } = {}) {
   // Members ask the Owner and Admins; Owner and Admins see who asked.
   const asks = TT.planAsks;
   if (settings && asks.length && P.tier === 'free') pane.append(el('section.plan-asks', {}, el('h4', {}, '🙋 Asked for Pro'),
-    ...asks.map(a => el('div.adm-req', {}, el('b', {}, a.byName || 'A member'), el('span.hint', {}, ' asked on ' + fmtDay(a.at) + (a.note ? ': “' + a.note + '”' : '')), ' ',
+    ...asks.map(a => el('div.adm-req', {}, el('b', {}, TT.who(a.by, a.byName, 'A member')), el('span.hint', {}, ' asked on ' + fmtDay(a.at) + (a.note ? ': “' + a.note + '”' : '')), ' ',
       el('button.btn.small.ghost', { type: 'button', onclick: async () => { if (await TT.dismissAsk(a.by)) rerender && rerender(); } }, 'Dismiss')))));
   if (!settings && P.tier === 'free') {
     const mine = asks.find(a => a.by === ctx.user.uid);
@@ -225,6 +225,32 @@ export function teamStatsView(rows, TT) {
   return box;
 }
 
+/**
+ * App Check on the server calls (export, delete account, student code, GitHub…): the last week's counts of
+ * calls with and without a valid token from this site, and the switch that makes the server refuse calls
+ * without one. Switch it on only when nearly every call is verified.
+ */
+function appCheckBox(ctx) {
+  const box = el('div.adm-appcheck', { id: 'adm-appcheck' }, el('p.hint', {}, 'Loading…'));
+  const load = async (enforce) => {
+    let r; try { r = await ctx.backend.data.callFunction('appCheckAdmin', typeof enforce === 'boolean' ? { enforce } : {}); }
+    catch (e) { box.replaceChildren(el('p.hint', {}, 'Could not load: ' + ((e && e.message) || e))); return; }
+    const v = r.days.reduce((n, d) => n + d.verified, 0), u = r.days.reduce((n, d) => n + d.unverified, 0), all = v + u;
+    const pct = all ? Math.round(100 * v / all) : 0;
+    const sw = toggle({ id: 'adm-appcheck-on', checked: r.enforced, 'aria-label': 'Require App Check on server calls', onchange: async (e) => {
+      const on = e.target.checked;
+      if (on && (all < 20 || pct < 95) && !confirm('Only ' + pct + '% of ' + all + ' calls this week had a valid App Check token. Requiring it now would stop the others (sign-ups, exports, GitHub). Require it anyway?')) { e.target.checked = false; return; }
+      e.target.disabled = true; await load(on); toast(on ? 'Server calls now need App Check.' : 'Server calls no longer need App Check.');
+    } });
+    box.replaceChildren(
+      el('p.hint', {}, 'Last 7 days: ', el('b', {}, String(v)), ' calls with a valid token, ', el('b', {}, String(u)), ' without' + (all ? ' (' + pct + '% verified).' : '.'),
+        ' Require it once nearly all are verified; if people then can’t export, delete their account or connect GitHub, switch it off here.'),
+      el('div.set-card', {}, el('label.set-row', { for: 'adm-appcheck-on' }, el('span.set-text', {}, el('b', {}, 'Require App Check'), el('span.hint', {}, r.enforced ? 'On: calls without a valid token are refused.' : 'Off: every call is counted, none refused.')), sw)));
+  };
+  load();
+  return box;
+}
+
 function adminPlans(ctx, rerender) {
   const s = ctx.session, TT = ctx.TT; const cur = s.team.plan || {};
   const tier = el('select', { id: 'adm-tier' }, [['free', 'Free'], ['pro', 'Pro'], ['org', 'Organisation']].map(([v, t]) => el('option', { value: v, selected: (cur.tier || 'free') === v }, t)));
@@ -244,6 +270,7 @@ function adminPlans(ctx, rerender) {
         if (ok) { toast('Plan set to ' + tier.options[tier.selectedIndex].text + (edu.checked && tier.value !== 'free' ? ' Education' : '') + '.'); setTimeout(() => rerender && rerender(), 300); }
       } }, 'Set plan')),
     el('h4', {}, '📈 Teams using Trawpie'), statsBox,
+    el('h4', {}, '🔒 App Check on server calls'), appCheckBox(ctx),
     el('h4', {}, 'Pro requests from all teams'), list,
     el('h4', {}, 'Teams on Pro Education'), eduList,
     el('h4', {}, '💬 Feedback'), fbList,
