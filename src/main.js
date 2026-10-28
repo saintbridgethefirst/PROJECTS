@@ -7,6 +7,7 @@
 import { installHandlers } from './handlers.js';
 import './board.css';
 import './app.css';
+import './loading.css';
 import './ticks.css';
 import './themes.css';
 import { THEMES, SWATCH, applyTheme, currentTheme, savedTheme, themeName, isTheme, resolveTheme } from './themes.js';
@@ -79,9 +80,18 @@ function show(screen) {
 }
 
 // ── Boot ────────────────────────────────────────────────────────────────────
+// What the loading screen says while the app starts (public/boot/loading.js).
+const loadingStage = (text) => { try { if (window.ttLoading) window.ttLoading.stage(text); } catch { /* */ } };
+// Coming Back to the app from the guide or the blog can restore this page as it was left (the browser's
+// back/forward cache), but the database connection was closed when the page was left, so nothing would
+// load. Start it afresh instead.
+window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+
 (async function boot() {
   initTooltips(); initColumnResize();
+  loadingStage('Starting…');
   try { await startI18n(); } catch (e) { console.warn('Language', e); }   // before anything is drawn
+  loadingStage((() => { try { return localStorage.getItem('tt_signed_in') === '1'; } catch { return false; } })() ? 'Signing you in…' : 'Starting…');
   try { backend = await loadBackend(); }
   catch (e) { console.error(e); show('auth-screen'); $('#auth-note').textContent = 'Could not start: ' + e.message; return; }
   // Crashes are reported (signed-in users only, no personal data) for the platform admin to see.
@@ -101,6 +111,7 @@ function show(screen) {
     if (u.theme && isTheme(u.theme) && u.theme !== currentTheme()) applyTheme(u.theme);
     if (u.menuStyle === 'circle' || u.menuStyle === 'list') { try { localStorage.setItem('tt_menu_style', u.menuStyle); } catch { /* */ } }
     if (u.nav === 'side' || u.nav === 'top') { try { localStorage.setItem('tt_nav', u.nav); } catch { /* */ } applyNav(); }
+    loadingStage(/^#\/t\//.test(location.hash) ? 'Opening your board…' : 'Opening your teams…');
     await route();
   });
   window.addEventListener('hashchange', () => { if (user) route(); });

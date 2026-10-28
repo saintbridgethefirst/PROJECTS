@@ -40,11 +40,26 @@ try {
   await pub.locator('.step').first().click(); await sleep(100);
   ok(await pub.locator('.step.done').count() === 1, 'the guide’s checklist ticks');
 
+  step('The loading screen: the mark with five points and the light, a fun fact, and Reload if it’s slow');
+  const slowCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await slowCtx.addInitScript(() => { try { localStorage.setItem('tt_signed_in', '1'); } catch { /* */ } });
+  await slowCtx.route(/\/assets\/index-.*\.js$/, r => r.abort());   // hold the app back
+  const ld = await slowCtx.newPage(); await ld.clock.install(); await ld.goto(BASE); await ld.clock.runFor(1500);
+  ok(await ld.locator('#loading .ld-pt').count() === 5 && await ld.locator('#loading .ld-spark').count() === 1, 'five points and the light');
+  ok(await ld.locator('#ld-fact').isVisible() && (await ld.locator('#ld-fact-text').textContent()).length > 20, 'a fun fact or tip');
+  const first = await ld.locator('#ld-fact-text').textContent(); await ld.clock.runFor(6500);
+  ok((await ld.locator('#ld-fact-text').textContent()) !== first, 'the next one a few seconds later');
+  ok(!(await ld.locator('#ld-slow').isVisible()), 'no Reload yet');
+  await ld.clock.runFor(9000);
+  ok(await ld.locator('#ld-slow').isVisible(), 'Reload offered when loading takes much longer than it should');
+  await slowCtx.close();
+
   step('Board buttons and fields still work (data-onclick, no inline script)');
   const p = await page(ctx);
   await p.goto(BASE + 'demo'); await p.waitForSelector('.demo-kind');
   await p.click('.demo-kind[data-kind="drone"]'); await p.fill('#demo-name', 'Sam'); await p.click('#demo-go');
   await p.waitForSelector('.task-card', { timeout: 20000 }); await sleep(1500);
+  ok(await p.locator('#loading').isHidden(), 'the loading screen goes once the board is up');
   await p.evaluate(() => document.querySelectorAll('[class*=tour-]').forEach(e => e.remove()));
   await p.click('.top-btn[data-view="kanban"]'); await sleep(400);
   ok(await p.locator('.top-btn[data-view="kanban"][aria-pressed="true"]').count() === 1, 'the Kanban view button switches the view');

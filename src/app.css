@@ -146,7 +146,6 @@ body.hide-metric .metric-badge { display: none; }
 .tabs button.on { color: var(--line-color); border-bottom-color: var(--line-color); }
 .spinner { width: 16px; height: 16px; border: 2px solid var(--border-color); border-top-color: var(--line-color); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.loading-screen { display: grid; place-items: center; min-height: 100vh; color: var(--text-muted); gap: 10px; }
 .col-add { margin-top: 0; align-self: stretch; background: transparent; border: 1px dashed transparent; color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 650; padding: 8px; border-radius: 10px; cursor: pointer; opacity: .35; transition: opacity .15s, border-color .15s; }
 .col-week:hover .col-add, .col-add:focus-visible { opacity: 1; border-color: var(--border-color); }
 .col-add:hover { color: var(--line-color); border-color: var(--line-color) !important; }

@@ -4,7 +4,7 @@
 // every release, so old copies are simply never asked for again.
 // Team data isn't handled here: Firestore keeps its own offline copy.
 const CACHE = 'tt-shell-v4';
-const SHELL = ['/', '/index.html', '/boot/theme.js', '/boot/landing.js', '/manifest.webmanifest', '/icons/icon-192.png'];
+const SHELL = ['/', '/index.html', '/boot/theme.js', '/boot/loading.js', '/boot/landing.js', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

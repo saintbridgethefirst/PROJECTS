@@ -41,7 +41,24 @@
   <script src="/boot/theme.js"></script>
 </head>
 <body>
-  <div id="loading" class="loading-screen"><div><span class="spinner"></span></div></div>
+  <!-- Loading: the Trawpie mark with light running through its five points, and a fun fact (src/loading.css, public/boot/loading.js) -->
+  <div id="loading" class="loading-screen" role="status" aria-live="polite">
+    <div class="ld">
+      <svg class="ld-mark" viewBox="0 0 48 48" aria-hidden="true">
+        <defs><filter id="ld-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.1" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+        <path class="ld-face" d="M24 7.4 40.2 19.2 34 38.2H14L7.8 19.2Z"/>
+        <path class="ld-trail" pathLength="100" d="M24 7.4 40.2 19.2 34 38.2H14L7.8 19.2Z"/>
+        <path class="ld-spark" pathLength="100" d="M24 7.4 40.2 19.2 34 38.2H14L7.8 19.2Z"/>
+        <circle class="ld-pt ld-p1" cx="24" cy="7.4" r="1.7"/><circle class="ld-pt ld-p2" cx="40.2" cy="19.2" r="1.7"/><circle class="ld-pt ld-p3" cx="34" cy="38.2" r="1.7"/>
+        <circle class="ld-pt ld-p4" cx="14" cy="38.2" r="1.7"/><circle class="ld-pt ld-p5" cx="7.8" cy="19.2" r="1.7"/>
+      </svg>
+      <div class="ld-name">Trawpie</div>
+      <div class="ld-stage" id="ld-stage">Loading…</div>
+      <p class="ld-fact" id="ld-fact" hidden><b id="ld-fact-kind">Did you know?</b><span id="ld-fact-text"></span></p>
+      <div class="ld-slow" id="ld-slow" hidden><span>This is taking longer than usual.</span><button type="button" id="ld-reload">Reload</button></div>
+    </div>
+  </div>
+  <script src="/boot/loading.js"></script>
 
   <!-- ── Sign-in ─────────────────────────────────────────────────────────── -->
   <main id="auth-screen" class="screen landing" hidden>

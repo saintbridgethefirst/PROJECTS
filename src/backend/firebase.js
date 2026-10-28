@@ -15,7 +15,7 @@ import {
 } from 'firebase/auth';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator,
-  collection, collectionGroup, doc, query, where, onSnapshot, writeBatch, getDocs, getDocsFromCache, getDoc, setDoc, orderBy, limit,
+  collection, collectionGroup, doc, query, where, onSnapshot, writeBatch, getDocs, getDocsFromCache, getDoc, getDocFromCache, setDoc, orderBy, limit,
   terminate, clearIndexedDbPersistence,
 } from 'firebase/firestore';
 import { firebaseConfig, USE_EMULATORS, ENABLE_MS_SIGNIN, ENABLE_EMAIL_LINK, APPCHECK_SITE_KEY } from '../config.js';
@@ -46,8 +46,19 @@ let profilePhoto; let profileUid = null; let profileTheme = ''; let profileMenu 
 async function loadProfile(u) {
   profileUid = u ? u.uid : null; profilePhoto = undefined; profileTheme = ''; profileMenu = ''; profileNav = ''; profileNotify = null;
   if (!u) return;
-  try { const s = await getDoc(doc(db, 'users', u.uid)); if (s.exists() && typeof s.data().photo === 'string') profilePhoto = s.data().photo; if (s.exists() && typeof s.data().theme === 'string') profileTheme = s.data().theme; if (s.exists() && typeof s.data().menuStyle === 'string') profileMenu = s.data().menuStyle; if (s.exists() && typeof s.data().nav === 'string') profileNav = s.data().nav; if (s.exists() && s.data().notify && typeof s.data().notify === 'object') profileNotify = s.data().notify; }
-  catch (e) { console.warn('Could not load profile:', e); }
+  const ref = doc(db, 'users', u.uid);
+  const apply = (s) => {
+    if (profileUid !== u.uid || !s.exists()) return; const d = s.data();
+    if (typeof d.photo === 'string') profilePhoto = d.photo; if (typeof d.theme === 'string') profileTheme = d.theme;
+    if (typeof d.menuStyle === 'string') profileMenu = d.menuStyle; if (typeof d.nav === 'string') profileNav = d.nav;
+    if (d.notify && typeof d.notify === 'object') profileNotify = d.notify;
+  };
+  // The copy saved on this device first, at once; the server's copy if it comes quickly. Never wait long
+  // for it: a slow connection, or another tab of the app holding the database (another tab opened from the
+  // guide or the blog), used to leave the app on its loading screen.
+  try { apply(await getDocFromCache(ref)); } catch { /* not saved on this device yet */ }
+  const fresh = getDoc(ref).then(apply).catch(e => console.warn('Could not load profile:', e));
+  await Promise.race([fresh, new Promise(r => setTimeout(r, 2500))]);
 }
 
 function toUser(u) {
