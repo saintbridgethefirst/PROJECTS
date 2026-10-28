@@ -38,6 +38,7 @@ for (const f of suites) {
   if (r.code !== 0) { const again = await run(f); if (again.code === 0) { flaky = true; r = again; } else r = again; }
   const status = r.code === 0 ? (flaky ? 'FLAKY' : 'ok') : 'FAILED';
   console.log(`${status.padEnd(7)} ${String(r.pass).padStart(3)} passed${r.fail ? ', ' + r.fail + ' failed' : ''} · ${r.secs}s`);
+  r.out.split('\n').filter(l => l.startsWith('::notice')).forEach(l => console.log(l));   // a suite's note for GitHub's summary page
   if (r.code !== 0) { failed++; console.log(r.out.split('\n').filter(l => /FAIL|CRASH|Error|page errors: \[.+\]/.test(l)).slice(0, 15).map(l => '    ' + l).join('\n')); }
   rows.push({ f, status, ...r });
 }

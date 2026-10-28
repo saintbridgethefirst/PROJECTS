@@ -11,7 +11,9 @@ const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ FAIL:', 
 const step = (s) => console.log('▸ ' + s);
 
 const online = await fetch('https://apis.google.com/js/api.js', { signal: AbortSignal.timeout(6000) }).then(r => r.ok).catch(() => false);
-if (!online) { console.log('▸ Skipped: Google can’t be reached from here (GitHub runs this before deploying).'); console.log('RESULT: 0 passed, 0 failed'); process.exit(0); }
+// On GitHub, the outcome is also shown on the run's summary page (the full log isn't always at hand).
+const notice = (text) => { if (process.env.GITHUB_ACTIONS) console.log('::notice title=Google scripts under the CSP::' + text.replace(/%/g, '%25').replace(/\n/g, '%0A')); };
+if (!online) { console.log('▸ Skipped: Google can’t be reached from here (GitHub runs this before deploying).'); notice('Skipped: no connection to Google.'); console.log('RESULT: 0 passed, 0 failed'); process.exit(0); }
 
 const env = Object.fromEntries(fs.readFileSync(new URL('../.env.live', import.meta.url), 'utf8').split('\n').filter(l => /^VITE_\w+=/.test(l)).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).trim()]));
 const headers = Object.fromEntries(JSON.parse(fs.readFileSync(new URL('../firebase.json', import.meta.url), 'utf8')).hosting.headers.find(h => h.source === '**').headers.map(h => [h.key, h.value]));
@@ -55,13 +57,14 @@ p.on('console', m => { if (m.type() === 'error' && /Content Security Policy/i.te
 await p.goto('http://127.0.0.1:4199/');
 try {
   const out = await p.evaluate((cfg) => window.run(cfg), { apiKey: env.VITE_FIREBASE_API_KEY || '', authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || 'uni-teamtrack.firebaseapp.com', clientId: env.VITE_GOOGLE_CLIENT_ID || '', siteKey: env.VITE_RECAPTCHA_SITE_KEY || '' });
-  console.log('   ', JSON.stringify(out));
+  console.log('   ', JSON.stringify(out)); notice('Loaded: ' + JSON.stringify(out));
   ok(out.gapi, 'Firebase Auth’s iframe library (apis.google.com) runs');
   ok(out.gis, 'Google sign-in (accounts.google.com/gsi) runs');
   ok(!env.VITE_RECAPTCHA_SITE_KEY || !!out.recaptcha, 'reCAPTCHA Enterprise runs');
 } catch (e) { console.log('    (couldn’t finish: ' + e.message.split('\n')[0].slice(0, 200) + ')'); }
 const v = await p.evaluate(() => window.violations).catch(() => []);
 ok(v.length === 0, 'nothing blocked by the policy: ' + JSON.stringify(v).slice(0, 400));
+notice(v.length ? 'Blocked: ' + JSON.stringify(v).slice(0, 600) : 'Nothing blocked by the policy.');
 if (errors.length) { fail++; console.log('  ✗ page errors:', errors.slice(0, 6)); }
 await browser.close(); server.close();
 console.log(`RESULT: ${pass} passed, ${fail} failed`);
