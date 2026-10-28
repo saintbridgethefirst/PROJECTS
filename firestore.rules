@@ -281,7 +281,11 @@ service cloud.firestore {
         && request.resource.data.get('signoff', null) != null
         && request.resource.data.signoff.get('status', '') in ['approved', 'changes']
         && request.resource.data.signoff.get('approver', '') == request.auth.uid
-        && validTask(request.resource.data)
+        // Only these fields can change here (above), so only they are checked: the rest is as it was. (Checking
+        // the whole task again pushed this over Firestore's limit of 1000 expressions per request.)
+        && validSignoff(request.resource.data.signoff)
+        && request.resource.data.get('stage', '') is string && request.resource.data.get('stage', '').matches('^[A-Za-z0-9_-]{0,40}$')
+        && request.resource.data.flag in ['none', 'pending', 'backlog', 'completed']
         && historyGrows()
         && (gated(t) || ungatedSigner(t, resource.data.ownerUid));
     }
@@ -747,9 +751,9 @@ service cloud.firestore {
         allow read: if isMember(t);
         // who made it and when can't be forged or changed later (deleting without approval depends on them)
         // A new task never arrives already signed off (an approval is given on the task, by the approver)
-        allow create: if canEditOwned(t, request.resource.data.ownerUid)
-          && ((validTask(request.resource.data) && (request.resource.data.get('signoff', null) == null || request.resource.data.signoff.get('status', '') == 'waiting'))
-            || (validTaskBody(request.resource.data) && request.resource.data.get('signoff', null) != null && signoffShape(request.resource.data.signoff) && restoresDecision(t, task)))
+        allow create: if canEditOwned(t, request.resource.data.ownerUid) && validTaskBody(request.resource.data)
+          && (request.resource.data.get('signoff', null) == null
+            || (signoffShape(request.resource.data.signoff) && (request.resource.data.signoff.get('status', '') == 'waiting' || restoresDecision(t, task))))
           && request.resource.data.get('createdBy', '') == request.auth.uid && request.resource.data.get('createdAt', 0) <= request.time.toMillis() + 300000
           && getAfter(/databases/$(database)/documents/teams/$(t)/categories/$(request.resource.data.categoryId)).data.ownerUid == request.resource.data.ownerUid;
         allow update: if ((canEditOwned(t, resource.data.ownerUid)
