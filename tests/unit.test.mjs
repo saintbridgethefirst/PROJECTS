@@ -992,7 +992,7 @@ test('Microsoft publisher domain: trawpie.org serves the app association file', 
   const rw = (Array.isArray(fb.hosting) ? fb.hosting[0] : fb.hosting).rewrites;
   const i = rw.findIndex(r => r.source === '/.well-known/microsoft-identity-association.json');
   assert.ok(i >= 0 && rw[i].destination === '/microsoft-identity-association.json', 'rewrite to the file');
-  assert.ok(i < rw.findIndex(r => r.source === '**'), 'before the catch-all, or the app page would be served instead');
+  assert.ok(i < rw.findIndex(r => r.destination === '/index.html'), 'before the catch-all, or the app page would be served instead');
 });
 
 test('SEO: the demo page gets its own title, description and canonical; the home page keeps its own', async () => {
@@ -1008,7 +1008,7 @@ test('SEO: the demo page gets its own title, description and canonical; the home
   assert.doesNotMatch(demo, /href="https:\/\/trawpie\.org\/">/, 'no home canonical left in the demo page');
   const fb = JSON.parse(fs.readFileSync(new URL('../firebase.json', import.meta.url)));
   const rw = (Array.isArray(fb.hosting) ? fb.hosting[0] : fb.hosting).rewrites;
-  assert.ok(rw.findIndex(r => r.source === '/demo' && r.destination === '/demo.html') < rw.findIndex(r => r.source === '**'), '/demo served from demo.html');
+  assert.ok(rw.findIndex(r => r.source === '/demo' && r.destination === '/demo.html') < rw.findIndex(r => r.destination === '/index.html'), '/demo served from demo.html');
   const main = fs.readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   assert.doesNotMatch(main, /^document\.title = APP_NAME;/m, 'the landing title is not overwritten on load');
   const sm = fs.readFileSync(new URL('../public/sitemap.xml', import.meta.url), 'utf8');
@@ -1026,7 +1026,7 @@ test('SEO: the dissertation Gantt chart template page, its download and its link
   assert.ok(ld['@graph'].some(x => x['@type'] === 'BreadcrumbList') && ld['@graph'].some(x => x['@type'] === 'DigitalDocument'));
   const fb = JSON.parse(read('firebase.json'));
   const rw = (Array.isArray(fb.hosting) ? fb.hosting[0] : fb.hosting).rewrites;
-  assert.ok(rw.findIndex(r => r.source === '/templates/dissertation-gantt-chart' && r.destination === '/templates/dissertation-gantt-chart.html') < rw.findIndex(r => r.source === '**'));
+  assert.ok(rw.findIndex(r => r.source === '/templates/dissertation-gantt-chart' && r.destination === '/templates/dissertation-gantt-chart.html') < rw.findIndex(r => r.destination === '/index.html'));
   assert.match(read('public/sitemap.xml'), /<loc>https:\/\/trawpie\.org\/templates\/dissertation-gantt-chart<\/loc>/);
   ['public/dissertation.html', 'public/blog/gantt-chart-for-a-dissertation-or-final-year-project.html', 'index.html'].forEach(p => assert.match(read(p), /href="\/templates\/dissertation-gantt-chart"/, p + ' links to it'));
 });
@@ -1068,7 +1068,7 @@ test('SEO: the Formula Student page is served, listed and linked', async () => {
   JSON.parse(page.match(/<script type="application\/ld\+json">([^<]+)<\/script>/)[1]);
   const fb = JSON.parse(read('firebase.json'));
   const rw = (Array.isArray(fb.hosting) ? fb.hosting[0] : fb.hosting).rewrites;
-  assert.ok(rw.findIndex(r => r.source === '/formula-student' && r.destination === '/formula-student.html') < rw.findIndex(r => r.source === '**'));
+  assert.ok(rw.findIndex(r => r.source === '/formula-student' && r.destination === '/formula-student.html') < rw.findIndex(r => r.destination === '/index.html'));
   assert.match(read('public/sitemap.xml'), /<loc>https:\/\/trawpie\.org\/formula-student<\/loc>/);
   ['index.html', 'public/blog/how-to-run-a-formula-student-season.html'].forEach(p => assert.match(read(p), /href="\/formula-student"/, p + ' links to it'));
 });
@@ -1255,4 +1255,14 @@ test('no inline script: every data-on… handler in the page and the board is a 
   assert.throws(() => parseHandler('toggleTheme(); fetch("//x")'), /Not an allowed action/);
   assert.throws(() => parseHandler('toggleTheme`x`'), /Unexpected/);
   assert.deepEqual(parseHandler("TT.openSettings('members'); return false;"), { calls: [{ call: 'TT.openSettings', args: [{ lit: 'members' }] }], ret: false });
+});
+
+test('hosting: pages are always checked with the server, and a missing file is a 404, not the app', async () => {
+  const fs = await import('node:fs');
+  const h = JSON.parse(fs.readFileSync(new URL('../firebase.json', import.meta.url), 'utf8')).hosting;
+  const cc = (src) => ((h.headers.find(x => x.source === src) || {}).headers || []).find(x => x.key === 'Cache-Control');
+  for (const src of ['/', '**/*.html', '/index.html', '/sw.js', '/boot/**', '/*.js']) assert.equal((cc(src) || {}).value, 'no-cache', src + ' is no-cache');
+  assert.match(cc('/assets/**').value, /immutable/);
+  const fallback = h.rewrites.find(r => r.destination === '/index.html');
+  assert.equal(fallback.source, '**/!(*.*)', 'only paths without a file extension fall back to the app');
 });

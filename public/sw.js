@@ -3,7 +3,7 @@
 // Built files (/assets, /board, /icons): cached after first use; their names change on
 // every release, so old copies are simply never asked for again.
 // Team data isn't handled here: Firestore keeps its own offline copy.
-const CACHE = 'tt-shell-v4';
+const CACHE = 'tt-shell-v5';   // v5: drops any page saved by mistake in place of a script (see below)
 const SHELL = ['/', '/index.html', '/boot/theme.js', '/boot/loading.js', '/boot/landing.js', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
@@ -30,6 +30,9 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   if (/^\/(assets|board|icons)\//.test(url.pathname) || url.pathname === '/manifest.webmanifest') {
-    e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(r => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(req, copy)); } return r; })));
+    // Only keep real files: after a deploy an old file's name can come back as a page (or a 404), and keeping
+    // that would break the app until the cache was cleared.
+    const keep = (r) => r.ok && !/text\/html/.test(r.headers.get('content-type') || '');
+    e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(r => { if (keep(r)) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(req, copy)); } return r; })));
   }
 });

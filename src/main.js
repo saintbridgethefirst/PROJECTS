@@ -86,6 +86,12 @@ const loadingStage = (text) => { try { if (window.ttLoading) window.ttLoading.st
 // back/forward cache), but the database connection was closed when the page was left, so nothing would
 // load. Start it afresh instead.
 window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+// A page that's been open across a release asks for files that release replaced (Settings, Tools…): load the
+// newest version instead of failing. At most once every 30 seconds.
+window.addEventListener('vite:preloadError', (e) => {
+  try { if (Date.now() - (+sessionStorage.getItem('tt_fresh_at') || 0) < 30000) return; sessionStorage.setItem('tt_fresh_at', String(Date.now())); } catch { return; }
+  e.preventDefault(); toast('Trawpie has been updated. Loading the new version…', 4000); setTimeout(() => location.reload(), 800);
+});
 
 (async function boot() {
   initTooltips(); initColumnResize();

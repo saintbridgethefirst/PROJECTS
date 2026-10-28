@@ -32,6 +32,22 @@
     if (now >= next) { if (!fact.hidden) i = (i + 1) % FACTS.length; show(); next = now + 6000; }
     if (now - t0 > 15000 && slow.hidden) slow.hidden = false;
   }, 500);
-  document.getElementById('ld-reload').addEventListener('click', function () { location.reload(); });
-  window.ttLoading = { stage: function (t) { if (stageEl && t) stageEl.textContent = t; } };
+  // A fresh start: forget the offline copy (service worker and its cache) and load the newest version. Used
+  // when the app's own script fails to load (an old page asking for a file a newer release replaced), and
+  // by the Reload button. At most once every 30 seconds, so it can never loop.
+  function freshStart() {
+    try { var last = +sessionStorage.getItem('tt_fresh_at') || 0; if (Date.now() - last < 30000) { slow.hidden = false; return false; } sessionStorage.setItem('tt_fresh_at', String(Date.now())); } catch (e) { /* private window */ }
+    stageEl.textContent = 'Getting the newest version…';
+    var jobs = [];
+    try { if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })); } catch (e) { /* */ }
+    try { if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('tt-') === 0; }).map(function (k) { return caches.delete(k); })); })); } catch (e) { /* */ }
+    Promise.all(jobs).then(function () { location.reload(); }, function () { location.reload(); });
+    return true;
+  }
+  addEventListener('error', function (e) {
+    var t = e.target; if (box.hidden || !t || t.tagName !== 'SCRIPT') return;
+    if (/\/assets\//.test(t.src || '')) freshStart();
+  }, true);
+  document.getElementById('ld-reload').addEventListener('click', function () { if (!freshStart()) location.reload(); });
+  window.ttLoading = { stage: function (t) { if (stageEl && t) stageEl.textContent = t; }, freshStart: freshStart };
 })();
