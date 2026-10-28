@@ -10,7 +10,7 @@ const app = getApps()[0] || initializeApp({ projectId: 'demo-teamtrack' });
 const db = getFirestore(app);
 const put = (p, d) => db.doc(p).set(d);
 const exists = async (p) => (await db.doc(p).get()).exists;
-const tom = { uid: 'uTom', email: 'tom@uni.ac.uk', displayName: 'Tom Reed' };
+const tom = { uid: 'uTom', email: 'tom@uni.ac.uk', emailVerified: true, displayName: 'Tom Reed' };
 
 const wipe = async () => { for (const c of ['teams', 'users', 'verifiedStudents', 'eduClaims', 'feedback', 'clientErrors', 'studentEmails', 'inviteQuota', 'selfItems']) await db.recursiveDelete(db.collection(c)); };
 after(wipe);
@@ -50,6 +50,7 @@ test('download my data: profile, private records, invitations and what is mine i
   assert.equal(d.feedbackYouSent.length, 1); assert.equal(d.errorReportsFromYourBrowser.length, 1);
   assert.deepEqual(d.selfTrack.map(x => x.title), ['Gym'], 'only my SelfTrack items');
   assert.equal(d.invitationsToYou[0].teamId, 'PV3');
+  assert.equal((await exportUserData(db, { ...tom, emailVerified: false })).invitationsToYou.length, 0, 'invitations only for a verified email (as in the app)');
   const sky = d.teams.find(t => t.teamId === 'PV1');
   assert.equal(sky.yourMembership.roleId, 'member'); assert.equal(sky.yourProfileInTeam.capacity, 10);
   assert.deepEqual(sky.yours.tasks.map(t => t.id), ['t1']);
