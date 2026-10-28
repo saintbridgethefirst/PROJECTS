@@ -1,0 +1,27 @@
+# Looks at what the live site sends back (status, type and caching) for its pages, a few files and a
+# file that doesn't exist, and puts it on the run's summary page. Run it from the Actions tab.
+name: Site check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Headers of the live site
+        run: |
+          set -u
+          for p in / "/?source=app" /index.html /guide.html /blog/ /demo /sw.js /boot/loading.js /manifest.webmanifest /assets/index-doesnotexist.js /assets/; do
+            h=$(curl -sS -o /tmp/body -D - "https://trawpie.org$p" | tr -d '\r')
+            st=$(echo "$h" | head -1)
+            ct=$(echo "$h" | grep -i '^content-type:' | head -1)
+            cc=$(echo "$h" | grep -i '^cache-control:' | head -1)
+            first=$(head -c 60 /tmp/body | tr '\n' ' ')
+            line="$p → $st | $ct | $cc | starts: $first"
+            echo "$line"; echo "::notice title=$p::$line"
+          done
