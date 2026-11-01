@@ -43,13 +43,24 @@ try {
   await p.keyboard.press('Escape'); await sleep(500);
   ok(await p.evaluate(() => document.body.classList.contains('nav-glass') && document.body.classList.contains('nav-side')), 'the glass sidebar is on');
 
-  step('A floating pane of glass, the board beside it');
+  step('A floating pane of glass over a wallpaper, the board sliding under it');
   const bar = await p.locator('#top-bar').boundingBox();
   ok(bar.x >= 8 && bar.y >= 8 && bar.height > 820 && bar.width > 240 && bar.width < 290, 'floats with a gap round it: ' + JSON.stringify(bar));
   const look = await p.evaluate(() => { const s = getComputedStyle(document.getElementById('top-bar')); return { r: s.borderTopLeftRadius, f: s.backdropFilter || s.webkitBackdropFilter }; });
   ok(parseFloat(look.r) >= 20 && /blur/.test(look.f), 'rounded and frosted: ' + JSON.stringify(look));
+  ok(/gradient/.test(await p.evaluate(() => getComputedStyle(document.getElementById('main-view')).backgroundImage)), 'a wallpaper behind everything');
   const canvas = await p.locator('#canvas-container').boundingBox();
-  ok(canvas.x >= bar.x + bar.width, 'the board starts beside the pane, not under it');
+  ok(canvas.x < bar.x + 4, 'the board runs under the pane');
+  const names = await p.locator('.node-person').first().boundingBox();
+  ok(names.x >= bar.x + bar.width && names.x < bar.x + bar.width + 30, 'the names start just beside it: ' + names.x);
+  await p.evaluate(() => { const c = document.getElementById('canvas-container'); c.style.scrollBehavior = 'auto'; c.scrollLeft = 0; }); await sleep(200);
+  const under0 = await p.evaluate(([x, y]) => document.elementsFromPoint(x, y).some(e => e.matches('.row-person, .col-week, .task-card')), [bar.x + bar.width / 2, names.y + 60]);
+  ok(!under0, 'at the start nothing of the board is under the glass');
+  await p.evaluate(() => { document.getElementById('canvas-container').scrollLeft = 700; }); await sleep(300);
+  const stack = await p.evaluate(([x, y]) => document.elementsFromPoint(x, y).map(e => e.id || e.className), [bar.x + bar.width / 2, names.y + 60]);
+  ok(stack.some(c => /row-person|col-week|task-card/.test(c)) && /top-actions|top-bar|glass/.test(String(stack[0]) + String(stack[1])), 'scrolled sideways: the board passes under the glass: ' + JSON.stringify(stack.slice(0, 6)));
+  ok(Math.abs((await p.locator('.node-person').first().boundingBox()).x - names.x) < 1, 'and the names stay put beside it');
+  await p.evaluate(() => { document.getElementById('canvas-container').scrollLeft = 0; document.getElementById('canvas-container').style.scrollBehavior = ''; }); await sleep(200);
 
   step('The workspace at the top, then search, the views and your projects');
   ok((await p.locator('#team-switch .ws-name').textContent()) === 'Glass Lab', 'the team’s name');
@@ -84,6 +95,14 @@ try {
   L = await lensAt();
   ok(Math.abs(L.y - await topOf('.view-toggle [data-view="kanban"]')) < 3, 'Kanban open: it rests there');
   await p.click('.view-toggle [data-view="board"]'); await sleep(300);
+  // The board's live updates don't disturb it: the projects stay put and the lens stays with the pointer
+  await p.hover('#activity-btn'); await sleep(700);
+  await p.evaluate(() => { window.__proj = document.querySelector('.glass-proj'); });
+  await p.evaluate(() => window.boardAddTask({ ownerUid: TT.me.uid, name: 'Refresh check' })); await sleep(700);
+  ok(await p.evaluate(() => window.__proj && window.__proj.isConnected), 'a change on the board doesn’t rebuild the projects list');
+  L = await lensAt();
+  ok(Math.abs(L.y - await topOf('#activity-btn')) < 3, 'and the lens stays where the pointer is');
+  await p.mouse.move(900, 500); await sleep(600);
 
   step('Night mode, and you at the bottom');
   ok(await p.locator('.user-mail').first().isVisible() && (await p.locator('#floating-toggles .user-mail').textContent()) === 'glass@uni.ac.uk', 'your name and email');

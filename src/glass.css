@@ -10,46 +10,88 @@
 
 @media (min-width: 761px) {
   body.nav-glass {
-    --nav-w: 264px; --g-gap: 12px;
-    --g-bg: rgba(18, 23, 36, .46); --g-edge: rgba(255, 255, 255, .14); --g-shine: rgba(255, 255, 255, .22);
-    --g-text: rgba(255, 255, 255, .92); --g-muted: rgba(225, 232, 245, .58); --g-pill: rgba(255, 255, 255, .12);
-    --g-lens: linear-gradient(180deg, rgba(255, 255, 255, .20), rgba(255, 255, 255, .07));
-    --g-lens-edge: rgba(255, 255, 255, .42); --g-field-edge: rgba(255, 255, 255, .14); --g-shadow: 0 24px 60px -18px rgba(0, 0, 0, .65), 0 2px 8px rgba(0, 0, 0, .25);
+    --nav-w: 264px; --g-gap: 12px; --g-off: calc(var(--nav-w) + var(--g-gap) * 2);
+    /* the glass itself */
+    --g-tint: rgba(22, 28, 44, .22); --g-edge: rgba(255, 255, 255, .13); --g-field-edge: rgba(255, 255, 255, .14);
+    --g-text: rgba(255, 255, 255, .94); --g-muted: rgba(226, 232, 245, .62); --g-pill: rgba(255, 255, 255, .09);
+    --g-spec: rgba(255, 255, 255, .62); --g-spec-lo: rgba(255, 255, 255, .22); --g-glow: rgba(255, 255, 255, .07);
+    --g-shadow: 0 24px 56px -18px rgba(0, 0, 0, .7), 0 3px 10px rgba(0, 0, 0, .28);
+    /* the board over the wallpaper */
+    --g-wash: color-mix(in srgb, var(--bg-main) 78%, transparent); --g-sticky: color-mix(in srgb, var(--bg-main) 84%, transparent);
+    --g-head: color-mix(in srgb, var(--bg-header, var(--bg-main)) 66%, transparent);
+    /* the wallpaper: light in the team's colour with crisp ribbons and fine lines, which the glass blurs */
+    --g-wall:
+      repeating-linear-gradient(118deg, transparent 0 44px, rgba(255, 255, 255, .045) 44px 45px),
+      linear-gradient(118deg, transparent 0 13%, rgba(125, 211, 252, .42) 13.15%, rgba(125, 211, 252, .08) 17%, transparent 17.2%,
+        transparent 26%, rgba(196, 181, 253, .34) 26.15%, rgba(196, 181, 253, .05) 30%, transparent 30.2%),
+      radial-gradient(38% 36% at 4% 8%, color-mix(in srgb, var(--line-color, #3b82f6) 80%, transparent), transparent 72%),
+      radial-gradient(30% 36% at 16% 88%, rgba(236, 72, 153, .62), transparent 72%),
+      radial-gradient(26% 30% at 24% 48%, rgba(251, 146, 60, .5), transparent 72%),
+      radial-gradient(40% 46% at 92% 6%, rgba(56, 189, 248, .26), transparent 72%),
+      radial-gradient(44% 50% at 66% 104%, rgba(139, 92, 246, .3), transparent 72%),
+      color-mix(in srgb, var(--bg-main) 78%, #000);
   }
   [data-theme="light"] body.nav-glass {
-    --g-bg: rgba(255, 255, 255, .52); --g-edge: rgba(255, 255, 255, .85); --g-shine: rgba(255, 255, 255, .95);
-    --g-text: #101828; --g-muted: rgba(16, 24, 40, .55); --g-pill: rgba(16, 24, 40, .07);
-    --g-lens: linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(255, 255, 255, .55));
-    --g-lens-edge: rgba(255, 255, 255, 1); --g-field-edge: rgba(16, 24, 40, .10); --g-shadow: 0 24px 60px -20px rgba(30, 50, 100, .35), 0 2px 8px rgba(30, 50, 100, .10);
+    --g-tint: rgba(255, 255, 255, .28); --g-edge: rgba(255, 255, 255, .7); --g-field-edge: rgba(16, 24, 40, .09);
+    --g-text: #0f1729; --g-muted: rgba(15, 23, 41, .58); --g-pill: rgba(255, 255, 255, .42);
+    --g-spec: rgba(255, 255, 255, .95); --g-spec-lo: rgba(255, 255, 255, .6); --g-glow: rgba(255, 255, 255, .22);
+    --g-shadow: 0 0 0 .5px rgba(15, 23, 41, .14), 0 24px 56px -20px rgba(30, 50, 100, .42), 0 3px 10px rgba(30, 50, 100, .14);
+    --g-wash: color-mix(in srgb, var(--bg-main) 74%, transparent); --g-sticky: color-mix(in srgb, var(--bg-main) 82%, transparent);
+    --g-wall:
+      repeating-linear-gradient(118deg, transparent 0 44px, rgba(15, 23, 41, .045) 44px 45px),
+      linear-gradient(118deg, transparent 0 13%, rgba(255, 255, 255, .85) 13.15%, rgba(255, 255, 255, .15) 17%, transparent 17.2%,
+        transparent 26%, rgba(129, 140, 248, .3) 26.15%, rgba(129, 140, 248, .04) 30%, transparent 30.2%),
+      radial-gradient(38% 36% at 4% 8%, color-mix(in srgb, var(--line-color, #3b82f6) 60%, transparent), transparent 72%),
+      radial-gradient(30% 36% at 16% 88%, rgba(244, 114, 182, .55), transparent 72%),
+      radial-gradient(26% 30% at 24% 48%, rgba(251, 191, 36, .45), transparent 72%),
+      radial-gradient(40% 46% at 92% 6%, rgba(56, 189, 248, .22), transparent 72%),
+      radial-gradient(44% 50% at 66% 104%, rgba(167, 139, 250, .28), transparent 72%),
+      color-mix(in srgb, var(--bg-main) 88%, #c7d2fe);
   }
   body.nav-glass.nav-rail { --nav-w: 74px; }
-  body.nav-glass #main-view { padding-left: calc(var(--nav-w) + var(--g-gap) * 2); }
-  body.nav-glass .start-card { left: calc(var(--nav-w) + var(--g-gap) * 2 + 16px); }
 
-  /* Colour behind the glass, so it has something to bend: soft light in the team's colour */
-  body.nav-glass #board-screen::before {
-    content: ''; position: fixed; z-index: 84; left: 0; top: 0; bottom: 0; width: calc(var(--nav-w) + var(--g-gap) * 2); pointer-events: none;
-    background:
-      radial-gradient(120% 34% at 20% 12%, color-mix(in srgb, var(--line-color) 55%, transparent), transparent 70%),
-      radial-gradient(110% 30% at 85% 52%, rgba(244, 114, 182, .32), transparent 70%),
-      radial-gradient(120% 30% at 25% 92%, rgba(251, 146, 60, .34), transparent 70%);
-    animation: glass-drift 22s ease-in-out infinite alternate;
-  }
-  [data-theme="light"] body.nav-glass #board-screen::before { opacity: .7; }
-  @keyframes glass-drift { from { background-position: 0 0, 0 0, 0 0; } to { background-position: 0 40px, 0 -50px, 0 30px; } }
+  /* The wallpaper fills the screen; the board lies over it, and slides under the glass */
+  body.nav-glass #main-view { padding-left: 0; background: var(--g-wall); }
+  body.nav-glass .start-card { left: calc(var(--g-off) + 16px); }
+  body.nav-glass #subteam-bar { padding-left: calc(var(--g-off) + 4px); background: linear-gradient(to right, transparent var(--g-off), var(--g-head) var(--g-off)); }
+  body.nav-glass #canvas-container { background: linear-gradient(to right, transparent var(--g-off), var(--g-wash) var(--g-off)); scroll-padding-left: calc(var(--g-off) + var(--w-person) + var(--w-cat));
+    /* Under the glass the board shows (blurred); in the gaps round the glass only the wallpaper does */
+    -webkit-mask: linear-gradient(to right, transparent var(--g-gap), #000 var(--g-gap) calc(var(--g-gap) + var(--nav-w)), transparent calc(var(--g-gap) + var(--nav-w)) var(--g-off), #000 var(--g-off)),
+      linear-gradient(#000 0 0) left bottom / var(--g-off) var(--g-gap) no-repeat;
+    -webkit-mask-composite: source-out;
+    mask: linear-gradient(to right, transparent var(--g-gap), #000 var(--g-gap) calc(var(--g-gap) + var(--nav-w)), transparent calc(var(--g-gap) + var(--nav-w)) var(--g-off), #000 var(--g-off)) subtract,
+      linear-gradient(#000 0 0) left bottom / var(--g-off) var(--g-gap) no-repeat; }
+  body.nav-glass #timeline-headers { padding-left: var(--g-off); background: linear-gradient(to right, transparent var(--g-off), var(--g-head) var(--g-off)); }
+  body.nav-glass #nodes-container { padding-left: var(--g-off); }
+  body.nav-glass #brand-block, body.nav-glass .node-person { left: var(--g-off); }
+  body.nav-glass .node-cat { left: calc(var(--g-off) + var(--w-person)); }
+  /* The names and the board's header are glass too: cards slide under them, blurred */
+  body.nav-glass #brand-block, body.nav-glass .node-person, body.nav-glass .node-cat { background: var(--g-sticky); -webkit-backdrop-filter: blur(12px) saturate(140%); backdrop-filter: blur(12px) saturate(140%); }
+  /* Focus mode hides the bar: the board goes back to the edge */
+  body.nav-glass.focus-mode { --g-off: 0px; }
+  body.nav-glass.focus-mode #canvas-container { -webkit-mask: none; mask: none; }
+  body.nav-glass:is(.view-kanban, .view-gantt, .view-list) :is(#kanban-view, #gantt-view, #list-view) { padding-left: calc(var(--g-off) + 6px); background: linear-gradient(to right, transparent var(--g-off), var(--g-wash) var(--g-off)); }
 
-  /* The pane */
+  /* The pane: clear glass with a bright rim where the light catches it */
   body.nav-glass #top-bar {
     top: var(--g-gap); left: var(--g-gap); bottom: var(--g-gap); width: var(--nav-w); height: auto;
-    padding: 14px 10px 10px; border: 1px solid var(--g-edge); border-radius: 28px; overflow: visible;
-    background: var(--g-bg); color: var(--g-text);
-    -webkit-backdrop-filter: blur(26px) saturate(170%); backdrop-filter: blur(26px) saturate(170%);
-    box-shadow: inset 0 1px 0 var(--g-shine), inset 0 -1px 0 rgba(255, 255, 255, .05), var(--g-shadow);
-    transition: width .32s cubic-bezier(.3, 1.2, .5, 1);
+    padding: 14px 10px 10px; border: 0; border-radius: 26px; overflow: visible; color: var(--g-text);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02) 40%, rgba(255, 255, 255, .05)), var(--g-tint);
+    -webkit-backdrop-filter: blur(22px) saturate(185%) brightness(1.04); backdrop-filter: blur(22px) saturate(185%) brightness(1.04);
+    box-shadow: inset 0 0 0 1px var(--g-edge), inset 1.5px 1.5px 1px -1px var(--g-spec), inset -1.5px -1.5px 1px -1px var(--g-spec-lo),
+      inset 0 0 26px var(--g-glow), var(--g-shadow);
+    transition: width .24s ease;
   }
-  body.nav-glass #top-bar::after {   /* light caught along the top edge */
+  /* The rim: brighter where the light falls (top left) and where it leaves (bottom right) */
+  body.nav-glass #top-bar::before {
+    content: ''; position: absolute; inset: 0; z-index: 2; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: linear-gradient(135deg, var(--g-spec) 0%, rgba(255, 255, 255, .06) 22%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, .06) 78%, var(--g-spec-lo) 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  }
+  /* A soft sheen across the top, like light on curved glass */
+  body.nav-glass #top-bar::after {
     content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-    background: linear-gradient(170deg, rgba(255, 255, 255, .16), transparent 22%, transparent 78%, rgba(255, 255, 255, .05));
+    background: radial-gradient(120% 22% at 30% 0%, rgba(255, 255, 255, .14), transparent 70%), radial-gradient(90% 18% at 80% 100%, rgba(255, 255, 255, .06), transparent 70%);
   }
   body.nav-glass #top-actions { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; margin-bottom: 0; overflow-y: auto; overflow-x: hidden; padding: 0 2px 6px; scrollbar-width: none; gap: 1px; }
   body.nav-glass #top-actions::-webkit-scrollbar { display: none; }
@@ -131,15 +173,18 @@
   body.nav-glass #floating-toggles .user-display { font-weight: 700; max-width: none; }
   body.nav-glass #floating-toggles .user-mail { display: block; font-size: 11px; font-weight: 500; color: var(--g-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* The lens: a drop of clearer glass that slides to the item under the pointer */
+  /* The lens: a drop of clear glass, moved by src/glass.js on a spring */
   body.nav-glass .glass-lens { display: block; position: absolute; z-index: 0; left: 0; top: 0; width: 0; height: 0; border-radius: 999px; pointer-events: none; opacity: 0;
-    background: var(--g-lens); border: 1px solid var(--g-lens-edge);
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, .55), inset 0 -2px 6px rgba(255, 255, 255, .08), 0 8px 22px -8px rgba(0, 0, 0, .45);
-    -webkit-backdrop-filter: brightness(1.12) saturate(1.5); backdrop-filter: brightness(1.12) saturate(1.5);
-    transition: transform .55s cubic-bezier(.25, 1.35, .45, 1), width .35s ease, height .35s ease, opacity .2s ease; }
+    background: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .05) 55%, rgba(255, 255, 255, .1));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16), inset 1.5px 2px 1px -1px rgba(255, 255, 255, .85), inset -1.5px -2px 1px -1px rgba(255, 255, 255, .35),
+      inset 0 -8px 14px -10px rgba(255, 255, 255, .35), 0 8px 20px -10px rgba(0, 0, 0, .55);
+    will-change: transform; }
+  [data-theme="light"] body.nav-glass .glass-lens {
+    background: linear-gradient(180deg, rgba(255, 255, 255, .7), rgba(255, 255, 255, .28) 55%, rgba(255, 255, 255, .45));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .8), inset 1.5px 2px 1px -1px #fff, inset -1.5px -2px 1px -1px rgba(255, 255, 255, .9),
+      0 6px 16px -8px rgba(30, 50, 100, .4), 0 0 0 .5px rgba(30, 50, 100, .08); }
+  body.nav-glass .glass-lens.cell { border-radius: 12px; }
   body.nav-glass .glass-lens.shown { opacity: 1; }
-  body.nav-glass .glass-lens.moving { animation: glass-squish .55s cubic-bezier(.3, 1.2, .5, 1); }
-  @keyframes glass-squish { 0% { scale: 1 1; } 28% { scale: 1.04 .82; } 62% { scale: .99 1.06; } 100% { scale: 1 1; } }
 
   /* Folded down to icons: names show in a glass label beside the pane */
   body.nav-glass.nav-rail #top-bar { padding: 14px 8px 10px; }
@@ -169,6 +214,5 @@
   body.nav-glass .glass-tip.shown { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  body.nav-glass #board-screen::before, body.nav-glass .glass-lens.moving { animation: none !important; }
-  body.nav-glass .glass-lens, body.nav-glass #top-bar { transition: none !important; }
+  body.nav-glass #top-bar { transition: none !important; }
 }
