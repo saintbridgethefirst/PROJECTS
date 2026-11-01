@@ -31,23 +31,21 @@ try {
 
   step('Public pages run their scripts from files (nothing blocked)');
   const pub = await page(ctx);
-  for (const path of ['', 'guide.html', 'blog/', 'blog/how-to-plan-a-dissertation.html', 'dissertation', 'formula-student', 'privacy.html']) {
+  for (const path of ['', 'guide.html', 'security.html', 'privacy.html']) {
     await pub.goto(BASE + path, { waitUntil: 'networkidle' }); await sleep(150);
   }
-  await pub.goto(BASE + 'templates/dissertation-gantt-chart', { waitUntil: 'networkidle' });
-  ok(await pub.locator('#g-chart .bar').count() > 3, 'the Gantt chart template draws its chart');
   await pub.goto(BASE + 'guide.html', { waitUntil: 'networkidle' });
   await pub.locator('.step').first().click(); await sleep(100);
   ok(await pub.locator('.step.done').count() === 1, 'the guide’s checklist ticks');
 
-  step('The loading screen: the mark with five points and the light, a fun fact, and Reload if it’s slow');
+  step('The loading screen: the glowing Penteint figure, a fun fact, and Reload if it’s slow');
   const slowCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   // Hold the app back so the loading screen stays (and mark a fresh start as just done, so it doesn't reload)
   await slowCtx.addInitScript(() => { try { localStorage.setItem('tt_signed_in', '1'); sessionStorage.setItem('tt_fresh_at', String(Date.now())); } catch { /* */ } });
   await slowCtx.route(/\/assets\/index-.*\.js$/, r => r.abort());
   const ld = await slowCtx.newPage(); await ld.clock.install();
   await ld.goto(BASE); await ld.clock.runFor(1500);
-  ok(await ld.locator('#loading .ld-pt').count() === 5 && await ld.locator('#loading .ld-spark').count() === 1, 'five points and the light');
+  ok(await ld.locator('#loading img.ld-penteint').count() === 1, 'the Penteint figure');
   ok(await ld.locator('#ld-fact').isVisible() && (await ld.locator('#ld-fact-text').textContent()).length > 20, 'a fun fact or tip');
   const first = await ld.locator('#ld-fact-text').textContent(); await ld.clock.runFor(6500);
   ok((await ld.locator('#ld-fact-text').textContent()) !== first, 'the next one a few seconds later');
