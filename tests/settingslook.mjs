@@ -31,7 +31,7 @@ try {
   ok(await p.locator('.modal-close[aria-label="Close"] svg').count() === 1, 'a round × closes it');
   await p.click('[data-acct="appearance"]');
   ok(await p.locator('.acct-title').textContent() === 'Appearance', 'Appearance opens');
-  ok(await p.locator('.seg-toggle.pill [data-nav] svg').count() === 2 && await p.locator('.seg-toggle.pill [data-menu-style] svg').count() === 2, 'Top bar/Sidebar and List/Circle have line icons, not ▭ ▯ characters');
+  ok(await p.locator('.seg-toggle.pill [data-nav] svg').count() === 3 && await p.locator('.seg-toggle.pill [data-menu-style] svg').count() === 2, 'Top bar/Sidebar/Glass and List/Circle have line icons, not ▭ ▯ characters');
   ok(!(await p.locator('.account-pane').textContent()).match(/[▭▯☰◎]/), 'no box characters left');
   ok(await p.locator('#acct-save').textContent() === 'Done', 'the button says Done when there’s nothing to save');
   await p.click('[data-acct="notifications"]');

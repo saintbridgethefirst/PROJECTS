@@ -4,6 +4,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { startFlag } from './start.js';
 import { APP_NAME, GOOGLE_CLIENT_ID, MS_CLIENT_ID, DEMO_MODE, LIMITS, STUDENT_EMAIL_CHECK, SERVER_EMAILS } from './config.js';
+import { codeCard } from './codecard.js';
+import './codecard.css';
 import { PERMISSIONS, can, roleList, normEmail, isValidEmail, DEFAULT_ROLES, GUEST_HELP } from './permissions.js';
 import { FIELD_TYPES, DEFAULT_LABELS, newId, subteamsWithout, cleanField, cleanPhase, renumberWeeks, PHASE_COLORS, PHASE_TEMPLATE, FEATURES, cleanFeatures, cleanSubteams, WORKFLOW_TEMPLATES, STAGE_COLORS, MAX_STAGES, workflowOf, workflowMoves, stageIdOf, isCustomWorkflow, SUBTEAM_COLORS, SUBTEAM_LIMIT, planOf, PLANS, PRO_FEATURES, memberRoom, hasPro, MAX_CHECKS, storedWorkflow, leadsIndex, cleanWorkflow, cleanPurchase, cleanAutos, currencyOf, CURRENCIES, CURRENCY_NAMES, cleanBudget } from './model.js';
 import { el, avatar, teamLogo, toast, modal, friendlyError, pickFile, imageFileToDataUrl } from './ui.js';
@@ -140,24 +142,25 @@ function plan(pane, ctx, { invites, rerender } = {}) {
           ? el('button.btn.primary', { type: 'button', id: 'plan-edu', onclick: async () => { if (await TT.claimEdu()) { toast('Pro Education is on for this team.'); setTimeout(() => rerender && rerender(), 300); } } }, P.tier === 'free' ? 'Turn on free Pro Education' : 'Renew Pro Education for a year')
           : el('p.hint.t-bad', { id: 'plan-edu-full' }, 'You’ve switched Pro Education on for ' + claim.limit + ' teams this year, the most for now. Tell us through Feedback if you need more.'));
     } else if (STUDENT_EMAIL_CHECK || DEMO_MODE) {
-      // Signed in with a personal email: prove a university address with a 6-digit code.
+      // Signed in with a personal email: prove a university address with a 6-digit code (src/codecard.js shows the wait).
       const email = el('input.inp', { id: 'stu-email', type: 'email', placeholder: 'you@university.ac.uk', autocomplete: 'email', 'aria-label': 'Your university email' });
-      const code = el('input.inp', { id: 'stu-code', inputmode: 'numeric', maxlength: 6, placeholder: '6-digit code', 'aria-label': 'Code from the email', autocomplete: 'one-time-code' });
-      const status = el('p.hint', { id: 'stu-status' });
-      const step2 = el('div.row.stu-step2', { hidden: true }, code, el('button.btn.primary', { type: 'button', id: 'stu-verify', onclick: async (e) => {
-        e.target.disabled = true;
-        try { await TT.confirmStudentCode(code.value); toast('University email confirmed.'); rerender && rerender(); }
-        catch (err) { status.textContent = '⚠ ' + (err.message || 'Could not check the code.'); } finally { e.target.disabled = false; }
-      } }, 'Confirm'));
+      const status = el('p.hint', { id: 'stu-status', 'aria-live': 'polite' });
+      const slot = el('div.stu-step2');
+      const step1 = el('div.row.stu-step1', {}, email, el('button.btn', { type: 'button', id: 'stu-send', onclick: async (e) => {
+        e.target.disabled = true; status.textContent = 'Sending…';
+        try {
+          const r = await TT.sendStudentCode(email.value);
+          status.textContent = '';   // the card says where it went
+          const card = codeCard({ email: r.email, inputId: 'stu-code', status, hint: r.demoCode ? 'Demo: your code is ' + r.demoCode : '',
+            check: (c) => TT.confirmStudentCode(c),
+            resend: async () => { const r2 = await TT.sendStudentCode(r.email); status.textContent = 'We sent a new code to ' + r2.email + '.'; card.setHint(r2.demoCode ? 'Demo: your code is ' + r2.demoCode : ''); },
+            changeEmail: () => { slot.replaceChildren(); step1.hidden = false; status.textContent = ''; email.focus(); },
+            done: () => { toast('University email confirmed.'); rerender && rerender(); } });
+          step1.hidden = true; slot.replaceChildren(card); card.focusCode();
+        } catch (err) { status.textContent = '⚠ ' + (err.message || 'Could not send the code.'); } finally { e.target.disabled = false; }
+      } }, 'Send code'));
       sec.append(el('p.hint', {}, 'Signed in with a personal email? Add your university email (ending .ac.uk, .edu, .ac.xx or .edu.xx). We email it a 6-digit code; enter it here and Pro Education unlocks.'),
-        el('div.row.stu-step1', {}, email, el('button.btn', { type: 'button', id: 'stu-send', onclick: async (e) => {
-          e.target.disabled = true; status.textContent = 'Sending…';
-          try {
-            const r = await TT.sendStudentCode(email.value);
-            status.textContent = 'We sent a code to ' + r.email + '. It works for 15 minutes. Not in your inbox? Check your Junk folder.' + (r.demoCode ? ' (Demo: your code is ' + r.demoCode + ')' : '');
-            step2.hidden = false; code.focus();
-          } catch (err) { status.textContent = '⚠ ' + (err.message || 'Could not send the code.'); } finally { e.target.disabled = false; }
-        } }, 'Send code')), step2, status,
+        step1, slot, status,
         el('p.hint', {}, 'Each university email can be linked to one account, and is checked again once a year.'));
     } else {
       sec.append(el('p.hint', { id: 'plan-edu-hint' }, 'Sign in with your university email (ending .ac.uk, .edu, .ac.xx or .edu.xx) to turn on Pro Education free, instantly.'));
