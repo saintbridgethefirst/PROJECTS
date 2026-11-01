@@ -80,8 +80,9 @@ test('rules: I can save my menu style, list or circle only', async () => {
   await assertSucceeds(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { menuStyle: 'circle', updatedAt: 1 }, { merge: true }));
   await assertFails(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { menuStyle: 'triangle', updatedAt: 1 }));
 });
-test('rules: I can save my navigation, top or side only', async () => {
+test('rules: I can save my navigation, top, side or glass only', async () => {
   await assertSucceeds(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { nav: 'side', updatedAt: 1 }, { merge: true }));
+  await assertSucceeds(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { nav: 'glass', updatedAt: 2 }, { merge: true }));
   await assertFails(setDoc(doc(dbFor('mem1'), 'users', 'mem1'), { nav: 'bottom', updatedAt: 1 }));
   await assertFails(setDoc(doc(dbFor('admin1'), 'users', 'mem1'), { nav: 'side', updatedAt: 1 }, { merge: true }));
 });

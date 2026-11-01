@@ -18,6 +18,7 @@ const BUTTONS = [
   ['#wb-btn', 'presentation'], ['#approvals-btn', 'check-check'], ['#share-btn', 'share-2'], ['[data-onclick*="TT.openAI"]', 'sparkles'],
   ['[data-onclick*="scrollToToday"]', 'crosshair'], ['[data-onclick="TT.openSettings()"]', 'settings'], ['#nav-collapse', 'panel-left-close'],
   ['[data-onclick="toggleSidebar()"]', 'panel-right'], ['#theme-toggle-outer', 'palette'], ['#crossteam-btn', 'users'], ['#joint-btn', 'layers'], ['#home-search', 'search'], ['#home-guide', 'book-open'], ['#home-feedback', 'message-square'], ['#home-theme', 'palette'],
+  ['#glass-night', 'moon'], ['.glass-group-head', 'layers'],
   // Settings ▸ Features: each module's emoji becomes a line icon
   ...Object.entries({ planning: 'calendar-range', meetings: 'clipboard-list', notebook: 'notebook-pen', literature: 'book-open', whiteboards: 'presentation',
     subteams: 'puzzle', parts: 'package', finance: 'wallet', people: 'users', time: 'clock', risks: 'shield-alert', requirements: 'ruler', dissertation: 'graduation-cap' })

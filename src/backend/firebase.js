@@ -169,7 +169,7 @@ export const auth = {
   /** Where the team's tools sit: 'top' bar or 'side' bar (follows you to every device). */
   async setNav(nav) {
     const u = fbAuth.currentUser; if (!u) throw new Error('Not signed in.');
-    await setDoc(doc(db, 'users', u.uid), { nav: nav === 'side' ? 'side' : 'top', updatedAt: Date.now() }, { merge: true });
+    await setDoc(doc(db, 'users', u.uid), { nav: nav === 'side' || nav === 'glass' ? nav : 'top', updatedAt: Date.now() }, { merge: true });
     profileUid = u.uid; profileNav = nav;
     return toUser(u);
   },

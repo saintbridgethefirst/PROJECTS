@@ -52,6 +52,8 @@ export function initTooltips() {
     if (elm === cur) return;
     hide();
     if (!elm || elm.disabled || !labelOf(elm)) return;
+    // The glass sidebar, folded to icons, shows names in its own glass label (src/glass.js)
+    if (elm.closest('#top-bar') && document.body.classList.contains('nav-glass') && document.body.classList.contains('nav-rail')) return;
     cur = elm;
     timer = setTimeout(() => { if (cur === elm) show(elm); }, DELAY);
   }, true);

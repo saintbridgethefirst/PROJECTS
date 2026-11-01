@@ -516,7 +516,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
 /** users/{uid}: only the owner may read or write their profile (mirrors firestore.rules). */
 export function checkProfileWrite(auth, uid, data) {
   if (!auth || auth.uid !== uid) deny('profile');
-  if (data !== null && !(hasOnly(data, ALLOWED.user) && validPhoto(data) && (data.theme === undefined || (typeof data.theme === 'string' && data.theme.length <= 40)) && (data.menuStyle === undefined || ['list', 'circle'].includes(data.menuStyle)) && (data.nav === undefined || ['top', 'side'].includes(data.nav)) && (data.notify === undefined || (data.notify && typeof data.notify === 'object' && !Array.isArray(data.notify) && Object.keys(data.notify).length <= 5)))) deny('invalid profile');
+  if (data !== null && !(hasOnly(data, ALLOWED.user) && validPhoto(data) && (data.theme === undefined || (typeof data.theme === 'string' && data.theme.length <= 40)) && (data.menuStyle === undefined || ['list', 'circle'].includes(data.menuStyle)) && (data.nav === undefined || ['top', 'side', 'glass'].includes(data.nav)) && (data.notify === undefined || (data.notify && typeof data.notify === 'object' && !Array.isArray(data.notify) && Object.keys(data.notify).length <= 5)))) deny('invalid profile');
 }
 
 export function checkRead(store, auth, teamId, coll) {

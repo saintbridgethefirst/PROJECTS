@@ -380,7 +380,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['photo', 'theme', 'menuStyle', 'nav', 'notify', 'updatedAt'])
         && request.resource.data.get('notify', {}) is map && request.resource.data.get('notify', {}).size() <= 5
         && request.resource.data.get('menuStyle', 'list') in ['list', 'circle']
-        && request.resource.data.get('nav', 'top') in ['top', 'side']
+        && request.resource.data.get('nav', 'top') in ['top', 'side', 'glass']
         && validPhoto(request.resource.data)
         && request.resource.data.get('theme', '') is string && request.resource.data.get('theme', '').size() <= 40;
     }

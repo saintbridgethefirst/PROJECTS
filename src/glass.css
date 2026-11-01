@@ -1,0 +1,174 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Glass sidebar (Account ▸ Appearance ▸ Navigation ▸ Glass): the sidebar as a
+   floating pane of liquid glass, with the workspace (the team) at the top, your
+   projects (teams), night mode and you at the bottom. A glass lens slides to the
+   item under the pointer (src/glass.js). Computers only; phones keep the top bar.
+   Built on the sidebar's rules in app.css (body.nav-side), so only the differences are here.
+   ───────────────────────────────────────────────────────────────────────────── */
+.glass-kbd, .ws-sub, .user-mail, #glass-night, #glass-projects { display: none; }
+.glass-lens, .glass-tip { display: none; }
+
+@media (min-width: 761px) {
+  body.nav-glass {
+    --nav-w: 264px; --g-gap: 12px;
+    --g-bg: rgba(18, 23, 36, .46); --g-edge: rgba(255, 255, 255, .14); --g-shine: rgba(255, 255, 255, .22);
+    --g-text: rgba(255, 255, 255, .92); --g-muted: rgba(225, 232, 245, .58); --g-pill: rgba(255, 255, 255, .12);
+    --g-lens: linear-gradient(180deg, rgba(255, 255, 255, .20), rgba(255, 255, 255, .07));
+    --g-lens-edge: rgba(255, 255, 255, .42); --g-field-edge: rgba(255, 255, 255, .14); --g-shadow: 0 24px 60px -18px rgba(0, 0, 0, .65), 0 2px 8px rgba(0, 0, 0, .25);
+  }
+  [data-theme="light"] body.nav-glass {
+    --g-bg: rgba(255, 255, 255, .52); --g-edge: rgba(255, 255, 255, .85); --g-shine: rgba(255, 255, 255, .95);
+    --g-text: #101828; --g-muted: rgba(16, 24, 40, .55); --g-pill: rgba(16, 24, 40, .07);
+    --g-lens: linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(255, 255, 255, .55));
+    --g-lens-edge: rgba(255, 255, 255, 1); --g-field-edge: rgba(16, 24, 40, .10); --g-shadow: 0 24px 60px -20px rgba(30, 50, 100, .35), 0 2px 8px rgba(30, 50, 100, .10);
+  }
+  body.nav-glass.nav-rail { --nav-w: 74px; }
+  body.nav-glass #main-view { padding-left: calc(var(--nav-w) + var(--g-gap) * 2); }
+  body.nav-glass .start-card { left: calc(var(--nav-w) + var(--g-gap) * 2 + 16px); }
+
+  /* Colour behind the glass, so it has something to bend: soft light in the team's colour */
+  body.nav-glass #board-screen::before {
+    content: ''; position: fixed; z-index: 84; left: 0; top: 0; bottom: 0; width: calc(var(--nav-w) + var(--g-gap) * 2); pointer-events: none;
+    background:
+      radial-gradient(120% 34% at 20% 12%, color-mix(in srgb, var(--line-color) 55%, transparent), transparent 70%),
+      radial-gradient(110% 30% at 85% 52%, rgba(244, 114, 182, .32), transparent 70%),
+      radial-gradient(120% 30% at 25% 92%, rgba(251, 146, 60, .34), transparent 70%);
+    animation: glass-drift 22s ease-in-out infinite alternate;
+  }
+  [data-theme="light"] body.nav-glass #board-screen::before { opacity: .7; }
+  @keyframes glass-drift { from { background-position: 0 0, 0 0, 0 0; } to { background-position: 0 40px, 0 -50px, 0 30px; } }
+
+  /* The pane */
+  body.nav-glass #top-bar {
+    top: var(--g-gap); left: var(--g-gap); bottom: var(--g-gap); width: var(--nav-w); height: auto;
+    padding: 14px 10px 10px; border: 1px solid var(--g-edge); border-radius: 28px; overflow: visible;
+    background: var(--g-bg); color: var(--g-text);
+    -webkit-backdrop-filter: blur(26px) saturate(170%); backdrop-filter: blur(26px) saturate(170%);
+    box-shadow: inset 0 1px 0 var(--g-shine), inset 0 -1px 0 rgba(255, 255, 255, .05), var(--g-shadow);
+    transition: width .32s cubic-bezier(.3, 1.2, .5, 1);
+  }
+  body.nav-glass #top-bar::after {   /* light caught along the top edge */
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(170deg, rgba(255, 255, 255, .16), transparent 22%, transparent 78%, rgba(255, 255, 255, .05));
+  }
+  body.nav-glass #top-actions { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; margin-bottom: 0; overflow-y: auto; overflow-x: hidden; padding: 0 2px 6px; scrollbar-width: none; gap: 1px; }
+  body.nav-glass #top-actions::-webkit-scrollbar { display: none; }
+  body.nav-glass #top-actions > * { flex-shrink: 0; }
+  /* The bottom: night mode across, then you, with Theme and the side panel as small icons */
+  body.nav-glass #floating-toggles { display: grid !important; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 2px 2px; flex: none;
+    position: relative; z-index: 1; border-top: 1px solid var(--g-edge); margin: 6px 0 0; padding-top: 8px; }
+  body.nav-glass #floating-toggles > * { grid-column: auto; width: auto; }
+  body.nav-glass #floating-toggles #glass-night { grid-column: 1 / -1; grid-row: 1; }
+  body.nav-glass #floating-toggles .account-chip { grid-column: 1; grid-row: 2; }
+  body.nav-glass #floating-toggles #theme-toggle-outer { grid-column: 2; grid-row: 2; }
+  body.nav-glass #floating-toggles [data-onclick="toggleSidebar()"] { grid-column: 3; grid-row: 2; }
+  body.nav-glass #top-bar #floating-toggles :is(#theme-toggle-outer, [data-onclick="toggleSidebar()"]) { width: 36px; min-width: 36px; height: 36px; padding: 0; justify-content: center; }
+  body.nav-glass #top-bar #floating-toggles :is(#theme-toggle-outer, [data-onclick="toggleSidebar()"]) :is(.lbl-md, .lbl-lg) { display: none !important; }
+
+  /* Items: no fills of their own; the lens shows where you are */
+  body.nav-glass #top-bar .top-btn { border-radius: 999px; padding: 7px 12px; min-height: 34px; gap: 11px; font-size: 13.5px; font-weight: 600; color: var(--g-text); background: transparent !important; position: relative; }
+  body.nav-glass #top-bar .top-btn.on, body.nav-glass #top-bar .top-btn[aria-pressed="true"] { font-weight: 750; }
+  body.nav-glass #top-bar .top-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--line-color) 70%, white); outline-offset: -2px; }
+  body.nav-glass .nav-group { color: var(--g-muted); font-size: 10.5px; letter-spacing: .12em; padding: 12px 12px 4px; }
+  body.nav-glass .nav-group.ng-views { display: none; }
+  body.nav-glass #top-bar .count-badge { min-width: 22px; height: 20px; padding: 0 7px; font-size: 11px; background: var(--g-pill); color: var(--g-text); border: 1px solid var(--g-edge); }
+  body.nav-glass #top-bar #activity-badge, body.nav-glass #top-bar #approvals-badge { background: #ef4444; border-color: transparent; color: #fff; box-shadow: 0 0 10px rgba(239, 68, 68, .55); }
+
+  /* The views (Board, Kanban, Gantt, List): one row of four */
+  body.nav-glass:not(.nav-rail) .view-toggle { flex-direction: row; gap: 2px; margin: 2px 2px 4px; padding: 3px; border-radius: 16px; background: var(--g-pill); border: 1px solid var(--g-field-edge); }
+  body.nav-glass:not(.nav-rail) #top-bar .view-toggle .top-btn { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: center; gap: 2px; min-height: 46px; padding: 5px 0 4px; border-radius: 12px; font-size: 11px; font-weight: 650; line-height: 1.1; }
+  body.nav-glass:not(.nav-rail) #top-bar .view-toggle .top-btn .lbl-view { font-size: 11px; }
+  body.nav-glass:not(.nav-rail) #top-bar .view-toggle .top-btn .look-ico { margin: 0; }
+
+  /* The workspace: the team you're in */
+  body.nav-glass .team-switch { order: 0; border: 0; background: transparent; padding: 4px 20px 10px 8px; gap: 11px; min-height: 0; position: relative; z-index: 1; color: var(--g-text); }
+  body.nav-glass .team-switch .team-logo { width: 38px; height: 38px; flex-basis: 38px; border-radius: 12px; font-size: 14px; box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--line-color) 80%, transparent), inset 0 1px 0 rgba(255, 255, 255, .35); }
+  body.nav-glass .team-switch .ws-text { display: flex; flex-direction: column; min-width: 0; text-align: left; line-height: 1.2; }
+  body.nav-glass .team-switch .ws-name { font-size: 14.5px; font-weight: 750; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  body.nav-glass .team-switch .ws-sub { display: block; font-size: 11.5px; font-weight: 550; color: var(--g-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Search: a field with its shortcut */
+  body.nav-glass #top-actions > #search-btn { order: 1; margin: 2px 2px 6px; border: 1px solid var(--g-field-edge) !important; background: var(--g-pill) !important; border-radius: 14px; color: var(--g-muted); font-weight: 550; }
+  body.nav-glass #search-btn .glass-kbd { display: inline-block; margin-left: auto; font: 600 10.5px/1 ui-sans-serif, system-ui, sans-serif; padding: 4px 6px; border-radius: 7px; border: 1px solid var(--g-field-edge); color: var(--g-muted); background: var(--g-pill); }
+
+  /* The collapse button sits on the pane's edge */
+  body.nav-glass #top-bar #nav-collapse { position: absolute; z-index: 3; top: 26px; right: -13px; width: 26px !important; min-width: 0; height: 26px; min-height: 0; margin: 0; padding: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; gap: 0; font-size: 0; color: #111827; background: #fff !important; border: 0; box-shadow: 0 4px 14px rgba(0, 0, 0, .35), 0 0 0 1px rgba(0, 0, 0, .06); transform: none; }
+  body.nav-glass #top-bar #nav-collapse > * { display: none !important; }
+  body.nav-glass #top-bar #nav-collapse::before { content: ''; width: 6px; height: 6px; border-left: 2px solid #111827; border-bottom: 2px solid #111827; transform: translateX(1px) rotate(45deg); transition: transform .3s ease; }
+  body.nav-glass.nav-rail #top-bar #nav-collapse::before { transform: translateX(-1px) rotate(-135deg); }
+  body.nav-glass #top-bar #nav-collapse:hover { background: #f1f5f9 !important; }
+  body.nav-glass #top-bar #nav-collapse:focus-visible { outline: 2px solid color-mix(in srgb, var(--line-color) 80%, white); outline-offset: 2px; }
+
+  /* Your projects (teams), as a small tree with coloured dots */
+  body.nav-glass #glass-projects { display: flex; flex-direction: column; order: 3; gap: 1px; margin-top: 2px; }
+  body.nav-glass .glass-ic:empty { display: none; }
+  body.nav-glass .glass-group-head { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 34px; padding: 7px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--g-text); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; text-align: left; position: relative; }
+  body.nav-glass .glass-count { margin-left: auto; font-size: 11px; color: var(--g-muted); }
+  body.nav-glass .glass-chev { width: 7px; height: 7px; border-right: 1.8px solid var(--g-muted); border-bottom: 1.8px solid var(--g-muted); transform: rotate(-135deg) translate(-2px, -1px); transition: transform .25s ease; margin-right: 2px; }
+  body.nav-glass .glass-group-head[aria-expanded="false"] .glass-chev { transform: rotate(45deg) translate(-2px, -1px); }
+  body.nav-glass .glass-proj-list { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 4px 22px; padding-left: 10px; border-left: 1px solid var(--g-edge); }
+  body.nav-glass .glass-proj-list.closed { display: none; }
+  body.nav-glass .glass-proj { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 30px; padding: 5px 10px; border: 0; border-radius: 999px; background: transparent; color: var(--g-text); font: inherit; font-size: 13px; font-weight: 550; text-align: left; cursor: pointer; position: relative; }
+  body.nav-glass .glass-proj .nav-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  body.nav-glass .glass-proj.current { font-weight: 750; }
+  body.nav-glass .glass-proj.current::after { content: ''; margin-left: auto; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--g-text); opacity: .7; }
+  body.nav-glass .glass-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+  body.nav-glass .glass-proj .team-logo { display: none; }
+  body.nav-glass .glass-proj.new { color: var(--g-muted); }
+  body.nav-glass .glass-plus { width: 8px; text-align: center; font-weight: 700; }
+  body.nav-glass .glass-group-head:focus-visible, body.nav-glass .glass-proj:focus-visible { outline: 2px solid color-mix(in srgb, var(--line-color) 70%, white); outline-offset: -2px; }
+
+  /* Night mode, then you */
+  body.nav-glass #glass-night { display: flex; }
+  body.nav-glass .glass-switch { margin-left: auto; flex: none; width: 34px; height: 20px; border-radius: 999px; background: var(--g-pill); border: 1px solid var(--g-edge); position: relative; transition: background .2s; }
+  body.nav-glass .glass-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: transform .25s cubic-bezier(.3, 1.4, .5, 1); }
+  body.nav-glass #glass-night[aria-checked="true"] .glass-switch { background: color-mix(in srgb, var(--line-color) 75%, transparent); }
+  body.nav-glass #glass-night[aria-checked="true"] .glass-switch::after { transform: translateX(14px); }
+  body.nav-glass #top-bar #floating-toggles .account-chip { min-height: 46px; padding: 5px 10px 5px 5px; gap: 10px; min-width: 0; }
+  body.nav-glass #floating-toggles .account-chip .avatar { width: 32px; height: 32px; font-size: 12px; }
+  body.nav-glass #floating-toggles .account-chip .acct-lines { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+  body.nav-glass #floating-toggles .user-display { font-weight: 700; max-width: none; }
+  body.nav-glass #floating-toggles .user-mail { display: block; font-size: 11px; font-weight: 500; color: var(--g-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* The lens: a drop of clearer glass that slides to the item under the pointer */
+  body.nav-glass .glass-lens { display: block; position: absolute; z-index: 0; left: 0; top: 0; width: 0; height: 0; border-radius: 999px; pointer-events: none; opacity: 0;
+    background: var(--g-lens); border: 1px solid var(--g-lens-edge);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, .55), inset 0 -2px 6px rgba(255, 255, 255, .08), 0 8px 22px -8px rgba(0, 0, 0, .45);
+    -webkit-backdrop-filter: brightness(1.12) saturate(1.5); backdrop-filter: brightness(1.12) saturate(1.5);
+    transition: transform .55s cubic-bezier(.25, 1.35, .45, 1), width .35s ease, height .35s ease, opacity .2s ease; }
+  body.nav-glass .glass-lens.shown { opacity: 1; }
+  body.nav-glass .glass-lens.moving { animation: glass-squish .55s cubic-bezier(.3, 1.2, .5, 1); }
+  @keyframes glass-squish { 0% { scale: 1 1; } 28% { scale: 1.04 .82; } 62% { scale: .99 1.06; } 100% { scale: 1 1; } }
+
+  /* Folded down to icons: names show in a glass label beside the pane */
+  body.nav-glass.nav-rail #top-bar { padding: 14px 8px 10px; }
+  body.nav-glass.nav-rail #top-bar .top-btn, body.nav-glass.nav-rail .glass-group-head, body.nav-glass.nav-rail .glass-proj { justify-content: center; padding: 8px 0; }
+  body.nav-glass.nav-rail .team-switch { justify-content: center; padding: 2px 0 10px; }
+  body.nav-glass.nav-rail .team-switch .ws-text { display: none; }
+  body.nav-glass.nav-rail #top-actions > #search-btn { border-color: transparent !important; background: transparent !important; margin: 0; }
+  body.nav-glass.nav-rail :is(.glass-kbd, .glass-count, .glass-chev, .glass-switch, .glass-dot, .glass-label, .user-mail) { display: none !important; }
+  body.nav-glass.nav-rail .glass-proj-list { margin: 0; padding: 0; border: 0; }
+  body.nav-glass.nav-rail .glass-proj-list.closed { display: flex; }
+  body.nav-glass.nav-rail .glass-proj .team-logo { display: inline-flex; width: 26px; height: 26px; flex-basis: 26px; border-radius: 8px; font-size: 10px; }
+  body.nav-glass.nav-rail .glass-proj.current .team-logo { box-shadow: 0 0 0 2px var(--g-text); }
+  body.nav-glass.nav-rail .glass-proj.current::after { display: none; }
+  body.nav-glass.nav-rail .glass-proj.new { display: none; }
+  body.nav-glass.nav-rail .glass-group-head { display: none; }
+  body.nav-glass.nav-rail #floating-toggles .account-chip .acct-lines { display: none; }
+  body.nav-glass.nav-rail #floating-toggles { grid-template-columns: 1fr; }
+  body.nav-glass.nav-rail #floating-toggles > * { grid-column: 1 !important; grid-row: auto !important; }
+  body.nav-glass.nav-rail #top-bar #floating-toggles :is(.top-btn, .account-chip) { width: 100%; justify-content: center; padding: 6px 0; }
+  body.nav-glass.nav-rail #top-bar #floating-toggles :is(#theme-toggle-outer, [data-onclick="toggleSidebar()"]) { justify-self: center; }
+  body.nav-glass.nav-rail .nav-group { border-top-color: var(--g-edge); }
+  body.nav-glass.nav-rail .nav-group.ng-views { display: none; }
+  body.nav-glass.nav-rail #glass-projects { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--g-edge); }
+  body.nav-glass .glass-tip { display: block; position: fixed; z-index: 400; left: 0; top: 0; padding: 7px 13px; border-radius: 999px; pointer-events: none; opacity: 0; white-space: nowrap;
+    font-size: 12.5px; font-weight: 650; color: var(--g-text); background: var(--g-bg); border: 1px solid var(--g-edge);
+    -webkit-backdrop-filter: blur(20px) saturate(170%); backdrop-filter: blur(20px) saturate(170%); box-shadow: inset 0 1px 0 var(--g-shine), 0 10px 24px -10px rgba(0, 0, 0, .5); transition: opacity .15s ease; }
+  body.nav-glass .glass-tip.shown { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.nav-glass #board-screen::before, body.nav-glass .glass-lens.moving { animation: none !important; }
+  body.nav-glass .glass-lens, body.nav-glass #top-bar { transition: none !important; }
+}

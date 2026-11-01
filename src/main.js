@@ -8,6 +8,7 @@ import { installHandlers } from './handlers.js';
 import './board.css';
 import './app.css';
 import './loading.css';
+import './glass.css';
 import './ticks.css';
 import './themes.css';
 import { THEMES, SWATCH, applyTheme, currentTheme, savedTheme, themeName, isTheme, resolveTheme } from './themes.js';
@@ -56,6 +57,7 @@ import { openFeedback } from './feedback.js';
 import { openShareWeek } from './share.js';
 import { renderStart } from './start.js';
 import { startTour, endTour, tourRunning } from './tour.js';
+import { renderGlass, settleGlass } from './glass.js';
 import { openSelf, closeSelf, orb as selfOrb } from './self.js';
 installHandlers();   // data-onclick="…" in the page and the board (no inline script: see src/handlers.js)
 
@@ -116,7 +118,7 @@ window.addEventListener('vite:preloadError', (e) => {
     // Your account's theme follows you to every device.
     if (u.theme && isTheme(u.theme) && u.theme !== currentTheme()) applyTheme(u.theme);
     if (u.menuStyle === 'circle' || u.menuStyle === 'list') { try { localStorage.setItem('tt_menu_style', u.menuStyle); } catch { /* */ } }
-    if (u.nav === 'side' || u.nav === 'top') { try { localStorage.setItem('tt_nav', u.nav); } catch { /* */ } applyNav(); }
+    if (u.nav === 'side' || u.nav === 'top' || u.nav === 'glass') { try { localStorage.setItem('tt_nav', u.nav); } catch { /* */ } applyNav(); }
     loadingStage(/^#\/t\//.test(location.hash) ? 'Opening your board…' : 'Opening your teams…');
     await route();
   });
@@ -728,26 +730,51 @@ async function chooseMenuStyle(v) {
   try { const u = await backend.auth.setMenuStyle(v); user = { ...user, ...(u || {}), menuStyle: v }; } catch (e) { console.warn('Menu style saved in this browser only:', e); }
 }
 
-// ── Navigation: tools along the top (default) or down a sidebar ─────────────
-function navMode() { try { return localStorage.getItem('tt_nav') === 'side' ? 'side' : 'top'; } catch { return 'top'; } }
+// ── Navigation: tools along the top (default), down a sidebar, or a floating glass sidebar ─────────────
+function navMode() { try { const v = localStorage.getItem('tt_nav'); return v === 'side' || v === 'glass' ? v : 'top'; } catch { return 'top'; } }
 function navRail() { try { return localStorage.getItem('tt_nav_rail') === '1'; } catch { return false; } }
 function applyNav() {
-  const side = navMode() === 'side';
+  const mode = navMode(), side = mode !== 'top';
   document.body.classList.toggle('nav-side', side);
+  document.body.classList.toggle('nav-glass', mode === 'glass');
   document.body.classList.toggle('nav-rail', side && navRail());
+  if (mode === 'glass') { syncGlass(); setTimeout(settleGlass, 360); }
   if (window.boardFitTopBar) try { window.boardFitTopBar(); } catch { /* */ }
   const c = document.getElementById('nav-collapse');
   if (c) { c.setAttribute('aria-expanded', String(!navRail())); c.title = navRail() ? 'Expand the sidebar' : 'Collapse to icons'; c.setAttribute('aria-label', c.title); }
 }
 function toggleNavRail() { try { localStorage.setItem('tt_nav_rail', navRail() ? '0' : '1'); } catch { /* */ } applyNav(); }
 function navRow() {
-  return acctRow('topbar', 'Navigation', 'Where a team’s tools sit on a computer. The sidebar can fold down to icons. Phones always use the top bar.',
-    segPicker('Navigation', [['top', 'Top bar', 'topbar'], ['side', 'Sidebar', 'sidebar']], navMode, chooseNav, 'nav'), { wide: true });
+  return acctRow('topbar', 'Navigation', 'Where a team’s tools sit on a computer. Glass is a floating sidebar with your workspace and projects. The sidebars fold down to icons. Phones always use the top bar.',
+    segPicker('Navigation', [['top', 'Top bar', 'topbar'], ['side', 'Sidebar', 'sidebar'], ['glass', 'Glass', 'glass']], navMode, chooseNav, 'nav'), { wide: true });
+}
+/** The glass sidebar's own parts: the workspace line, your projects (teams), night mode and you (src/glass.js). */
+function syncGlass() {
+  if (navMode() !== 'glass' || !session || !session.team || !user) return;
+  const s = session, here = { id: s.teamId, name: s.team.name, logo: s.team.logo };
+  const draw = (teams) => {
+    if (session !== s || navMode() !== 'glass') return;
+    const list = (teams || []).some(t => t.id === here.id) ? teams : [here, ...(teams || [])];
+    renderGlass({ team: here, members: (s.members || []).length, teams: list, user,
+      dark: document.documentElement.getAttribute('data-theme') !== 'light',
+      openTeam: (id) => goTeam(id),
+      newProject: () => { goHome(); setTimeout(() => { const n = document.querySelector('#create-team-form input[name=name]'); if (n) { n.scrollIntoView({ block: 'center' }); n.focus(); } }, 450); },
+      toggleNight: () => nightSwitch().then(syncGlass) });
+  };
+  draw(myTeamsCache);
+  myTeams().then(draw).catch(() => {});
+}
+/** Night mode (glass sidebar): back to the dark theme you last chose, or the light one, so Ocean stays Ocean. */
+function nightSwitch() {
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  let to = light ? 'midnight' : 'daylight';
+  try { const k = localStorage.getItem('tt_last_' + (light ? 'dark' : 'light')); if (k && isTheme(k)) to = k; } catch { /* */ }
+  return chooseTheme(to);
 }
 async function chooseNav(v) {
   try { localStorage.setItem('tt_nav', v); } catch { /* */ }
   applyNav();
-  toast(v === 'side' ? 'Sidebar on (on a computer screen).' : 'Top bar on.');
+  toast(v === 'glass' ? 'Glass sidebar on (on a computer screen).' : v === 'side' ? 'Sidebar on (on a computer screen).' : 'Top bar on.');
   if (!user || !backend.auth.setNav) return;
   try { const u = await backend.auth.setNav(v); user = { ...user, ...(u || {}), nav: v }; } catch (e) { console.warn('Navigation saved in this browser only:', e); }
 }
@@ -795,8 +822,11 @@ function openThemes() {
 }
 async function chooseTheme(id) {
   applyTheme(id);
+  const pack = THEMES.find(t => t.id === id);
+  if (pack && (pack.mode === 'dark' || pack.mode === 'light')) try { localStorage.setItem('tt_last_' + pack.mode, id); } catch { /* */ }
   const n = document.getElementById('account-theme-name'); if (n) { n.textContent = themeName(id); const sw = n.parentElement && n.parentElement.querySelector('.acct-swatch'); if (sw) sw.replaceWith(themeSwatch(id)); }
   if (window.boardThemeChanged) window.boardThemeChanged();
+  syncGlass();
   if (!user || !backend.auth.setTheme) return;
   try { const u = await backend.auth.setTheme(id); user = { ...user, ...(u || {}), theme: id }; }
   catch (e) { console.warn('Theme saved in this browser only:', e); }
@@ -807,6 +837,7 @@ async function chooseTheme(id) {
 function refreshAccountChips() {
   if (!user) return;
   document.querySelectorAll('.user-display').forEach(n => { n.textContent = user.name; });
+  document.querySelectorAll('.user-mail').forEach(n => { n.textContent = user.email || ''; });
   document.querySelectorAll('.chip-avatar').forEach(n => n.replaceChildren(avatar(user)));
   const acc = document.getElementById('home-account'); if (acc && acc.childElementCount) acc.replaceChildren(avatar(user), el('span', {}, user.name));
 }
@@ -1172,7 +1203,8 @@ function updateChrome() {
   const s = session; if (!s) return;
   const T = s.team;
   document.title = T.name + ' · ' + APP_NAME;
-  const sw = $('#team-switch'); sw.replaceChildren(teamLogo(T), el('span', {}, T.name)); sw.onclick = goHome;
+  const sw = $('#team-switch'); sw.replaceChildren(teamLogo(T), el('span.ws-text', {}, el('span.ws-name', {}, T.name), el('span.ws-sub', {}, ''))); sw.onclick = goHome;
+  syncGlass();
   document.querySelectorAll('[data-perm]').forEach(n => { n.style.display = can(T, s.me, n.dataset.perm) ? '' : 'none'; });
   const tools = $('#research-btn'); if (tools) tools.style.display = toolTabs(s).length ? '' : 'none';
   const brand = $('#brand-block'); brand.replaceChildren();

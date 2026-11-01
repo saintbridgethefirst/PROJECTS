@@ -325,7 +325,7 @@
       <div id="top-bar">
         <div id="top-actions">
           <button class="team-switch" id="team-switch" type="button" title="All teams"></button>
-          <span class="nav-group" style="order:2" aria-hidden="true">Views</span>
+          <span class="nav-group ng-views" style="order:2" aria-hidden="true">Views</span>
           <span class="nav-group" style="order:4" aria-hidden="true">Work</span>
           <span class="nav-group" style="order:9" aria-hidden="true">Plan</span>
           <span class="nav-group" style="order:14" aria-hidden="true">Team</span>
@@ -335,7 +335,7 @@
             <button class="top-btn" type="button" data-view="gantt" aria-pressed="false" data-onclick="boardSetView('gantt')" title="Gantt: plan dates on a timeline" aria-label="Gantt view">📆<span class="lbl-view"> Gantt</span></button>
             <button class="top-btn" type="button" data-view="list" aria-pressed="false" data-onclick="boardSetView('list')" title="List: every task in one sortable table" aria-label="List view">☰<span class="lbl-view"> List</span></button>
           </div>
-          <button class="top-btn search-btn" id="search-btn" data-nav="5" data-onclick="TT.openSearch()" title="Search everything (Ctrl+K)" aria-label="Search">🔍<span class="act-lbl"> Search</span></button>
+          <button class="top-btn search-btn" id="search-btn" data-nav="5" data-onclick="TT.openSearch()" title="Search everything (Ctrl+K)" aria-label="Search">🔍<span class="act-lbl"> Search</span><kbd class="glass-kbd" aria-hidden="true">Ctrl K</kbd></button>
           <button class="top-btn" data-perm="members.manage" data-onclick="TT.openSettings('members')" data-nav="15" title="Invite people by email" aria-label="Invite">➕<span class="lbl-md"> Invite</span></button>
           <button class="top-btn accent" data-perm="analytics.view" data-onclick="openAnalytics('overview')" data-nav="10" title="Charts, KPIs and insights" aria-label="Analytics">📊<span class="lbl-lg"> Analytics</span></button>
           <button class="top-btn" data-perm="analytics.view" data-onclick="openAnalytics('timeline')" data-nav="11" title="Deadlines on a timeline" aria-label="Timeline">📅<span class="lbl-md"> Timeline</span></button>
@@ -351,8 +351,9 @@
         </div>
         <button class="top-btn" id="nav-collapse" type="button" data-onclick="TT.toggleNavRail()" title="Collapse to icons" aria-label="Collapse to icons" aria-expanded="true">⇤<span class="nav-lbl"> Collapse</span></button>
         <div id="floating-toggles" style="display: none;">
-          <button class="top-btn account-chip" data-onclick="TT.openAccount()" aria-label="Your account"><span class="chip-avatar" aria-hidden="true"></span><span class="user-display">…</span></button>
-          <button class="top-btn" id="theme-toggle-outer" data-onclick="toggleTheme()">🎨 Theme</button>
+          <button class="top-btn glass-night" id="glass-night" type="button" role="switch" aria-checked="false" aria-label="Night mode">🌙<span class="lbl-md"> Night mode</span><span class="glass-switch" aria-hidden="true"></span></button>
+          <button class="top-btn account-chip" data-onclick="TT.openAccount()" aria-label="Your account"><span class="chip-avatar" aria-hidden="true"></span><span class="acct-lines"><span class="user-display">…</span><span class="user-mail"></span></span></button>
+          <button class="top-btn" id="theme-toggle-outer" data-onclick="toggleTheme()" title="Theme" aria-label="Theme">🎨<span class="lbl-md"> Theme</span></button>
           <button class="top-btn" data-onclick="toggleSidebar()" aria-label="Show panel" title="Show the side panel">👁️<span class="lbl-lg"> Show Panel</span></button>
         </div>
       </div>
