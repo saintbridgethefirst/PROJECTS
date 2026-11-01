@@ -7,6 +7,7 @@
 import { checkWrite, checkRead, applyOps, checkProfileWrite } from '../rules-sim.js';
 import { newId, isAcademicEmail, scrubPerson } from '../model.js';
 import { normEmail } from '../permissions.js';
+import { audited, auditActor, auditEntry, chainEntry } from '../../functions/auditlib.js';
 
 const STORE_KEY = 'tt_demo_store_v1';
 const SESSION_KEY = 'tt_demo_session_v1';
@@ -102,6 +103,7 @@ function applyBatch(teamId, ops) {
   if (T) ops = ops.filter(op => { const [c, id] = op.path.split('/'); if (op.type === 'update' && id && !op.path.startsWith('/') && !(T[c] && T[c][id])) { skipped.push(op.path); return false; } return true; });
   const pre = store; const post = applyOps(store, teamId, ops);
   ops.forEach(op => checkWrite(pre, post, authCtx(), teamId, op));
+  recordAudit(teamId, pre, post, ops);
   store = post; persist();
   // Simulates the emailInvites Cloud Function: the server emails each new invitation.
   ops.filter(op => op.type === 'set' && /^invites\//.test(op.path)).forEach(op => setTimeout(() => {
@@ -109,6 +111,32 @@ function applyBatch(teamId, ops) {
     if (inv && inv.createdAt === op.data.createdAt) { inv.emailedAt = Date.now(); inv.emailError = ''; persist(); }
   }, 300));
   return { skipped };
+}
+
+/** Simulates the audit Cloud Functions (functions/audit.js): one hash-chained entry per document written,
+ *  stored where only the "server" writes (the rules simulator refuses any op on audit/ or private/). */
+const DEMO_AUDIT_KEEP = 1500;   // browser storage is small: the demo keeps the newest entries
+function recordAudit(teamId, pre, post, ops) {
+  const T = post.teams[teamId]; const T0 = pre.teams[teamId] || null;
+  if (!T) return;
+  const uid = currentUser && currentUser.uid;
+  const name = ((T.members && T.members[uid]) || (T0 && T0.members && T0.members[uid]) || {}).name || (currentUser && currentUser.name) || '';
+  const seen = new Set(); let at = Date.now();
+  T.audit = T.audit || {}; T.private = T.private || {};
+  ops.forEach(op => {
+    if (op.path.startsWith('/') || seen.has(op.path)) return; seen.add(op.path);
+    const [col, id] = op.path === 'team' ? ['team', teamId] : op.path.split('/');
+    if (!audited(col)) return;
+    const before = col === 'team' ? (T0 && T0.doc) : T0 && T0[col] && T0[col][id];
+    const after = col === 'team' ? T.doc : T[col] && T[col][id];
+    if (!before && !after) return;
+    if (before && after && JSON.stringify(before) === JSON.stringify(after)) return;   // Firestore sends no event for a write that changes nothing
+    const entry = chainEntry(auditEntry({ col, docId: id, before: before ? clone(before) : null, after: after ? clone(after) : null, actor: auditActor('demo', uid, name), at: at++, eventId: 'demo' }), T.private.auditHead || null);
+    T.audit['a' + String(entry.seq).padStart(9, '0')] = entry;
+    T.private.auditHead = { seq: entry.seq, hash: entry.hash, at: entry.at };
+  });
+  const ids = Object.keys(T.audit);
+  if (ids.length > DEMO_AUDIT_KEEP) ids.sort().slice(0, ids.length - DEMO_AUDIT_KEEP).forEach(k => delete T.audit[k]);
 }
 
 function subscribe(compute, cb, onError) {
@@ -147,6 +175,10 @@ export const data = {
   /** Every document in one of the team's collections (templates, …). */
   watchCollection(teamId, coll, cb, onError) {
     return subscribe(() => { checkRead(store, authCtx(), teamId, coll); return Object.entries(store.teams[teamId][coll] || {}).map(([id, d]) => ({ ...d, id })); }, cb, onError);
+  },
+  /** The audit trail, newest first (at most `max`). Only roles with 'See the audit trail' may read it. */
+  watchAudit(teamId, cb, onError, max = 1000) {
+    return subscribe(() => { checkRead(store, authCtx(), teamId, 'audit'); return Object.entries(store.teams[teamId].audit || {}).map(([id, e]) => ({ ...e, id })).sort((a, b) => b.seq - a.seq).slice(0, max); }, cb, onError);
   },
   /** The team's comments, newest first (at most 500). */
   watchComments(teamId, cb, onError) {

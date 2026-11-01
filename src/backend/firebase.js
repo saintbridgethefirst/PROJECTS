@@ -262,6 +262,10 @@ export const data = {
   watchCollection(teamId, coll, cb, onError) {
     return onSnapshot(collection(db, 'teams', teamId, coll), (s) => cb(rows(s)), onError);
   },
+  /** The audit trail, newest first (at most `max`). Only roles with 'See the audit trail' may read it. */
+  watchAudit(teamId, cb, onError, max = 1000) {
+    return onSnapshot(query(collection(db, 'teams', teamId, 'audit'), orderBy('seq', 'desc'), limit(max)), (s) => cb(rows(s)), onError);
+  },
   /** The team's comments, newest first (at most 500). */
   watchComments(teamId, cb, onError) {
     return onSnapshot(query(collection(db, 'teams', teamId, 'comments'), orderBy('createdAt', 'desc'), limit(500)), (s) => cb(rows(s)), onError);

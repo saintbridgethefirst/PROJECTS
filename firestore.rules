@@ -507,6 +507,13 @@ service cloud.firestore {
         && (!changed().hasAny(['purchase', 'currency']) || can(t, 'team.settings') || can(t, 'finance.edit'));
       allow delete: if isMember(t) && myRole(t) == 'owner';
 
+      // The audit trail (Penteint Projects): written only by the server (functions/audit.js), never by a person,
+      // so nobody can add, change or remove an entry. Read by roles with 'See the audit trail'.
+      match /audit/{e} {
+        allow read: if can(t, 'audit.view');
+        allow write: if false;
+      }
+
       // Server-only secrets (the GitHub webhook secret): nobody reads them; the owner can delete them with the team.
       match /private/{d} {
         allow read, create, update: if false;

@@ -77,6 +77,8 @@ export function fixture() {
         members: { owner: member('owner', 'owner'), admin1: member('admin1', 'admin'), mem1: member('mem1', 'member'), view1: member('view1', 'viewer') },
         invites: { 'new@x.com': { email: 'new@x.com', roleId: 'member', teamName: 'Robotics', invitedBy: 'owner', invitedByName: 'O', createdAt: 1 } },
         categories: { c_owner: { name: 'GEN', ownerUid: 'owner', order: 0 }, c_mem1: { name: 'GEN', ownerUid: 'mem1', order: 0 }, c_admin1: { name: 'GEN', ownerUid: 'admin1', order: 0 } },
+        audit: { a1: { seq: 1, at: 1, eventId: 'e1', actor: { type: 'person', uid: 'mem1', name: 'mem1' }, col: 'tasks', docId: 't_mem1', action: 'create', label: 'Task', changes: [], docHash: 'x', prevHash: '', hash: 'h1' } },
+        private: { auditHead: { seq: 1, hash: 'h1', at: 1 } },
         tasks: { t_mem1: task('mem1', 'c_mem1'), t_fresh: task('mem1', 'c_mem1', { createdAt: Date.now() - 60000 }), t_owner: task('owner', 'c_owner'), t_wait: task('mem1', 'c_mem1', { stage: 'review', signoff: signoff('waiting') }) },
         comments: { cm_owner: comment('owner', 't_mem1', ['mem1']), cm_mem1: comment('mem1', 't_owner') },
         templates: { tpl_mem1: template('mem1'), tpl_owner: template('owner') },
@@ -436,6 +438,11 @@ export const writeScenarios = [
   ['SelfTrack items cannot carry unexpected fields', 'mem1', TEAM, [set('/selfItems/s_new', { ...selfTask('mem1'), hack: true })], 'deny'],
   ['a SelfTrack title is at most 300 characters', 'mem1', TEAM, [set('/selfItems/s_new', selfTask('mem1', { title: 'x'.repeat(301) }))], 'deny'],
   ['a SelfTrack item has a known kind', 'mem1', TEAM, [set('/selfItems/s_new', selfTask('mem1', { kind: 'secret' }))], 'deny'],
+  // Audit trail (Penteint Projects): only the server writes it — not even the owner can add, change or remove an entry
+  ['the owner cannot add an audit entry', 'owner', TEAM, [set('audit/a2', { seq: 2, at: 2, hash: 'h2', prevHash: 'h1' })], 'deny'],
+  ['the owner cannot change an audit entry', 'owner', TEAM, [upd('audit/a1', { actor: { type: 'person', uid: 'owner', name: 'owner' } })], 'deny'],
+  ['an admin cannot delete an audit entry', 'admin1', TEAM, [del('audit/a1')], 'deny'],
+  ['nobody moves the audit chain head', 'owner', TEAM, [set('private/auditHead', { seq: 0, hash: '', at: 0 })], 'deny'],
 ];
 
 // [name, user, what, expected] — what: 'team' | 'tasks' (read of the team doc / tasks)
@@ -444,4 +451,9 @@ export const readScenarios = [
   ['a member reads the team', 'view1', 'team', 'allow'],
   ['a member reads the tasks', 'view1', 'tasks', 'allow'],
   ['a signed-out visitor cannot read anything', null, 'team', 'deny'],
+  ['the owner reads the audit trail', 'owner', 'audit', 'allow'],
+  ['an admin reads the audit trail', 'admin1', 'audit', 'allow'],
+  ['a member cannot read the audit trail', 'mem1', 'audit', 'deny'],
+  ['a viewer cannot read the audit trail', 'view1', 'audit', 'deny'],
+  ['a non-member cannot read the audit trail', 'evil', 'audit', 'deny'],
 ];

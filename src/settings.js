@@ -14,9 +14,10 @@ import { githubSection } from './github-ui.js';
 import { askToLeave, cancelLeave, leaveOf } from './requests.js';
 import { timeAgo } from './collab.js';
 
+import { auditPane, stopAuditWatch } from './audit-ui.js';
 const TABS = [
   ['general', 'General'], ['members', 'Members'], ['roles', 'Roles & permissions'],
-  ['plan', 'Plan'], ['features', 'Features'], ['workflow', 'Workflow'], ['subteams', 'Sub-teams'], ['phases', 'Phases'], ['templates', 'Templates'], ['fields', 'Fields'], ['integrations', 'Integrations'], ['danger', 'Delete team'],
+  ['plan', 'Plan'], ['features', 'Features'], ['workflow', 'Workflow'], ['subteams', 'Sub-teams'], ['phases', 'Phases'], ['templates', 'Templates'], ['fields', 'Fields'], ['integrations', 'Integrations'], ['audit', 'Audit trail'], ['danger', 'Delete team'],
 ];
 const FIELD_TYPE_LABEL = { text: 'Text', number: 'Number', date: 'Date', select: 'Dropdown', checkbox: 'Checkbox', url: 'Link', person: 'Team member' };
 
@@ -24,7 +25,7 @@ export function openSettings(ctx, tab = 'general', focusUid = null) {
   const s = ctx.session; if (!s || !s.team) return;
   let current = TABS.some(t => t[0] === tab) ? tab : 'general';
   let invites = []; let invUnsub = null;
-  const m = modal('Team settings', { onClose: () => { invUnsub && invUnsub(); window.TTSettingsRefresh = null; } });
+  const m = modal('Team settings', { onClose: () => { invUnsub && invUnsub(); stopAuditWatch(); window.TTSettingsRefresh = null; } });
   m.box.classList.add('settings-modal');
   m.body.style.padding = '0'; m.body.style.display = 'flex'; m.foot.remove();
   const nav = el('nav.settings-nav', { 'aria-label': 'Settings sections' });
@@ -45,7 +46,8 @@ export function openSettings(ctx, tab = 'general', focusUid = null) {
     const shown = TABS.filter(([k]) => (k !== 'danger' || me().roleId === 'owner') && (k !== 'subteams' || cleanFeatures(T().features).subteams)
       && (k !== 'members' || can(T(), me(), 'members.manage')) && (k !== 'roles' || can(T(), me(), 'roles.manage'))
       // switches only owners and admins can change: others just see the result on the board
-      && (!['features', 'workflow', 'fields', 'integrations'].includes(k) || can(T(), me(), 'team.settings')));
+      && (!['features', 'workflow', 'fields', 'integrations'].includes(k) || can(T(), me(), 'team.settings'))
+      && (k !== 'audit' || can(T(), me(), 'audit.view')));
     if (!shown.some(([k]) => k === current)) current = 'general';
     nav.replaceChildren(...shown
       .map(([k, label]) => el('button' + (k === current ? '.on' : ''), { type: 'button', 'aria-current': k === current ? 'page' : null, onclick: () => { current = k; render(); } }, label)));
@@ -53,7 +55,7 @@ export function openSettings(ctx, tab = 'general', focusUid = null) {
     const onBtn = nav.querySelector('button.on');
     if (onBtn && nav.scrollWidth > nav.clientWidth) { const x = onBtn.getBoundingClientRect().left - nav.getBoundingClientRect().left + nav.scrollLeft; nav.scrollLeft = Math.max(0, x - (nav.clientWidth - onBtn.offsetWidth) / 2); }
     pane.replaceChildren();
-    const fn = { general, members, roles, plan, features, workflow, subteams, phases, templates, fields, integrations, danger }[current];
+    const fn = { general, members, roles, plan, features, workflow, subteams, phases, templates, fields, integrations, audit: auditPane, danger }[current];
     fn(pane, ctx, { invites, getInvites: () => invites, focusUid, rerender: render });
     focusUid = null;
   }

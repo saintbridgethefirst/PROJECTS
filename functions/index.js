@@ -364,3 +364,6 @@ export const githubIssue = onCall({ region: REGION, invoker: 'public', maxInstan
   try { return await issueAction(db, req.auth.uid, String((req.data && req.data.teamId) || ''), req.data || {}); }
   catch (e) { throw asHttps(e); }
 }));
+
+// ── Audit trail (Penteint Projects): every write to a team's records, hash-chained ──
+export { auditTeam, auditRecords } from './audit.js';

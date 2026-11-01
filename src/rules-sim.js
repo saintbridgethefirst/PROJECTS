@@ -525,6 +525,10 @@ export function checkRead(store, auth, teamId, coll) {
   const admin = !!(store.admins && store.admins[auth.uid]);
   if (T && !T.members[auth.uid] && admin && (coll === undefined || coll === 'requests')) return;
   if (!T || !T.members[auth.uid]) deny('not a member');
+  if (coll === 'audit') {   // the audit trail: only roles with 'See the audit trail' (written only by the server)
+    const roleId = T.members[auth.uid].roleId; const perms = T.doc.roles?.[roleId]?.perms || {};
+    if (!(roleId === 'owner' || perms['audit.view'])) deny('audit');
+  }
   if (coll === 'expenses' || coll === 'finance' || coll === 'financeLog') {
     const roleId = T.members[auth.uid].roleId; const perms = T.doc.roles?.[roleId]?.perms || {};
     if (!(roleId === 'owner' || perms['finance.view'] || perms['finance.edit'])) deny('finance');

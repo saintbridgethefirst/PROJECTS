@@ -140,9 +140,9 @@ for (const [name, who, teamId, ops, expected] of writeScenarios) {
     assert.equal(ok ? 'allow' : 'deny', expected, err ? err.message : 'was allowed');
   });
 }
-for (const [name, who, , expected] of readScenarios) {
+for (const [name, who, what, expected] of readScenarios) {
   test('rules (read): ' + name, () => {
-    let ok = true; try { checkRead(fixture(), who ? users[who] : null, TEAM); } catch { ok = false; }
+    let ok = true; try { checkRead(fixture(), who ? users[who] : null, TEAM, what === 'team' || what === 'tasks' ? undefined : what); } catch { ok = false; }
     assert.equal(ok ? 'allow' : 'deny', expected);
   });
 }

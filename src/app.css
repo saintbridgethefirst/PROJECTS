@@ -1626,3 +1626,20 @@ body.look-pro .mt-prio.p-major { color: #d69e2e; } body.look-pro .mt-prio.p-mino
   .field-row.label-row > .inp { grid-area: inp; width: auto; }
   .field-row.label-row > .switch { grid-area: show; }
 }
+
+/* ── Audit trail (Settings ▸ Audit trail) ── */
+.audit-check { margin: 4px 0 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 13px; color: var(--text-muted); }
+.audit-check.ok { color: var(--text-main); border-color: color-mix(in srgb, #2f9e62 55%, var(--border-color)); background: color-mix(in srgb, #2f9e62 9%, transparent); }
+.audit-check.bad { color: var(--text-main); border-color: color-mix(in srgb, #d64545 60%, var(--border-color)); background: color-mix(in srgb, #d64545 10%, transparent); font-weight: 600; }
+.audit-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.audit-tools > * { margin: 0; }
+.audit-tools input[type=search] { flex: 1 1 220px; min-width: 0; width: auto; }
+.audit-tools select { flex: 0 1 200px; width: auto; min-width: 0; }
+.audit-tools input, .audit-tools select { font: inherit; font-size: 13px; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 8px; }
+.audit-table td { vertical-align: top; }
+.audit-table .audit-seq { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.audit-table .audit-when { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.audit-table .audit-rec { max-width: 220px; overflow-wrap: anywhere; }
+.audit-table .audit-changes ul { margin: 0; padding-left: 16px; }
+.audit-table .audit-changes li { overflow-wrap: anywhere; }
+.pill.audit-del { color: #c53030; border-color: color-mix(in srgb, #c53030 45%, transparent); }

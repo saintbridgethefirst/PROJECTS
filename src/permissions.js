@@ -16,6 +16,7 @@ export const PERMISSIONS = [
   { key: 'roles.manage',    label: 'Manage roles',          help: 'Create and edit roles and their permissions' },
   { key: 'finance.view',    label: 'See finances',          help: 'See the budget, spending and income' },
   { key: 'finance.edit',    label: 'Manage finances',       help: 'Set the budget and record spending and income' },
+  { key: 'audit.view',      label: 'See the audit trail',   help: 'Read and export the server’s record of every change, and check it hasn’t been tampered with' },
 ];
 export const PERM_KEYS = PERMISSIONS.map(p => p.key);
 
@@ -24,7 +25,7 @@ const only = (...keys) => Object.fromEntries(PERM_KEYS.map(k => [k, keys.include
 
 export const DEFAULT_ROLES = {
   owner:  { name: 'Owner',  builtin: true, order: 0, perms: all },
-  admin:  { name: 'Admin',  builtin: true, order: 1, perms: only('tasks.editOwn', 'tasks.editAll', 'weeks.manage', 'analytics.view', 'data.export', 'members.manage', 'team.settings', 'finance.view', 'finance.edit') },
+  admin:  { name: 'Admin',  builtin: true, order: 1, perms: only('tasks.editOwn', 'tasks.editAll', 'weeks.manage', 'analytics.view', 'data.export', 'members.manage', 'team.settings', 'finance.view', 'finance.edit', 'audit.view') },
   member: { name: 'Member', builtin: true, order: 2, perms: only('tasks.editOwn', 'weeks.manage', 'analytics.view', 'data.export') },
   viewer: { name: 'Viewer', builtin: true, order: 3, perms: only('analytics.view') },
   // Someone from outside the team (a supplier, supervisor, another team): works on the tasks

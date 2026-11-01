@@ -36,7 +36,7 @@ for (const [name, who, teamId, ops, expected] of writeScenarios) {
 for (const [name, who, what, expected] of readScenarios) {
   test('rules (read): ' + name, async () => {
     const db = dbFor(who);
-    const p = what === 'team' ? getDoc(doc(db, 'teams', TEAM)) : getDocs(collection(db, 'teams', TEAM, 'tasks'));
+    const p = what === 'team' ? getDoc(doc(db, 'teams', TEAM)) : getDocs(collection(db, 'teams', TEAM, what));
     await (expected === 'allow' ? assertSucceeds(p) : assertFails(p));
   });
 }
