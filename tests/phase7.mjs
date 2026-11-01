@@ -51,7 +51,7 @@ try {
     c[weeksData[0].key] = [{ id: 'tA', type: 'task', name: 'Build gripper', priority: 'Minor', status: '', flag: 'none', subtasks: [], history: [] }];
     saveDatabase(); render();
   }, monday());
-  await A.evaluate(() => TT.setFeatures({ parts: true, finance: true })); await sleep(300);
+  await A.evaluate(() => TT.setFeatures({ parts: true, finance: true, literature: true })); await sleep(300);   // Literature is an advanced feature in Penteint Projects
   await A.click('#top-actions button:has-text("Invite")');
   await A.fill('.settings-pane textarea', 'tom@uni.ac.uk'); await A.click('.settings-pane button:has-text("Invite")'); await sleep(200);
   await A.fill('.settings-pane textarea', 'priya@uni.ac.uk'); await A.locator('.settings-pane form select').selectOption('viewer'); await A.click('.settings-pane button:has-text("Invite")'); await sleep(200);
