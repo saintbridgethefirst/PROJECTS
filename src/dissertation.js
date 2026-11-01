@@ -6,7 +6,7 @@
 //  the weeks to put on the board, and tasks with deadlines, checklists and milestones.
 //  The app applies the result to a new team (see applyDissertationPlan in main.js).
 //
-//  Trawpie helps students plan and manage the work. It never writes any of it for them.
+//  Penteint Projects helps students plan and manage the work. It never writes any of it for them.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DAY = 864e5;

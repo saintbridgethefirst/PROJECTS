@@ -107,7 +107,7 @@ try {
   step('Sync to Google Calendar');
   await p.click('button:has-text("Sync to Google Calendar")'); await p.waitForFunction(() => /Done:/.test(document.querySelector('.cal-gstatus')?.textContent || ''), null, { timeout: 8000 });
   ok((await p.textContent('.cal-gstatus')).includes('4 added'), 'first sync adds 4 events: ' + await p.textContent('.cal-gstatus'));
-  ok(Object.keys(G.calendars).length === 1 && Object.values(G.calendars)[0].summary === 'Trawpie – Robot Science', 'a separate “Trawpie – Robot Science” calendar is created');
+  ok(Object.keys(G.calendars).length === 1 && Object.values(G.calendars)[0].summary === 'Penteint Projects – Robot Science', 'a separate “Penteint Projects – Robot Science” calendar is created');
   ok((await p.evaluate(() => window.__gisScopes)).includes('https://www.googleapis.com/auth/calendar.app.created'), 'asks only for the app-created-calendars permission');
   const ev = calEvents().find(e => e.summary === 'Due: CAD gripper');
   ok(ev && ev.start.date === iso(5) && ev.reminders.overrides[0].minutes === 900 && ev.extendedProperties.private.ttId === 'task-tA', 'all-day event with a 9:00-the-day-before reminder and a hidden id');
@@ -156,7 +156,7 @@ try {
   await p.waitForFunction(() => !document.querySelector('.modal-overlay'), null, { timeout: 8000 });
   const att = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('tt_demo_store_v1')); return Object.values(Object.values(s.teams)[0].tasks).find(t => t.name === 'CAD gripper v2').attachments; });
   ok(att.length === 1 && att[0].provider === 'gdrive' && att[0].name === 'gripper-drawing.pdf' && att[0].url.startsWith('https://drive.google.com/file/d/'), 'file uploaded to Drive and linked on the task');
-  ok(G.drive.folders.length === 1 && G.drive.folders[0].name === 'Trawpie – Robot Science' && G.drive.files[0].parents[0] === G.drive.folders[0].id, 'it goes into a team folder');
+  ok(G.drive.folders.length === 1 && G.drive.folders[0].name === 'Penteint Projects – Robot Science' && G.drive.files[0].parents[0] === G.drive.folders[0].id, 'it goes into a team folder');
   ok((await p.evaluate(() => window.__gisScopes)).includes('https://www.googleapis.com/auth/drive.file'), 'Drive asks only for drive.file');
 
   step('Export to Google Sheets');

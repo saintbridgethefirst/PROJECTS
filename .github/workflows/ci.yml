@@ -5,7 +5,7 @@
 #
 # One-time setup: add the secret FIREBASE_SERVICE_ACCOUNT (Settings > Secrets and variables > Actions),
 # the JSON key of a Google Cloud service account allowed to deploy (see SETUP.md, "Deploying from GitHub").
-# The site's public settings are in .env.live; the functions' settings in functions/.env.uni-teamtrack.
+# The site's public settings are in .env.live; the functions' settings in functions/.env.penteint-projects.
 name: CI
 
 on:
@@ -82,7 +82,7 @@ jobs:
         run: npm run build:live
       - name: Make sure this is the real site, not the demo
         run: |
-          if grep -rq "uni-teamtrack.firebaseapp.com" dist/assets/*.js; then echo "Build points at uni-teamtrack"; else echo "::error::Build has no Firebase project in it — refusing to deploy"; exit 1; fi
+          if grep -rq "penteint-projects.firebaseapp.com" dist/assets/*.js; then echo "Build points at penteint-projects"; else echo "::error::Build has no Firebase project in it — refusing to deploy"; exit 1; fi
       # Functions' packages are installed before the key is on disk, with install scripts off
       - name: Install the Cloud Functions packages
         if: steps.fn.outputs.changed == 'yes'
@@ -96,7 +96,7 @@ jobs:
         env: { GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/sa.json' }
         run: |
           set -o pipefail
-          npx firebase deploy --only hosting,firestore --project uni-teamtrack --non-interactive 2>&1 | tee deploy.log || {
+          npx firebase deploy --only hosting,firestore --project penteint-projects --non-interactive 2>&1 | tee deploy.log || {
             grep -iE "error|denied|permission|requires|not enabled|403|401" deploy.log | tail -8 | while IFS= read -r l; do echo "::error::$l"; done
             exit 1; }
       - name: Deploy Cloud Functions
@@ -104,7 +104,7 @@ jobs:
         env: { GOOGLE_APPLICATION_CREDENTIALS: '${{ runner.temp }}/sa.json' }
         run: |
           set -o pipefail
-          npx firebase deploy --only functions --project uni-teamtrack --non-interactive --force 2>&1 | tee fdeploy.log || {
+          npx firebase deploy --only functions --project penteint-projects --non-interactive --force 2>&1 | tee fdeploy.log || {
             grep -iE "error|denied|permission|requires|not enabled|403|401" fdeploy.log | tail -8 | while IFS= read -r l; do echo "::error::$l"; done
             exit 1; }
       - name: Remove credentials
@@ -131,6 +131,6 @@ jobs:
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: uni-teamtrack
+          projectId: penteint-projects
           channelId: pr-${{ github.event.number }}
           expires: 7d

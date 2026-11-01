@@ -104,7 +104,7 @@ export function friendlyError(e) {
   const code = e && (e.code || '');
   if (String(code).startsWith('tt/')) return e.message;   // our own messages, already written for people
   // Microsoft: the university hasn't let students approve the app (or the file permission)
-  if (/AADSTS(65001|90094|90095)|admin approval|admin consent|consent_required/i.test((e && (e.errorCode || '') + ' ' + (e.message || '')) || '')) return 'Your university hasn’t approved Trawpie for Microsoft yet. You don’t need it: sign in with your university email and a password, and add OneDrive files by their share link (Attach a file ▸ Open OneDrive ▸ Share ▸ Copy link).';
+  if (/AADSTS(65001|90094|90095)|admin approval|admin consent|consent_required/i.test((e && (e.errorCode || '') + ' ' + (e.message || '')) || '')) return 'Your organisation hasn’t approved Penteint Projects for Microsoft yet. You don’t need it: sign in with your university email and a password, and add OneDrive files by their share link (Attach a file ▸ Open OneDrive ▸ Share ▸ Copy link).';
   if (String(code).includes('permission-denied') || /insufficient permissions/i.test(e && e.message)) return 'You don’t have permission to do that in this team.';
   if (String(code).includes('popup-closed')) return 'Sign-in window was closed before finishing.';
   if (String(code).includes('popup-blocked')) return 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.';

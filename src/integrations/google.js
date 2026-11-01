@@ -11,7 +11,7 @@ const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 export const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
 const tokens = new Map();   // scope → { token, expiry }
 let gisLoading = null;
-// Who is signed in to Trawpie: used to remember Google access per person on this device,
+// Who is signed in to Penteint Projects: used to remember Google access per person on this device,
 // and as a hint so Google skips the "choose an account" step.
 let who = { uid: '', email: '' };
 const KEY = (scope) => 'tt_g_' + (who.uid || 'anon') + '_' + scope.split('/').pop();

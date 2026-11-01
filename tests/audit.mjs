@@ -90,6 +90,14 @@ try {
   ok(!!joined, 'Ben joining is recorded in his own name');
   ok(Object.values(T.audit).some(e => e.col === 'invites' && e.action === 'delete' && e.actor.name === 'Ben Ode'), 'his invitation being used up is recorded too');
 
+  step('Penteint Projects plans: no student offers');
+  await A.click('#top-actions button:has-text("Settings")'); await A.waitForSelector('.settings-nav');
+  await A.click('.settings-nav button:has-text("Plan")'); await sleep(300);
+  ok(await A.locator('#plan-name').textContent() === 'Starter', 'the plan is called Starter');
+  ok(await A.locator('.plan-edu').count() === 0 && !(await A.textContent('.settings-pane')).includes('Pro Education'), 'no Pro Education offer');
+  ok((await A.textContent('.plan-cards')).includes('Enterprise') && (await A.textContent('.plan-cards')).includes('Server-written audit trail'), 'plan cards: Starter, Team, Enterprise');
+  await A.keyboard.press('Escape'); await sleep(200);
+
   step('Editing an entry behind the app’s back is caught');
   await A.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('tt_demo_store_v1'));

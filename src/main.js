@@ -11,6 +11,7 @@ import './loading.css';
 import './glass.css';
 import './ticks.css';
 import './themes.css';
+import './penteint.css';
 import { THEMES, SWATCH, applyTheme, currentTheme, savedTheme, themeName, isTheme, resolveTheme } from './themes.js';
 import { APP_NAME, APP_TAGLINE, DEMO_MODE, PUBLIC_DEMO, GOOGLE_CLIENT_ID, MS_CLIENT_ID, LIMITS } from './config.js';
 import { can, canEditOwnedBy, DEFAULT_ROLES, normEmail, isValidEmail } from './permissions.js';
@@ -92,7 +93,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload();
 // newest version instead of failing. At most once every 30 seconds.
 window.addEventListener('vite:preloadError', (e) => {
   try { if (Date.now() - (+sessionStorage.getItem('tt_fresh_at') || 0) < 30000) return; sessionStorage.setItem('tt_fresh_at', String(Date.now())); } catch { return; }
-  e.preventDefault(); toast('Trawpie has been updated. Loading the new version…', 4000); setTimeout(() => location.reload(), 800);
+  e.preventDefault(); toast('Penteint Projects has been updated. Loading the new version…', 4000); setTimeout(() => location.reload(), 800);
 });
 
 (async function boot() {
@@ -167,7 +168,7 @@ function renderAuth() {
   if (P.google) box.append(el('button.btn.block', { type: 'button', onclick: wrap(() => backend.auth.signInGoogle()) }, googleIcon(), 'Continue with Google'));
   if (P.microsoft) box.append(el('button.btn.block', { type: 'button', onclick: wrap(() => backend.auth.signInMicrosoft().catch((e) => {
     // Microsoft's own "Need admin approval" page can only be closed: say what it means and what to do instead
-    if (String(e && e.code).includes('popup-closed')) { const x = new Error('Sign-in window closed. If Microsoft said “Need admin approval”, your university hasn’t approved Trawpie yet: use your university email and a password below instead. It works the same, Pro Education included.'); x.code = 'tt/ms-closed'; throw x; }
+    if (String(e && e.code).includes('popup-closed')) { const x = new Error('Sign-in window closed. If Microsoft said “Need admin approval”, your organisation hasn’t approved Penteint Projects yet: use your university email and a password below instead. It works the same, Pro Education included.'); x.code = 'tt/ms-closed'; throw x; }
     if (e && e.code === 'tt/link-microsoft' && e.email) { const i = box.querySelector('input[type=email]'); if (i) i.value = e.email; }
     throw e;
   })) }, msIcon(), 'Continue with Microsoft'));
@@ -204,7 +205,7 @@ function renderAuth() {
 }
 // ── Public demo (/demo): no sign-up, a sample team and a guided tour ────────
 const DEMO_NEXT = 'tt_demo_next', DEMO_TOUR = 'tt_demo_tour';
-/** trawpie.org/dissertation links here with ?plan=dissertation: the create form starts as a dissertation workspace. */
+/** app.penteint.com/dissertation links here with ?plan=dissertation: the create form starts as a dissertation workspace. */
 const WANT_DISS = 'tt_want_diss';
 const wantsDissertation = () => { try { return new URLSearchParams(location.search).get('plan') === 'dissertation' || sget(WANT_DISS) === '1'; } catch { return false; } };
 // The Gantt chart template page can pass the level and dates it showed: the setup starts with them.
@@ -241,11 +242,11 @@ const sset = (k, v) => { try { if (v === null) sessionStorage.removeItem(k); els
 { const flash = sget('tt_flash'); if (flash) { sset('tt_flash', null); setTimeout(() => toast(flash, 8000), 900); } }
 function demoWelcome(box, note, wrap) {
   // Search engines: the demo is its own page.
-  document.title = 'Trawpie live demo: try it with a sample team';
+  document.title = 'Penteint Projects live demo: try it with a sample team';
   const setMeta = (sel, attr, v) => { const m = document.querySelector(sel); if (m) m.setAttribute(attr, v); };
-  setMeta('link[rel="canonical"]', 'href', 'https://trawpie.org/demo'); setMeta('meta[property="og:url"]', 'content', 'https://trawpie.org/demo');
-  setMeta('meta[name="description"]', 'content', 'Try Trawpie in your browser with no sign-up: a student drone team, an engineering company, a satellite mission or a Formula Student team, with a 2-minute guided tour.');
-  const title = document.querySelector('#auth-screen .auth-title'); if (title) title.textContent = 'Try Trawpie: no sign-up, nothing to install.';
+  setMeta('link[rel="canonical"]', 'href', 'https://app.penteint.com/demo'); setMeta('meta[property="og:url"]', 'content', 'https://app.penteint.com/demo');
+  setMeta('meta[name="description"]', 'content', 'Try Penteint Projects in your browser with no sign-up: a student drone team, an engineering company, a satellite mission or a Formula Student team, with a 2-minute guided tour.');
+  const title = document.querySelector('#auth-screen .auth-title'); if (title) title.textContent = 'Try Penteint Projects: no sign-up, nothing to install.';
   // On the demo itself, the "try the demo" links point to the guide instead.
   const tourLink = document.querySelector('#auth-screen .auth-tour'); if (tourLink) tourLink.hidden = true;
   const tryBtn = document.getElementById('try-demo'); if (tryBtn) { tryBtn.href = 'guide.html'; tryBtn.textContent = 'Read the illustrated guide →'; }
@@ -262,7 +263,7 @@ function demoWelcome(box, note, wrap) {
   const KINDS = SAMPLE_CHOICES; const first = Math.max(0, KINDS.findIndex(k => k.key === asked));
   let kind = KINDS[first].key;
   const goBtn = el('button.btn.primary.block', { type: 'button', id: 'demo-go', onclick: () => go('sample:' + kind)() }, '▶ Open the ' + KINDS[first].short + ', with a 2-minute tour');
-  // /demo?plan=dissertation (from trawpie.org/dissertation): planning a dissertation comes first.
+  // /demo?plan=dissertation (from app.penteint.com/dissertation): planning a dissertation comes first.
   const dissBtn = el('button.btn.block' + (wantsDissertation() ? '.primary' : ''), { type: 'button', id: 'demo-diss', onclick: go('dissertation') }, '🎓 Plan a dissertation or thesis');
   const dissSample = el('button.btn.block', { type: 'button', id: 'demo-diss-sample', onclick: go('sample:diss') }, '📖 See a sample dissertation');
   if (wantsDissertation()) goBtn.classList.remove('primary');
@@ -292,7 +293,7 @@ function demoWelcome(box, note, wrap) {
     el('button.btn.block', { type: 'button', id: 'demo-empty', onclick: go('empty') }, 'Start with an empty team'),
     ...(wantsDissertation() ? [] : [dissBtn, dissSample]),
     many,
-    el('details.demo-new', { open: !!copy && window.matchMedia('(min-width: 961px)').matches }, el('summary', {}, 'New in Trawpie'),
+    el('details.demo-new', { open: !!copy && window.matchMedia('(min-width: 961px)').matches }, el('summary', {}, 'New in Penteint Projects'),
       el('ul', {}, ['Tidier settings: Your account in four sections, switches for settings that are on or off, and round ticks for sub-tasks',
         'A tidier task editor: the title stays at the top, with Task, Plan, Files and Activity tabs (on a phone it slides up from the bottom)',
         'A dissertation and thesis planner: a week-by-week plan from your hand-in date, chapter word counts, a proposal helper, supervisor meetings and feedback on drafts (🎓 Plan a dissertation, or 📖 see a sample)',
@@ -303,7 +304,7 @@ function demoWelcome(box, note, wrap) {
         'Friendly or Professional look for each team, and for your own home page (🎨 Theme)',
         'A Formula Student team to try, next to the drone team, company and CubeSat',
         'Working together: live cursors, a glow on the task someone is editing, guests and the joint board'].map(t => el('li', {}, t)))),
-    el('p.hint', {}, 'Free for student teams. Ready for real? ', el('a', { href: '/' }, 'Sign in to Trawpie →')));
+    el('p.hint', {}, 'Free for student teams. Ready for real? ', el('a', { href: '/' }, 'Sign in to Penteint Projects →')));
 }
 /** The sample team (src/sample.js): opens your existing copy, or loads one. tour = start the guided tour once it's open. */
 async function openSampleTeam(tour, kind = 'drone') {
@@ -314,7 +315,7 @@ async function openSampleTeam(tour, kind = 'drone') {
     sset(DISS_SAMPLE, id); goTeam(id); return;
   }
   if (!id) { const { buildSample } = await import('./sample.js'); const s = await buildSample(user, Date.now(), kind); id = await backend.data.loadSample(s); toast('Sample team loaded: it’s yours to play with in this browser.', 5000); }
-  // The sample's files show what file health looks like (in a real team, Trawpie checks them with your own sign-in)
+  // The sample's files show what file health looks like (in a real team, Penteint Projects checks them with your own sign-in)
   try { const [{ SAMPLE_FILES }, fh] = await Promise.all([import('./sample.js'), import('./filehealth.js')]); SAMPLE_FILES.forEach(f => fh.setHealth(f.url, f.state, f.why)); } catch { /* the demo works without it */ }
   if (tour) sset(DEMO_TOUR, kind);
   goTeam(id);
@@ -352,7 +353,7 @@ function demoRibbon() {
   document.body.append(el('div.demo-ribbon', { id: 'demo-ribbon', role: 'note' },
     el('b', {}, 'Demo'), el('span.hint', {}, ' · stays in this browser · '),
     el('button.link-btn', { type: 'button', id: 'demo-ribbon-tour', onclick: () => { if (session && session.booted) startDemoTour(); else if (user) openSampleTeam(true); } }, 'Tour'),
-    el('span.hint', {}, ' · '), el('a', { href: '/' }, 'Get Trawpie →')));
+    el('span.hint', {}, ' · '), el('a', { href: '/' }, 'Get Penteint Projects →')));
 }
 
 // Landing page: organisations are pointed to Penteint Projects, the business edition (coming).
@@ -385,7 +386,7 @@ setTimeout(() => {
 document.addEventListener('click', (e) => {
   const tab = e.target.closest && e.target.closest('.lp-tour-tab'); if (!tab) return;
   document.querySelectorAll('.lp-tour-tab').forEach(b => { const on = b === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
-  const img = document.getElementById('lp-tour-img'); if (img) { img.src = 'landing/' + tab.dataset.shot + '.webp'; img.alt = 'Trawpie: ' + tab.dataset.title; }
+  const img = document.getElementById('lp-tour-img'); if (img) { img.src = 'landing/' + tab.dataset.shot + '.webp'; img.alt = 'Penteint Projects: ' + tab.dataset.title; }
   const t = document.getElementById('lp-tour-t'), x = document.getElementById('lp-tour-x');
   if (t) t.textContent = translate(tab.dataset.title); if (x) x.textContent = translate(tab.dataset.text);
 });
@@ -654,7 +655,7 @@ const isStandalone = () => { try { return window.matchMedia('(display-mode: stan
 const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isPhoneOrTablet = () => { try { return window.matchMedia('(pointer: coarse)').matches; } catch { return false; } };
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; refreshInstallBanner(); });
-window.addEventListener('appinstalled', () => { installPrompt = null; toast('Trawpie is installed. Open it from your home screen.'); refreshInstallBanner(); });
+window.addEventListener('appinstalled', () => { installPrompt = null; toast('Penteint Projects is installed. Open it from your home screen.'); refreshInstallBanner(); });
 if ('serviceWorker' in navigator && !DEMO_MODE && location.protocol === 'https:') {
   window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(e => console.warn('Offline support not available:', e)); });
 }
@@ -668,10 +669,10 @@ function installMode() {
 async function installApp() {
   const mode = installMode();
   if (mode === 'prompt') { installPrompt.prompt(); const r = await installPrompt.userChoice.catch(() => null); if (r && r.outcome === 'accepted') installPrompt = null; refreshInstallBanner(); return; }
-  const m = modal('Install Trawpie', { narrow: true });
+  const m = modal('Install Penteint Projects', { narrow: true });
   m.body.append(isIOS()
-    ? el('div', {}, el('p.hint', { style: { marginTop: 0 } }, 'On iPhone and iPad, in Safari:'), el('ol.install-steps', {}, el('li', {}, 'Tap the Share button (the square with an arrow, at the bottom or top of Safari).'), el('li', {}, 'Scroll down and tap “Add to Home Screen”.'), el('li', {}, 'Tap “Add”. Trawpie appears on your home screen and opens full-screen.')), el('p.hint', {}, 'In Chrome on iPhone, use the Share button in the address bar the same way.'))
-    : el('div', {}, el('p.hint', { style: { marginTop: 0 } }, 'Your browser didn’t offer an install button just now. You can still install Trawpie:'), el('ul.install-steps', {}, el('li', {}, 'Chrome or Edge on a computer: the install icon at the right of the address bar, or menu ▸ “Install Trawpie”.'), el('li', {}, 'Chrome on Android: menu ⋮ ▸ “Add to Home screen” or “Install app”.'), el('li', {}, 'Safari on a Mac: File ▸ “Add to Dock”.'))));
+    ? el('div', {}, el('p.hint', { style: { marginTop: 0 } }, 'On iPhone and iPad, in Safari:'), el('ol.install-steps', {}, el('li', {}, 'Tap the Share button (the square with an arrow, at the bottom or top of Safari).'), el('li', {}, 'Scroll down and tap “Add to Home Screen”.'), el('li', {}, 'Tap “Add”. Penteint Projects appears on your home screen and opens full-screen.')), el('p.hint', {}, 'In Chrome on iPhone, use the Share button in the address bar the same way.'))
+    : el('div', {}, el('p.hint', { style: { marginTop: 0 } }, 'Your browser didn’t offer an install button just now. You can still install Penteint Projects:'), el('ul.install-steps', {}, el('li', {}, 'Chrome or Edge on a computer: the install icon at the right of the address bar, or menu ▸ “Install Penteint Projects”.'), el('li', {}, 'Chrome on Android: menu ⋮ ▸ “Add to Home screen” or “Install app”.'), el('li', {}, 'Safari on a Mac: File ▸ “Add to Dock”.'))));
   m.foot.append(el('span.spacer'), el('button.btn.primary', { type: 'button', onclick: () => m.close() }, 'Got it'));
 }
 function refreshInstallBanner() {
@@ -680,13 +681,13 @@ function refreshInstallBanner() {
   const mode = installMode();
   b.hidden = !mode || dismissed || !isPhoneOrTablet() || DEMO_MODE;
   if (b.hidden) return;
-  b.replaceChildren(el('span', {}, '📱 ', el('b', {}, 'Install Trawpie'), ' on this device: it opens full-screen from your home screen, like an app.'), el('span.spacer'),
+  b.replaceChildren(el('span', {}, '📱 ', el('b', {}, 'Install Penteint Projects'), ' on this device: it opens full-screen from your home screen, like an app.'), el('span.spacer'),
     el('button.btn.small.ghost', { type: 'button', onclick: () => { try { localStorage.setItem('tt_install_dismissed', '1'); } catch { /* */ } refreshInstallBanner(); } }, 'Not now'),
     el('button.btn.small.primary', { type: 'button', onclick: installApp }, mode === 'ios' ? 'Show me how' : 'Install'));
 }
 function installRow() {
-  if (isStandalone()) return acctRow('install', 'Installed app', 'You’re using the installed Trawpie app.', el('span.acct-ok', {}, lineIcon('check', 14), 'Installed'));
-  return acctRow('install', 'Install as an app', 'Put Trawpie on your home screen or dock. It opens full-screen, like an app.',
+  if (isStandalone()) return acctRow('install', 'Installed app', 'You’re using the installed Penteint Projects app.', el('span.acct-ok', {}, lineIcon('check', 14), 'Installed'));
+  return acctRow('install', 'Install as an app', 'Put Penteint Projects on your home screen or dock. It opens full-screen, like an app.',
     el('button.btn.small', { type: 'button', onclick: installApp }, 'Install…'));
 }
 
@@ -845,8 +846,8 @@ function refreshAccountChips() {
 // Your account: sections down the side (tabs across the top on a phone), like Team settings.
 const ACCOUNT_SECTIONS = [
   ['profile', 'Profile', 'user', 'Your name and photo, as your teams see them.'],
-  ['appearance', 'Appearance', 'palette', 'How Trawpie looks and works for you, on every device.'],
-  ['notifications', 'Notifications', 'bell', 'Emails Trawpie sends you.'],
+  ['appearance', 'Appearance', 'palette', 'How Penteint Projects looks and works for you, on every device.'],
+  ['notifications', 'Notifications', 'bell', 'Emails Penteint Projects sends you.'],
   ['data', 'App and data', 'shield', 'The app, your data and your account.'],
 ];
 let accountSection = 'profile';   // the section showing (opens on Profile unless asked for another)

@@ -1,0 +1,50 @@
+/* ═══ Penteint Projects brand (see the Penteint brand kit): the public page is black with the silver
+   faceted figure and a blue glow; product screens inside the app keep their own themes. ═══ */
+
+/* ── Landing / sign-in page ── */
+#auth-screen.landing.pnt {
+  --lp-ink: #eef1f8; --lp-muted: #9aa3b8; --lp-soft: #7d869b; --lp-line: rgba(255, 255, 255, .09); --lp-blue: #b4c8ff; --lp-page: #000;
+  /* the app's own variables, so the sign-in form inherits the dark look */
+  --bg-main: #05070c; --bg-panel: #0b0d13; --border-color: rgba(255, 255, 255, .16); --text-main: #eef1f8; --text-muted: #9aa3b8; --line-color: #b4c8ff;
+  color-scheme: dark; color: var(--lp-ink);
+  background:
+    radial-gradient(760px 520px at 76% 16%, rgba(66, 120, 225, .26), transparent 70%),
+    radial-gradient(600px 420px at 10% 70%, rgba(66, 120, 225, .08), transparent 70%),
+    #000;
+}
+.landing.pnt .lp-nav { background: rgba(0, 0, 0, .72); border-bottom-color: rgba(255, 255, 255, .08); }
+.landing.pnt .lp-brand { gap: 10px; }
+.landing.pnt .pnt-nav-mark { width: 18px; height: 24px; filter: drop-shadow(0 0 6px rgba(180, 200, 255, .55)); }
+.landing.pnt .pnt-word { font-size: 13px; font-weight: 600; letter-spacing: .42em; color: #eef1f8; text-shadow: 0 0 12px rgba(180, 200, 255, .45); }
+.landing.pnt .pnt-product { font-size: 15px; font-weight: 500; color: var(--lp-muted); margin-left: -4px; }
+#auth-screen.landing.pnt .lp-primary { background: #fff; border-color: #fff; color: #05070c; }
+#auth-screen.landing.pnt .lp-primary:hover { background: #dfe6f5; }
+.landing.pnt .lp-ghost { background: transparent; border: 1px solid rgba(255, 255, 255, .18); color: var(--lp-ink); }
+.landing.pnt .lp-ghost:hover { border-color: rgba(255, 255, 255, .36); }
+.landing.pnt .pnt-eyebrow { margin: 0 0 18px; font-size: 12.5px; font-weight: 600; letter-spacing: .32em; text-transform: uppercase; color: #b4c8ff; }
+.landing.pnt .auth-title { max-width: 12ch; background: linear-gradient(180deg, #ffffff 30%, #9aa8c7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.landing.pnt .pnt-hero-mark { justify-self: center; width: min(300px, 60vw); }
+.landing.pnt .pnt-hero-mark img { display: block; width: 100%; height: auto;
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, .9)) drop-shadow(0 0 18px rgba(180, 200, 255, .55)) drop-shadow(0 0 60px rgba(66, 120, 225, .72));
+  animation: pntFloat 7s ease-in-out infinite; }
+@keyframes pntFloat { 50% { transform: translateY(-10px); } }
+.landing.pnt .lp-hero { padding-bottom: clamp(56px, 10vh, 112px); }
+.landing.pnt .lp-card { background: #0b0d13; border-color: rgba(255, 255, 255, .09); box-shadow: 0 0 0 1px rgba(180, 200, 255, .06), 0 30px 80px -30px rgba(66, 120, 225, .45); }
+.landing.pnt .lp-card input { background: #05070c; color: var(--lp-ink); }
+.landing.pnt .lp-card .btn.primary { background: #fff; border-color: #fff; color: #05070c; }
+.landing.pnt .lp-grid { background: #0b0d13; border-color: rgba(255, 255, 255, .09); }
+.landing.pnt .lp-grid > div { border-color: rgba(255, 255, 255, .07); }
+.landing.pnt .lp-spec { background: #0b0d13; border-color: rgba(255, 255, 255, .09); }
+.landing.pnt .lp-spec th, .landing.pnt .lp-spec td { border-bottom-color: rgba(255, 255, 255, .07); }
+.landing.pnt .lp-features h2, .landing.pnt .lp-trust h2, .landing.pnt .lp-final h2 { background: linear-gradient(180deg, #ffffff 30%, #9aa8c7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.landing.pnt .pnt-next { margin: 20px 0 0; color: var(--lp-soft); font-size: 14.5px; }
+#auth-screen.landing.pnt:not([hidden]) + .auth-footer { --ftr-bg: #000; --ftr-line: rgba(255, 255, 255, .08); --ftr-muted: #9aa3b8; --ftr-ink: #eef1f8; background: #000; color-scheme: dark; }
+@media (max-width: 960px) { .landing.pnt .pnt-hero-mark { width: min(200px, 50vw); order: -1; } }
+@media (prefers-reduced-motion: reduce) { .landing.pnt .pnt-hero-mark img { animation: none; } }
+
+/* ── Loading screen: the figure glows while the app starts ── */
+.loading-screen .ld-penteint { display: block; width: 84px; height: auto; margin: 0 auto;
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, .85)) drop-shadow(0 0 14px rgba(180, 200, 255, .5)) drop-shadow(0 0 40px rgba(66, 120, 225, .7));
+  animation: pntPulse 2.4s ease-in-out infinite; }
+@keyframes pntPulse { 50% { filter: drop-shadow(0 0 2px rgba(255, 255, 255, .6)) drop-shadow(0 0 8px rgba(180, 200, 255, .3)) drop-shadow(0 0 24px rgba(66, 120, 225, .45)); } }
+@media (prefers-reduced-motion: reduce) { .loading-screen .ld-penteint { animation: none; } }

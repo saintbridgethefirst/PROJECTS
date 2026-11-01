@@ -2886,7 +2886,7 @@
             other.addEventListener('change', () => { if (other.value.trim()) setSkill(other.value); });
             row.append(sel, other); s.appendChild(row);
             if (!skills.length) { const h = document.createElement('div'); h.className = 'hint'; h.textContent = 'Nobody has listed skills yet. Each person adds theirs in Tools ▸ People (or an admin does it for them).'; s.appendChild(h); }
-            if (!task.skill) { const h = document.createElement('div'); h.className = 'hint'; h.textContent = 'Say what this task needs and Trawpie suggests who has the skill and the hours.'; s.appendChild(h); return s; }
+            if (!task.skill) { const h = document.createElement('div'); h.className = 'hint'; h.textContent = 'Say what this task needs and Penteint Projects suggests who has the skill and the hours.'; s.appendChild(h); return s; }
             const used = (uid) => allTaskLocs().filter(l => l.person.id === uid && loc && l.weekKey === loc.weekKey && l.task.flag !== 'completed' && l.task.id !== task.id).reduce((a, l) => a + (l.task.effort || 0), 0);
             const people = db.filter(p => !p.former).map(p => { const prof = TT.profileOf(p.id); const has = prof.skills.some(k => k.toLowerCase() === task.skill.toLowerCase()); const cap = TT.capacityFor(p.id, week && week.startDate ? week.startDate : ''); return { p, has, cap, free: Math.max(0, cap - used(p.id)) }; }).filter(x => x.has);
             people.sort((a, b) => (b.cap ? b.free : -1) - (a.cap ? a.free : -1));

@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Waiting for a code from an email (src/codecard.js): a glass card with the
-   Trawpie mark, a box per digit, and the digits folding into the mark while
+   Penteint Projects mark, a box per digit, and the digits folding into the mark while
    the code is checked. Light and dark themes; calm for reduced motion.
    ───────────────────────────────────────────────────────────────────────────── */
 .tcode {
@@ -90,7 +90,7 @@
 .tcode.morph .tcode-edge { stroke-dashoffset: 0; }
 .tcode.morph .tcode-run { opacity: 1; transition-delay: .9s; animation: tcode-run 1.1s linear .9s infinite; }
 .tcode.morph .tcode-input { pointer-events: none; }
-/* Right: the mark fills (the Trawpie logo), sparks fly and a tick shows */
+/* Right: the mark fills (the Penteint Projects logo), sparks fly and a tick shows */
 .tcode.ok .tcode-fill { opacity: 1; transform: scale(1); }
 .tcode.ok .tcode-run { opacity: 0; transition-delay: 0s; animation: none; }
 .tcode.ok .tcode-box { opacity: 0; }

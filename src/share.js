@@ -30,7 +30,7 @@ export function shareWeek(weeks, today) {
  * Returns the message: WhatsApp formatting (*bold*), one line per task, at most MAX_ITEMS per list.
  */
 /** Every shared summary carries a small credit, so people who see it know where it came from. */
-export const MADE_WITH = 'Made with Trawpie · free for student teams · https://trawpie.org';
+export const MADE_WITH = 'Made with Penteint Projects · https://app.penteint.com';
 
 export function buildWeekShare(data, opts = {}) {
   const { team, rows, today } = data; const names = opts.names !== false;

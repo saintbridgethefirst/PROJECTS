@@ -192,7 +192,7 @@ try {
   ['Upgrade / confirmation review', 'Submit your thesis', 'Viva', 'Annual progress review (year 2)'].forEach(n => ok(names.includes(n), 'PhD milestone: ' + n));
   ok((T.dissertation || {}).plan.chapters.reduce((s, c) => s + c.target, 0) === 80000, '80,000 words across the chapters');
 
-  step('trawpie.org/dissertation ▸ "Try it without signing up" goes straight to the setup');
+  step('app.penteint.com/dissertation ▸ "Try it without signing up" goes straight to the setup');
   const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const D = await ctx2.newPage(); D.on('pageerror', e => errors.push('demo: ' + e.message));
   await D.goto(BASE + 'demo?plan=dissertation'); await D.waitForSelector('#demo-diss');

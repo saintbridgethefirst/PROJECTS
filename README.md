@@ -1,7 +1,32 @@
-# Trawpie
+# Penteint Projects
 
-*Technical Research And Welfare for People In Education* · part of **Penteint**.
-(Formerly TeamTrack. The Firebase project id stays `uni-teamtrack`; old GitHub issues that say “TeamTrack: TT-…” still link.)
+The industry edition of Trawpie, by **Penteint**: project management for teams that build hardware.
+It is a fork of [Trawpie](https://github.com/saintbridgethefirst/TRAWPIE-TeamTrack) (the free education
+edition) and keeps its git history, so fixes can be merged across.
+
+**What is different from Trawpie**
+- **Audit trail.** Every write to a team's records becomes an entry in `teams/{team}/audit`, written only by the
+  server (`functions/audit.js`; `firestore.rules`: nobody may write it). Entries are numbered and hash-chained
+  (`functions/auditlib.js`), so a gap or an edit is caught by **Settings ▸ Audit trail ▸** the chain check, which
+  runs in the browser. Owners and admins see it (permission *See the audit trail*) and can export CSV.
+- **Edition switch.** `src/edition.js` (`EDUCATION = false`) and `function education()` in `firestore.rules`
+  turn off the Dissertation workspace, free Pro Education for university emails and the student wording. The code
+  stays, so merges from Trawpie don't conflict. Plans are called Starter, Team and Enterprise.
+- **Brand.** The Penteint kit: black landing page, the silver faceted figure with a blue glow
+  (`public/icons/penteint-mark.svg`; icons made by `tools/brand/penteint/make-icons.py`).
+- **Its own Firebase project.** Never Trawpie's `uni-teamtrack`. `.env.live` is gone; CI deploys to
+  `penteint-projects` once that project and its `FIREBASE_SERVICE_ACCOUNT` secret exist. Backups are paused until then.
+
+The plan for the rest (company sign-in, the Datum link, cost and earned value, quality records) is in the
+*Penteint Projects — Spec and Roadmap* doc.
+
+**Merging fixes from Trawpie:** `git remote add trawpie https://github.com/saintbridgethefirst/TRAWPIE-TeamTrack`,
+then `git fetch trawpie && git merge trawpie/main`. Expect small conflicts only where the edition switch touches
+shared files (`src/model.js`, `src/settings.js`, `firestore.rules`).
+
+---
+
+The rest of this file describes the shared code (written for Trawpie; the same applies here).
 
 A team progress tracker you can host as a website. People sign in, join their team by
 email invitation, and plan work week by week, with roles, deadlines, analytics and
@@ -97,6 +122,7 @@ mode, so `npm install` then `npm run dev` is enough to try it.
 | `npm test` | Unit tests, including every permission scenario against the rules model |
 | `npm run test:e2e` | Browser test: three teammates in three tabs (demo mode; needs `npx vite preview --port 4173` running) |
 | `npm run test:phase5` | Browser test of the installable app (offline), search, templates and repeating tasks (same preview server) |
+| `npm run test:audit` | Browser test of the audit trail: entries, the Settings page, filters, CSV, members, tampering, plans (same preview server) |
 | `npm run test:features` | Browser test of feature switches, people and capacity, time logging, risks, requirements and workload across teams (same preview server) |
 | `npm run test:phase8` | Browser test of the progress report: options, preview, Word, copy, finance gating (same preview server) |
 | `npm run test:phase7` | Browser test of meetings, parts, finance, literature, the lab notebook and carried-forward chains (same preview server) |

@@ -8,9 +8,9 @@
   var cur = 'en'; try { cur = localStorage.getItem('tt_lang') || (navigator.language || 'en').slice(0, 2); } catch (e) { /* private window */ }
   if (!LANGS.some(function (l) { return l[0] === cur; })) cur = 'en';
   var cols = [
-    ['Product', [['Live demo', 'https://trawpie.org/demo'], ['How it works', app + 'guide.html'], ['Blog', app + 'blog/'], ['Plans & features', app + 'guide.html#compare']]],
+    ['Product', [['Live demo', 'https://app.penteint.com/demo'], ['How it works', app + 'guide.html'], ['Plans & features', app + 'guide.html#compare']]],
     ['Help', [['Contact us', '#contact'], ['Report a problem', '#report'], ['Security', app + 'security.html'], ['Privacy policy', app + 'privacy.html'], ['Terms of service', app + 'terms.html']]],
-    ['For teams', [['Student societies', app + 'guide.html#tools'], ['Research groups', app + 'guide.html#tools'], ['Roles & permissions', app + 'guide.html#roles'], ['Free for students', app + 'guide.html#plans']]],
+    ['For companies', [['Audit trail', app + 'security.html'], ['Roles & permissions', app + 'guide.html#roles'], ['Plans', app + 'guide.html#plans'], ['Penteint', 'https://penteint.com']]],
   ];
   function h(tag, attrs, kids) {
     var n = document.createElement(tag); Object.keys(attrs || {}).forEach(function (k) { if (k === 'text') n.textContent = attrs[k]; else n.setAttribute(k, attrs[k]); });
@@ -32,13 +32,11 @@
   function render(el) {
     el.classList.add('site-footer');
     var brand = h('div', { class: 'ftr-brand' }, [
-      h('a', { class: 'ftr-logo', href: app || './' }, [h('img', { src: app + 'icons/logo-96.png', alt: '', width: '28', height: '28' }), h('b', { text: 'Trawpie' })]),
-      h('p', { text: 'Plan, track and review your team’s week: tasks, people, parts and budgets in one place.' }),
-      h('p', { class: 'ftr-small', text: 'Technical Research And Welfare for People In Education.' }),
-      h('p', { class: 'ftr-small', text: 'Made in Bristol for student, research and engineering teams.' }),
+      h('a', { class: 'ftr-logo', href: app || './' }, [h('img', { src: app + 'icons/logo-96.png', alt: '', width: '28', height: '28' }), h('b', { text: 'Penteint Projects' })]),
+      h('p', { text: 'Plan the work, buy the parts, sign it off and prove it: project management for teams that build hardware.' }),
+      h('p', { class: 'ftr-small', text: 'Made in Bristol by Penteint.' }),
       h('div', { class: 'ftr-social' }, [
-        h('a', { href: 'https://www.linkedin.com/company/146756476/', target: '_blank', rel: 'noopener', 'aria-label': 'Trawpie on LinkedIn', title: 'LinkedIn' }, [social('linkedin')]),
-        h('a', { href: 'https://www.instagram.com/trawpie/', target: '_blank', rel: 'noopener', 'aria-label': 'Trawpie on Instagram', title: 'Instagram' }, [social('instagram')])])]);
+        h('a', { href: 'https://www.linkedin.com/company/146756476/', target: '_blank', rel: 'noopener', 'aria-label': 'Penteint on LinkedIn', title: 'LinkedIn' }, [social('linkedin')])])]);
     var grid = h('div', { class: 'ftr-cols' }, cols.map(function (c) {
       return h('nav', { 'aria-label': c[0] }, [h('h4', { text: c[0] })].concat(c[1].map(function (l) { return h('a', { href: l[1] }, [document.createTextNode(l[0])]); })));
     }));
@@ -47,7 +45,7 @@
     var bottom = h('div', { class: 'ftr-bottom' }, [
       h('label', { class: 'ftr-lang' }, [globe(), sel]),
       h('div', { class: 'ftr-legal' }, [
-        h('span', { class: 'ftr-suite' }, [document.createTextNode('© ' + new Date().getFullYear() + ' Trawpie, part of the '), h('b', { text: 'Penteint Suite' })]),
+        h('span', { class: 'ftr-suite' }, [document.createTextNode('© ' + new Date().getFullYear() + ' Penteint. Penteint Projects is part of the '), h('b', { text: 'Penteint Suite' })]),
         h('span', { class: 'ftr-small', text: 'Data stored in London (Google Cloud, europe-west2) under UK GDPR' })])]);
     el.replaceChildren(h('div', { class: 'ftr-wrap' }, [h('div', { class: 'ftr-top' }, [brand, grid]), bottom]));
   }
@@ -58,7 +56,7 @@
     // In the app, the feedback form (it calls back here with panelOnly when nobody is signed in).
     if (!panelOnly && window.TT && TT.openFeedback) { TT.openFeedback(kind === 'report' ? 'bug' : 'question'); return; }
     var old = document.getElementById('ftr-contact'); if (old) old.remove();
-    var subject = kind === 'report' ? 'Trawpie: a problem' : kind === 'projects' ? 'Penteint Projects: tell me when it launches' : 'Trawpie';
+    var subject = kind === 'report' ? 'Penteint Projects: a problem' : kind === 'projects' ? 'Penteint Projects: tell me when it launches' : 'Penteint Projects';
     var body = kind === 'projects' ? 'Organisation:\nNumber of people:\nWhat you would use it for:\n' : kind === 'report' ? 'What did you do, what did you expect, and what happened instead?\n\nPage: ' + location.href + '\nBrowser: ' + navigator.userAgent + '\n' : '';
     var back = h('div', { id: 'ftr-contact', class: 'ftr-modal', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'ftr-contact-title' });
     var addr = h('code', { class: 'ftr-addr', text: EMAIL });
@@ -68,7 +66,7 @@
     var close = h('button', { type: 'button', class: 'ftr-x', 'aria-label': 'Close', text: '✕' });
     var box = h('div', { class: 'ftr-box' }, [close,
       h('h3', { id: 'ftr-contact-title', text: kind === 'report' ? 'Report a problem' : kind === 'projects' ? 'Penteint Projects' : 'Contact us' }),
-      h('p', { text: kind === 'report' ? 'Email us what you did, what you expected and what happened instead. A screenshot helps. Signed in to Trawpie? The Feedback button in the app sends it straight from there.' : (kind === 'projects' ? 'Email us your organisation’s name and size, and we’ll tell you when Penteint Projects launches. We can also help you start on Trawpie today.' : 'Questions, ideas or a team that wants to start: email us and we’ll reply.') }),
+      h('p', { text: kind === 'report' ? 'Email us what you did, what you expected and what happened instead. A screenshot helps. Signed in to Penteint Projects? The Feedback button in the app sends it straight from there.' : (kind === 'projects' ? 'Email us your organisation’s name and size, and we’ll tell you when Penteint Projects launches. We can also help you start on Penteint Projects today.' : 'Questions, ideas or a team that wants to start: email us and we’ll reply.') }),
       addr, h('div', { class: 'ftr-row' }, [copy, mail])]);
     back.appendChild(box); document.body.appendChild(back);
     var done = function () { back.remove(); document.removeEventListener('keydown', esc); };

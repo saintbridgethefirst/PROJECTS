@@ -651,7 +651,7 @@ button.tx-part:hover { border-color: var(--line-color); }
 .guide-card-ico { font-size: 26px; }
 .guide-card-go { font-size: 20px; font-weight: 800; color: var(--line-color, #3182ce); }
 
-/* ── Sign-in screen: what Trawpie is, and a way into the guide ── */
+/* ── Sign-in screen: what Penteint Projects is, and a way into the guide ── */
 .auth-tour { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; padding: 8px 14px; border-radius: 999px; font-size: 14px; text-decoration: none;
   color: var(--text-main, inherit); border: 1px solid color-mix(in srgb, var(--line-color, #3182ce) 55%, transparent); background: color-mix(in srgb, var(--line-color, #3182ce) 10%, transparent); transition: background .15s, transform .15s; }
 .auth-tour:hover { background: color-mix(in srgb, var(--line-color, #3182ce) 18%, transparent); transform: translateX(2px); }

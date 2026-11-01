@@ -77,7 +77,7 @@ try {
   await A.keyboard.press('Escape'); await sleep(200);
 
   step('A platform admin approves it');
-  const B = await tab('Rushi'); await signIn(B, 'Rushi Admin', 'rushi@trawpie.org');
+  const B = await tab('Rushi'); await signIn(B, 'Rushi Admin', 'rushi@app.penteint.com');
   await B.fill('#create-team-form input[name=name]', 'TRAWPIE HQ'); await B.evaluate(() => { const c = document.getElementById('create-practice'); if (c) c.checked = false; }); await B.click('#create-team-form button[type=submit]'); await B.waitForSelector('.node-cat'); await sleep(300);
   await openPlan(B);
   ok(await B.locator('.plan-admin').count() === 0, 'no admin tools for ordinary accounts');

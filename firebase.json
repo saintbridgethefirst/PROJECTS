@@ -19,18 +19,6 @@
         "destination": "/demo.html"
       },
       {
-        "source": "/dissertation",
-        "destination": "/dissertation.html"
-      },
-      {
-        "source": "/templates/dissertation-gantt-chart",
-        "destination": "/templates/dissertation-gantt-chart.html"
-      },
-      {
-        "source": "/formula-student",
-        "destination": "/formula-student.html"
-      },
-      {
         "source": "**/!(*.*)",
         "destination": "/index.html"
       }
@@ -146,42 +134,6 @@
         ]
       },
       {
-        "source": "/blog/",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache"
-          }
-        ]
-      },
-      {
-        "source": "/dissertation",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache"
-          }
-        ]
-      },
-      {
-        "source": "/formula-student",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache"
-          }
-        ]
-      },
-      {
-        "source": "/templates/dissertation-gantt-chart",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache"
-          }
-        ]
-      },
-      {
         "source": "/*.js",
         "headers": [
           {
@@ -192,24 +144,6 @@
       },
       {
         "source": "/boot/**",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache"
-          }
-        ]
-      },
-      {
-        "source": "/blog/*.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache"
-          }
-        ]
-      },
-      {
-        "source": "/templates/*.js",
         "headers": [
           {
             "key": "Cache-Control",

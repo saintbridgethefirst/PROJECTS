@@ -41,7 +41,7 @@ export function checkConfirm(state, uid, code, now) {
 }
 
 /** The email a student receives. */
-export function codeEmail(code, appName = 'Trawpie') {
+export function codeEmail(code, appName = 'Penteint Projects') {
   const subject = code + ' is your ' + appName + ' student code';
   const text = 'Your code to confirm your university email on ' + appName + ' is ' + code + '.\n\nIt works for ' + CODE_MINUTES + ' minutes. If you didn’t ask for it, ignore this email.';
   const html = '<p>Your code to confirm your university email on <b>' + appName + '</b> is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">' + code + '</p><p>It works for ' + CODE_MINUTES + ' minutes. If you didn’t ask for it, ignore this email.</p>';
@@ -76,7 +76,7 @@ const shell = (appName, body, appUrl, why) => '<div style="font-family:system-ui
   '<p style="margin-top:28px;font-size:12px;color:#718096">' + esc(why) + ' Change this in ' + esc(appName) + ' ▸ your account ▸ Notifications: <a href="' + esc(appUrl) + '/#/account">' + esc(appUrl.replace(/^https?:\/\//, '')) + '</a></p></div>';
 
 /** "Aisha mentioned you" — one email per mention. */
-export function mentionEmail({ appName = 'Trawpie', appUrl, author, teamName, taskName, text, teamId }) {
+export function mentionEmail({ appName = 'Penteint Projects', appUrl, author, teamName, taskName, text, teamId }) {
   const link = appUrl + '/#/t/' + encodeURIComponent(teamId);
   const subject = author + ' mentioned you' + (taskName ? ' on “' + taskName.slice(0, 60) + '”' : '') + ' · ' + teamName;
   const quote = String(text || '').slice(0, 600);
@@ -97,7 +97,7 @@ export function digestItems(tasks, uid, today, weeks) {
   return { overdue: mine.filter(t => t.dueDate < today).sort(byDue), soon: mine.filter(t => t.dueDate >= today && t.dueDate <= plus7).sort(byDue) };
 }
 /** The Monday digest for one person across their Pro teams: [{ teamName, teamId, overdue, soon }]. null when nothing to say. */
-export function digestEmail({ appName = 'Trawpie', appUrl, name, teams, today }) {
+export function digestEmail({ appName = 'Penteint Projects', appUrl, name, teams, today }) {
   const withWork = (teams || []).filter(t => t.overdue.length || t.soon.length);
   if (!withWork.length) return null;
   const over = withWork.reduce((a, t) => a + t.overdue.length, 0), soon = withWork.reduce((a, t) => a + t.soon.length, 0);
@@ -120,7 +120,7 @@ export const MAX_INVITE_EMAILS_ALL = 2000;      // all invitations together in a
 export const INVITE_RESEND_MS = 3600e3;         // the same invitation is emailed again at most once an hour
 /** Send an invitation email for this write? Only for a new invitation or one re-sent (new createdAt). */
 export const inviteChanged = (before, after) => !!after && !!after.email && (!before || (before.createdAt !== after.createdAt && !(Number(before.emailedAt) > Date.now() - INVITE_RESEND_MS)));
-export function inviteEmail({ appName = 'Trawpie', appUrl, inviter, teamName, roleName, email }) {
+export function inviteEmail({ appName = 'Penteint Projects', appUrl, inviter, teamName, roleName, email }) {
   inviter = String(inviter || 'A teammate').replace(/\s+/g, ' ').slice(0, 80); teamName = String(teamName || 'a team').replace(/\s+/g, ' ').slice(0, 80);
   const subject = inviter + ' invited you to ' + teamName + ' on ' + appName;
   const text = inviter + ' invited you to join "' + teamName + '" on ' + appName + ' as ' + roleName + '.\n\n' +
@@ -152,7 +152,7 @@ export function shouldAlert(state, now) { return !state || !state.lastEmailedAt 
 const box = (rows) => '<table style="font-size:13px;border-collapse:collapse">' + rows.filter(r => r[1]).map(([k, v]) => '<tr><td style="padding:2px 12px 2px 0;color:#718096;vertical-align:top">' + esc(k) + '</td><td style="padding:2px 0">' + esc(v) + '</td></tr>').join('') + '</table>';
 const wrap = (inner) => '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:640px;color:#1a202c">' + inner + '</div>';
 
-export function errorAlertEmail({ appName = 'Trawpie', appUrl, err, seenBefore = 0 }) {
+export function errorAlertEmail({ appName = 'Penteint Projects', appUrl, err, seenBefore = 0 }) {
   const subject = '⚠️ ' + appName + ' error: ' + String(err.msg || 'Unknown error').slice(0, 90);
   const rows = [['Kind', err.kind], ['Where', err.where], ['Build', err.build], ['Browser', err.ua], ['Times since last email', seenBefore ? String(seenBefore) : '']];
   const text = subject + '\n\n' + rows.filter(r => r[1]).map(r => r[0] + ': ' + r[1]).join('\n') + '\n\n' + (err.stack || '') + '\n\nAll errors: ' + appUrl + ' → Settings ▸ Plan ▸ Platform admin.\nYou get one email per kind of error per day, at most ' + MAX_ALERT_EMAILS_PER_DAY + ' a day.';
@@ -164,7 +164,7 @@ export function errorAlertEmail({ appName = 'Trawpie', appUrl, err, seenBefore =
 }
 
 const KIND = { bug: '🐞 Something’s broken', idea: '💡 Idea', question: '❓ Question', other: '💬 Feedback' };
-export function feedbackEmail({ appName = 'Trawpie', appUrl, fb }) {
+export function feedbackEmail({ appName = 'Penteint Projects', appUrl, fb }) {
   const subject = (KIND[fb.kind] || KIND.other) + ' from ' + (fb.name || fb.email || 'a user') + ': ' + String(fb.text || '').replace(/\s+/g, ' ').slice(0, 60);
   const rows = [['From', [fb.name, fb.email].filter(Boolean).join(' · ')], ['Team', fb.teamId], ['Where', fb.where], ['Build', fb.build], ['Browser', fb.ua]];
   const errs = (fb.errors || []).filter(Boolean);

@@ -11,6 +11,9 @@ const args = process.argv.slice(2);
 const noBuild = args.includes('--no-build');
 const only = args.filter(a => !a.startsWith('--'));
 const SKIP = new Set(['scenarios.mjs', 'editor-list.mjs']); // shared code, not suites
+// Penteint Projects switches the education parts off (src/edition.js): their suites belong to Trawpie.
+const { EDUCATION } = await import('../src/edition.js');
+if (!EDUCATION) ['plans.mjs', 'dissertation.mjs'].forEach(f => SKIP.add(f));
 const suites = fs.readdirSync(ROOT + 'tests').filter(f => f.endsWith('.mjs') && !f.endsWith('.test.mjs') && !SKIP.has(f))
   .filter(f => !only.length || only.some(o => f.startsWith(o))).sort();
 

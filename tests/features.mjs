@@ -51,12 +51,12 @@ try {
   const T0 = await teamNamed(A, 'Robot Science');
   ok(T0.doc.features && T0.doc.features.planning === true && T0.doc.features.parts === false && T0.doc.features.people === false, 'new team: standard on, advanced off');
   await openFeatures(A);
-  ok(await A.locator('.feature-card:not(.pro-card)').count() === 13, 'Features page lists 13 features (with Dissertation)');
-  ok(await A.locator('.feature-card.on').count() === 5, 'five standard ones on (incl. Whiteboards)');
+  ok(await A.locator('.feature-card:not(.pro-card)').count() === 12, 'Features page lists 12 features (Penteint Projects: no Dissertation)');
+  ok(await A.locator('.feature-card.on').count() === 4, 'four standard ones on (incl. Whiteboards; Literature is advanced in Penteint Projects)');
   if (SHOTS) await A.screenshot({ path: `${SHOTS}/features-settings.png` });
   await A.keyboard.press('Escape'); await sleep(200);
   await A.click('#research-btn'); await A.waitForSelector('.research-modal');
-  ok((await toolTabs(A)).join('|') === '📝 Meetings|📚 Literature', 'Tools shows only Meetings and Literature');
+  ok((await toolTabs(A)).join('|') === '📝 Meetings', 'Tools shows only Meetings');
   ok((await A.locator('.modal-head h3').last().textContent()).includes('Tools'), 'the window is called Tools');
   await A.keyboard.press('Escape'); await sleep(200);
   await openCard(A, 'Design gripper');
@@ -203,7 +203,7 @@ try {
   if (!(await A.locator('#home-screen:not([hidden])').isVisible())) { await A.evaluate(() => TT.goHome()); await A.waitForSelector('#home-screen:not([hidden])'); }
   await A.locator('.team-tile', { hasText: 'Thesis' }).click(); await A.waitForSelector('.node-cat'); await sleep(400);
   await A.click('#research-btn'); await A.waitForSelector('.research-modal');
-  ok((await toolTabs(A)).join('|') === '📝 Meetings|🔩 Parts|💷 Finance|📚 Literature', 'an older team still has Parts and Finance');
+  ok((await toolTabs(A)).join('|') === '📝 Meetings|🔩 Parts|💷 Finance', 'an older team still has Parts and Finance');
 
   step('Choosing how a new team starts: Simple or Everything');
   for (const [start, name] of [['simple', 'Tiny Team'], ['full', 'Big Company']]) {

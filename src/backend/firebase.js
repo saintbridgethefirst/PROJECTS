@@ -106,7 +106,7 @@ export const auth = {
   },
   async resetPassword(email) { await sendPasswordResetEmail(fbAuth, normEmail(email), { url: location.origin + location.pathname }); },
   // Basic sign-in only (name and email): no file access, so students can approve it without IT.
-  // If the email already has a Trawpie account (password or Google), we keep the Microsoft sign-in
+  // If the email already has a Penteint Projects account (password or Google), we keep the Microsoft sign-in
   // and link it the moment they sign in the usual way once; after that both work.
   async signInMicrosoft() {
     const p = new OAuthProvider('microsoft.com');
@@ -116,7 +116,7 @@ export const auth = {
       if (e && e.code === 'auth/account-exists-with-different-credential') {
         pendingMicrosoft = OAuthProvider.credentialFromError(e);
         const email = (e.customData && e.customData.email) || '';
-        const err = new Error('You already have a Trawpie account' + (email ? ' with ' + email : '') + '. Sign in the way you did before (password or Google) just this once, and Microsoft will be linked to it. Next time, Continue with Microsoft works on its own.');
+        const err = new Error('You already have a Penteint Projects account' + (email ? ' with ' + email : '') + '. Sign in the way you did before (password or Google) just this once, and Microsoft will be linked to it. Next time, Continue with Microsoft works on its own.');
         err.code = 'tt/link-microsoft'; err.email = email; throw err;
       }
       throw e;

@@ -11,9 +11,9 @@ export function yourDataRows(app, accountModal, row) {
     dl.disabled = true; dl.textContent = 'Preparing…';
     try {
       const data = await app.backend.data.callFunction('exportMyData', {});
-      const a = el('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })), download: 'trawpie-my-data-' + new Date().toISOString().slice(0, 10) + '.json' });
+      const a = el('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })), download: 'penteint-projects-my-data-' + new Date().toISOString().slice(0, 10) + '.json' });
       document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-      toast('Downloaded: everything Trawpie stores about you.');
+      toast('Downloaded: everything Penteint Projects stores about you.');
     } catch (e) { toast(callError(e), 6000); }
     dl.disabled = false; dl.textContent = 'Download';
   } }, 'Download');

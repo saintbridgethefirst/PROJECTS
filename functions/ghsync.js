@@ -82,7 +82,7 @@ export function cleanGithub(g) {
 /** A link to GitHub's own "new issue" page, filled in, naming the task so the webhook links them. */
 export function newIssueUrl(repo, { title = '', body = '', ref = '' } = {}) {
   const r = cleanRepo(repo); if (!r) return '';
-  const text = (body ? body + '\n\n' : '') + (ref ? 'Trawpie: ' + ref : '');
+  const text = (body ? body + '\n\n' : '') + (ref ? 'Penteint Projects: ' + ref : '');
   return 'https://github.com/' + r + '/issues/new?title=' + encodeURIComponent(String(title).slice(0, 200)) + '&body=' + encodeURIComponent(text.slice(0, 4000));
 }
 

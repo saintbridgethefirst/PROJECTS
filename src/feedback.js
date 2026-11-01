@@ -7,12 +7,12 @@ import { recentErrors, buildId } from './monitor.js';
 
 const FEEDBACK_KINDS = [['bug', '🐞 Something’s broken'], ['idea', '💡 An idea'], ['question', '❓ A question'], ['other', '💬 Something else']];
 export function openFeedback(app, kind = 'bug') {
-  if (!app.user) { if (window.TTFooterContact) window.TTFooterContact(kind === 'bug' ? 'report' : 'contact', true); else location.href = 'mailto:rushivibhandik.college@gmail.com?subject=Trawpie'; return; }
+  if (!app.user) { if (window.TTFooterContact) window.TTFooterContact(kind === 'bug' ? 'report' : 'contact', true); else location.href = 'mailto:rushivibhandik.college@gmail.com?subject=Penteint Projects'; return; }
   const m = modal('Send feedback', { narrow: true });
   let chosen = FEEDBACK_KINDS.some(k => k[0] === kind) ? kind : 'bug';
   const kinds = el('div.fb-kinds', { role: 'radiogroup', 'aria-label': 'What is it about?' });
   const drawKinds = () => kinds.replaceChildren(...FEEDBACK_KINDS.map(([k, label]) => el('button.fb-kind' + (k === chosen ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(k === chosen), onclick: () => { chosen = k; drawKinds(); text.placeholder = HINTS[k]; } }, label)));
-  const HINTS = { bug: 'What did you do, what did you expect, and what happened instead?', idea: 'What would make Trawpie better for your team?', question: 'What would you like to know?', other: 'Tell us anything.' };
+  const HINTS = { bug: 'What did you do, what did you expect, and what happened instead?', idea: 'What would make Penteint Projects better for your team?', question: 'What would you like to know?', other: 'Tell us anything.' };
   const text = el('textarea.fb-text', { rows: 6, maxlength: 2000, placeholder: HINTS[chosen], 'aria-label': 'Your message' });
   const count = el('span.hint', {}, '0 / 2000'); text.addEventListener('input', () => { count.textContent = text.value.length + ' / 2000'; });
   const errs = recentErrors();
@@ -27,7 +27,7 @@ export function openFeedback(app, kind = 'bug') {
     catch (e) { console.error(e); send.disabled = false; send.textContent = 'Send'; toast(app.saveError(e), 6000); }
   } }, 'Send');
   drawKinds();
-  m.body.append(el('p.hint', {}, 'Goes straight to the people who build Trawpie.'), kinds, text, el('div.row', {}, count),
+  m.body.append(el('p.hint', {}, 'Goes straight to the people who build Penteint Projects.'), kinds, text, el('div.row', {}, count),
     el('label.fb-tech', { for: 'fb-tech' }, tech, ' Include technical details: page, browser, app version' + (errs.length ? ' and ' + errs.length + ' recent error' + (errs.length === 1 ? '' : 's') : '') + '. Never your task contents.'));
   m.foot.append(el('button.btn.ghost', { type: 'button', onclick: m.close }, 'Cancel'), send);
   setTimeout(() => text.focus(), 30);

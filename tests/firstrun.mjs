@@ -72,7 +72,7 @@ try {
   await A.click('#team-data-actions button:has-text("Import tasks")'); await A.waitForSelector('#imp-drop');
   ok((await A.locator('.modal').textContent()).includes('Trello') && (await A.locator('.modal').textContent()).includes('Jira'), 'explains spreadsheets, Trello and Jira');
   const [dl] = await Promise.all([A.waitForEvent('download'), A.click('#imp-template')]);
-  ok(dl.suggestedFilename() === 'Trawpie-import-template.xlsx', 'downloads an Excel template');
+  ok(dl.suggestedFilename() === 'Penteint Projects-import-template.xlsx', 'downloads an Excel template');
   const file = await dl.path();
   const [chooser] = await Promise.all([A.waitForEvent('filechooser'), A.click('#imp-choose')]);
   await chooser.setFiles(file); await A.waitForSelector('.modal-foot button:has-text("Import 2 tasks")');

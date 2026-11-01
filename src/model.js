@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { DEFAULT_ROLES, PERM_KEYS } from './permissions.js';
 import { LIMITS } from './config.js';
+import { EDUCATION } from './edition.js';
 import { cleanGithub } from '../functions/ghsync.js';
 export const GH_STATES = ['open', 'closed', 'merged', 'draft'];
 export const GH_REASONS = ['', 'not_planned', 'duplicate'];
@@ -136,9 +137,9 @@ export function cleanTeam(t) {
 // ── Plans: Free, Pro, Organisation ──────────────────────────────────────────
 /** What each plan allows. 0 = no limit. */
 export const PLANS = {
-  free: { key: 'free', name: 'Free', members: 30, ownTeams: 0, financeHistoryDays: 90, storageMB: 100, price: '£0' },
-  pro: { key: 'pro', name: 'Pro', members: 100, ownTeams: 0, financeHistoryDays: 0, storageMB: 5000, price: '£3 per member a month (yearly) or £4 monthly' },
-  org: { key: 'org', name: 'Organisation', members: 500, ownTeams: 0, financeHistoryDays: 0, storageMB: 50000, price: 'From £3,000 a year, invoiced' },
+  free: { key: 'free', name: EDUCATION ? 'Free' : 'Starter', members: 30, ownTeams: 0, financeHistoryDays: 90, storageMB: 100, price: EDUCATION ? '£0' : '£0 during the pilot' },
+  pro: { key: 'pro', name: EDUCATION ? 'Pro' : 'Team', members: 100, ownTeams: 0, financeHistoryDays: 0, storageMB: 5000, price: EDUCATION ? '£3 per member a month (yearly) or £4 monthly' : 'Price to be set' },
+  org: { key: 'org', name: EDUCATION ? 'Organisation' : 'Enterprise', members: 500, ownTeams: 0, financeHistoryDays: 0, storageMB: 50000, price: EDUCATION ? 'From £3,000 a year, invoiced' : 'Custom, invoiced' },
 };
 export const PLAN_TIERS = ['free', 'pro', 'org'];
 /** A plan belongs to a team (like a Notion or Linear workspace), so nobody is limited in how many teams they make.
@@ -182,7 +183,7 @@ export function planOf(team, now = Date.now()) {
   // Pro Education belongs to the student who owns the team: it ends if the team changes hands.
   const handedOn = p.edu && p.by && team && team.ownerUid && p.by !== team.ownerUid;
   const tier = (p.tier !== 'free' && p.until && p.until < now) || handedOn ? 'free' : p.tier;
-  return { ...PLANS[tier], tier, edu: tier !== 'free' && p.edu, until: tier === 'free' ? 0 : p.until, expired: tier !== p.tier, label: tier === 'free' ? 'Free' : PLANS[tier].name + (p.edu ? ' Education' : '') };
+  return { ...PLANS[tier], tier, edu: tier !== 'free' && p.edu, until: tier === 'free' ? 0 : p.until, expired: tier !== p.tier, label: tier === 'free' ? PLANS.free.name : PLANS[tier].name + (p.edu && EDUCATION ? ' Education' : '') };
 }
 /** Whether a team's plan includes a paid feature. */
 export function hasPro(team, key, now) {
@@ -878,11 +879,11 @@ export function uniqueChains(ids, ix) {
 }
 
 // ── Feature switches: each team turns on what it needs ───────────────────────
-export const FEATURES = [
+const ALL_FEATURES = [
   { key: 'planning', group: 'standard', icon: '⏱', name: 'Planning', help: 'Effort estimates, “waits on” links between tasks, and the Planning tab in analytics (workload and burndown).' },
   { key: 'meetings', group: 'standard', icon: '📝', name: 'Meetings', help: 'Meeting notes whose action items become tasks.' },
   { key: 'notebook', group: 'standard', icon: '📓', name: 'Lab notebook', help: 'Dated entries with photos on every task.' },
-  { key: 'literature', group: 'standard', icon: '📚', name: 'Literature', help: 'Papers by DOI, reading status, notes and BibTeX.' },
+  { key: 'literature', group: EDUCATION ? 'standard' : 'advanced', icon: '📚', name: 'Literature', help: 'Papers by DOI, reading status, notes and BibTeX.' },
   { key: 'whiteboards', group: 'standard', icon: '🧭', name: 'Whiteboards', help: 'An endless canvas for planning together: sticky notes, headings, real task cards and arrows. Turn a note into a task in one click.' },
   { key: 'subteams', group: 'advanced', icon: '🧩', name: 'Sub-teams', help: 'Split a project into groups of people — Fuselage, Payload, Electronics… Each sub-team has leads, its own view of the board, its own progress, and can own parts and budget lines.' },
   { key: 'parts', group: 'advanced', icon: '🔩', name: 'Parts and orders', help: 'Components to buy, with suppliers, costs and order status.' },
@@ -893,19 +894,23 @@ export const FEATURES = [
   { key: 'requirements', group: 'advanced', icon: '📐', name: 'Requirements', help: 'Requirements linked to the tasks that deliver them and how they’re verified; coverage and a traceability export.' },
   { key: 'dissertation', group: 'study', icon: '🎓', name: 'Dissertation', help: 'A dissertation or thesis workspace: plan from your hand-in date, chapters and word counts, a proposal helper, checklists and supervisor meetings.' },
 ];
-export const FEATURE_KEYS = FEATURES.map(f => f.key);
+/** The features this edition offers (Penteint Projects leaves out the study ones). Every key is still kept when cleaning, so nothing stored is lost. */
+export const FEATURES = ALL_FEATURES.filter(f => EDUCATION || f.group !== 'study');
+export const FEATURE_KEYS = ALL_FEATURES.map(f => f.key);
 /** What a brand-new team starts with: the standard set on, advanced off. */
-export const NEW_TEAM_FEATURES = Object.fromEntries(FEATURES.map(f => [f.key, f.group === 'standard']));
+export const NEW_TEAM_FEATURES = Object.fromEntries(ALL_FEATURES.map(f => [f.key, f.group === 'standard']));
 /** What a new team can start with (chosen when it's made; any feature can be switched on or off later). */
-export const TEAM_STARTS = [
+const ALL_STARTS = [
   { key: 'simple', name: 'Simple', help: 'Just the board: weeks, people and tasks. Turn on more when you need it.' },
-  { key: 'standard', name: 'Research team', help: 'The board plus planning, meetings, lab notebook, literature and whiteboards.' },
+  EDUCATION ? { key: 'standard', name: 'Research team', help: 'The board plus planning, meetings, lab notebook, literature and whiteboards.' }
+    : { key: 'standard', name: 'Engineering team', help: 'The board plus planning, meetings, lab notebook and whiteboards.' },
   { key: 'full', name: 'Everything', help: 'Every feature on, including sub-teams, parts, finance, capacity, time, risks and requirements.' },
   { key: 'dissertation', name: 'Dissertation or thesis', help: 'Your own workspace: a week-by-week plan from your hand-in date, chapters and word counts, reading and supervisor meetings.' },
 ];
+export const TEAM_STARTS = ALL_STARTS.filter(s => EDUCATION || s.key !== 'dissertation');
 export function startFeatures(key) {
   if (key === 'simple') return Object.fromEntries(FEATURE_KEYS.map(k => [k, false]));
-  if (key === 'full') return Object.fromEntries(FEATURES.map(f => [f.key, f.group !== 'study']));   // the Dissertation workspace is its own kind of team
+  if (key === 'full') return Object.fromEntries(ALL_FEATURES.map(f => [f.key, f.group !== 'study']));   // the Dissertation workspace is its own kind of team
   if (key === 'dissertation') return Object.fromEntries(FEATURE_KEYS.map(k => [k, ['planning', 'meetings', 'notebook', 'literature', 'dissertation'].includes(k)]));
   return { ...NEW_TEAM_FEATURES };
 }

@@ -17,7 +17,7 @@ jobs:
         run: |
           set -u
           for p in / "/?source=app" /index.html /guide.html /blog/ /demo /sw.js /boot/loading.js /manifest.webmanifest /assets/index-doesnotexist.js /assets/; do
-            h=$(curl -sS -o /tmp/body -D - "https://trawpie.org$p" | tr -d '\r')
+            h=$(curl -sS -o /tmp/body -D - "https://app.penteint.com$p" | tr -d '\r')
             st=$(echo "$h" | head -1)
             ct=$(echo "$h" | grep -i '^content-type:' | head -1)
             cc=$(echo "$h" | grep -i '^cache-control:' | head -1)

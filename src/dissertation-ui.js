@@ -38,7 +38,7 @@ export function openDissertationSetup(ctx, { onDone, prefill } = {}) {
   const preview = el('div.diss-preview', { 'aria-live': 'polite' });
   const body = el('div.diss-form');
   m.body.replaceChildren(
-    el('p.hint', { style: { marginTop: 0 } }, 'Tell us your hand-in date and we’ll lay out the whole thing week by week: phases on the Gantt, tasks with checklists, and the milestones that matter. Everything can be changed afterwards. Trawpie helps you plan and keep going; the writing is all yours.'),
+    el('p.hint', { style: { marginTop: 0 } }, 'Tell us your hand-in date and we’ll lay out the whole thing week by week: phases on the Gantt, tasks with checklists, and the milestones that matter. Everything can be changed afterwards. Penteint Projects helps you plan and keep going; the writing is all yours.'),
     body, preview);
 
   const radioCards = (name, items, value, onPick) => el('div.diss-cards', { role: 'radiogroup', 'aria-label': name },

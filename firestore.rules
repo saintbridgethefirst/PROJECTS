@@ -40,6 +40,8 @@ service cloud.firestore {
     function memberPath(t) { return /databases/$(database)/documents/teams/$(t)/members/$(request.auth.uid); }
     function isMember(t) { return signedIn() && exists(memberPath(t)); }
     function myRole(t) { return get(memberPath(t)).data.roleId; }
+    // Which edition: Penteint Projects (false) has no free Pro Education. Must match EDUCATION in src/edition.js.
+    function education() { return false; }
     function can(t, p) {
       return isMember(t) && (myRole(t) == 'owner'
         || get(teamPath(t)).data.roles.get(myRole(t), {}).get('perms', {}).get(p, false) == true);
@@ -478,7 +480,7 @@ service cloud.firestore {
         && (!('plan' in request.resource.data) || request.resource.data.plan.tier == 'free');
       // Students and staff with a verified university email turn on free Pro Education (up to 400 days at a time).
       // Only the team's OWNER (not an admin or member) can, so a student can't be invited just to unlock it.
-      allow update: if academic() && isMember(t) && myRole(t) == 'owner'
+      allow update: if education() && academic() && isMember(t) && myRole(t) == 'owner'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['plan'])
         && validPlan(request.resource.data.plan) && request.resource.data.plan.tier == 'pro' && request.resource.data.plan.edu == true
         && request.resource.data.plan.by == request.auth.uid && request.resource.data.plan.until > request.time.toMillis()

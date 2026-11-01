@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  File health: can the files linked to tasks still be opened?
 //  Files live in each team's own Google Drive or OneDrive. If someone stops sharing a file,
-//  deletes it, or leaves the team with it in their own drive, the link in Trawpie breaks.
+//  deletes it, or leaves the team with it in their own drive, the link in Penteint Projects breaks.
 //  This checks each linked file with the viewer's own sign-in (so "broken" means *you* can't
 //  open it) and warns when a file sits in one person's own drive rather than a team folder.
 //  Results are kept on this device for a few hours. Plain web links can't be checked from a
@@ -76,7 +76,7 @@ export function judgeDrive(status, body, { mine } = {}) {
     if (!body.driveId && owner) return { state: 'personal', why: 'It’s in ' + (owner.displayName || owner.emailAddress || 'one person') + '’s own Drive. If they leave, it goes with them: move it to a shared drive.', owner: owner.displayName || owner.emailAddress || '' };
     return { state: 'ok', why: '' };
   }
-  // With the access Trawpie asks for, Google only shows files you added through Trawpie: a missing
+  // With the access Penteint Projects asks for, Google only shows files you added through Penteint Projects: a missing
   // file you added means it was deleted or you lost access; anyone else's can't be judged here.
   if (status === 404) return mine ? { state: 'broken', why: 'It was deleted, or you no longer have access.' } : { state: 'unknown', why: '' };
   if (status === 403) return { state: 'broken', why: 'You don’t have access to it any more.' };

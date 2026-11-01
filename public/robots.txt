@@ -1,7 +1,7 @@
-# Trawpie, part of the Penteint Suite
+# Penteint Projects, part of the Penteint Suite
 User-agent: *
 Allow: /
 Disallow: /blank.html
 Disallow: /__/
 
-Sitemap: https://trawpie.org/sitemap.xml
+Sitemap: https://app.penteint.com/sitemap.xml

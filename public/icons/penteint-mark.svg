@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="120 20 800 1070" role="img" aria-label="Penteint"><defs><linearGradient id="hrhi" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"></stop><stop offset="1" stop-color="#e4e6ea"></stop></linearGradient><linearGradient id="hrlo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8e929a"></stop><stop offset="1" stop-color="#6b6f77"></stop></linearGradient></defs><g stroke="#4a4e57" stroke-width="2" stroke-linejoin="round">
+    <path d="M152 290 432 382 520 495Z" fill="url(#hrhi)"></path>
+    <path d="M152 290 520 495 520 655Z" fill="#a9acb2"></path>
+    <path d="M885 290 608 382 520 495Z" fill="#d3d6db"></path>
+    <path d="M885 290 520 495 520 655Z" fill="url(#hrlo)"></path>
+    <path d="M430 566 520 655 145 1068Z" fill="url(#hrhi)"></path>
+    <path d="M520 655 520 745 145 1068Z" fill="#8f939a"></path>
+    <path d="M608 567 520 655 895 1068Z" fill="#b6b9bf"></path>
+    <path d="M520 655 520 745 895 1068Z" fill="#7a7e86"></path>
+    <path d="M469 270 432 382 520 495Z" fill="#f6f7f9"></path>
+    <path d="M469 270 520 320 520 495Z" fill="#d8dadf"></path>
+    <path d="M571 270 520 320 520 495Z" fill="#b3b6bc"></path>
+    <path d="M571 270 608 382 520 495Z" fill="#999ca3"></path>
+    <path d="M520 35 378 180 520 180Z" fill="url(#hrhi)"></path>
+    <path d="M520 35 663 180 520 180Z" fill="#b9bcc2"></path>
+    <path d="M378 180 520 320 520 180Z" fill="#a4a7ae"></path>
+    <path d="M663 180 520 320 520 180Z" fill="url(#hrlo)"></path>
+  </g></svg>

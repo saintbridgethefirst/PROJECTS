@@ -78,7 +78,7 @@ try {
   ok(await A.inputValue('#gh-new-title') === 'Tune the PID loop', 'the issue form starts with the task name');
   await A.fill('#gh-new-body', 'Overshoots by 20%.'); await A.click('#gh-new-save'); await sleep(300);
   const href = await A.evaluate(() => window.__opened[0] || '');
-  ok(href.startsWith('https://github.com/uni-robotics/rover/issues/new?') && decodeURIComponent(href).includes('Trawpie: ' + ref), 'new issue on GitHub names the task');
+  ok(href.startsWith('https://github.com/uni-robotics/rover/issues/new?') && decodeURIComponent(href).includes('Penteint Projects: ' + ref), 'new issue on GitHub names the task');
   await shot(A, 'editor');
 
   step('The Raise-an-issue link opens the form; it adds a task and opens GitHub filled in');
@@ -95,9 +95,9 @@ try {
   const opened = await A.evaluate(() => window.__opened);
   ok(!!made, 'a task in my row');
   const madeRef = made && await A.evaluate((id) => TT.taskRef({ id }), made[0]);
-  ok(opened.length === 1 && decodeURIComponent(opened[0]).includes('title=Wheel encoder drops counts') && decodeURIComponent(opened[0]).includes('Trawpie: ' + madeRef), 'GitHub opened with the issue and the task’s reference');
+  ok(opened.length === 1 && decodeURIComponent(opened[0]).includes('title=Wheel encoder drops counts') && decodeURIComponent(opened[0]).includes('Penteint Projects: ' + madeRef), 'GitHub opened with the issue and the task’s reference');
   // …and when GitHub sends that issue, it's linked to this task rather than making another.
-  await A.evaluate(async (ref) => TT.githubSimulate('issues', { action: 'opened', repository: { full_name: 'uni-robotics/rover' }, issue: { number: 50, title: 'Wheel encoder drops counts', body: 'Above 2 m/s.\n\nTrawpie: ' + ref, html_url: 'https://github.com/uni-robotics/rover/issues/50' } }), madeRef);
+  await A.evaluate(async (ref) => TT.githubSimulate('issues', { action: 'opened', repository: { full_name: 'uni-robotics/rover' }, issue: { number: 50, title: 'Wheel encoder drops counts', body: 'Above 2 m/s.\n\nPenteint Projects: ' + ref, html_url: 'https://github.com/uni-robotics/rover/issues/50' } }), madeRef);
   await sleep(500);
   const tasks = Object.values((await team(A)).tasks);
   ok(tasks.filter(x => /Wheel encoder/.test(x.name)).length === 1 && tasks.find(x => x.name === '🐞 Wheel encoder drops counts').attachments.some(a => a.url.endsWith('/issues/50')), 'the submitted issue links to that task, no duplicate');

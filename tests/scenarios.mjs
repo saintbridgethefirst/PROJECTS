@@ -2,6 +2,7 @@
 // rules copy (src/rules-sim.js); tests/rules.test.mjs runs the SAME list against
 // the real firestore.rules in the Firebase emulator. If both pass, they agree.
 import { DEFAULT_ROLES } from '../src/permissions.js';
+import { EDUCATION } from '../src/edition.js';
 import { DEFAULT_LABELS, storedWorkflow, leadsIndex, cleanWorkflow } from '../src/model.js';
 
 export const TEAM = 't1';
@@ -270,9 +271,9 @@ export const writeScenarios = [
   ['…only in their own name', 'mem1', TEAM, [set('requests/ask-admin1', { by: 'admin1', byName: 'A', at: 1, note: '' })], 'deny'],
   ['a non-member cannot ask', 'evil', TEAM, [set('requests/ask-evil', { by: 'evil', byName: 'E', at: 1, note: '' })], 'deny'],
   // Free Pro Education with a verified university email
-  ['a university-email owner turns on Pro Education', 'ownerUni', TEAM, [claim('owner', [TEAM]), upd('team', eduPlan('owner'))], 'allow'],
+  ['a university-email owner turns on Pro Education' + (EDUCATION ? '' : ' (not in Penteint Projects)'), 'ownerUni', TEAM, [claim('owner', [TEAM]), upd('team', eduPlan('owner'))], EDUCATION ? 'allow' : 'deny'],
   ['…only with this team in their claims for the year', 'ownerUni', TEAM, [upd('team', eduPlan('owner'))], 'deny'],
-  ['…on several teams a year (no small quota)', 'ownerUni', TEAM, [claim('owner', ['x', 'y', 'z', TEAM]), upd('team', eduPlan('owner'))], 'allow'],
+  ['…on several teams a year (no small quota)', 'ownerUni', TEAM, [claim('owner', ['x', 'y', 'z', TEAM]), upd('team', eduPlan('owner'))], EDUCATION ? 'allow' : 'deny'],
   ['…up to the fair-use cap of 25 teams a year', 'ownerUni', TEAM, [claim('owner', [...Array.from({ length: 25 }, (_, i) => 'x' + i), TEAM]), upd('team', eduPlan('owner'))], 'deny'],
   ['…claims are for this year only', 'ownerUni', TEAM, [claim('owner', [TEAM], YEAR - 1), upd('team', eduPlan('owner'))], 'deny'],
   ['an admin sets the team’s workflow', 'admin1', TEAM, [{ type: 'update', path: 'team', data: { workflow: { stages: [{ id: 'design', name: 'Design', kind: 'todo', color: '#63b3ed', limit: 0 }, { id: 'done', name: 'Done', kind: 'done', color: '#68d391', limit: 0 }] } } }], 'allow'],

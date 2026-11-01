@@ -70,7 +70,7 @@ export function people(pane, kit) {
         el('td', {}, suggestions(l, load, s, kit).map(sg => (sg.uid !== l.personId && TT.canEditOwner && TT.canEditOwner(l.personId) && TT.canEditOwner(sg.uid))
           ? el('button.sugg.sugg-give', { type: 'button', title: 'Give this task to ' + sg.name + (sg.cap ? ' (' + hrs(sg.free) + ' free that week)' : ''), onclick: () => { if (window.boardAssignTask && window.boardAssignTask(l.taskId, sg.uid)) kit.render(); } }, '→ ' + sg.name + (sg.cap ? ' · ' + hrs(sg.free) + ' free' : ''))
           : el('span.sugg' + (sg.uid === l.personId ? '.current' : ''), { title: sg.uid === l.personId ? 'Has it now' : (sg.cap ? hrs(sg.free) + ' free that week' : 'hours not set') }, sg.name + (sg.cap ? ' · ' + hrs(sg.free) + ' free' : ''))).concat(suggestions(l, load, s, kit).length ? [] : [el('span.hint', {}, 'Nobody lists this skill yet')]))))))
-      : el('p.hint', {}, 'Set “Needs skill” in a task’s editor (e.g. CAD, ROS, soldering) and Trawpie suggests who has the skill and the free hours.')));
+      : el('p.hint', {}, 'Set “Needs skill” in a task’s editor (e.g. CAD, ROS, soldering) and Penteint Projects suggests who has the skill and the free hours.')));
   // Profiles
   const uid = R.filters.peopleUid; const p = TT.profileOf(uid); const mayEdit = TT.canEditProfile(uid);
   const pick = el('select', { id: 'pp-person', 'aria-label': 'Person', onchange: (e) => { R.filters.peopleUid = e.target.value; kit.render(); } }, members.map(m => el('option', { value: m.uid, selected: m.uid === uid }, (m.uid === kit.me().uid ? 'Me — ' : '') + (m.name || m.email))));

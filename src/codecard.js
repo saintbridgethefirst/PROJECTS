@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  Waiting for a code from an email (Settings ▸ Plan ▸ your university email).
 //
-//  A glass card with the Trawpie mark, a light running round its five points
+//  A glass card with the Penteint Projects mark, a light running round its five points
 //  while the email is on its way, and a box for each digit. Typing the last
 //  digit checks the code: five of the digits fly to the mark's five points and
 //  the sixth to its middle, the edges draw between them and the light runs round

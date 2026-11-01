@@ -1,4 +1,6 @@
-# Backups of the live database (uni-teamtrack).
+# Backups of the live database (Penteint Projects' own Firebase project, never Trawpie's uni-teamtrack).
+# The daily check is off until the project and its FIREBASE_SERVICE_ACCOUNT secret exist: then remove
+# the '#' from the two schedule lines below.
 #
 #  • Every morning: checks that yesterday's automatic backup exists. If not, this run fails and
 #    GitHub emails you.
@@ -15,8 +17,8 @@
 name: Backups
 
 on:
-  schedule:
-    - cron: '30 6 * * *'   # 06:30 UTC every day
+  # schedule:
+  #   - cron: '30 6 * * *'   # 06:30 UTC every day
   workflow_dispatch:
     inputs:
       action:
@@ -42,7 +44,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PROJECT: uni-teamtrack
+  PROJECT: penteint-projects   # the Firebase project id, once it is made
 
 jobs:
   backups:

@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  🧰 Tools ▸ 🎓 Dissertation: overview (countdown, phases, next milestone), chapters and
 //  word counts, the proposal helper, checklists, and supervisor meetings.
-//  Everything here is the student's own words: Trawpie lays out, checks and reminds.
+//  Everything here is the student's own words: Penteint Projects lays out, checks and reminds.
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, toast, modal } from './ui.js';
 import { cleanDissertation, newId, DISS_PROPOSAL, dissertationOf, cleanUrl, carryIndexOf } from './model.js';

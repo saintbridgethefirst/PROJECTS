@@ -4,23 +4,23 @@
   <script src="canonical.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Security · Trawpie</title>
-<meta name="description" content="How Trawpie protects your team’s data: UK hosting, database-enforced roles, daily backups, and what is still to come.">
-<link rel="canonical" href="https://trawpie.org/security.html">
+<title>Security · Penteint Projects</title>
+<meta name="description" content="How Penteint Projects protects your team’s data: UK hosting, database-enforced roles, daily backups, and what is still to come.">
+<link rel="canonical" href="https://app.penteint.com/security.html">
   <meta property="og:type" content="article">
-  <meta property="og:site_name" content="Trawpie">
-  <meta property="og:title" content="Security · Trawpie">
-  <meta property="og:description" content="How Trawpie protects your team’s data: UK hosting, database-enforced roles, daily backups, and what is still to come.">
-  <meta property="og:url" content="https://trawpie.org/security.html">
-  <meta property="og:image" content="https://trawpie.org/og-image.jpg">
+  <meta property="og:site_name" content="Penteint Projects">
+  <meta property="og:title" content="Security · Penteint Projects">
+  <meta property="og:description" content="How Penteint Projects protects your team’s data: UK hosting, database-enforced roles, daily backups, and what is still to come.">
+  <meta property="og:url" content="https://app.penteint.com/security.html">
+  <meta property="og:image" content="https://app.penteint.com/og-image.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="The Trawpie board: people by weeks, with tasks, deadlines and sign-offs">
+  <meta property="og:image:alt" content="The Penteint Projects board: people by weeks, with tasks, deadlines and sign-offs">
   <meta property="og:locale" content="en_GB">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Security · Trawpie">
-  <meta name="twitter:description" content="How Trawpie protects your team’s data: UK hosting, database-enforced roles, daily backups, and what is still to come.">
-  <meta name="twitter:image" content="https://trawpie.org/og-image.jpg">
+  <meta name="twitter:title" content="Security · Penteint Projects">
+  <meta name="twitter:description" content="How Penteint Projects protects your team’s data: UK hosting, database-enforced roles, daily backups, and what is still to come.">
+  <meta name="twitter:image" content="https://app.penteint.com/og-image.jpg">
 <style>
 :root { --bg: #f7fafc; --panel: #fff; --text: #1a202c; --muted: #4a5568; --line: #e2e8f0; --accent: #2b6cb0; }
 @media (prefers-color-scheme: dark) { :root { --bg: #0b0f19; --panel: #131722; --text: #e2e8f0; --muted: #a0aec0; --line: #2d3748; --accent: #63b3ed; } }
@@ -48,10 +48,10 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
 </head>
 <body>
 <main>
-<header><img src="icons/logo-96.png" alt="" width="36" height="36" style="border-radius:9px"><a href="/">Trawpie</a></header>
+<header><img src="icons/logo-96.png" alt="" width="36" height="36" style="border-radius:9px"><a href="/">Penteint Projects</a></header>
 <h1>Security</h1>
 <p class="updated">Last updated 23 October 2026</p>
-<p>Your team puts real information into Trawpie: who is on the team, what they are working on, schedules, suppliers and spending. This page says plainly how that information is protected, what is in place today, and what isn't yet. If you need something here for your organisation's approval, or want to report a problem, email <a href="mailto:rushivibhandik.college@gmail.com?subject=Trawpie%20security">rushivibhandik.college@gmail.com</a>.</p>
+<p>Your team puts real information into Penteint Projects: who is on the team, what they are working on, schedules, suppliers and spending. This page says plainly how that information is protected, what is in place today, and what isn't yet. If you need something here for your organisation's approval, or want to report a problem, email <a href="mailto:rushivibhandik.college@gmail.com?subject=Penteint Projects%20security">rushivibhandik.college@gmail.com</a>.</p>
 
 <div class="grid">
 <div class="box"><b>🇬🇧 Stored in London</b>Team data lives in Google Cloud Firestore in London (europe-west2), under UK GDPR.</div>
@@ -71,10 +71,10 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
 
 <h2>Signing in</h2>
 <ul class="done">
-<li>Sign-in is handled by Google Firebase Authentication. Trawpie never sees or stores passwords.</li>
+<li>Sign-in is handled by Google Firebase Authentication. Penteint Projects never sees or stores passwords.</li>
 <li>Sign in with a Google or Microsoft account, so a company using Google Workspace or Microsoft 365 can use work accounts, along with that company's own two-step sign-in and account policies.</li>
 <li>People join a team only by an invitation to their email address.</li>
-<li>Requests to the database must come from the real Trawpie app (Firebase App Check with reCAPTCHA Enterprise), which blocks scripts and bots.</li>
+<li>Requests to the database must come from the real Penteint Projects app (Firebase App Check with reCAPTCHA Enterprise), which blocks scripts and bots.</li>
 </ul>
 
 <h2>Keeping it running</h2>
@@ -91,12 +91,12 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
 <ul>
 <li><b>Google Firebase / Google Cloud</b>: sign-in, database, hosting, backups, bot protection (London for the database).</li>
 <li><b>Resend</b>: sending emails (invitations, codes, notifications). It may process the email outside the UK under its data processing terms.</li>
-<li><b>GitHub</b>, <b>Google Drive, Sheets and Calendar</b>, <b>Microsoft OneDrive</b>: only if your team connects them. Trawpie never gets access to your code.</li>
+<li><b>GitHub</b>, <b>Google Drive, Sheets and Calendar</b>, <b>Microsoft OneDrive</b>: only if your team connects them. Penteint Projects never gets access to your code.</li>
 </ul>
 <p>Full details are in the <a href="privacy.html">privacy policy</a>.</p>
 
 <h2>Not in place yet</h2>
-<p>Trawpie is young, and it is better to say so than to let you assume. These are planned, roughly in this order:</p>
+<p>Penteint Projects is young, and it is better to say so than to let you assume. These are planned, roughly in this order:</p>
 <ul class="todo">
 <li>Cyber Essentials certification (the UK government-backed security baseline).</li>
 <li>A data processing agreement you can sign, for organisations that need one.</li>
@@ -107,7 +107,7 @@ footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
 </ul>
 
 <h2>Reporting a security problem</h2>
-<p>If you think you've found a weakness, please email <a href="mailto:rushivibhandik.college@gmail.com?subject=Trawpie%20security">rushivibhandik.college@gmail.com</a> with what you found and how to see it. Please don't access other people's data or disrupt the service while checking. You'll get a reply as soon as possible, and you'll be told when it's fixed.</p>
+<p>If you think you've found a weakness, please email <a href="mailto:rushivibhandik.college@gmail.com?subject=Penteint Projects%20security">rushivibhandik.college@gmail.com</a> with what you found and how to see it. Please don't access other people's data or disrupt the service while checking. You'll get a reply as soon as possible, and you'll be told when it's fixed.</p>
 <footer id="site-footer"></footer>
 <script src="footer.js" defer></script>
 </main>

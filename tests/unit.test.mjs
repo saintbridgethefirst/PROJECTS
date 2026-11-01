@@ -214,11 +214,11 @@ test('calendar: events for deadlines and phases, valid .ics', async () => {
   assert.match(mine.find(e => e.id === 'task-a').description, /Phase: Build[\s\S]*Sub-tasks: 1 of 1 done[\s\S]*https:\/\/uni-teamtrack.web.app\/#\/t\/t1/);
   assert.equal(teamEvents(session, { scope: 'all', uid: 'u1', includePhases: false }).length, 2, 'whole team, open only, no phases');
   assert.equal(teamEvents(session, { scope: 'all', uid: 'u1', includeDone: true, includePhases: false }).length, 3, 'completed included on request');
-  const ics = buildIcs(mine, { calName: 'Trawpie – ' + session.team.name, teamId: 't1' });
+  const ics = buildIcs(mine, { calName: 'Penteint Projects – ' + session.team.name, teamId: 't1' });
   assert.ok(ics.startsWith('BEGIN:VCALENDAR\r\nVERSION:2.0\r\n') && ics.endsWith('END:VCALENDAR\r\n'));
   assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 3);
   assert.match(ics, /UID:task-a\.t1@teamtrack/); assert.match(ics, /DTSTART;VALUE=DATE:20261031\r\nDTEND;VALUE=DATE:20261101/);
-  assert.match(ics, /X-WR-CALNAME:Trawpie – Robotics\\, Group\\; "A"/, 'commas and semicolons escaped');
+  assert.match(ics, /X-WR-CALNAME:Penteint Projects – Robotics\\, Group\\; "A"/, 'commas and semicolons escaped');
   assert.ok(ics.split('\r\n').every(l => new TextEncoder().encode(l).length <= 75), 'long lines folded to 75 bytes');
   assert.equal((ics.match(/BEGIN:VALARM/g) || []).length, 3, 'reminders on the deadline and the milestone (the day before, and a week ahead), not the phase band');
   assert.equal((ics.match(/TRIGGER:-P6DT15H/g) || []).length, 1, 'only the milestone gets the week-ahead reminder');
@@ -575,10 +575,10 @@ test('rules (read): finance history only for finance roles', () => {
 });
 
 test('plans: what is in force, expiry, Pro features and member room', () => {
-  assert.equal(planOf({}).tier, 'free'); assert.equal(planOf({}).members, 30); assert.equal(planOf({}).ownTeams, 0); assert.equal(planOf({}).label, 'Free');
+  assert.equal(planOf({}).tier, 'free'); assert.equal(planOf({}).members, 30); assert.equal(planOf({}).ownTeams, 0); assert.equal(planOf({}).label, 'Starter');
   assert.equal(cleanPlan({ tier: 'gold' }).tier, 'free');
   const pro = { plan: { tier: 'pro', edu: true, until: Date.parse('2027-09-01') } };
-  assert.equal(planOf(pro, Date.parse('2027-01-01')).label, 'Pro Education'); assert.equal(planOf(pro, Date.parse('2027-01-01')).members, 100);
+  assert.equal(planOf(pro, Date.parse('2027-01-01')).label, 'Team', 'Projects edition: no “Education” label'); assert.equal(planOf(pro, Date.parse('2027-01-01')).members, 100);
   const later = planOf(pro, Date.parse('2027-10-01')); assert.equal(later.tier, 'free'); assert.ok(later.expired, 'past its end date the team is back on Free');
   assert.ok(hasPro(pro, 'approvals', Date.parse('2027-01-01')) && !hasPro(pro, 'sso', Date.parse('2027-01-01')), 'Pro has Pro features, not Organisation ones');
   assert.ok(hasPro({ plan: { tier: 'org' } }, 'sso') && !hasPro({}, 'history'));
@@ -801,7 +801,7 @@ test('share: done, in progress, due, overdue, waiting and carried, WhatsApp-form
   assert.ok(t.includes('⚠️ *Overdue* (1)\n• Wiring loom — Tom Reed (3 days late)') && !t.match(/In progress[^]*Wiring loom[^]*Due/), 'overdue shown once, not also as in progress');
   assert.ok(t.includes('(waits on Wiring loom)') && t.includes('↪ 1 task carried over'));
   assert.ok(t.includes('📈 2 of 6 tasks done (33%)') && t.includes('👉 https://x.app/#/t/T'));
-  assert.ok(t.endsWith('_Made with Trawpie · free for student teams · https://trawpie.org_'), 'ends with a small credit');
+  assert.ok(t.endsWith('_Made with Penteint Projects · https://app.penteint.com_'), 'ends with a small credit');
   assert.ok(!buildWeekShare({ team: { name: 'D', weeks: SW }, rows, today: '2026-10-21' }, { names: false }).includes('Tom Reed'), 'names can be left out');
 });
 test('share: long lists are cut; a quiet week says so; the WhatsApp link carries the text', () => {
@@ -885,14 +885,15 @@ test('translator: icons, numbers, pieces and things people typed', async () => {
   }
 });
 
-test('a new team can start Simple, as a Research team or with Everything', async () => {
+test('a new team can start Simple, as an Engineering team or with Everything', async () => {
   const { startFeatures, FEATURE_KEYS, NEW_TEAM_FEATURES, TEAM_STARTS } = await import('../src/model.js');
   assert.ok(FEATURE_KEYS.every(k => startFeatures('simple')[k] === false), 'simple: all off');
   assert.ok(FEATURE_KEYS.every(k => startFeatures('full')[k] === (k !== 'dissertation')), 'everything: all on (the dissertation workspace is its own start)');
   assert.deepEqual(Object.keys(startFeatures('dissertation')).filter(k => startFeatures('dissertation')[k]).sort(), ['dissertation', 'literature', 'meetings', 'notebook', 'planning'], 'dissertation: planning, meetings, notebook, literature and the Dissertation tab');
   assert.deepEqual(startFeatures('standard'), NEW_TEAM_FEATURES);
   assert.deepEqual(startFeatures('nonsense'), NEW_TEAM_FEATURES, 'unknown choice falls back to the usual set');
-  assert.deepEqual(TEAM_STARTS.map(s => s.key), ['simple', 'standard', 'full', 'dissertation']);
+  assert.deepEqual(TEAM_STARTS.map(s => s.key), ['simple', 'standard', 'full'], 'Projects edition: no dissertation start');
+  assert.equal(NEW_TEAM_FEATURES.literature, false, 'Projects edition: Literature is an advanced feature, off at first');
 });
 
 // ── Security: input sanitizers (XSS defences) ───────────────────────────────
@@ -971,7 +972,7 @@ test('friendly errors: our own messages and Microsoft approval blocks', async ()
   const { friendlyError } = await import('../src/ui.js');
   const e = new Error('Custom text'); e.code = 'tt/link-microsoft';
   assert.equal(friendlyError(e), 'Custom text');
-  assert.match(friendlyError(new Error('AADSTS65001: The user or administrator has not consented')), /hasn’t approved Trawpie/);
+  assert.match(friendlyError(new Error('AADSTS65001: The user or administrator has not consented')), /hasn’t approved Penteint Projects/);
   assert.match(friendlyError(Object.assign(new Error('x'), { errorCode: 'consent_required' })), /share link/);
 });
 
@@ -985,7 +986,7 @@ test('friendly errors: Microsoft AADSTS codes explain the setup problem', async 
   assert.equal(friendlyError(Object.assign(new Error('x'), { code: 'auth/invalid-credential' })), 'Email or password is incorrect.', 'password errors unchanged');
 });
 
-test('Microsoft publisher domain: trawpie.org serves the app association file', async () => {
+test('Microsoft publisher domain: app.penteint.com serves the app association file', async () => {
   const fs = await import('node:fs');
   const assoc = JSON.parse(fs.readFileSync(new URL('../public/microsoft-identity-association.json', import.meta.url)));
   assert.match(assoc.associatedApplications[0].applicationId, /^[0-9a-f-]{36}$/);
@@ -1000,13 +1001,13 @@ test('SEO: the demo page gets its own title, description and canonical; the home
   const fs = await import('node:fs');
   const { demoHtml } = await import('../vite.config.js');
   const home = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(home, /<title>Trawpie: project tracker for engineering and research teams<\/title>/);
-  assert.match(home, /<link rel="canonical" href="https:\/\/trawpie\.org\/">/);
+  assert.match(home, /<title>Penteint Projects: project management for hardware engineering teams<\/title>/);
+  assert.match(home, /<link rel="canonical" href="https:\/\/app\.penteint\.com\/">/);
   const demo = demoHtml(home);
-  assert.match(demo, /<title>Trawpie live demo: try it with a sample team<\/title>/);
-  assert.match(demo, /<link rel="canonical" href="https:\/\/trawpie\.org\/demo">/);
-  assert.match(demo, /<meta property="og:url" content="https:\/\/trawpie\.org\/demo">/);
-  assert.doesNotMatch(demo, /href="https:\/\/trawpie\.org\/">/, 'no home canonical left in the demo page');
+  assert.match(demo, /<title>Penteint Projects live demo: try it with a sample team<\/title>/);
+  assert.match(demo, /<link rel="canonical" href="https:\/\/app\.penteint\.com\/demo">/);
+  assert.match(demo, /<meta property="og:url" content="https:\/\/app\.penteint\.com\/demo">/);
+  assert.doesNotMatch(demo, /href="https:\/\/app\.penteint\.com\/">/, 'no home canonical left in the demo page');
   const fb = JSON.parse(fs.readFileSync(new URL('../firebase.json', import.meta.url)));
   const rw = (Array.isArray(fb.hosting) ? fb.hosting[0] : fb.hosting).rewrites;
   assert.ok(rw.findIndex(r => r.source === '/demo' && r.destination === '/demo.html') < rw.findIndex(r => r.destination === '/index.html'), '/demo served from demo.html');
@@ -1016,40 +1017,6 @@ test('SEO: the demo page gets its own title, description and canonical; the home
   assert.equal((sm.match(/<url>/g) || []).length, (sm.match(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/g) || []).length, 'every sitemap URL has a lastmod');
 });
 
-test('SEO: the dissertation Gantt chart template page, its download and its links', async () => {
-  const fs = await import('node:fs');
-  const read = (p) => fs.readFileSync(new URL('../' + p, import.meta.url), 'utf8');
-  const page = read('public/templates/dissertation-gantt-chart.html');
-  assert.match(page, /<link rel="canonical" href="https:\/\/trawpie\.org\/templates\/dissertation-gantt-chart">/);
-  assert.match(page, /<h1>Dissertation Gantt chart template<\/h1>/);
-  assert.ok(fs.statSync(new URL('../public/templates/dissertation-gantt-chart.xlsx', import.meta.url)).size > 20000, 'the spreadsheet is there');
-  const ld = JSON.parse(page.match(/<script type="application\/ld\+json">([^<]+)<\/script>/)[1]);
-  assert.ok(ld['@graph'].some(x => x['@type'] === 'BreadcrumbList') && ld['@graph'].some(x => x['@type'] === 'DigitalDocument'));
-  const fb = JSON.parse(read('firebase.json'));
-  const rw = (Array.isArray(fb.hosting) ? fb.hosting[0] : fb.hosting).rewrites;
-  assert.ok(rw.findIndex(r => r.source === '/templates/dissertation-gantt-chart' && r.destination === '/templates/dissertation-gantt-chart.html') < rw.findIndex(r => r.destination === '/index.html'));
-  assert.match(read('public/sitemap.xml'), /<loc>https:\/\/trawpie\.org\/templates\/dissertation-gantt-chart<\/loc>/);
-  ['public/dissertation.html', 'public/blog/gantt-chart-for-a-dissertation-or-final-year-project.html', 'index.html'].forEach(p => assert.match(read(p), /href="\/templates\/dissertation-gantt-chart"/, p + ' links to it'));
-});
-
-test('blog: every post is listed, in the sitemap, and its images exist', async () => {
-  const fs = await import('node:fs');
-  const read = (p) => fs.readFileSync(new URL('../' + p, import.meta.url), 'utf8');
-  const index = read('public/blog/index.html'), sitemap = read('public/sitemap.xml');
-  const posts = fs.readdirSync(new URL('../public/blog/', import.meta.url)).filter(f => f.endsWith('.html') && f !== 'index.html');
-  assert.ok(posts.includes('how-to-plan-a-dissertation.html'));
-  posts.forEach(f => {
-    assert.ok(index.includes('href="/blog/' + f + '"'), f + ' is on the blog page');
-    assert.ok(sitemap.includes('<loc>https://trawpie.org/blog/' + f + '</loc>'), f + ' is in the sitemap');
-    const html = read('public/blog/' + f);
-    assert.match(html, new RegExp('<link rel="canonical" href="https://trawpie\\.org/blog/' + f.replace(/\./g, '\\.') + '">'), f + ' canonical');
-    (html.match(/<img src="\/[^"]+"/g) || []).forEach(m => { const src = m.slice(10, -1); assert.ok(fs.existsSync(new URL('../public' + src, import.meta.url)), f + ': ' + src); });
-    const og = (html.match(/<meta property="og:image" content="https:\/\/trawpie\.org(\/[^"]+)">/) || [])[1];
-    assert.ok(og && fs.existsSync(new URL('../public' + og, import.meta.url)), f + ': share image ' + og);
-    JSON.parse(html.match(/<script type="application\/ld\+json">([^<]+)<\/script>/)[1]);
-  });
-});
-
 test('guide: who it’s for, and the dissertation section, are on the page and in its contents', async () => {
   const fs = await import('node:fs');
   const g = fs.readFileSync(new URL('../public/guide.html', import.meta.url), 'utf8');
@@ -1057,21 +1024,6 @@ test('guide: who it’s for, and the dissertation section, are on the page and i
   assert.match(g, /Universities and research[\s\S]*Teams and organisations/);
   assert.match(g, /<article class="fc" data-g="study">/, 'a Dissertation card in the toolbox');
   assert.doesNotMatch(g.split('id="feat-cards"')[0], /class="fc"/, 'the toolbox search only filters its own cards');
-});
-
-test('SEO: the Formula Student page is served, listed and linked', async () => {
-  const fs = await import('node:fs');
-  const read = (p) => fs.readFileSync(new URL('../' + p, import.meta.url), 'utf8');
-  const page = read('public/formula-student.html');
-  assert.match(page, /<link rel="canonical" href="https:\/\/trawpie\.org\/formula-student">/);
-  assert.match(page, /href="\/demo\?team=formula"/, 'it opens the Formula Student demo team');
-  page.match(/<img src="([^"]+)"/g).forEach(m => { const src = m.slice(10, -1); assert.ok(fs.existsSync(new URL('../public' + src, import.meta.url)), src); });
-  JSON.parse(page.match(/<script type="application\/ld\+json">([^<]+)<\/script>/)[1]);
-  const fb = JSON.parse(read('firebase.json'));
-  const rw = (Array.isArray(fb.hosting) ? fb.hosting[0] : fb.hosting).rewrites;
-  assert.ok(rw.findIndex(r => r.source === '/formula-student' && r.destination === '/formula-student.html') < rw.findIndex(r => r.destination === '/index.html'));
-  assert.match(read('public/sitemap.xml'), /<loc>https:\/\/trawpie\.org\/formula-student<\/loc>/);
-  ['index.html', 'public/blog/how-to-run-a-formula-student-season.html'].forEach(p => assert.match(read(p), /href="\/formula-student"/, p + ' links to it'));
 });
 
 test('index.html: the landing footer stays right after the landing page (its CSS uses the + selector)', async () => {
@@ -1266,4 +1218,17 @@ test('hosting: pages are always checked with the server, and a missing file is a
   assert.match(cc('/assets/**').value, /immutable/);
   const fallback = h.rewrites.find(r => r.destination === '/index.html');
   assert.equal(fallback.source, '**/!(*.*)', 'only paths without a file extension fall back to the app');
+});
+
+test('edition: Penteint Projects turns the education parts off, in the app and in firestore.rules alike', async () => {
+  const fs = await import('node:fs');
+  const { EDUCATION, EDITION } = await import('../src/edition.js');
+  const { FEATURES, FEATURE_KEYS, cleanFeatures } = await import('../src/model.js');
+  assert.equal(EDITION, 'projects'); assert.equal(EDUCATION, false);
+  const rules = fs.readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8');
+  assert.match(rules, new RegExp('function education\\(\\) \\{ return ' + EDUCATION + '; \\}'), 'firestore.rules education() matches src/edition.js');
+  assert.ok(!FEATURES.some(f => f.key === 'dissertation'), 'no Dissertation feature on offer');
+  assert.ok(FEATURE_KEYS.includes('dissertation') && cleanFeatures({ dissertation: true }).dissertation === true, 'a stored switch is still kept, not lost');
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(html, /Trawpie|trawpie\.org|Dissertation or thesis/, 'no Trawpie or student-only wording on the page');
 });

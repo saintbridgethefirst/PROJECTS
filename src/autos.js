@@ -25,7 +25,7 @@ function carryOps(ctx, a) {
   let curIdx = -1; dated.forEach((w, i) => { if (w.startDate <= today) curIdx = i; });
   if (curIdx < 0) return { ops: [], n: 0, title: '' };   // every week is still in the future
   const ops = []; let targetKey = dated[curIdx].key, targetStart = dated[curIdx].startDate, targetTitle = dated[curIdx].title;
-  // The latest dated week has ended and the team lets Trawpie add weeks: catch up to this week.
+  // The latest dated week has ended and the team lets Penteint Projects add weeks: catch up to this week.
   if (a.carryMakeWeeks && curIdx === dated.length - 1 && addDaysISO(targetStart, 7) <= today && can(s.team, s.me, 'weeks.manage')) {
     const add = []; let start = targetStart; let guard = 0;
     while (addDaysISO(start, 7) <= today && guard++ < 60) {

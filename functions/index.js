@@ -1,10 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  Trawpie Cloud Functions (Blaze plan). Deploy from the project folder:
+//  Penteint Projects Cloud Functions (Blaze plan). Deploy from the project folder:
 //    cd functions && npm install && cd .. && firebase deploy --only functions
 //  First deploy asks for:
 //    RESEND_API_KEY — a SENDING-ONLY key from resend.com (paste it in the terminal, never in chat)
-//    MAIL_FROM      — e.g.  Trawpie <notifications@mail.trawpie.org>
-//    APP_URL        — e.g.  https://trawpie.org
+//    MAIL_FROM      — e.g.  Penteint Projects <notifications@mail.penteint.com>
+//    APP_URL        — e.g.  https://app.penteint.com
 //  REGION must be your Firestore location's region (Firestore ▸ Settings), e.g. europe-west2 for London.
 // ─────────────────────────────────────────────────────────────────────────────
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
@@ -26,9 +26,9 @@ import { normEmail, isAcademicEmail, newCode, hashCode, emailKey, checkSend, che
 initializeApp();
 const db = getFirestore();
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
-const MAIL_FROM = defineString('MAIL_FROM', { default: 'Trawpie <notifications@mail.trawpie.org>' });
-const APP_NAME = defineString('APP_NAME', { default: 'Trawpie' });
-const APP_URL = defineString('APP_URL', { default: 'https://trawpie.org' });
+const MAIL_FROM = defineString('MAIL_FROM', { default: 'Penteint Projects <notifications@mail.penteint.com>' });
+const APP_NAME = defineString('APP_NAME', { default: 'Penteint Projects' });
+const APP_URL = defineString('APP_URL', { default: 'https://app.penteint.com' });
 const REGION = 'europe-west2';
 
 /** Send one email through Resend. idem = idempotency key, so a retried function never sends twice.
@@ -68,7 +68,7 @@ async function serverFault(name, e) {
 // Every call is counted, with or without a valid App Check token from the real site, so a platform admin
 // can see in Settings ▸ Plan ▸ Platform admin that the tokens work, and then switch on refusing calls
 // without one (scripts, copies of the site). Off until then: while the site's reCAPTCHA key didn't cover
-// trawpie.org, enforcing App Check on the database stopped sign-in (26 Oct).
+// app.penteint.com, enforcing App Check on the database stopped sign-in (26 Oct).
 let appCheckCache = { at: 0, on: false };
 async function appCheckEnforced() {
   if (Date.now() - appCheckCache.at < 60e3) return appCheckCache.on;
@@ -79,7 +79,7 @@ async function appCheckEnforced() {
 async function checkApp(name, req) {
   const ok = !!(req && req.app);
   db.doc('appCheckStats/' + new Date().toISOString().slice(0, 10)).set({ [ok ? 'verified' : 'unverified']: FieldValue.increment(1), at: Date.now() }, { merge: true }).catch(() => {});
-  if (!ok && name !== 'appCheckAdmin' && await appCheckEnforced()) throw new HttpsError('failed-precondition', 'Trawpie couldn’t confirm this request came from its own website (App Check). Reload the page and try again.');
+  if (!ok && name !== 'appCheckAdmin' && await appCheckEnforced()) throw new HttpsError('failed-precondition', 'Penteint Projects couldn’t confirm this request came from its own website (App Check). Reload the page and try again.');
 }
 async function explain(name, req, fn) {
   try { await checkApp(name, req); return await fn(); }
@@ -351,7 +351,7 @@ export const appCheckAdmin = onCall({ region: REGION, invoker: 'public', maxInst
 }));
 /** GitHub calls this for every issue and pull-request event in a connected repository. */
 export const githubWebhook = onRequest({ region: REGION, invoker: 'public', maxInstances: 2, timeoutSeconds: 30, cors: false }, async (req, res) => {
-  if (req.method === 'GET') { res.status(200).send('Trawpie GitHub webhook is running (send events with POST)'); return; }   // for uptime checks
+  if (req.method === 'GET') { res.status(200).send('Penteint Projects GitHub webhook is running (send events with POST)'); return; }   // for uptime checks
   if (req.method !== 'POST') { res.status(405).send('POST only'); return; }
   try {
     const r = await handleWebhook(db, { teamId: req.query.team, kind: req.get('X-GitHub-Event') || '', signature: req.get('X-Hub-Signature-256') || '', rawBody: req.rawBody, delivery: req.get('X-GitHub-Delivery') || '' });

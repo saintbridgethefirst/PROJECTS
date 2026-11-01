@@ -1,4 +1,5 @@
 import { isAcademicEmail, EDU_TEAMS_PER_YEAR } from './model.js';
+import { EDUCATION } from './edition.js';
 // ─────────────────────────────────────────────────────────────────────────────
 //  JavaScript copy of firestore.rules, used by the DEMO backend so that demo
 //  mode enforces exactly the permissions production does. Keep in step with
@@ -286,7 +287,7 @@ export function checkWrite(pre, post, auth, teamId, op) {
           // Verified university email: free Pro Education, up to 400 days at a time, never over an Organisation plan.
           const now = Date.now(), p = after.plan;
           const claim = post.root && post.root.eduClaims && post.root.eduClaims[auth.uid];
-          if (academicOf(pre, auth) && roleId === 'owner' && validPlan(p) && p.tier === 'pro' && p.edu === true && p.by === auth.uid &&
+          if (EDUCATION && academicOf(pre, auth) && roleId === 'owner' && validPlan(p) && p.tier === 'pro' && p.edu === true && p.by === auth.uid &&
             p.until > now && p.until <= now + 400 * 864e5 && ((before.plan || {}).tier || 'free') !== 'org' &&
             claim && claim.year === new Date().getUTCFullYear() && claim.teams.includes(teamId)) return;
           deny('plan');

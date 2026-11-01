@@ -68,7 +68,7 @@ test('invitation emails: new or re-sent only, escaped', () => {
   assert.ok(!inviteChanged({ email: 'a@x', createdAt: 1 }, { email: 'a@x', createdAt: 1, emailedAt: 5 }), 'recording delivery does not send again');
   assert.ok(!inviteChanged({ email: 'a@x', createdAt: 1 }, undefined), 'revoked: nothing to send');
   const m = inviteEmail({ appUrl: 'https://x.app', inviter: 'Aisha <i>', teamName: 'UAS', roleName: 'Member', email: 'tom@bristol.ac.uk' });
-  assert.equal(m.subject, 'Aisha <i> invited you to UAS on Trawpie');
+  assert.equal(m.subject, 'Aisha <i> invited you to UAS on Penteint Projects');
   assert.ok(m.html.includes('Aisha &lt;i&gt;') && m.text.includes('tom@bristol.ac.uk') && m.html.includes('https://x.app'));
 });
 

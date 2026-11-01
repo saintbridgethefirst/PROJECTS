@@ -1,7 +1,7 @@
 {
-  "name": "teamtrack",
+  "name": "penteint-projects",
   "version": "1.0.0",
-  "description": "Team progress tracker: accounts, teams, roles, deadlines, analytics, AI summaries, Drive/OneDrive/Sheets.",
+  "description": "Penteint Projects: project management for hardware engineering teams (industry edition of Trawpie).",
   "scripts": {
     "dev": "npm run build:board && vite",
     "build:board": "node tools/build-board.mjs && node tools/check-board.mjs",

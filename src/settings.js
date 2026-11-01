@@ -15,6 +15,7 @@ import { askToLeave, cancelLeave, leaveOf } from './requests.js';
 import { timeAgo } from './collab.js';
 
 import { auditPane, stopAuditWatch } from './audit-ui.js';
+import { EDUCATION } from './edition.js';
 const TABS = [
   ['general', 'General'], ['members', 'Members'], ['roles', 'Roles & permissions'],
   ['plan', 'Plan'], ['features', 'Features'], ['workflow', 'Workflow'], ['subteams', 'Sub-teams'], ['phases', 'Phases'], ['templates', 'Templates'], ['fields', 'Fields'], ['integrations', 'Integrations'], ['audit', 'Audit trail'], ['danger', 'Delete team'],
@@ -81,8 +82,8 @@ function features(pane, ctx, { rerender } = {}) {
     el('section', {}, el('h4', {}, 'Always on'), el('p.hint', {}, 'Board and Kanban, phases, comments and @mentions, My tasks, search, templates, repeating tasks, analytics and the progress report.')),
     el('section', {}, el('h4', {}, 'Standard'), el('div.feature-list', {}, FEATURES.filter(f => f.group === 'standard').map(card))),
     el('section', {}, el('h4', {}, 'Advanced'), el('p.hint', {}, 'For bigger projects, labs and engineering teams.'), el('div.feature-list', {}, FEATURES.filter(f => f.group === 'advanced').map(card))),
-    el('section', {}, el('h4', {}, 'Study'), el('p.hint', {}, 'For a dissertation, final-year project or thesis.'), el('div.feature-list', {}, FEATURES.filter(f => f.group === 'study').map(card))),
-    el('section', {}, el('h4', {}, 'Pro and Organisation'), el('p.hint', {}, 'Paid features, being built now. Pilot teams get them free while they are in development — see Settings ▸ Plan.'),
+    !FEATURES.some(f => f.group === 'study') ? '' : el('section', {}, el('h4', {}, 'Study'), el('p.hint', {}, 'For a dissertation, final-year project or thesis.'), el('div.feature-list', {}, FEATURES.filter(f => f.group === 'study').map(card))),
+    el('section', {}, el('h4', {}, PLANS.pro.name + ' and ' + PLANS.org.name), el('p.hint', {}, 'Paid features, being built now. Pilot teams get them free while they are in development — see Settings ▸ Plan.'),
       el('div.feature-list.pro-list', {}, PRO_FEATURES.map(f => el('div.feature-card.pro-card', { dataset: { pro: f.key } },
         el('span.feature-icon', { 'aria-hidden': 'true' }, f.icon), el('span.feature-text', {}, el('b', {}, f.name), el('span.hint', {}, f.help)),
         el('span.pro-badge' + (hasPro(T, f.key) && f.status === 'live' ? '.on' : ''), {}, hasPro(T, f.key) ? (f.status === 'live' ? 'Included' : 'Coming soon') : (f.tier === 'org' ? 'Organisation' : 'Pro') + (f.status === 'live' ? '' : ' · soon')))))),
@@ -107,34 +108,34 @@ function plan(pane, ctx, { invites, rerender } = {}) {
     return el('div.plan-card' + (on ? '.on' : ''), { dataset: { tier: key } }, el('div.plan-card-head', {}, el('b', {}, t.name), on ? el('span.pro-badge.on', {}, 'Your plan') : ''),
       el('div.plan-price', {}, t.price), el('ul', {}, items.map(x => el('li', {}, x)))); };
   pane.append(el('section', {}, el('h4', {}, 'Compare plans'), el('div.plan-cards', {},
-    tierCard('free', ['Everything Trawpie does today', 'Up to ' + PLANS.free.members + ' members a team', 'As many teams as you need', 'Finance history for ' + PLANS.free.financeHistoryDays + ' days']),
-    tierCard('pro', ['Everything in Free', 'Up to ' + PLANS.pro.members + ' members', ...PRO_FEATURES.filter(f => f.tier === 'pro').map(f => f.name + (f.status === 'live' ? '' : ' (soon)')), 'Pro Education: free for students and staff with a university email']),
-    tierCard('org', ['Everything in Pro', ...PRO_FEATURES.filter(f => f.tier === 'org').map(f => f.name + (f.status === 'live' ? '' : ' (soon)')), 'Priority support and an uptime commitment']))));
+    tierCard('free', ['Everything Penteint Projects does today', 'Server-written audit trail', 'Up to ' + PLANS.free.members + ' members a team', 'As many teams as you need', 'Finance history for ' + PLANS.free.financeHistoryDays + ' days']),
+    tierCard('pro', ['Everything in ' + PLANS.free.name, 'Up to ' + PLANS.pro.members + ' members', ...PRO_FEATURES.filter(f => f.tier === 'pro').map(f => f.name + (f.status === 'live' ? '' : ' (soon)')), ...(EDUCATION ? ['Pro Education: free for students and staff with a university email'] : [])]),
+    tierCard('org', ['Everything in ' + PLANS.pro.name, ...PRO_FEATURES.filter(f => f.tier === 'org').map(f => f.name + (f.status === 'live' ? '' : ' (soon)')), 'Priority support and an uptime commitment']))));
   // Ask for Pro (pilot: no payment yet)
   const req = TT.proRequest;
   // Pro Education is only by a checked university email (above), never by request.
-  const WANTS = { pro: 'Pro (lab, start-up or company team)', org: 'Organisation (department or company)' };
+  const WANTS = { pro: PLANS.pro.name + ' (a project team)', org: PLANS.org.name + ' (a department or company)' };
   // Members ask the Owner and Admins; Owner and Admins see who asked.
   const asks = TT.planAsks;
-  if (settings && asks.length && P.tier === 'free') pane.append(el('section.plan-asks', {}, el('h4', {}, '🙋 Asked for Pro'),
+  if (settings && asks.length && P.tier === 'free') pane.append(el('section.plan-asks', {}, el('h4', {}, '🙋 Asked for ' + PLANS.pro.name),
     ...asks.map(a => el('div.adm-req', {}, el('b', {}, TT.who(a.by, a.byName, 'A member')), el('span.hint', {}, ' asked on ' + fmtDay(a.at) + (a.note ? ': “' + a.note + '”' : '')), ' ',
       el('button.btn.small.ghost', { type: 'button', onclick: async () => { if (await TT.dismissAsk(a.by)) rerender && rerender(); } }, 'Dismiss')))));
   if (!settings && P.tier === 'free') {
     const mine = asks.find(a => a.by === ctx.user.uid);
     const owners = s.members.filter(m => ['owner', 'admin'].includes(m.roleId)).map(m => m.name || m.email);
     const note = el('input.inp', { id: 'plan-ask-note', maxlength: 300, placeholder: 'Why the team needs it (optional)' });
-    pane.append(el('section.plan-member', {}, el('h4', {}, 'Want Pro for this team?'),
-      el('p.hint', {}, 'Only the team’s owner and admins can change the plan (' + owners.join(', ') + '). An owner with a university email can switch on Pro Education free.'),
+    pane.append(el('section.plan-member', {}, el('h4', {}, 'Want ' + PLANS.pro.name + ' for this team?'),
+      el('p.hint', {}, 'Only the team’s owner and admins can change the plan (' + owners.join(', ') + ').' + (EDUCATION ? ' An owner with a university email can switch on Pro Education free.' : '')),
       mine ? el('p', { id: 'plan-asked' }, '🙋 You asked on ' + fmtDay(mine.at) + '. ', el('button.link-btn', { type: 'button', onclick: async () => { if (await TT.dismissAsk(ctx.user.uid)) rerender && rerender(); } }, 'Withdraw'))
         : el('div.row', { style: { gap: '8px', flexWrap: 'wrap' } }, note, el('button.btn', { type: 'button', id: 'plan-ask-admins', onclick: async () => { if (await TT.askForPro(note.value)) { toast('Asked the owner and admins.'); rerender && rerender(); } } }, 'Ask them'))));
   }
   // Students and staff: a verified university email turns on free Pro Education straight away.
   const eduSoon = P.tier === 'pro' && P.edu && P.until && P.until - Date.now() < 30 * 864e5;
-  if ((P.tier === 'free' || eduSoon) && settings && s.me.roleId !== 'owner') {
+  if (EDUCATION && (P.tier === 'free' || eduSoon) && settings && s.me.roleId !== 'owner') {
     pane.append(el('section.plan-edu', {}, el('h4', {}, '🎓 Free for students and university staff'),
       el('p.hint', { id: 'plan-edu-owner' }, 'Pro Education is switched on by the team’s owner, with their university email. It stays with them: if the team is handed to someone else, it goes back to Free until the new owner turns it on.')));
   }
-  if ((P.tier === 'free' || eduSoon) && settings && s.me.roleId === 'owner') {
+  if (EDUCATION && (P.tier === 'free' || eduSoon) && settings && s.me.roleId === 'owner') {
     const claim = TT.eduClaim; const thisTeam = claim.teams.includes(s.teamId); const left = claim.limit - claim.teams.length;
     const sec = el('section.plan-edu', {}, el('h4', {}, '🎓 Free for students and university staff'));
     if (TT.academic) {
@@ -170,7 +171,7 @@ function plan(pane, ctx, { invites, rerender } = {}) {
     pane.append(sec);
   }
   if ((P.tier === 'free' && settings) || req) {
-    const box = el('section.plan-ask', {}, el('h4', {}, 'Get Pro'));
+    const box = el('section.plan-ask', {}, el('h4', {}, 'Get ' + PLANS.pro.name));
     if (req && req.status === 'open') box.append(el('p', { id: 'plan-request-state' }, '📨 Request sent on ' + fmtDay(req.at) + ' for ' + (WANTS[req.wants] || req.wants) + '. You’ll hear back by email.'), settings ? el('button.btn.small.ghost', { type: 'button', onclick: async () => { if (await TT.withdrawProRequest()) { toast('Request withdrawn.'); rerender && rerender(); } } }, 'Withdraw request') : '');
     else if (req && req.status === 'approved') box.append(el('p', { id: 'plan-request-state' }, '✅ Your request was approved.'));
     else if (req && req.status === 'declined') box.append(el('p', { id: 'plan-request-state' }, 'Your last request was not approved this time. You can ask again with more detail.'));
@@ -274,7 +275,7 @@ function adminPlans(ctx, rerender) {
         const ok = await TT.setTeamPlan(s.teamId, { tier: tier.value, edu: edu.checked, until: until.value ? new Date(until.value + 'T23:59:59').getTime() : 0, note: note.value });
         if (ok) { toast('Plan set to ' + tier.options[tier.selectedIndex].text + (edu.checked && tier.value !== 'free' ? ' Education' : '') + '.'); setTimeout(() => rerender && rerender(), 300); }
       } }, 'Set plan')),
-    el('h4', {}, '📈 Teams using Trawpie'), statsBox,
+    el('h4', {}, '📈 Teams using Penteint Projects'), statsBox,
     el('h4', {}, '🔒 App Check on server calls'), appCheckBox(ctx),
     el('h4', {}, 'Pro requests from all teams'), list,
     el('h4', {}, 'Teams on Pro Education'), eduList,
@@ -297,7 +298,7 @@ function adminPlans(ctx, rerender) {
   const unsubFb = TT.watchFeedback((rows) => {
     if (!sec.isConnected) { unsubFb && unsubFb(); return; }
     fbList.replaceChildren(...(rows.length ? rows.slice(0, 30).map(f => el('div.adm-fb', {},
-      el('div', {}, KINDS[f.kind] || '💬', ' ', el('b', {}, f.name || f.email || 'Someone'), el('span.hint', {}, ' · ' + fmtDay(f.at) + (f.email ? ' · ' : '')), f.email ? el('a', { href: 'mailto:' + f.email + '?subject=' + encodeURIComponent('Re: your Trawpie feedback') }, 'Reply') : ''),
+      el('div', {}, KINDS[f.kind] || '💬', ' ', el('b', {}, f.name || f.email || 'Someone'), el('span.hint', {}, ' · ' + fmtDay(f.at) + (f.email ? ' · ' : '')), f.email ? el('a', { href: 'mailto:' + f.email + '?subject=' + encodeURIComponent('Re: your Penteint Projects feedback') }, 'Reply') : ''),
       el('p', {}, f.text), (f.errors || []).length ? el('div.hint', {}, 'Errors: ' + f.errors.join(' · ')) : '')) : [el('p.hint', {}, 'No feedback yet.')]));
   }, (e) => { fbList.replaceChildren(el('p.hint', {}, 'Could not load: ' + (e.message || e))); });
   const unsubErr = TT.watchClientErrors((rows) => {
@@ -430,7 +431,7 @@ function autosSection(ctx, stages, { rerender } = {}) {
   const parts = el('select', { id: 'auto-parts-to', disabled: !editable || !targets.length, 'aria-label': 'Stage to move to', onchange: (e) => { if ((document.getElementById('auto-parts') || {}).checked) v.partsTo = e.target.value; touch(); } },
     targets.map(x => el('option', { value: x.id, selected: (a.partsTo || 'build') === x.id }, x.name)));
   return el('section.wf-extra', { id: 'auto-settings' }, el('h4', {}, 'Automatic steps'),
-    el('p.hint', {}, 'Small jobs Trawpie does for you. Each one is done by the app of someone who can make that change, and shows in the task’s history.'),
+    el('p.hint', {}, 'Small jobs Penteint Projects does for you. Each one is done by the app of someone who can make that change, and shows in the task’s history.'),
     el('div.set-card', {},
       el('div.set-row', {},
         el('div.set-text', {}, el('div.set-name', {}, el('label', { for: 'auto-parts' }, 'When all the parts a task needs are received, move it to'), parts),

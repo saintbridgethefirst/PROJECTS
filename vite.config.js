@@ -6,9 +6,9 @@ import { resolve } from 'node:path';
 // description and canonical in the HTML itself, so search engines see it as a separate page
 // rather than a copy of the home page. Everything else is the same app.
 const DEMO = {
-  title: 'Trawpie live demo: try it with a sample team',
-  description: 'Try Trawpie in your browser with no sign-up: a student drone team, an engineering company, a satellite mission or a Formula Student team, with a 2-minute guided tour.',
-  url: 'https://trawpie.org/demo',
+  title: 'Penteint Projects live demo: try it with a sample team',
+  description: 'Try Penteint Projects in your browser with no sign-up: an engineering company, a satellite mission, a drone team or a race car team, with a 2-minute guided tour.',
+  url: 'https://app.penteint.com/demo',
 };
 const esc = (v) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 export function demoHtml(html) {
@@ -33,7 +33,7 @@ function seoPages() {
 }
 
 // The live site's security headers (firebase.json), also on the local preview, so every browser test runs
-// under the same Content-Security-Policy as trawpie.org and fails if something needs inline script.
+// under the same Content-Security-Policy as app.penteint.com and fails if something needs inline script.
 const HEADERS = Object.fromEntries(JSON.parse(readFileSync(new URL('./firebase.json', import.meta.url), 'utf8')).hosting.headers
   .find(h => h.source === '**').headers.map(h => [h.key, h.value]));
 

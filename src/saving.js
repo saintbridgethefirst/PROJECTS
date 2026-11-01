@@ -81,7 +81,7 @@ export function healLostEdits(app, s) {
     ops.push({ type: 'update', path: r.path, data: { [r.field]: merged } });
   });
   if (!ops.length) return;
-  console.info('Trawpie: merged changes saved at the same moment by you and a teammate', ops.map(o => o.path + ' ' + Object.keys(o.data)[0]));
+  console.info('Penteint Projects: merged changes saved at the same moment by you and a teammate', ops.map(o => o.path + ' ' + Object.keys(o.data)[0]));
   s.healed = (s.healed || 0) + ops.length;
   s.pending++; setSyncStatus(app);
   app.backend.data.commit(s.teamId, ops)
@@ -94,7 +94,7 @@ export function saveError(e) {
   const code = String((e && e.code) || ''); const msg = String((e && e.message) || '');
   if (code.includes('permission-denied')) return 'You don’t have permission to change that — your role in this team may have just changed. Reload to see your current access.';
   if (code.includes('unauthenticated')) return 'You’ve been signed out. Reload and sign in again; then redo the last change.';
-  if (code.includes('resource-exhausted')) return 'Trawpie has hit its usage limit for today. Your change wasn’t saved; please try again later.';
+  if (code.includes('resource-exhausted')) return 'Penteint Projects has hit its usage limit for today. Your change wasn’t saved; please try again later.';
   if (code.includes('invalid-argument') && /size|bytes|too large|exceeds/i.test(msg)) return 'This task has grown too big to save (too much history, notes or attachments). Remove some and try again.';
   if (code.includes('deadline-exceeded') || code.includes('unavailable')) return 'The connection dropped before the change was saved. Check your internet and try again.';
   return friendlyError(e);
