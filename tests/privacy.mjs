@@ -39,7 +39,7 @@ try {
   step('Download my data');
   await A.evaluate(() => TT.openAccount('data')); await A.waitForSelector('#your-data-field');
   const [dl] = await Promise.all([A.waitForEvent('download'), A.click('#my-data-download')]);
-  ok(/^trawpie-my-data-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()), 'a dated JSON file: ' + dl.suggestedFilename());
+  ok(/^penteint-projects-my-data-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()), 'a dated JSON file: ' + dl.suggestedFilename());
   const data = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));
   ok(data.account.email === 'aisha@uni.ac.uk' && data.teams.length === 2, 'my account and both my teams');
   const sky = data.teams.find(t => t.teamName === 'Skyhawk');
@@ -77,7 +77,10 @@ try {
   const T2 = S.teams[skyId];
   ok(T2 && !T2.members[aUid] && T2.members[bUid], 'Skyhawk stays, without me');
   ok(T2.comments.cm1.text === 'Spar first, then ribs' && T2.comments.cm1.authorName === 'Former member', 'my comment stays, signed “Former member”');
-  ok(!JSON.stringify(T2).includes('Aisha Khan') && !JSON.stringify(T2).includes('aisha@uni.ac.uk'), 'my name and email appear nowhere in the team');
+  // Penteint Projects: the audit trail is a sealed legal record, so it keeps who did what (the privacy
+  // policy must say so; retention is a phase 5 decision). Everywhere else, the name and email are gone.
+  const { audit: _audit, private: _private, ...T2rest } = T2;
+  ok(!JSON.stringify(T2rest).includes('Aisha Khan') && !JSON.stringify(T2rest).includes('aisha@uni.ac.uk'), 'my name and email appear nowhere in the team except its audit trail');
   await B.reload(); await B.waitForSelector('.node-cat'); await sleep(400);
   ok(await B.locator('.task-card', { hasText: 'Wing CAD' }).count() === 1, 'Tom still has the task');
   ok(errors.length === 0, 'no page errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
