@@ -36,7 +36,7 @@ export const STUDENT_EMAIL_CHECK = env.VITE_STUDENT_EMAIL_CHECK === 'true';
 // The server (Cloud Functions + Resend) emails invitations itself. On whenever the functions are deployed.
 
 // The public demo on the real site: /demo (in-browser data only, a sample team and a guided tour).
-export const PUBLIC_DEMO = typeof location !== 'undefined' && /^\/demo\/?$/.test(location.pathname);
+export const PUBLIC_DEMO = typeof location !== 'undefined' && /(^|\/)demo(\.html)?\/?$/.test(location.pathname);
 // Demo mode = no Firebase project configured, ?demo in the URL, or the public demo page.
 export const DEMO_MODE = !firebaseConfig.apiKey || !firebaseConfig.projectId || PUBLIC_DEMO ||
   (typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo'));

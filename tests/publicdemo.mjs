@@ -18,6 +18,10 @@ try {
   ok((await p.locator('#auth-screen .auth-title').textContent()).includes('no sign-up'), 'says no sign-up');
   ok(await p.locator('#auth-screen .auth-tour').isHidden() && (await p.getAttribute('#try-demo', 'href')) === 'guide.html', 'no links back to the demo itself');
   ok(await p.locator('#demo-ribbon').isVisible(), 'the demo ribbon shows');
+  // Penteint Projects: the company comes first and is picked; no dissertation buttons or Trawpie changelog
+  ok((await p.locator('.demo-kind').first().getAttribute('data-kind')) === 'corporate' && (await p.locator('.demo-kind.on').getAttribute('data-kind')) === 'corporate', 'the engineering company is first and picked');
+  ok(await p.locator('#demo-diss, #demo-diss-sample, .demo-new').count() === 0, 'no dissertation buttons or Trawpie changelog');
+  await p.click('.demo-kind[data-kind="drone"]');
 
   step('One click: the sample team and the tour');
   await p.fill('#demo-name', 'Sam'); await p.click('#demo-go');

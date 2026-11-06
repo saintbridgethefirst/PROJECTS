@@ -14,6 +14,7 @@ import './themes.css';
 import './penteint.css';
 import { THEMES, SWATCH, applyTheme, currentTheme, savedTheme, themeName, isTheme, resolveTheme } from './themes.js';
 import { APP_NAME, APP_TAGLINE, DEMO_MODE, PUBLIC_DEMO, GOOGLE_CLIENT_ID, MS_CLIENT_ID, LIMITS } from './config.js';
+import { EDUCATION } from './edition.js';
 import { can, canEditOwnedBy, DEFAULT_ROLES, normEmail, isValidEmail } from './permissions.js';
 import { healthOf, checkFiles, checkableBy } from './filehealth.js';
 import { cleanTeam, cleanMember, cleanCategory, cleanTask, DEFAULT_LABELS, newId, nextWeekTitle, cascadeWeekDates, carryIndexOf, FAIR_USE_TEAMS, cleanDissertation } from './model.js';
@@ -152,7 +153,7 @@ const goTeam = (id) => { location.hash = '#/t/' + id; };
 // ── Sign-in screen ──────────────────────────────────────────────────────────
 function renderAuth() {
   show('auth-screen');
-  if (!/^\/demo\/?$/.test(location.pathname)) document.title = LANDING_TITLE;
+  if (!/(^|\/)demo(\.html)?\/?$/.test(location.pathname)) document.title = LANDING_TITLE;
   const box = $('#auth-actions'); box.replaceChildren();
   const note = $('#auth-note'); note.textContent = '';
   const P = backend.auth.providers;
@@ -230,12 +231,18 @@ function startDissertationTeam(make) {
   form.scrollIntoView({ block: 'center', behavior: 'smooth' }); form.name.focus(); form.name.select();
   toast('Name your dissertation workspace, then press Create team to plan it.', 6000);
 }
+const SAMPLE_DRONE = EDUCATION
+  ? { key: 'drone', icon: '🛩️', name: 'Student drone team', short: 'drone team', text: '6 people building a UAV for a competition: sub-teams, parts, budget and sign-offs.' }
+  : { key: 'drone', icon: '🛩️', name: 'Drone team', short: 'drone team', text: '6 people building a UAV: sub-teams, parts, budget and sign-offs.' };
+const SAMPLE_COMPANY = { key: 'corporate', icon: '🏭', name: 'Engineering company', short: 'company project', text: 'Launching an autonomous warehouse robot: programme, suppliers, approvals, requirements and a customer pilot.' };
+// Penteint Projects leads with the company; Trawpie leads with the student drone team.
 const SAMPLE_CHOICES = [
-  { key: 'drone', icon: '🛩️', name: 'Student drone team', short: 'drone team', text: '6 people building a UAV for a competition: sub-teams, parts, budget and sign-offs.' },
-  { key: 'corporate', icon: '🏭', name: 'Engineering company', short: 'company project', text: 'Launching an autonomous warehouse robot: programme, suppliers, approvals, requirements and a customer pilot.' },
+  ...(EDUCATION ? [SAMPLE_DRONE, SAMPLE_COMPANY] : [SAMPLE_COMPANY]),
   { key: 'satellite', icon: '🛰️', name: 'Satellite mission', short: 'satellite mission', text: 'A 3U CubeSat from design reviews to the flight model: budgets, test campaigns and risks.' },
+  ...(EDUCATION ? [] : [SAMPLE_DRONE]),
   { key: 'formula', icon: '🏎️', name: 'Formula Student team', short: 'Formula Student team', text: 'Building an electric race car: chassis, suspension, design freeze, dyno tests, parts and the static events.' },
 ];
+const SAMPLE_LIST = EDUCATION ? 'a student drone team, an engineering company, a satellite mission or a Formula Student team' : 'an engineering company, a satellite mission, a drone team or a Formula Student team';
 const sget = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const sset = (k, v) => { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch { /* */ } };
 // A message to show once after the page reloads (signing out reloads it: see backend signOut)
@@ -245,7 +252,7 @@ function demoWelcome(box, note, wrap) {
   document.title = 'Penteint Projects live demo: try it with a sample team';
   const setMeta = (sel, attr, v) => { const m = document.querySelector(sel); if (m) m.setAttribute(attr, v); };
   setMeta('link[rel="canonical"]', 'href', 'https://app.penteint.com/demo'); setMeta('meta[property="og:url"]', 'content', 'https://app.penteint.com/demo');
-  setMeta('meta[name="description"]', 'content', 'Try Penteint Projects in your browser with no sign-up: a student drone team, an engineering company, a satellite mission or a Formula Student team, with a 2-minute guided tour.');
+  setMeta('meta[name="description"]', 'content', 'Try Penteint Projects in your browser with no sign-up: ' + SAMPLE_LIST + ', with a 2-minute guided tour.');
   const title = document.querySelector('#auth-screen .auth-title'); if (title) title.textContent = 'Try Penteint Projects: no sign-up, nothing to install.';
   // On the demo itself, the "try the demo" links point to the guide instead.
   const tourLink = document.querySelector('#auth-screen .auth-tour'); if (tourLink) tourLink.hidden = true;
@@ -254,7 +261,7 @@ function demoWelcome(box, note, wrap) {
   const card = document.getElementById('lp-signin'), hero = document.querySelector('#auth-screen .lp-hero');
   if (card && hero && card.nextElementSibling !== hero) { hero.before(card); card.classList.add('lp-demo-first'); }
   const ct = document.getElementById('lp-signin-title'); if (ct) ct.textContent = 'Try the live demo';
-  const cp = document.querySelector('#lp-signin .lp-signin-copy p'); if (cp) cp.textContent = 'Pick a made-up team: a student drone team, an engineering company, a satellite mission or a Formula Student team. Each opens with a 2-minute guided tour. No sign-up; everything stays in this browser.';
+  const cp = document.querySelector('#lp-signin .lp-signin-copy p'); if (cp) cp.textContent = 'Pick a made-up team: ' + SAMPLE_LIST + '. Each opens with a 2-minute guided tour. No sign-up; everything stays in this browser.';
   const name = el('input.inp', { id: 'demo-name', placeholder: 'Your name (optional)', maxlength: 60, autocomplete: 'given-name', 'aria-label': 'Your name' });
   const go = (next) => wrap(async () => { sset(DEMO_NEXT, next); await backend.auth.signInDemo('visitor@demo.teamtrack', name.value.trim() || 'Demo visitor'); });
   // Which made-up team to open: a student drone team, an engineering company, or a satellite mission.
@@ -266,12 +273,12 @@ function demoWelcome(box, note, wrap) {
   // /demo?plan=dissertation (from app.penteint.com/dissertation): planning a dissertation comes first.
   const dissBtn = el('button.btn.block' + (wantsDissertation() ? '.primary' : ''), { type: 'button', id: 'demo-diss', onclick: go('dissertation') }, '🎓 Plan a dissertation or thesis');
   const dissSample = el('button.btn.block', { type: 'button', id: 'demo-diss-sample', onclick: go('sample:diss') }, '📖 See a sample dissertation');
-  if (wantsDissertation()) goBtn.classList.remove('primary');
+  if (EDUCATION && wantsDissertation()) goBtn.classList.remove('primary');
   const kinds = el('div.demo-kinds', { role: 'radiogroup', 'aria-label': 'Which sample team' }, ...KINDS.map((k, i) => {
     const b = el('button.demo-kind' + (i === first ? '.on' : ''), { type: 'button', role: 'radio', 'aria-checked': String(i === first), 'data-kind': k.key, onclick: () => {
       kind = k.key; kinds.querySelectorAll('.demo-kind').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); });
       goBtn.textContent = '▶ Open the ' + k.short + ', with a 2-minute tour';
-    } }, el('img.demo-kind-shot', { src: '/img/demo/' + k.key + '.jpg', alt: '', loading: 'lazy', width: 640, height: 360 }),
+    } }, el('img.demo-kind-shot', { src: 'img/demo/' + k.key + '.jpg', alt: '', loading: 'lazy', width: 640, height: 360 }),
       el('span.demo-kind-body', {}, el('span.demo-kind-ico', { 'aria-hidden': 'true' }, k.icon), el('span', {}, el('b', {}, k.name), el('span.hint', {}, k.text))));
     return b;
   }));
@@ -289,11 +296,11 @@ function demoWelcome(box, note, wrap) {
   box.append(el('div.demo-welcome', {}, el('b', {}, 'Pick a team to explore.'), el('span.hint', {}, ' This is the real app with a made-up team. Everything stays in this browser; nothing is sent anywhere.')), kinds);
   (copy ? left : box).append(
     name,
-    ...(wantsDissertation() ? [dissBtn, dissSample, goBtn] : [goBtn]),
+    ...(EDUCATION && wantsDissertation() ? [dissBtn, dissSample, goBtn] : [goBtn]),
     el('button.btn.block', { type: 'button', id: 'demo-empty', onclick: go('empty') }, 'Start with an empty team'),
-    ...(wantsDissertation() ? [] : [dissBtn, dissSample]),
+    ...(!EDUCATION || wantsDissertation() ? [] : [dissBtn, dissSample]),
     many,
-    el('details.demo-new', { open: !!copy && window.matchMedia('(min-width: 961px)').matches }, el('summary', {}, 'New in Penteint Projects'),
+    !EDUCATION ? '' : el('details.demo-new', { open: !!copy && window.matchMedia('(min-width: 961px)').matches }, el('summary', {}, 'New in Penteint Projects'),
       el('ul', {}, ['Tidier settings: Your account in four sections, switches for settings that are on or off, and round ticks for sub-tasks',
         'A tidier task editor: the title stays at the top, with Task, Plan, Files and Activity tabs (on a phone it slides up from the bottom)',
         'A dissertation and thesis planner: a week-by-week plan from your hand-in date, chapter word counts, a proposal helper, supervisor meetings and feedback on drafts (🎓 Plan a dissertation, or 📖 see a sample)',
@@ -304,7 +311,7 @@ function demoWelcome(box, note, wrap) {
         'Friendly or Professional look for each team, and for your own home page (🎨 Theme)',
         'A Formula Student team to try, next to the drone team, company and CubeSat',
         'Working together: live cursors, a glow on the task someone is editing, guests and the joint board'].map(t => el('li', {}, t)))),
-    el('p.hint', {}, 'Free for student teams. Ready for real? ', el('a', { href: '/' }, 'Sign in to Penteint Projects →')));
+    el('p.hint', {}, EDUCATION ? 'Free for student teams. Ready for real? ' : 'Ready for your own projects? ', el('a', { href: './' }, 'Sign in to Penteint Projects →')));
 }
 /** The sample team (src/sample.js): opens your existing copy, or loads one. tour = start the guided tour once it's open. */
 async function openSampleTeam(tour, kind = 'drone') {

@@ -31,7 +31,9 @@
 .landing.pnt .lp-hero { padding-bottom: clamp(56px, 10vh, 112px); }
 .landing.pnt .lp-card { background: #0b0d13; border-color: rgba(255, 255, 255, .09); box-shadow: 0 0 0 1px rgba(180, 200, 255, .06), 0 30px 80px -30px rgba(66, 120, 225, .45); }
 .landing.pnt .lp-card input { background: #05070c; color: var(--lp-ink); }
-.landing.pnt .lp-card .btn.primary { background: #fff; border-color: #fff; color: #05070c; }
+/* main buttons on the black page: white with near-black text (the app's blue would leave white text unreadable) */
+.landing.pnt .btn.primary { background: #fff; border-color: #fff; color: #05070c; }
+.landing.pnt .btn.primary:hover { background: #dfe6f5; border-color: #dfe6f5; }
 .landing.pnt .lp-grid { background: #0b0d13; border-color: rgba(255, 255, 255, .09); }
 .landing.pnt .lp-grid > div { border-color: rgba(255, 255, 255, .07); }
 .landing.pnt .lp-spec { background: #0b0d13; border-color: rgba(255, 255, 255, .09); }
