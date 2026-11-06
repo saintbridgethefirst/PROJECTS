@@ -3,6 +3,7 @@
 // admin's App Check card.
 // Needs the preview server:  npx vite preview --port 4173  (it sends the site's real security headers)
 import { chromium } from 'playwright';
+import { openSample } from './open-sample.mjs';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 let pass = 0, fail = 0;
@@ -65,9 +66,7 @@ try {
 
   step('Board buttons and fields still work (data-onclick, no inline script)');
   const p = await page(ctx);
-  await p.goto(BASE + 'demo'); await p.waitForSelector('.demo-kind');
-  await p.click('.demo-kind[data-kind="drone"]'); await p.fill('#demo-name', 'Sam'); await p.click('#demo-go');
-  await p.waitForSelector('.task-card', { timeout: 20000 }); await sleep(1500);
+  await openSample(p, BASE, 'drone'); await sleep(1500);
   ok(await p.locator('#loading').isHidden(), 'the loading screen goes once the board is up');
   await p.evaluate(() => document.querySelectorAll('[class*=tour-]').forEach(e => e.remove()));
   await p.click('.top-btn[data-view="kanban"]'); await sleep(400);

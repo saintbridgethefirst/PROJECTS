@@ -4,6 +4,8 @@
 // sample's @mention names the visitor.
 // Needs the preview server:  npx vite preview --port 4173
 import { chromium } from 'playwright';
+import { openSample } from './open-sample.mjs';
+import { EDUCATION } from '../src/edition.js';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:4173/';
 let pass = 0, fail = 0;
@@ -15,9 +17,11 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || 
 async function sample(viewport, kind, extra = {}) {
   const ctx = await browser.newContext({ viewport, ...extra });
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message)); p.on('dialog', d => d.accept());
-  await p.goto(BASE + 'demo'); await p.waitForSelector('.demo-kind');
-  if (kind === 'diss') { await p.fill('#demo-name', 'Sam'); await p.click('#demo-diss-sample'); }
-  else { await p.click(`.demo-kind[data-kind="${kind}"]`); await p.fill('#demo-name', 'Sam'); await p.click('#demo-go'); }
+  if (EDUCATION) {   // Trawpie: through the public demo page
+    await p.goto(BASE + 'demo'); await p.waitForSelector('.demo-kind');
+    if (kind === 'diss') { await p.fill('#demo-name', 'Sam'); await p.click('#demo-diss-sample'); }
+    else { await p.click(`.demo-kind[data-kind="${kind}"]`); await p.fill('#demo-name', 'Sam'); await p.click('#demo-go'); }
+  } else await openSample(p, BASE, kind);   // Penteint Projects: no public demo, the home screen's sample cards
   await p.waitForSelector('.task-card', { timeout: 20000 }); await sleep(1800);
   await p.evaluate(() => document.querySelectorAll('[class*=tour-]').forEach(e => e.remove()));
   return p;
@@ -59,7 +63,15 @@ try {
   await ph.keyboard.press('Escape');
 
   step('Approvals with nothing waiting says so');
-  const diss = await sample({ width: 1280, height: 860 }, 'diss');
+  // a team with nothing waiting: Trawpie's sample dissertation, or in Penteint Projects a new empty team
+  const diss = EDUCATION ? await sample({ width: 1280, height: 860 }, 'diss') : await (async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } }); const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
+    await p.goto(BASE); await p.waitForSelector('#auth-screen:not([hidden]) #auth-actions input[type=email]');
+    await p.fill('#auth-actions input[placeholder="Your name"]', 'Sam'); await p.fill('#auth-actions input[type=email]', 'sam@penteint-demo.com');
+    await p.click('#auth-actions button:has-text("Sign in to demo")'); await p.waitForSelector('#home-screen:not([hidden])');
+    await p.fill('#create-team-form input[name=name]', 'Bench rig'); await p.click('#create-team-form button[type=submit]');
+    await p.waitForSelector('.node-cat'); await sleep(800); return p;
+  })();
   await diss.evaluate(() => { document.querySelectorAll('.modal-overlay').forEach(o => o.remove()); openApprovals(); }); await sleep(400);
   ok(await diss.locator('#approvals-modal .so-empty').isVisible(), 'an empty Approvals window explains what shows there');
 
