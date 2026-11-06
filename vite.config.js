@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { EDUCATION } from './src/edition.js';
 
 // The live demo gets its own HTML page (dist/demo.html, served at /demo) with its own title,
 // description and canonical in the HTML itself, so search engines see it as a separate page
@@ -28,7 +29,8 @@ function seoPages() {
   return {
     name: 'trawpie-seo-pages', apply: 'build',
     configResolved(c) { outDir = resolve(c.root, c.build.outDir); },
-    closeBundle() { writeFileSync(resolve(outDir, 'demo.html'), demoHtml(readFileSync(resolve(outDir, 'index.html'), 'utf8'))); },
+    // Penteint Projects has no public demo page (src/edition.js); Trawpie builds dist/demo.html.
+    closeBundle() { if (EDUCATION) writeFileSync(resolve(outDir, 'demo.html'), demoHtml(readFileSync(resolve(outDir, 'index.html'), 'utf8'))); },
   };
 }
 

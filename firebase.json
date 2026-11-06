@@ -15,10 +15,6 @@
         "destination": "/microsoft-identity-association.json"
       },
       {
-        "source": "/demo",
-        "destination": "/demo.html"
-      },
-      {
         "source": "**/!(*.*)",
         "destination": "/index.html"
       }
@@ -107,15 +103,6 @@
         ]
       },
       {
-        "source": "/demo",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache"
-          }
-        ]
-      },
-      {
         "source": "/",
         "headers": [
           {
@@ -154,8 +141,8 @@
     ],
     "redirects": [
       {
-        "source": "/demo/",
-        "destination": "/demo",
+        "source": "/demo{,/**}",
+        "destination": "/",
         "type": 301
       }
     ]

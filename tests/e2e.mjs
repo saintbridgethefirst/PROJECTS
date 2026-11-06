@@ -51,7 +51,7 @@ try {
   // ── 1. Owner signs in and creates a team ─────────────────────────────────
   step('Owner signs in and creates a team');
   const A = await tab('Aisha');
-  ok(await A.locator('.pnt-hero-mark img').isVisible(), 'sign-in page shows the Penteint figure');
+  ok(await A.locator('#px-board .px-card').count() === 6, 'sign-in page shows the sample board');
   ok((await A.textContent('#auth-actions')).includes('Demo mode'), 'demo mode is explained');
   await shot(A, '01-sign-in');
   await signIn(A, 'Aisha Khan', 'aisha@uni.ac.uk');

@@ -53,37 +53,213 @@
   <script src="/boot/loading.js"></script>
 
   <!-- ── Sign-in ─────────────────────────────────────────────────────────── -->
-  <main id="auth-screen" class="screen landing pnt" hidden>
-    <header class="lp-nav">
-      <a class="lp-brand" href="./" aria-label="Penteint Projects home"><img class="pnt-nav-mark" src="/icons/penteint-mark.svg" alt="" width="18" height="24"><span class="pnt-word">PENTEINT</span><span class="pnt-product">Projects</span></a>
-      <nav class="lp-links" aria-label="Site">
-        <a href="#pnt-features">Product</a>
-        <a href="#pnt-trust">Security</a>
-        <a href="https://penteint.com">Penteint</a>
-      </nav>
-      <div class="lp-nav-actions">
-        <a class="lp-btn lp-ghost auth-tour" href="/demo"><span class="auth-tour-text">Live demo</span></a>
-        <a class="lp-btn lp-ghost" href="#lp-signin" id="lp-signin-link">Log in</a>
-        <a class="lp-btn lp-primary" href="#lp-signin" id="lp-signup">Get started</a>
+  <main id="auth-screen" class="screen landing pnt px" hidden>
+    <header class="px-nav">
+      <div class="px-wrap px-nav-in">
+        <a class="px-brand" href="./" aria-label="Penteint Projects home"><img class="px-brand-mark" src="/icons/penteint-mark.svg" alt="" width="15" height="20"><span class="px-word">PENTEINT</span><span class="px-product">Projects</span></a>
+        <nav class="px-links" aria-label="Site">
+          <a href="#px-product">Product</a>
+          <a href="#px-audit">Audit trail</a>
+          <a href="#px-trust">Security</a>
+          <a href="#px-plans">Plans</a>
+        </nav>
+        <div class="px-nav-actions">
+          <a class="px-btn px-ghost" href="#lp-signin" id="lp-signin-link">Sign in</a>
+          <a class="px-btn px-primary" href="mailto:hello@penteint.com?subject=Penteint%20Projects" id="lp-sales">Talk to sales</a>
+        </div>
       </div>
     </header>
 
-    <section class="lp-hero">
-      <div class="lp-copy">
-        <p class="pnt-eyebrow">Penteint Projects</p>
-        <h1 class="auth-title">Plan the work. Prove it was done.</h1>
-        <p class="auth-sub">Project management for teams that build hardware. Tasks, people, parts, budgets and sign-offs on one live board, with an audit trail that only the server can write.</p>
-        <div class="lp-ctas">
-          <a class="lp-btn lp-primary" id="try-demo" href="/demo">Try the live demo</a>
-          <a class="lp-btn lp-ghost lp-signup" href="#lp-signin">Sign in</a>
+    <section class="px-hero" aria-labelledby="px-hero-title">
+      <div class="px-wrap px-hero-in">
+        <div class="px-hero-copy">
+          <p class="px-label">Penteint Projects · Industry edition</p>
+          <h1 class="auth-title" id="px-hero-title">Plan the work.<br>Prove it was done.</h1>
+          <p class="auth-sub">Project management for teams that build hardware. Tasks, parts, budgets and sign-offs on one live board, with an audit trail that only the server can write.</p>
+          <div class="px-ctas">
+            <a class="px-btn px-primary px-lg" href="#lp-signin" id="lp-signup">Get started</a>
+            <a class="px-btn px-ghost px-lg" href="mailto:hello@penteint.com?subject=Penteint%20Projects">Talk to sales</a>
+          </div>
+          <dl class="px-titleblock" aria-label="Key facts">
+            <div><dt>Hosted</dt><dd>London, UK</dd></div>
+            <div><dt>Access</dt><dd>Checked on every read</dd></div>
+            <div><dt>Record</dt><dd>Hash-chained</dd></div>
+          </dl>
         </div>
-        <p class="lp-note">The demo runs in your browser. Nothing you type in it is sent anywhere.</p>
+
+        <figure class="px-board-fig" aria-labelledby="px-board-cap">
+          <div class="px-board-head">
+            <span class="px-board-title"><b>AGV-200 programme</b> · Week 45</span>
+            <span class="px-board-hint" id="px-board-cap">Try it: drag a card to another column</span>
+          </div>
+          <div class="px-board-scroll">
+            <div class="px-board" id="px-board" data-next-seq="1044">
+              <section class="px-col" data-col="Design" aria-label="Design">
+                <h3>Design <span class="px-count"></span></h3>
+                <article class="px-card" tabindex="0" data-name="Chassis weldment drawing"><span class="px-pn">CHS-0310 · Rev B</span><b>Chassis weldment drawing</b><span class="px-meta"><i>AK</i> 6 h</span></article>
+                <article class="px-card" tabindex="0" data-name="Battery tray FEA"><span class="px-pn">BAT-0207 · Rev A</span><b>Battery tray FEA</b><span class="px-meta"><i>MR</i> 4 h</span></article>
+              </section>
+              <section class="px-col" data-col="Build" aria-label="Build">
+                <h3>Build <span class="px-count"></span></h3>
+                <article class="px-card" tabindex="0" data-name="Lift module bracket"><span class="px-pn">LFT-0142 · Rev C</span><b>Lift module bracket</b><span class="px-meta"><i>BO</i> 3 h</span></article>
+                <article class="px-card" tabindex="0" data-name="Drive-side harness"><span class="px-pn">HRN-0051 · Rev A</span><b>Drive-side harness</b><span class="px-meta"><i>JL</i> 5 h</span></article>
+              </section>
+              <section class="px-col" data-col="Test" aria-label="Test">
+                <h3>Test <span class="px-count"></span></h3>
+                <article class="px-card" tabindex="0" data-name="Drive motor endurance run"><span class="px-pn">DRV-0420 · Rev B</span><b>Drive motor endurance run</b><span class="px-meta"><i>PS</i> 12 h</span></article>
+              </section>
+              <section class="px-col px-col-sign" data-col="Signed off" aria-label="Signed off">
+                <h3>Signed off <span class="px-count"></span></h3>
+                <article class="px-card px-signed" tabindex="0" data-name="Caster mount"><span class="px-pn">CST-0118 · Rev D</span><b>Caster mount</b><span class="px-meta"><i>AK</i> Signed</span></article>
+              </section>
+            </div>
+          </div>
+          <div class="px-trail" aria-label="Audit trail">
+            <div class="px-trail-head"><span>Audit trail</span><span class="px-trail-ok" id="px-trail-ok">✓ Chain checks out</span></div>
+            <ol class="px-trail-list" id="px-trail" aria-live="polite">
+              <li><span class="px-seq">#1043</span><span class="px-who">Asha Patel</span><span class="px-what">signed off <b>Caster mount</b> (Rev D)</span><span class="px-hash">4be0…9c1e</span></li>
+              <li><span class="px-seq">#1042</span><span class="px-who">Ben Owusu</span><span class="px-what">moved <b>Lift module bracket</b>: Design → Build</span><span class="px-hash">a71d…02f3</span></li>
+            </ol>
+          </div>
+        </figure>
       </div>
-      <div class="pnt-hero-mark" aria-hidden="true"><img src="/icons/penteint-mark.svg" alt="" width="300" height="401"></div>
     </section>
 
-    <section class="lp-signin" id="lp-signin" aria-labelledby="lp-signin-title">
+    <section class="px-band" id="px-product" aria-labelledby="px-product-title">
+      <div class="px-wrap">
+        <div class="px-section-head">
+          <p class="px-label">Product</p>
+          <h2 id="px-product-title">Built for engineering programmes, not to-do lists.</h2>
+          <p>Everything a hardware team plans, buys and signs off, in one place, with each change on the record.</p>
+        </div>
+        <div class="px-grid">
+          <div class="px-cell px-cell-wide">
+            <p class="px-tag">Plan</p>
+            <h3>One board, three views</h3>
+            <p>Weeks, Kanban and Gantt over the same tasks. Drag work between people, weeks and stages; dependencies and capacity update as you go. Changes reach the whole team within a second.</p>
+            <div class="px-mini-gantt" aria-hidden="true">
+              <span style="--s:0;--w:34%">Design review</span><span style="--s:24%;--w:30%">Prototype build</span><span style="--s:50%;--w:28%" class="px-crit">Endurance test</span><span style="--s:76%;--w:20%">Sign-off</span>
+            </div>
+          </div>
+          <div class="px-cell">
+            <p class="px-tag">Control</p>
+            <h3>Sign-offs and stage gates</h3>
+            <p>Design reviews with checklists. A lead signs off before work moves to the next stage.</p>
+          </div>
+          <div class="px-cell">
+            <p class="px-tag">Supply</p>
+            <h3>Parts, orders and budgets</h3>
+            <p>Part numbers, suppliers and order status. Purchases over a limit need approval; spending is tracked against budget lines.</p>
+          </div>
+          <div class="px-cell">
+            <p class="px-tag">Trace</p>
+            <h3>Requirements and risks</h3>
+            <p>Requirements traced to the tasks that deliver and verify them. Risks scored by likelihood and impact.</p>
+          </div>
+          <div class="px-cell">
+            <p class="px-tag">Resource</p>
+            <h3>People and capacity</h3>
+            <p>Hours, skills and time off for each person, and their load across every project.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="px-band" aria-labelledby="px-flow-title">
+      <div class="px-wrap">
+        <div class="px-section-head">
+          <p class="px-label">How work moves</p>
+          <h2 id="px-flow-title">From plan to proof, on one record.</h2>
+        </div>
+        <ol class="px-flow">
+          <li><b>Plan</b><span>Break the programme into weeks, owners and stages.</span></li>
+          <li><b>Build</b><span>Track parts, orders and hours as work happens.</span></li>
+          <li><b>Review</b><span>Run design reviews against a checklist.</span></li>
+          <li><b>Sign off</b><span>The responsible lead approves the stage gate.</span></li>
+          <li><b>Record</b><span>The server seals every step into the audit trail.</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="px-band" id="px-audit" aria-labelledby="px-audit-title">
+      <div class="px-wrap px-split">
+        <div class="px-section-head">
+          <p class="px-label">Audit trail</p>
+          <h2 id="px-audit-title">A record nobody can quietly edit.</h2>
+          <p>Every change to tasks, parts, budgets, members and roles is written by the server, numbered and sealed to the entry before it. Not even the team owner can change or remove an entry.</p>
+          <ul class="px-ticks">
+            <li>Who, when, and each field before and after</li>
+            <li>Checked in your browser: a gap or an edit is named</li>
+            <li>CSV export for your quality manager or auditor</li>
+          </ul>
+        </div>
+        <div class="px-audit" aria-label="Example of the audit trail screen">
+          <div class="px-audit-bar">✓ Entries 1–1046 check out: nothing in them has been changed, removed or reordered.</div>
+          <div class="px-audit-scroll">
+            <table class="px-audit-table">
+              <thead><tr><th>#</th><th>When</th><th>Who</th><th>Record</th><th>Change</th></tr></thead>
+              <tbody>
+                <tr><td>1046</td><td>13:42</td><td>Asha Patel</td><td>LFT-0142 Lift bracket</td><td>stage: Build → Test</td></tr>
+                <tr><td>1045</td><td>13:40</td><td>Ben Owusu</td><td>HRN-0051 Harness</td><td>Created, Rev A</td></tr>
+                <tr><td>1044</td><td>13:31</td><td>Penteint server</td><td>DRV-0420 Endurance run</td><td>GitHub: PR #212 merged</td></tr>
+                <tr><td>1043</td><td>13:20</td><td>Asha Patel</td><td>CST-0118 Caster mount</td><td>sign-off: waiting → approved</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="px-caption">Settings ▸ Audit trail, with example data</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="px-band" id="px-trust" aria-labelledby="px-trust-title">
+      <div class="px-wrap px-split">
+        <div class="px-section-head">
+          <p class="px-label">Security</p>
+          <h2 id="px-trust-title">Your records stay in London.</h2>
+          <p><a class="px-link" href="security.html">Read how Penteint Projects protects your data →</a></p>
+        </div>
+        <table class="px-spec">
+          <tr><th>Storage</th><td>Google Cloud, London (europe-west2), under UK GDPR</td></tr>
+          <tr><th>Access</th><td>Every read and write checked by the database against the team and the person’s role</td></tr>
+          <tr><th>Audit</th><td>Server-written, hash-chained record of every change</td></tr>
+          <tr><th>Backups</th><td>Daily, kept 30 days; weekly, kept 14 weeks</td></tr>
+          <tr><th>Your data</th><td>Export or delete everything, any time</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section class="px-band" aria-labelledby="px-next-title">
+      <div class="px-wrap">
+        <div class="px-section-head">
+          <p class="px-label">Roadmap</p>
+          <h2 id="px-next-title">Coming next.</h2>
+        </div>
+        <div class="px-grid px-grid-4">
+          <div class="px-cell"><p class="px-tag">Phase 2</p><h3>Company sign-in</h3><p>Organisations above teams, single sign-on through Microsoft or Google, and enforced two-step sign-in.</p></div>
+          <div class="px-cell"><p class="px-tag">Phase 3</p><h3>Datum PLM link</h3><p>Tasks linked to parts, revisions and change orders. A released change order becomes the work to carry it out.</p></div>
+          <div class="px-cell"><p class="px-tag">Phase 4</p><h3>Cost and earned value</h3><p>Labour rates, plan baselines, CPI and SPI per phase, and every project on one page.</p></div>
+          <div class="px-cell"><p class="px-tag">Phase 5</p><h3>Quality records</h3><p>Electronic signatures, locked records, NCRs, corrective actions and an ISO 9001 evidence pack.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="px-band" id="px-plans" aria-labelledby="px-plans-title">
+      <div class="px-wrap">
+        <div class="px-section-head">
+          <p class="px-label">Plans</p>
+          <h2 id="px-plans-title">Start with a pilot.</h2>
+        </div>
+        <div class="px-grid px-grid-3">
+          <div class="px-cell"><p class="px-tag">Starter</p><h3>Free during the pilot</h3><ul class="px-ticks"><li>Up to 30 people a team</li><li>Board, Gantt, parts and sign-offs</li><li>Server-written audit trail</li></ul></div>
+          <div class="px-cell px-cell-feature"><p class="px-tag">Team</p><h3>Price on request</h3><ul class="px-ticks"><li>Everything in Starter</li><li>Finance, requirements and risks</li><li>Priority support</li></ul></div>
+          <div class="px-cell"><p class="px-tag">Enterprise</p><h3>Custom, invoiced</h3><ul class="px-ticks"><li>Everything in Team</li><li>Single sign-on (Phase 2)</li><li>Datum PLM link (Phase 3)</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="px-band lp-signin" id="lp-signin" aria-labelledby="lp-signin-title">
       <div class="lp-signin-copy">
+        <p class="px-label">Account</p>
         <h2 id="lp-signin-title">Sign in to your company</h2>
         <p>Use the email your team invited, or create an account to start a project.</p>
       </div>
@@ -94,37 +270,16 @@
       </div>
     </section>
 
-    <section class="lp-features" id="pnt-features" aria-label="What it does">
-      <h2>Built for engineering programmes, not to-do lists.</h2>
-      <div class="lp-grid">
-        <div><h3>Audit trail</h3><p>Every change is recorded by the server and sealed to the one before it. Check it in your browser; export it for your auditor.</p></div>
-        <div><h3>Sign-offs and stage gates</h3><p>Design reviews with checklists. Leads sign off before work moves to the next stage.</p></div>
-        <div><h3>Parts, orders and budgets</h3><p>Suppliers and order status, approvals for purchases over a limit, spending against budget lines.</p></div>
-        <div><h3>Requirements and risks</h3><p>Requirements traced to the tasks that deliver and verify them. Risks scored by likelihood and impact.</p></div>
-        <div><h3>People and capacity</h3><p>Hours, skills and time off for each person, and their workload across every project.</p></div>
-        <div><h3>One live board</h3><p>Weeks, Kanban and Gantt over the same tasks. Changes reach the whole team within a second.</p></div>
+    <section class="px-band px-final">
+      <div class="px-wrap px-final-in">
+        <h2>Running a hardware programme?</h2>
+        <div class="px-ctas"><a class="px-btn px-primary px-lg" href="#lp-signin">Get started</a><a class="px-btn px-ghost px-lg" href="mailto:hello@penteint.com?subject=Penteint%20Projects">Talk to sales</a></div>
       </div>
-      <p class="pnt-next">Coming next: company sign-in (SSO), a live link to Datum PLM, cost and earned value, and NCR and CAPA records.</p>
-    </section>
-
-    <section class="lp-trust" id="pnt-trust" aria-label="Security">
-      <h2>Your records stay in London.</h2>
-      <table class="lp-spec">
-        <tr><th>Storage</th><td>Google Cloud, London (europe-west2), under UK GDPR</td></tr>
-        <tr><th>Access</th><td>Every read and write checked by the database against the team and the person’s role</td></tr>
-        <tr><th>Audit</th><td>A server-written, hash-chained record of every change that no one can edit, the owner included</td></tr>
-        <tr><th>Your data</th><td>Export or delete everything, any time</td></tr>
-      </table>
-      <a class="lp-text-link" href="security.html">Read how Penteint Projects protects your data</a>
-    </section>
-
-    <section class="lp-final">
-      <h2>See an engineering team’s week.</h2>
-      <div class="lp-ctas"><a class="lp-btn lp-primary" href="/demo">Try the live demo</a><a class="lp-btn lp-ghost lp-signup" href="#lp-signin">Sign in</a></div>
     </section>
   </main>
   <footer data-site-footer class="auth-footer"></footer>
   <script src="/boot/landing.js"></script>
+  <script src="/boot/hero-board.js" defer></script>
 
   <!-- ── Team list ───────────────────────────────────────────────────────── -->
   <div id="self-screen" class="screen" hidden></div>

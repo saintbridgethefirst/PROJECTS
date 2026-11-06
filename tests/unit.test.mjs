@@ -997,7 +997,7 @@ test('Microsoft publisher domain: app.penteint.com serves the app association fi
   assert.ok(i < rw.findIndex(r => r.destination === '/index.html'), 'before the catch-all, or the app page would be served instead');
 });
 
-test('SEO: the demo page gets its own title, description and canonical; the home page keeps its own', async () => {
+test('SEO: the demo page gets its own title, description and canonical; the home page keeps its own', { skip: !(await import('../src/edition.js')).EDUCATION && 'Penteint Projects has no public demo page' }, async () => {
   const fs = await import('node:fs');
   const { demoHtml } = await import('../vite.config.js');
   const home = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -1231,4 +1231,11 @@ test('edition: Penteint Projects turns the education parts off, in the app and i
   assert.ok(FEATURE_KEYS.includes('dissertation') && cleanFeatures({ dissertation: true }).dissertation === true, 'a stored switch is still kept, not lost');
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.doesNotMatch(html, /Trawpie|trawpie\.org|Dissertation or thesis/, 'no Trawpie or student-only wording on the page');
+  assert.doesNotMatch(html, /href="\/demo|try-demo|Live demo/i, 'no public demo on the page');
+  const { PUBLIC_DEMO } = await import('../src/config.js');
+  assert.equal(PUBLIC_DEMO, false, 'no public demo mode');
+  const hosting = JSON.parse(fs.readFileSync(new URL('../firebase.json', import.meta.url), 'utf8')).hosting;
+  assert.ok(hosting.redirects.some(r => r.source === '/demo{,/**}' && r.destination === '/'), '/demo sends people home');
+  assert.ok(!hosting.rewrites.some(r => r.source === '/demo'), 'no /demo page served');
+  assert.doesNotMatch(fs.readFileSync(new URL('../public/footer.js', import.meta.url), 'utf8'), /Live demo/, 'no demo link in the footer');
 });

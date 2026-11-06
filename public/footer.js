@@ -8,7 +8,7 @@
   var cur = 'en'; try { cur = localStorage.getItem('tt_lang') || (navigator.language || 'en').slice(0, 2); } catch (e) { /* private window */ }
   if (!LANGS.some(function (l) { return l[0] === cur; })) cur = 'en';
   var cols = [
-    ['Product', [['Live demo', 'https://app.penteint.com/demo'], ['How it works', app + 'guide.html'], ['Plans & features', app + 'guide.html#compare']]],
+    ['Product', [['How it works', app + 'guide.html'], ['Plans & features', app + 'guide.html#compare']]],
     ['Help', [['Contact us', '#contact'], ['Report a problem', '#report'], ['Security', app + 'security.html'], ['Privacy policy', app + 'privacy.html'], ['Terms of service', app + 'terms.html']]],
     ['For companies', [['Audit trail', app + 'security.html'], ['Roles & permissions', app + 'guide.html#roles'], ['Plans', app + 'guide.html#plans'], ['Penteint', 'https://penteint.com']]],
   ];
